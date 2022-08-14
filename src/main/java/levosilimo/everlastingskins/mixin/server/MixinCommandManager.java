@@ -2,7 +2,6 @@ package levosilimo.everlastingskins.mixin.server;
 
 import com.mojang.brigadier.CommandDispatcher;
 import levosilimo.everlastingskins.skinchanger.SkinCommand;
-import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import org.spongepowered.asm.mixin.Final;
@@ -19,7 +18,7 @@ public abstract class MixinCommandManager {
     private CommandDispatcher<CommandSourceStack> dispatcher;
 
     @Inject(method = "<init>", at = @At(value = "TAIL"))
-    private void init(Commands.CommandSelection p_230943_, CommandBuildContext p_230944_, CallbackInfo ci) {
+    private void init(Commands.CommandSelection p_82093_, CallbackInfo ci) {
         SkinCommand.register(dispatcher);
     }
 }

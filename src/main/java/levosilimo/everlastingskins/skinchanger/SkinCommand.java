@@ -13,9 +13,8 @@ import net.minecraft.client.renderer.EffectInstance;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.core.GlobalPos;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.contents.LiteralContents;
+import net.minecraft.core.Holder;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -135,7 +134,7 @@ public class SkinCommand {
                 }
             }
             if (!setByOperator)
-                targets.stream().findFirst().get().sendSystemMessage(MutableComponent.create(new LiteralContents(processing)));
+                targets.stream().findFirst().get().sendMessage(new TextComponent(processing), Mth.createInsecureUUID());
 
             Property skin = null;
             String source= "";
@@ -164,9 +163,9 @@ public class SkinCommand {
                 else SkinStorage.sourceMap.put(player.getUUID(),player.getGameProfile().getName());
                 SkinRestorer.getSkinStorage().setSkin(player.getUUID(), skin);
                 if (setByOperator)
-                    player.sendSystemMessage(MutableComponent.create(new LiteralContents(changeOP)));
+                    player.sendMessage(new TextComponent(changeOP), Mth.createInsecureUUID());
                 else
-                    player.sendSystemMessage(MutableComponent.create(new LiteralContents(recon_needed)));
+                    player.sendMessage(new TextComponent(recon_needed), Mth.createInsecureUUID());
             }
             for (ServerPlayer player:targets) {
                 ServerLevel world = player.getLevel();
@@ -204,14 +203,13 @@ public class SkinCommand {
         Abilities abilities = player.getAbilities();
 
         //Respawn packet info
-        ResourceKey<DimensionType> dimensionType=player.getLevel().getLevel().dimensionTypeId();
+        Holder<DimensionType> dimensionType=player.getLevel().getLevel().dimensionTypeRegistration();
         ResourceKey<Level> registryKey = player.getLevel().dimension();
         long seedEncrypted = Hashing.sha256().hashString(String.valueOf(player.getLevel().getSeed()), StandardCharsets.UTF_8).asLong();
         GameType gameType = player.gameMode.getGameModeForPlayer();
         GameType previousGameType = player.gameMode.getPreviousGameModeForPlayer();
         boolean isDebug = player.getLevel().isDebug();
         boolean isFlat = player.getLevel().isFlat();
-        Optional<GlobalPos> lastDeathLocation =player.getLastDeathLocation();
         //Skin change
         SkinRestorer.getSkinStorage().removeSkin(player.getUUID());
         player.getGameProfile().getProperties().removeAll("textures");
@@ -223,7 +221,7 @@ public class SkinCommand {
         //world.removePlayer(player,false);
         SkinRestorer.server.getPlayerList().broadcastAll(new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.ADD_PLAYER, player));
         //while (!world.getPlayers().contains(player)) world.addRespawnedPlayer(player);
-        player.connection.send(new ClientboundRespawnPacket(dimensionType,registryKey,seedEncrypted,gameType,previousGameType,isDebug,isFlat,true,lastDeathLocation));
+        player.connection.send(new ClientboundRespawnPacket(dimensionType,registryKey,seedEncrypted,gameType,previousGameType,isDebug,isFlat,true));
         world.removePlayerImmediately(player, Entity.RemovalReason.CHANGED_DIMENSION);
         player.revive();
         player.setPos(x, y, z);
