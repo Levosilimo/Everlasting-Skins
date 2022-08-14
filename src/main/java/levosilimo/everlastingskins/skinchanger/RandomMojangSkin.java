@@ -5,6 +5,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.levelgen.LegacyRandomSource;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -19,6 +21,7 @@ import java.util.Scanner;
 
 public class RandomMojangSkin {
     private static final ArrayList<String> blackList=Lists.newArrayList("ad");
+    private static LegacyRandomSource rand = new LegacyRandomSource(new Random().nextInt());
     public static String randomNick(boolean needCape,SkinVariant variant) {
         StringBuilder html = new StringBuilder();
         InputStream response = null;
@@ -27,13 +30,12 @@ public class RandomMojangSkin {
         try {
             String url;
             if (needCape) {
-                Random rand = new Random();
                 int year = Mth.nextInt(rand, 2011, 2016);
                 while (year == 2014) {
                     year = Mth.nextInt(rand, 2011, 2016);
                 }
                 int page = Mth.nextInt(rand, 1, 24) + ((year % 10) * 5);
-                url = "https://mskins.net/en/cape/minecon_" + Mth.nextInt(new Random(), 2011, 2016) + "?page=" + page;
+                url = "https://mskins.net/en/cape/minecon_" + Mth.nextInt(rand, 2011, 2016) + "?page=" + page;
                 min = 11000;
                 max = 65000;
             } else {
@@ -57,7 +59,7 @@ public class RandomMojangSkin {
                 ex.printStackTrace();
             }
         }
-        int RandomSkinIndex = html.indexOf("<span class=\"card-title green-text truncate\">", Mth.nextInt(new Random(), min, max)) + 45;
+        int RandomSkinIndex = html.indexOf("<span class=\"card-title green-text truncate\">", Mth.nextInt(rand, min, max)) + 45;
         String nickname = "";
         if (RandomSkinIndex > 44) {
             int RandomSkinIndexStop = html.indexOf("<", RandomSkinIndex);
@@ -91,7 +93,7 @@ public class RandomMojangSkin {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        int RandomSkinIndex = html.indexOf("<span class=\"card-title green-text truncate\">", Mth.nextInt(new Random(),11000,65000)) + 45;
+        int RandomSkinIndex = html.indexOf("<span class=\"card-title green-text truncate\">", Mth.nextInt(rand,11000,65000)) + 45;
         if(RandomSkinIndex>44){
             int RandomSkinIndexStop = html.indexOf("<", RandomSkinIndex);
             String nickname = html.substring(RandomSkinIndex, RandomSkinIndexStop);
