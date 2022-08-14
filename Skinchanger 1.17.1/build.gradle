@@ -1,0 +1,161 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net' }
+        maven { url = "https://repo.spongepowered.org/maven" }
+        mavenCentral()
+    }
+    dependencies {
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.+', changing: true
+        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: "org.spongepowered.mixin"
+apply plugin: 'maven-publish'
+
+version = project.mod_version
+archivesBaseName = project.mod_name
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(16)
+
+minecraft {
+    mappings channel: 'official', version: '1.17.1'
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+
+            arg "-mixin.config=everlastingskins.mixins.json"
+
+            property "mixin.env.disableRefMap", "true"
+            property "mixin.debug.export", "true"
+            property "mixin.debug.export.decompile", "false"
+            property "mixin.debug.verbose", "true"
+            property "mixin.debug.dumpTargetOnFailure", "true"
+            property "mixin.checks", "true"
+            property "mixin.hotSwap", "true"
+
+            property 'forge.logging.console.level', 'debug'
+
+            mods {
+                clienttweaks {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        server {
+            workingDirectory project.file('run')
+
+            arg "-mixin.config=everlastingskins.mixins.json"
+
+            property "mixin.env.disableRefMap", "true"
+            property "mixin.debug.export", "true"
+            property "mixin.debug.export.decompile", "false"
+            property "mixin.debug.verbose", "true"
+            property "mixin.debug.dumpTargetOnFailure", "true"
+            property "mixin.checks", "true"
+            property "mixin.hotSwap", "true"
+
+            property 'forge.logging.console.level', 'debug'
+
+            mods {
+                clienttweaks {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        data {
+            workingDirectory project.file('run')
+
+            property 'forge.logging.console.level', 'debug'
+
+            arg "-mixin.config=everlastingskins.mixins.json"
+
+            property "mixin.env.disableRefMap", "true"
+            property "mixin.debug.export", "true"
+            property "mixin.debug.export.decompile", "false"
+            property "mixin.debug.verbose", "true"
+            property "mixin.debug.dumpTargetOnFailure", "true"
+            property "mixin.checks", "true"
+            property "mixin.hotSwap", "true"
+
+            args '--mod', 'clienttweaks', '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+
+            mods {
+                clienttweaks {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+configurations {
+    library
+    implementation.extendsFrom library
+}
+
+minecraft.runs.all {
+    lazyToken('minecraft_classpath') {
+        configurations.library.copyRecursive().resolve().collect { it.absolutePath }.join(File.pathSeparator)
+    }
+}
+
+repositories {
+    maven { url "https://www.cursemaven.com" }
+
+    // For Cloth Config
+    maven { url "https://maven.shedaniel.me/" }
+
+    // For JEI
+    maven {
+        name = "Progwml6 maven"
+        url = "https://dvs1.progwml6.com/files/maven/"
+    }
+
+    maven {
+        url "https://maven.pkg.github.com/ModdingForBlockheads/Balm"
+        credentials {
+            username project.findProperty("gpr.user") ?: System.getenv("GPR_USERNAME")
+            password project.findProperty("gpr.key") ?: System.getenv("GPR_TOKEN")
+        }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.4:processor'
+
+    implementation "org.jetbrains:annotations:22.0.0"
+}
+
+jar {
+    manifest {
+        attributes([
+            'Timestamp': System.currentTimeMillis(),
+            'Specification-Title': "${mod_name}",
+            'Specification-Vendor': "${mod_vendor}",
+            'Specification-Version': "${version}",
+            'Implementation-Title': project.archivesBaseName,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor' :"${mod_vendor}",
+            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+            'Built-On-Java': "${System.getProperty('java.vm.version')} (${System.getProperty('java.vm.vendor')})",
+            'Built-On': "${forge_version}",
+            "MixinConfigs": "${mixin_id}.mixins.json"
+        ])
+    }
+}
+
+
+
+
+apply plugin: 'org.spongepowered.mixin'
+
+mixin {
+
+    add sourceSets.main, "${mixin_id}.refmap.json"
+}

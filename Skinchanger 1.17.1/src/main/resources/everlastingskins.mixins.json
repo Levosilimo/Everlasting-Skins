@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "package": "levosilimo.everlastingskins.mixin",
+  "refmap": "everlastingskins.refmap.json",
+  "mixins": [
+    "server.MixinCommandManager",
+    "server.MixinPlayerManager"
+  ],
+  "client": [
+  ],
+  "server": [
+  ]
+}
