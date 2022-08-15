@@ -225,12 +225,12 @@ public class SkinCommand {
         world.removePlayerImmediately(player, Entity.RemovalReason.CHANGED_DIMENSION);
         player.revive();
         player.setPos(x, y, z);
-        player.setXRot(pitch);
-        player.setYRot(yaw);
+        player.setXRot(yaw);
+        player.setYRot(pitch);
         player.setYHeadRot(headYaw);
         player.setLevel(world);
         world.addDuringCommandTeleport(player);
-        player.connection.send(new ClientboundPlayerPositionPacket(x,y,z,yaw,pitch,flags,0,false));
+        player.connection.send(new ClientboundPlayerPositionPacket(x,y,z,pitch,yaw,flags,0,false));
         player.connection.send(new ClientboundSetCarriedItemPacket(HeldSlot));
         player.connection.send(new ClientboundPlayerAbilitiesPacket(abilities));
         SkinRestorer.server.getPlayerList().sendAllPlayerInfo(player);
