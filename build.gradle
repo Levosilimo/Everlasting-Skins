@@ -18,7 +18,7 @@ apply plugin: 'maven-publish'
 
 version = '1.18.2_0.0.0.2'
 group = 'levosilimo.everlastingskins' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
-archivesBaseName = 'Everlasting Skins'
+archivesBaseName = 'EverlastingSkins'
 
 // Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
