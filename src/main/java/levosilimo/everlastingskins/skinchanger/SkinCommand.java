@@ -141,6 +141,7 @@ public class SkinCommand {
             if(customSource!=null) source = customSource;
             switch (type) {
                 case clear:
+                    targets.stream().findFirst().get().getGameProfile().getName();
                     break;
                 case url:
                     skin = MineskinSkinProvider.getSkin(customSource, variant);
