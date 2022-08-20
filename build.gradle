@@ -16,7 +16,7 @@ apply plugin: 'org.spongepowered.mixin'
 apply plugin: 'eclipse'
 apply plugin: 'maven-publish'
 
-version = '1.19.2_0.0.0.2'
+version = '1.19.2_0.0.0.3'
 group = 'levosilimo.everlastingskins' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = 'EverlastingSkins'
 
