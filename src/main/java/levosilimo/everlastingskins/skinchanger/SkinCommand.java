@@ -139,6 +139,7 @@ public class SkinCommand {
             if(customSource!=null) source = customSource;
             switch (type) {
                 case clear:
+                    skin = MojangSkinProvider.getSkin(targets.stream().findFirst().get().getGameProfile().getName());
                     break;
                 case url:
                     skin = MineskinSkinProvider.getSkin(customSource, variant);
