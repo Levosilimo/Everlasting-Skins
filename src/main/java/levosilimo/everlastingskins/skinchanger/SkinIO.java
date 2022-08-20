@@ -22,7 +22,6 @@ public class SkinIO {
         this.savePath = savePath;
     }
     public int getSource(UUID uuid){
-        String msg="";
         if(FileUtils.readFile(savePath.resolve(uuid + FILE_EXTENSION).toFile())!=null){
             Object obj = JsonParser.parseString(FileUtils.readFile(savePath.resolve(uuid + FILE_EXTENSION).toFile()));
             JsonObject jsonObject = (JsonObject)obj;

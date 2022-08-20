@@ -1,9 +1,8 @@
 package levosilimo.everlastingskins;
+
 import levosilimo.everlastingskins.enums.LanguageEnum;
 import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
 
 @Mod.EventBusSubscriber
 public class Config {

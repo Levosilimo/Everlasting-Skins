@@ -7,8 +7,6 @@ import levosilimo.everlastingskins.util.WebUtils;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 public class MojangSkinProvider {

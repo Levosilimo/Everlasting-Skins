@@ -9,7 +9,6 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.LanguageEnum;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
-import net.minecraft.client.renderer.EffectInstance;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;

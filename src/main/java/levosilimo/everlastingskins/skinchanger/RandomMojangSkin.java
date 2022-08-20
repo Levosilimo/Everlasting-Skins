@@ -5,7 +5,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.levelgen.LegacyRandomSource;
 
 import java.io.BufferedReader;
@@ -21,7 +20,7 @@ import java.util.Scanner;
 
 public class RandomMojangSkin {
     private static final ArrayList<String> blackList=Lists.newArrayList("ad");
-    private static LegacyRandomSource rand = new LegacyRandomSource(new Random().nextInt());
+    private static final LegacyRandomSource rand = new LegacyRandomSource(new Random().nextInt());
     public static String randomNick(boolean needCape,SkinVariant variant) {
         StringBuilder html = new StringBuilder();
         InputStream response = null;
@@ -108,7 +107,6 @@ public class RandomMojangSkin {
         String decodedSTR = new String(Base64.getDecoder().decode(MojangSkinProvider.getSkin(nick).getValue()));
         JsonObject decodedJSON = parser.parse(decodedSTR).getAsJsonObject();
         return decodedJSON.getAsJsonObject("textures").has("CAPE");
-        //return decodedJSON.getAsJsonObject("textures").getAsJsonObject("CAPE").getAsJsonPrimitive("url").getAsString().contains("http");
     }
     public static boolean isSlim(String nick){
         String decodedSTR = new String(Base64.getDecoder().decode(MojangSkinProvider.getSkin(nick).getValue()));

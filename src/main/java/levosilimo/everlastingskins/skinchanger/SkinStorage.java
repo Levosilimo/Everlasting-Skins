@@ -1,7 +1,6 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import com.mojang.authlib.properties.Property;
-import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +29,6 @@ public class SkinStorage {
 
     public void removeSkin(UUID uuid) {
         if (skinMap.containsKey(uuid)) {
-            ServerPlayer player = SkinRestorer.server.getPlayerList().getPlayer(uuid);
             if(sourceMap.containsKey(uuid)){
                 skinIO.saveSkin(uuid, skinMap.get(uuid),sourceMap.get(uuid));
                 return;
