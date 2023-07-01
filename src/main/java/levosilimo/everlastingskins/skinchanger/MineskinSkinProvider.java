@@ -7,7 +7,9 @@ import levosilimo.everlastingskins.util.JsonUtils;
 import levosilimo.everlastingskins.util.WebUtils;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.concurrent.ExecutionException;
 
 public class MineskinSkinProvider {
 
@@ -22,7 +24,7 @@ public class MineskinSkinProvider {
             JsonObject texture = JsonUtils.parseJson(WebUtils.POSTRequest(new URL(API), USER_AGENT, TYPE, TYPE, input))
                     .getAsJsonObject("data").getAsJsonObject("texture");
             return new Property("textures", texture.get("value").getAsString(), texture.get("signature").getAsString());
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException | ExecutionException | URISyntaxException e) {
             return null;
         }
     }

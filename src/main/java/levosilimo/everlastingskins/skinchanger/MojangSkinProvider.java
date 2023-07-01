@@ -6,8 +6,10 @@ import levosilimo.everlastingskins.util.JsonUtils;
 import levosilimo.everlastingskins.util.WebUtils;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 public class MojangSkinProvider {
 
@@ -25,7 +27,7 @@ public class MojangSkinProvider {
         }
     }
 
-    private static UUID getUUID(String name) throws IOException {
+    private static UUID getUUID(String name) throws IOException, URISyntaxException, ExecutionException, InterruptedException {
         return UUID.fromString(JsonUtils.parseJson(WebUtils.GETRequest(new URL(API + name))).get("id").getAsString()
                 .replaceFirst("(\\p{XDigit}{8})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}+)", "$1-$2-$3-$4-$5"));
     }
