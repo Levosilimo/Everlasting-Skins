@@ -3,7 +3,6 @@ package levosilimo.everlastingskins.skinchanger;
 import com.google.common.hash.Hashing;
 import com.mojang.authlib.properties.Property;
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.LanguageEnum;
@@ -12,17 +11,12 @@ import levosilimo.everlastingskins.enums.SkinVariant;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.core.GlobalPos;
-import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.protocol.game.*;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.entity.player.Abilities;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
@@ -183,7 +177,7 @@ public class SkinCommand {
                     player.sendSystemMessage(Component.literal(recon_needed));
             }
             for (ServerPlayer player:targets) {
-                ServerLevel world = player.getLevel();
+                ServerLevel world = player.serverLevel();
                 packets.add(generatePacket(player, world));
             }
             return packets;
@@ -196,13 +190,13 @@ public class SkinCommand {
     private static EmulateReconnectPacket generatePacket(ServerPlayer player, ServerLevel world){
 
         //Respawn packet info
-        ResourceKey<DimensionType> dimensionType=player.getLevel().getLevel().dimensionTypeId();
-        ResourceKey<Level> registryKey = player.getLevel().dimension();
-        long seedEncrypted = Hashing.sha256().hashString(String.valueOf(player.getLevel().getSeed()), StandardCharsets.UTF_8).asLong();
+        ResourceKey<DimensionType> dimensionType=player.serverLevel().getLevel().dimensionTypeId();
+        ResourceKey<Level> registryKey = player.serverLevel().dimension();
+        long seedEncrypted = Hashing.sha256().hashString(String.valueOf(player.serverLevel().getSeed()), StandardCharsets.UTF_8).asLong();
         GameType gameType = player.gameMode.getGameModeForPlayer();
         GameType previousGameType = player.gameMode.getPreviousGameModeForPlayer();
-        boolean isDebug = player.getLevel().isDebug();
-        boolean isFlat = player.getLevel().isFlat();
+        boolean isDebug = player.serverLevel().isDebug();
+        boolean isFlat = player.serverLevel().isFlat();
         //Skin change
         SkinRestorer.getSkinStorage().removeSkin(player.getUUID());
         player.getGameProfile().getProperties().removeAll("textures");
@@ -220,7 +214,7 @@ public class SkinCommand {
         float pitch = player.getYRot();
         float headYaw = player.getYHeadRot();
         int yawPacket = Mth.floor(player.getYHeadRot() * 256.0F / 360.0F);
-        Set<ClientboundPlayerPositionPacket.RelativeArgument> flags = new HashSet<>();
+        Set<RelativeMovement> flags = new HashSet<>();
         return new EmulateReconnectPacket(player, world, x, y, z, yaw, pitch, headYaw, (byte) yawPacket, flags, HeldSlot, abilities, dimensionType, registryKey, seedEncrypted, gameType, previousGameType, isDebug, isFlat);
     }
 }
