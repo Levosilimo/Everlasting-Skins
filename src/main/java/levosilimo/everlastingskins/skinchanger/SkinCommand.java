@@ -23,6 +23,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.entity.player.Abilities;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
@@ -220,7 +221,7 @@ public class SkinCommand {
         float pitch = player.getYRot();
         float headYaw = player.getYHeadRot();
         int yawPacket = Mth.floor(player.getYHeadRot() * 256.0F / 360.0F);
-        Set<ClientboundPlayerPositionPacket.RelativeArgument> flags = new HashSet<>();
+        Set<RelativeMovement> flags = new HashSet<>();
         return new EmulateReconnectPacket(player, world, x, y, z, yaw, pitch, headYaw, (byte) yawPacket, flags, HeldSlot, abilities, dimensionType, registryKey, seedEncrypted, gameType, previousGameType, isDebug, isFlat);
     }
 }
