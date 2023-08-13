@@ -32,7 +32,7 @@ public class SkinIO {
             String source = jsonObject.get("source").getAsString();
             ITextComponent msgText = new StringTextComponent("§6[EverlastingSkins]§f "+source);
             if(source.indexOf('/')>-1)msgText.setStyle(msgText.getStyle().setItalic(true).setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, source)));
-            ServerPlayerEntity player = SkinRestorer.server.getPlayerList().getPlayer(uuid);
+            ServerPlayerEntity player = SkinRestorer.server.getPlayerList().getPlayerByUUID(uuid);
             if(player != null) player.sendMessage(msgText, ChatType.SYSTEM);
         }
         return 1;
