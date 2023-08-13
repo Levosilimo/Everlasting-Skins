@@ -1,10 +1,10 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import com.mojang.authlib.properties.Property;
-import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.event.server.FMLServerStartingEvent;
 import net.minecraftforge.fml.event.server.FMLServerStoppedEvent;
 import net.minecraftforge.fml.event.server.FMLServerStoppingEvent;
@@ -19,7 +19,7 @@ public class SkinRestorer {
     }
     public static MinecraftServer server;
 
-    private static void applySkin(ServerPlayerEntity playerEntity, Property skin) {
+    private static void applySkin(EntityPlayerMP playerEntity, Property skin) {
         playerEntity.getGameProfile().getProperties().removeAll("textures");
         playerEntity.getGameProfile().getProperties().put("textures", skin);
     }
@@ -37,11 +37,11 @@ public class SkinRestorer {
     }
 
     @SubscribeEvent
-    public void onPlayerLoading(PlayerEvent.PlayerLoggedInEvent event) {
+    public void onPlayerLoading(net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent event) {
         if (SkinRestorer.getSkinStorage().getSkin(event.getPlayer().getUniqueID()) == SkinStorage.DEFAULT_SKIN)
             SkinRestorer.getSkinStorage().setSkin(event.getPlayer().getUniqueID(), MojangSkinProvider.getSkin(event.getPlayer().getGameProfile().getName()));
 
-        applySkin(((ServerPlayerEntity)event.getPlayer()), SkinRestorer.getSkinStorage().getSkin(event.getPlayer().getUniqueID()));
+        applySkin(((EntityPlayerMP)event.getPlayer()), SkinRestorer.getSkinStorage().getSkin(event.getPlayer().getUniqueID()));
     }
 
     @SubscribeEvent
@@ -51,7 +51,7 @@ public class SkinRestorer {
 
     @SubscribeEvent
     public void onServerClosing(FMLServerStoppingEvent event) {
-        for (ServerPlayerEntity player : event.getServer().getPlayerList().getPlayers()) {
+        for (EntityPlayerMP player : event.getServer().getPlayerList().getPlayers()) {
             SkinRestorer.getSkinStorage().removeSkin(player.getUniqueID());
         }
     }

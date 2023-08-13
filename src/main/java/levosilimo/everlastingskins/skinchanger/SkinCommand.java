@@ -10,9 +10,8 @@ import levosilimo.everlastingskins.enums.SkinVariant;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
 import net.minecraft.command.arguments.EntityArgument;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraft.util.text.StringTextComponent;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.util.text.TextComponentString;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -38,7 +37,7 @@ public class SkinCommand {
                                         .executes(context ->
                                                 skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.nickname, false, SkinVariant.all, false,
                                                         StringArgumentType.getString(context, "nickname"))))
-                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                         .then(Commands.argument("nickname", StringArgumentType.word())
                                                 .executes(context ->
                                                         skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.nickname, true, SkinVariant.all, false,
@@ -49,7 +48,7 @@ public class SkinCommand {
                                                 .executes(context ->
                                                         skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.url, false, SkinVariant.classic, false,
                                                                 StringArgumentType.getString(context, "url")))
-                                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                                         .executes(context ->
                                                                 skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.url, true, SkinVariant.classic, true,
                                                                         StringArgumentType.getString(context, "url"))))))
@@ -58,60 +57,60 @@ public class SkinCommand {
                                                 .executes(context ->
                                                         skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.url, false, SkinVariant.slim, false,
                                                                 StringArgumentType.getString(context, "url")))
-                                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                                         .executes(context ->
                                                                 skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.url, true, SkinVariant.slim, true,
                                                                         StringArgumentType.getString(context, "url")))))))
                         .then(Commands.literal("random")
                                 .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.all, false, null))
-                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                         .executes(context ->
                                                 skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.all, false,
                                                         null)))
                                 .then(Commands.literal("classic")
                                         .then(Commands.literal("cape")
-                                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                                         .executes(context ->
                                                                 skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.classic, true,
                                                                         null)))
                                                 .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.classic, true, null)))
                                         .then(Commands.literal("new")
-                                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                                         .executes(context ->
                                                                 skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.NEW, true, SkinVariant.classic, false,
                                                                         null)))
                                                 .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.NEW, false, SkinVariant.classic, false, null)))
-                                        .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                        .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                                 .executes(context ->
                                                         skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.classic, false,
                                                                 null)))
                                         .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.classic, false, null)))
                                 .then(Commands.literal("slim")
                                         .then(Commands.literal("cape")
-                                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                                         .executes(context ->
                                                                 skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.slim, true,
                                                                         null)))
                                                 .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.slim, true, null)))
                                         .then(Commands.literal("new")
-                                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                                         .executes(context ->
                                                                 skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.NEW, true, SkinVariant.slim, false,
                                                                         null)))
                                                 .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.NEW, false, SkinVariant.slim, false, null)))
-                                        .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermissionLevel(3))
+                                        .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
                                                 .executes(context ->
                                                         skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.slim, false,
                                                                 null)))
                                         .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.slim, false, null)))
                         ))
                 .then(Commands.literal("source")
-                        .then(Commands.argument("target", EntityArgument.player()).executes(context ->
-                                SkinRestorer.getSkinIO().getSource(PlayerEntity.getUUID(EntityArgument.getPlayer(context, "target").getGameProfile()))))
+                        .then(Commands.argument("target", EntityArgument.multiplePlayers()).executes(context ->
+                                SkinRestorer.getSkinIO().getSource(EntityArgument.getOnePlayer(context, "target").getUniqueID())))
                         .executes(context ->
-                                SkinRestorer.getSkinIO().getSource(PlayerEntity.getUUID(context.getSource().asPlayer().getGameProfile()))))
+                                SkinRestorer.getSkinIO().getSource(context.getSource().asPlayer().getUniqueID())))
                 .then(Commands.literal("clear")
-                        .then(Commands.argument("targets", EntityArgument.players()).executes(context ->
+                        .then(Commands.argument("targets", EntityArgument.multiplePlayers()).executes(context ->
                                 skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.clear, true, SkinVariant.all, false, null)))
                         .executes(context ->
                                 skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.clear, false, SkinVariant.all, false, null))
@@ -119,7 +118,7 @@ public class SkinCommand {
         );
     }
 
-    private static int skinAction(Collection<ServerPlayerEntity> targets, SkinActionType type, boolean setByOperator, SkinVariant variant, boolean withCape, @Nullable String customSource) {
+    private static int skinAction(Collection<EntityPlayerMP> targets, SkinActionType type, boolean setByOperator, SkinVariant variant, boolean withCape, @Nullable String customSource) {
         CompletableFuture<ArrayList<EmulateReconnectHandler>> future = CompletableFuture.supplyAsync(() -> {
             LanguageEnum a = Config.LANGUAGE.get();
             switch (a) {
@@ -140,7 +139,7 @@ public class SkinCommand {
                     break;
             }
             if (!setByOperator)
-                targets.stream().findFirst().get().sendMessage(new StringTextComponent(processing));
+                targets.stream().findFirst().get().sendMessage(new TextComponentString(processing));
 
             Property skin = null;
             String source = "";
@@ -166,25 +165,25 @@ public class SkinCommand {
                     break;
             }
 
-            for (ServerPlayerEntity player : targets) {
-                if (!source.isEmpty()) SkinStorage.sourceMap.put(PlayerEntity.getUUID(player.getGameProfile()), source);
-                else SkinStorage.sourceMap.put(PlayerEntity.getUUID(player.getGameProfile()), player.getGameProfile().getName());
-                SkinRestorer.getSkinStorage().setSkin(PlayerEntity.getUUID(player.getGameProfile()), skin);
+            for (EntityPlayerMP player : targets) {
+                if (!source.isEmpty()) SkinStorage.sourceMap.put(player.getUniqueID(), source);
+                else SkinStorage.sourceMap.put(player.getUniqueID(), player.getGameProfile().getName());
+                SkinRestorer.getSkinStorage().setSkin(player.getUniqueID(), skin);
                 if (setByOperator)
-                    player.sendMessage(new StringTextComponent(changeOP));
+                    player.sendMessage(new TextComponentString(changeOP));
                 else
-                    player.sendMessage(new StringTextComponent(recon_needed));
+                    player.sendMessage(new TextComponentString(recon_needed));
             }
-            for (ServerPlayerEntity player : targets) handlers.add(new EmulateReconnectHandler(player));
+            for (EntityPlayerMP player : targets) handlers.add(new EmulateReconnectHandler(player));
             return handlers;
         }, skinCommandExecutor);
         try {
             ArrayList<EmulateReconnectHandler> result = future.get(10, TimeUnit.SECONDS);
-            result.forEach((handler) -> SkinRestorer.server.execute(handler::emulateReconnect));
+            result.forEach((handler) -> SkinRestorer.server.addScheduledTask(handler::emulateReconnect));
         } catch (TimeoutException e) {
-            targets.forEach((target) -> target.sendMessage(new StringTextComponent("§6[EverlastingSkins]§f Skin was not set.")));
+            targets.forEach((target) -> target.sendMessage(new TextComponentString("§6[EverlastingSkins]§f Skin was not set.")));
         } catch (Exception e) {
-            targets.forEach((target) -> target.sendMessage(new StringTextComponent("§6[EverlastingSkins]§f Unexpected error.")));
+            targets.forEach((target) -> target.sendMessage(new TextComponentString("§6[EverlastingSkins]§f Unexpected error.")));
             e.printStackTrace();
         }
 
