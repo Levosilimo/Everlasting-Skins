@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 
 @Mod(EverlastingSkins.MOD_ID)
@@ -22,7 +22,7 @@ public class EverlastingSkins {
     public static final String MOD_NAME = "Everlasting Skins";
     public static final String VERSION = "4.1.0";
     public static final List<String> languages = Lists.newArrayList();
-    public static final ScheduledExecutorService skinCommandExecutor = Executors.newScheduledThreadPool(10);
+    public static final ExecutorService skinCommandExecutor = Executors.newCachedThreadPool();
     public EverlastingSkins() {
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());

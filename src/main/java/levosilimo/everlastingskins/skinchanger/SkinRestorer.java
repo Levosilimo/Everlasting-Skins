@@ -1,10 +1,9 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.storage.LevelResource;
-import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.event.server.FMLServerStartingEvent;
+import net.minecraftforge.fml.event.server.FMLServerStoppedEvent;
 
 public class SkinRestorer {
 
@@ -16,14 +15,14 @@ public class SkinRestorer {
     }
     public static MinecraftServer server;
     @SubscribeEvent
-    public void onInitializeServer(ServerStartingEvent event) {
+    public void onInitializeServer(FMLServerStartingEvent event) {
         server = event.getServer();
-        skinIO=new SkinIO(event.getServer().getWorldPath(new LevelResource("EverlastingSkins")));
+        skinIO = new SkinIO(event.getServer().getStorageSource().getBaseDir().resolve("EverlastingSkins"));
         skinStorage = new SkinStorage(skinIO);
     }
 
     @SubscribeEvent
-    public void onClosedServer(ServerStoppedEvent event) {
+    public void onClosedServer(FMLServerStoppedEvent event) {
         server = null;
     }
 }

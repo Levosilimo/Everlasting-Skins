@@ -7,9 +7,11 @@ import com.google.gson.JsonPrimitive;
 import com.mojang.authlib.properties.Property;
 import levosilimo.everlastingskins.util.FileUtils;
 import levosilimo.everlastingskins.util.JsonUtils;
-import net.minecraft.network.chat.ClickEvent;
-import net.minecraft.network.chat.Component;
-import net.minecraft.util.Mth;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.util.text.ChatType;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.StringTextComponent;
+import net.minecraft.util.text.event.ClickEvent;
 
 import java.nio.file.Path;
 import java.util.UUID;
@@ -28,9 +30,10 @@ public class SkinIO {
             Object obj = parser.parse(FileUtils.readFile(savePath.resolve(uuid + FILE_EXTENSION).toFile()));
             JsonObject jsonObject = (JsonObject)obj;
             String source = jsonObject.get("source").getAsString();
-            var msgText = Component.literal("§6[EverlastingSkins]§f "+source);
-            if(source.indexOf('/')>-1)msgText.setStyle(msgText.getStyle().withItalic(true).withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, source)));
-            SkinRestorer.server.getPlayerList().getPlayer(uuid).sendSystemMessage(msgText);
+            ITextComponent msgText = new StringTextComponent("§6[EverlastingSkins]§f "+source);
+            if(source.indexOf('/')>-1)msgText.setStyle(msgText.getStyle().setItalic(true).setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, source)));
+            ServerPlayerEntity player = SkinRestorer.server.getPlayerList().getPlayer(uuid);
+            if(player != null) player.sendMessage(msgText, ChatType.SYSTEM);
         }
         return 1;
     }

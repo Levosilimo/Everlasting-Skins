@@ -4,23 +4,20 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import levosilimo.everlastingskins.enums.SkinVariant;
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.*;
 
 import static levosilimo.everlastingskins.util.RandomUserAgent.getRandomUserAgent;
 
 public class RandomMojangSkin {
-    private static final List<String> BLACK_LIST = List.of("ad");
+    private static final List<String> BLACK_LIST = Arrays.asList("ad");
     private static final int MIN_SKIN_INDEX = 9000;
     private static final int MAX_SKIN_INDEX = 40000;
     private static final String SPAN_TEXT = "<span class=\"card-title green-text truncate\">";
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
-
     public static String randomNickname(boolean needCape, SkinVariant variant, boolean latest) {
         String url;
         if (latest) url = "https://mskins.net/ru/skins/latest";
@@ -75,10 +72,21 @@ public class RandomMojangSkin {
 
     private static String getHtmlFromUrl(String url) {
         try {
-            HttpRequest request = HttpRequest.newBuilder().uri(new URI(url)).header("User-Agent", getRandomUserAgent()).GET().build();
-            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            return response.body();
-        } catch (IOException | InterruptedException | URISyntaxException ex) {
+            URL urlObj = new URL(url);
+            HttpURLConnection connection = (HttpURLConnection) urlObj.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", getRandomUserAgent());
+
+            StringBuilder response = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+            }
+
+            return response.toString();
+        } catch (IOException ex) {
             ex.printStackTrace();
             return "";
         }
