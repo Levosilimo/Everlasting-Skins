@@ -7,7 +7,6 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.GameType;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.WorldType;
-import net.minecraft.world.dimension.DimensionType;
 
 import java.util.Collections;
 import java.util.Set;
@@ -15,7 +14,7 @@ import java.util.Set;
 public class EmulateReconnectHandler {
     private final EntityPlayerMP player;
     private final WorldServer world;
-    private final DimensionType dimensionType;
+    private final int dimensionId;
     private final WorldType worldType;
     private final GameType gameType;
 
@@ -25,7 +24,7 @@ public class EmulateReconnectHandler {
         this.player = player;
         this.world = player.getServerWorld();
         this.seenBy = (Set<EntityPlayerMP>) world.getEntityTracker().getTrackingPlayers(player);
-        this.dimensionType = player.dimension;
+        this.dimensionId = player.dimension;
         this.worldType = world.getWorldType();
         this.gameType = player.getServer().getGameType();
     }
@@ -62,21 +61,21 @@ public class EmulateReconnectHandler {
     }
 
     private void updatePlayerAbilities() {
-        PlayerCapabilities abilities = player.abilities;
+        PlayerCapabilities abilities = player.capabilities;
         player.connection.sendPacket(new SPacketPlayerAbilities(abilities));
     }
 
     private void sendPacketsAndBroadcast() {
         player.server.getPlayerList().sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.REMOVE_PLAYER, player));
         player.server.getPlayerList().sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.ADD_PLAYER, player));
-        player.connection.sendPacket(new SPacketRespawn(dimensionType, world.getDifficulty(), worldType, gameType));
-        world.removeEntity(player, true);
-        player.revive();
+        player.connection.sendPacket(new SPacketRespawn(dimensionId, world.getDifficulty(), worldType, gameType));
+        world.removeEntity(player);
+        player.isDead = false;
         player.setWorld(world);
         world.spawnEntity(player);
         player.server.getPlayerList().updatePermissionLevel(player);
         player.interactionManager.setWorld(world);
-        player.server.getPlayerList().sendWorldInfo(player, world);
-        player.server.getPlayerList().sendInventory(player);
+        player.server.getPlayerList().updateTimeAndWeatherForPlayer(player, world);
+        player.server.getPlayerList().syncPlayerInventory(player);
     }
 }

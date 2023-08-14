@@ -1,13 +1,13 @@
 package levosilimo.everlastingskins.enums;
 
-public enum SkinActionType {
-    clear("clear"),
-    set("set"),
-    source("source");
+public enum SkinActionSetType {
+    random("random"),
+    mojang("mojang"),
+    web("web");
 
     private final String name;
 
-    SkinActionType(String name) {
+    SkinActionSetType(String name) {
         this.name = name;
     }
 
@@ -17,7 +17,7 @@ public enum SkinActionType {
     }
 
     public static String[] getStringValues() {
-        SkinActionType[] values = values();
+        SkinActionSetType[] values = values();
         String[] stringValues = new String[values.length];
         for (int i = 0; i < values.length; i++) {
             stringValues[i] = values[i].name;

@@ -1,22 +1,19 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import com.mojang.authlib.properties.Property;
-import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import levosilimo.everlastingskins.Config;
-import levosilimo.everlastingskins.enums.LanguageEnum;
-import levosilimo.everlastingskins.enums.SkinActionType;
-import levosilimo.everlastingskins.enums.SkinVariant;
-import net.minecraft.command.CommandSource;
-import net.minecraft.command.Commands;
-import net.minecraft.command.arguments.EntityArgument;
+import levosilimo.everlastingskins.EverlastingSkins;
+import levosilimo.everlastingskins.enums.*;
+import net.minecraft.command.CommandBase;
+import net.minecraft.command.CommandException;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.command.WrongUsageException;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -24,103 +21,14 @@ import java.util.concurrent.TimeoutException;
 import static levosilimo.everlastingskins.EverlastingSkins.skinCommandExecutor;
 
 
-public class SkinCommand {
+public class SkinCommand extends CommandBase {
     private static String processing = "";
     private static String changeOP = "";
     private static String recon_needed = "";
 
-    public static void register(CommandDispatcher<CommandSource> dispatcher) {
-        dispatcher.register(Commands.literal("skin")
-                .then(Commands.literal("set")
-                        .then(Commands.literal("mojang")
-                                .then(Commands.argument("nickname", StringArgumentType.word())
-                                        .executes(context ->
-                                                skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.nickname, false, SkinVariant.all, false,
-                                                        StringArgumentType.getString(context, "nickname"))))
-                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                        .then(Commands.argument("nickname", StringArgumentType.word())
-                                                .executes(context ->
-                                                        skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.nickname, true, SkinVariant.all, false,
-                                                                StringArgumentType.getString(context, "nickname"))))))
-                        .then(Commands.literal("web")
-                                .then(Commands.literal("classic")
-                                        .then(Commands.argument("url", StringArgumentType.string())
-                                                .executes(context ->
-                                                        skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.url, false, SkinVariant.classic, false,
-                                                                StringArgumentType.getString(context, "url")))
-                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                                        .executes(context ->
-                                                                skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.url, true, SkinVariant.classic, true,
-                                                                        StringArgumentType.getString(context, "url"))))))
-                                .then(Commands.literal("slim")
-                                        .then(Commands.argument("url", StringArgumentType.string())
-                                                .executes(context ->
-                                                        skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.url, false, SkinVariant.slim, false,
-                                                                StringArgumentType.getString(context, "url")))
-                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                                        .executes(context ->
-                                                                skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.url, true, SkinVariant.slim, true,
-                                                                        StringArgumentType.getString(context, "url")))))))
-                        .then(Commands.literal("random")
-                                .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.all, false, null))
-                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                        .executes(context ->
-                                                skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.all, false,
-                                                        null)))
-                                .then(Commands.literal("classic")
-                                        .then(Commands.literal("cape")
-                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                                        .executes(context ->
-                                                                skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.classic, true,
-                                                                        null)))
-                                                .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.classic, true, null)))
-                                        .then(Commands.literal("new")
-                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                                        .executes(context ->
-                                                                skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.NEW, true, SkinVariant.classic, false,
-                                                                        null)))
-                                                .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.NEW, false, SkinVariant.classic, false, null)))
-                                        .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                                .executes(context ->
-                                                        skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.classic, false,
-                                                                null)))
-                                        .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.classic, false, null)))
-                                .then(Commands.literal("slim")
-                                        .then(Commands.literal("cape")
-                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                                        .executes(context ->
-                                                                skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.slim, true,
-                                                                        null)))
-                                                .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.slim, true, null)))
-                                        .then(Commands.literal("new")
-                                                .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                                        .executes(context ->
-                                                                skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.NEW, true, SkinVariant.slim, false,
-                                                                        null)))
-                                                .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.NEW, false, SkinVariant.slim, false, null)))
-                                        .then(Commands.argument("targets", EntityArgument.multiplePlayers()).requires(source -> source.hasPermissionLevel(3))
-                                                .executes(context ->
-                                                        skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.random, true, SkinVariant.slim, false,
-                                                                null)))
-                                        .executes(context -> skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.random, false, SkinVariant.slim, false, null)))
-                        ))
-                .then(Commands.literal("source")
-                        .then(Commands.argument("target", EntityArgument.multiplePlayers()).executes(context ->
-                                SkinRestorer.getSkinIO().getSource(EntityArgument.getOnePlayer(context, "target").getUniqueID())))
-                        .executes(context ->
-                                SkinRestorer.getSkinIO().getSource(context.getSource().asPlayer().getUniqueID())))
-                .then(Commands.literal("clear")
-                        .then(Commands.argument("targets", EntityArgument.multiplePlayers()).executes(context ->
-                                skinAction(EntityArgument.getPlayers(context, "targets"), SkinActionType.clear, true, SkinVariant.all, false, null)))
-                        .executes(context ->
-                                skinAction(Collections.singleton(context.getSource().asPlayer()), SkinActionType.clear, false, SkinVariant.all, false, null))
-                )
-        );
-    }
-
-    private static int skinAction(Collection<EntityPlayerMP> targets, SkinActionType type, boolean setByOperator, SkinVariant variant, boolean withCape, @Nullable String customSource) {
+    private static int skinAction(Collection<EntityPlayerMP> targets, SkinActionType actionType, SkinActionSetType actionSetType, boolean setByOperator, SkinVariant variant, CapeVariant capeVariant, @Nullable String customSource) {
         CompletableFuture<ArrayList<EmulateReconnectHandler>> future = CompletableFuture.supplyAsync(() -> {
-            LanguageEnum a = Config.LANGUAGE.get();
+            LanguageEnum a = LanguageEnum.fromName(EverlastingSkins.language);
             switch (a) {
                 case Russian:
                     processing = "§6[EverlastingSkins]§f Обрабатываем...";
@@ -145,24 +53,25 @@ public class SkinCommand {
             String source = "";
             ArrayList<EmulateReconnectHandler> handlers = new ArrayList<>();
             if (customSource != null) source = customSource;
-            switch (type) {
+            switch (actionType) {
                 case clear:
                     skin = MojangSkinProvider.getSkin(targets.stream().findFirst().get().getGameProfile().getName());
                     break;
-                case url:
-                    skin = MineskinSkinProvider.getSkin(customSource, variant);
+                case set:
+                    switch (actionSetType) {
+                        case web:
+                            skin = MineskinSkinProvider.getSkin(customSource, variant);
+                            break;
+                        case mojang:
+                            skin = MojangSkinProvider.getSkin(customSource);
+                            break;
+                        case random:
+                            source = RandomMojangSkin.randomNickname(capeVariant, variant, false);
+                            skin = MojangSkinProvider.getSkin(source);
+                            break;
+                    }
                     break;
-                case nickname:
-                    skin = MojangSkinProvider.getSkin(customSource);
-                    break;
-                case random:
-                    source = RandomMojangSkin.randomNickname(withCape, variant, false);
-                    skin = MojangSkinProvider.getSkin(source);
-                    break;
-                case NEW:
-                    source = RandomMojangSkin.randomNickname(false, variant, true);
-                    skin = MojangSkinProvider.getSkin(source);
-                    break;
+
             }
 
             for (EntityPlayerMP player : targets) {
@@ -188,5 +97,114 @@ public class SkinCommand {
         }
 
         return targets.size();
+    }
+
+    @Override
+    public String getName() {
+        return "skin";
+    }
+
+    @Override
+    public String getUsage(ICommandSender iCommandSender) {
+        return "commands.everlastingskins.skin.usage";
+    }
+
+    @Override
+    public void execute(MinecraftServer minecraftServer, ICommandSender iCommandSender, String[] commandArgs) throws CommandException {
+        int argsPointer = 0;
+        SkinActionType actionType;
+        SkinActionSetType actionSetType = null;
+        SkinVariant skinVariant = SkinVariant.ANY;
+        CapeVariant capeVariant = CapeVariant.ANY;
+        String customSource = null;
+
+        try {
+            actionType = SkinActionType.valueOf(commandArgs[argsPointer++]);
+        } catch (Exception e) {
+            throw new WrongUsageException("commands.everlastingskins.skin.usage");
+        }
+
+        if (actionType == SkinActionType.set) {
+            try {
+                actionSetType = SkinActionSetType.valueOf(commandArgs[argsPointer++]);
+                if (commandArgs.length > argsPointer) {
+                    String nextArg = commandArgs[argsPointer++];
+
+                    if (actionSetType.equals(SkinActionSetType.random)) {
+                        if (SkinVariant.contains(nextArg)) {
+                            skinVariant = SkinVariant.fromName(nextArg);
+                        } else if (CapeVariant.contains(nextArg)) {
+                            capeVariant = CapeVariant.fromName(nextArg);
+                        } else {
+                            customSource = nextArg;
+                        }
+                    } else {
+                        customSource = nextArg;
+                    }
+
+                    if (commandArgs.length > argsPointer) {
+                        nextArg = commandArgs[argsPointer++];
+                        if (actionSetType.equals(SkinActionSetType.random) && CapeVariant.contains(nextArg)) {
+                            capeVariant = CapeVariant.fromName(nextArg);
+                        } else {
+                            customSource = nextArg;
+                        }
+                    }
+
+                    if (commandArgs.length > argsPointer) {
+                        customSource = commandArgs[argsPointer++];
+                    }
+                }
+            } catch (Exception e) {
+                throw new WrongUsageException("commands.everlastingskins.skin.usage");
+            }
+        }
+
+        List<EntityPlayerMP> players = commandArgs.length <= argsPointer ?
+                Collections.singletonList((EntityPlayerMP) iCommandSender.getCommandSenderEntity()) :
+                getPlayers(minecraftServer, iCommandSender, commandArgs[argsPointer++]);
+
+        if (actionType == SkinActionType.source) {
+            SkinRestorer.getSkinIO().getSource(players.stream().findFirst().get().getUniqueID());
+            return;
+        }
+
+        skinAction(players, actionType, actionSetType, iCommandSender.canUseCommand(3, "skin"), skinVariant, capeVariant, customSource);
+    }
+
+    @Override
+    public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, @Nullable BlockPos targetPos) {
+        if (args.length == 1) {
+            return getListOfStringsMatchingLastWord(args, SkinActionType.getStringValues());
+        } else if (args.length == 2) {
+            String actionType = args[0];
+            switch (actionType) {
+                case "clear":
+                    return sender.canUseCommand(3, "skin") ? getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames()) : Collections.emptyList();
+                case "set":
+                    return getListOfStringsMatchingLastWord(args, SkinActionSetType.getStringValues());
+                case "source":
+                    return getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
+            }
+        } else if (args.length == 3 && args[0].equals("set")) {
+            String setSubType = args[1];
+            switch (setSubType) {
+                case "mojang":
+                    return getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
+                case "random":
+                    return getListOfStringsMatchingLastWord(args, SkinVariant.getStringValues());
+                case "web":
+                    return getListOfStringsMatchingLastWord(args, "slim", "classic");
+                default:
+                    return getListOfStringsMatchingLastWord(args, SkinActionSetType.getStringValues());
+            }
+        } else if (args.length >= 4 && args[0].equals("set") && args[1].equals("random") &&
+                Arrays.asList(SkinVariant.getStringValues()).contains(args[2])) {
+            if (args.length == 4) {
+                return getListOfStringsMatchingLastWord(args, CapeVariant.getStringValues());
+            } else if (args.length == 5 && CapeVariant.contains(args[3]))
+                return getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
+        }
+        return Collections.emptyList();
     }
 }

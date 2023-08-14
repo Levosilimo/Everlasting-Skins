@@ -1,13 +1,13 @@
 package levosilimo.everlastingskins.enums;
 
-public enum LanguageEnum {
-
-    English("en_us"),
-    Russian("ru_ru"),
-    Ukrainian("uk_ua");
+public enum CapeVariant {
+    CAPE("cape"),
+    NO_CAPE("nocape"),
+    ANY("any");
 
     private final String name;
-    LanguageEnum(String name) {
+
+    CapeVariant(String name) {
         this.name = name;
     }
 
@@ -17,7 +17,7 @@ public enum LanguageEnum {
     }
 
     public static String[] getStringValues() {
-        LanguageEnum[] values = values();
+        CapeVariant[] values = values();
         String[] stringValues = new String[values.length];
         for (int i = 0; i < values.length; i++) {
             stringValues[i] = values[i].name;
@@ -25,8 +25,17 @@ public enum LanguageEnum {
         return stringValues;
     }
 
-    public static LanguageEnum fromName(String name) {
-        for (LanguageEnum value : values()) {
+    public static boolean contains(String value) {
+        for (CapeVariant option : values()) {
+            if (option.name.equals(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static CapeVariant fromName(String name) {
+        for (CapeVariant value : values()) {
             if (value.name.equals(name)) {
                 return value;
             }

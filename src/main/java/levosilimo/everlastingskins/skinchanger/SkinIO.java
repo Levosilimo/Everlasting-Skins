@@ -33,7 +33,7 @@ public class SkinIO {
             ITextComponent msgText = new TextComponentString("§6[EverlastingSkins]§f "+source);
             if(source.indexOf('/')>-1)msgText.setStyle(msgText.getStyle().setItalic(true).setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, source)));
             EntityPlayerMP player = SkinRestorer.server.getPlayerList().getPlayerByUUID(uuid);
-            if(player != null) player.sendMessage(msgText, ChatType.SYSTEM);
+            if(player != null) player.sendMessage(msgText);
         }
         return 1;
     }

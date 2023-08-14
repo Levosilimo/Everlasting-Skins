@@ -2,6 +2,7 @@ package levosilimo.everlastingskins.skinchanger;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import levosilimo.everlastingskins.enums.CapeVariant;
 import levosilimo.everlastingskins.enums.SkinVariant;
 
 import java.io.BufferedReader;
@@ -18,10 +19,10 @@ public class RandomMojangSkin {
     private static final int MIN_SKIN_INDEX = 9000;
     private static final int MAX_SKIN_INDEX = 40000;
     private static final String SPAN_TEXT = "<span class=\"card-title green-text truncate\">";
-    public static String randomNickname(boolean needCape, SkinVariant variant, boolean latest) {
+    public static String randomNickname(CapeVariant capeVariant, SkinVariant variant, boolean latest) {
         String url;
         if (latest) url = "https://mskins.net/ru/skins/latest";
-        else if (needCape) {
+        else if (capeVariant.equals(CapeVariant.CAPE)) {
             Random rand = new Random();
             int year = rand.nextInt(6) + 2011;
             while (year == 2014) {
@@ -57,11 +58,11 @@ public class RandomMojangSkin {
             while ((nickname.isEmpty() || BLACK_LIST.contains(nickname)) && !nicknamesStack.isEmpty()) {
                 nickname = nicknamesStack.pop();
             }
-            if (needCape && !hasCape(nickname)) {
+            if (capeVariant.equals(CapeVariant.CAPE) && !hasCape(nickname) || capeVariant.equals(CapeVariant.NO_CAPE) && hasCape(nickname)) {
                 continue;
             }
-            if ((variant == SkinVariant.slim && !isSlim(nickname))
-                    || (variant == SkinVariant.classic && isSlim(nickname))) {
+            if ((variant == SkinVariant.SLIM && !isSlim(nickname))
+                    || (variant == SkinVariant.CLASSIC && isSlim(nickname))) {
                 continue;
             }
             break;
