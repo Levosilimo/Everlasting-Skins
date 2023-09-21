@@ -40,7 +40,7 @@ public class RandomMojangSkin {
 
         HashSet<String> nicknames = new HashSet<>();
         int charPointer = MIN_SKIN_INDEX;
-        int randomSkinIndex = -1;
+        int randomSkinIndex;
         while (charPointer <= MAX_SKIN_INDEX) {
             randomSkinIndex = html.indexOf(SPAN_TEXT, charPointer) + SPAN_TEXT.length();
             if (randomSkinIndex > 44) {
@@ -87,13 +87,13 @@ public class RandomMojangSkin {
     private static final JsonParser parser = new JsonParser();
 
     public static boolean hasCape(String nick) {
-        String decodedSTR = new String(Base64.getDecoder().decode(MojangSkinProvider.getSkin(nick).getValue()));
+        String decodedSTR = new String(Base64.getDecoder().decode(MojangSkinProvider.getSkin(nick).value()));
         JsonObject decodedJSON = parser.parse(decodedSTR).getAsJsonObject();
         return decodedJSON.getAsJsonObject("textures").has("CAPE");
     }
 
     public static boolean isSlim(String nick) {
-        String decodedSTR = new String(Base64.getDecoder().decode(MojangSkinProvider.getSkin(nick).getValue()));
+        String decodedSTR = new String(Base64.getDecoder().decode(MojangSkinProvider.getSkin(nick).value()));
         JsonObject decodedJSON = parser.parse(decodedSTR).getAsJsonObject();
         return decodedJSON.getAsJsonObject("textures").getAsJsonObject("SKIN").has("metadata");
     }

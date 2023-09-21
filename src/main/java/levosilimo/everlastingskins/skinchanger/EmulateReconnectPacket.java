@@ -1,6 +1,5 @@
 package levosilimo.everlastingskins.skinchanger;
 
-import net.minecraft.core.Holder;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -14,7 +13,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.dimension.DimensionType;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 public class EmulateReconnectPacket {
@@ -63,7 +61,7 @@ public class EmulateReconnectPacket {
     public void emulateReconnect() {
         SkinRestorer.server.getPlayerList().broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
         SkinRestorer.server.getPlayerList().broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player));
-        player.connection.send(new ClientboundRespawnPacket(dimensionType, registryKey, seedEncrypted, gameType, previousGameType, isDebug, isFlat, (byte) 3, player.getLastDeathLocation(),player.getPortalCooldown()));
+        player.connection.send(new ClientboundRespawnPacket(new CommonPlayerSpawnInfo(dimensionType, registryKey, seedEncrypted, gameType, previousGameType, isDebug, isFlat, player.getLastDeathLocation(),player.getPortalCooldown()), (byte) 3));
         world.removePlayerImmediately(player, Entity.RemovalReason.CHANGED_DIMENSION);
         player.revive();
         player.setServerLevel(world);

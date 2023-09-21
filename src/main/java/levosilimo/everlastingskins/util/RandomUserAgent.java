@@ -6,8 +6,8 @@ import java.util.Map.Entry;
 
 public class RandomUserAgent {
 
-	private static Map<String, String[]> uaMap = new HashMap<String, String[]>();
-	private static Map<String, Double> freqMap = new HashMap<String, Double>();
+	private static final Map<String, String[]> uaMap = new HashMap<>();
+	private static final Map<String, Double> freqMap = new HashMap<>();
 
 	static {
 
@@ -1664,7 +1664,7 @@ public class RandomUserAgent {
 			browser = "Chrome";
 		}
 		
-		String userAgents[] = uaMap.get(browser);
+		String[] userAgents = uaMap.get(browser);
 		return userAgents[(int) Math.floor(Math.random() * userAgents.length)];
 	}
 }

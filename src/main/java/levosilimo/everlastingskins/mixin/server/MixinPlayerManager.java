@@ -6,6 +6,7 @@ import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import net.minecraft.network.Connection;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.players.PlayerList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -27,7 +28,7 @@ public abstract class MixinPlayerManager {
     public abstract List<ServerPlayer> getPlayers();
 
     @Inject(method = "placeNewPlayer", at = @At(value = "HEAD"))
-    private void onPlayerConnect(Connection mutablecomponent, ServerPlayer player, CallbackInfo ci) {
+    private void onPlayerConnect(Connection p_11262_, ServerPlayer player, CommonListenerCookie p_297215_, CallbackInfo ci) {
         if (SkinRestorer.getSkinStorage().getSkin(player.getUUID()) == SkinStorage.DEFAULT_SKIN)
             SkinRestorer.getSkinStorage().setSkin(player.getUUID(), MojangSkinProvider.getSkin(player.getGameProfile().getName()));
 

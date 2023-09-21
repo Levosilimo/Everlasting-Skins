@@ -182,7 +182,7 @@ public class SkinCommand {
             }
             return packets;
         }, skinCommandExecutor).orTimeout(10, TimeUnit.SECONDS).whenComplete((result, exception) -> {
-            if(SkinRestorer.server != null) SkinRestorer.server.execute(() -> result.forEach(EmulateReconnectPacket::emulateReconnect));
+            if(SkinRestorer.server != null) result.forEach((reconnectPacket) -> SkinRestorer.server.execute(reconnectPacket::emulateReconnect));
         });
         return targets.size();
     }
