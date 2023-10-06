@@ -15,48 +15,7 @@ import net.minecraft.world.level.dimension.DimensionType;
 import java.util.List;
 import java.util.Set;
 
-public class EmulateReconnectPacket {
-    ServerPlayer player;
-    ServerLevel world;
-    double x;
-    double y;
-    double z;
-    float yaw;
-    float pitch;
-    float headYaw;
-    byte yawPacket;
-    Set<RelativeMovement> flags;
-    int HeldSlot;
-    Abilities abilities;
-    ResourceKey<DimensionType> dimensionType;
-    ResourceKey<Level> registryKey;
-    long seedEncrypted;
-    GameType gameType;
-    GameType previousGameType;
-    boolean isDebug;
-    boolean isFlat;
-
-    EmulateReconnectPacket(ServerPlayer player, ServerLevel world, double x, double y, double z, float yaw, float pitch, float headYaw, byte yawPacket, Set<RelativeMovement> flags, int HeldSlot, Abilities abilities, ResourceKey<DimensionType> dimensionType, ResourceKey<Level> registryKey, long seedEncrypted, GameType gameType, GameType previousGameType, boolean isDebug, boolean isFlat) {
-        this.player = player;
-        this.world = world;
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        this.yaw = yaw;
-        this.pitch = pitch;
-        this.headYaw = headYaw;
-        this.yawPacket = yawPacket;
-        this.flags = flags;
-        this.HeldSlot = HeldSlot;
-        this.abilities = abilities;
-        this.dimensionType = dimensionType;
-        this.registryKey = registryKey;
-        this.seedEncrypted = seedEncrypted;
-        this.gameType = gameType;
-        this.previousGameType = previousGameType;
-        this.isDebug = isDebug;
-        this.isFlat = isFlat;
-    }
+public record EmulateReconnectPacket (ServerPlayer player, ServerLevel world, double x, double y, double z, float yaw, float pitch, float headYaw, byte yawPacket, Set<RelativeMovement> flags, int HeldSlot, Abilities abilities, ResourceKey<DimensionType> dimensionType, ResourceKey<Level> registryKey, long seedEncrypted, GameType gameType, GameType previousGameType, boolean isDebug, boolean isFlat) {
 
     public void emulateReconnect() {
         SkinRestorer.server.getPlayerList().broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
