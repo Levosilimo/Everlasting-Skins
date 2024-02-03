@@ -138,6 +138,13 @@ public class SkinCommand extends CommandBase {
                         } else {
                             customSource = nextArg;
                         }
+                    } else if (actionSetType.equals(SkinActionSetType.web)) {
+                        if(SkinVariant.contains(nextArg)) {
+                            skinVariant = SkinVariant.fromName(nextArg);
+                        }
+                        else {
+                            customSource = nextArg;
+                        }
                     } else {
                         customSource = nextArg;
                     }

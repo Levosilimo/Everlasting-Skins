@@ -19,7 +19,7 @@ public class MineskinSkinProvider {
 
     public static Property getSkin(String url, SkinVariant variant) {
         try {
-            String input = ("{\"variant\":\"%s\",\"name\":\"%s\",\"visibility\":%d,\"url\":\"%s\"}");
+            String input = ("{\"variant\":\"%s\",\"name\":\"%s\",\"visibility\":%d,\"url\":%s}");
             input = String.format(input, variant.toString(), "none", 1, url);
             JsonObject texture = JsonUtils.parseJson(WebUtils.POSTRequest(new URL(API), USER_AGENT, TYPE, TYPE, input))
                     .getAsJsonObject("data").getAsJsonObject("texture");
