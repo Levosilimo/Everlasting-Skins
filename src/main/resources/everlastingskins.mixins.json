@@ -10,6 +10,7 @@
     "server.data.MixinTickingEntities"
   ],
   "client": [
+    "client.MixinMinecraft"
   ],
   "server": [
   ]

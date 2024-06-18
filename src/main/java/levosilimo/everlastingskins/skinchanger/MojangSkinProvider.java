@@ -2,6 +2,7 @@ package levosilimo.everlastingskins.skinchanger;
 
 import com.google.gson.JsonObject;
 import com.mojang.authlib.properties.Property;
+import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.JsonUtils;
 import levosilimo.everlastingskins.util.WebUtils;
 
@@ -16,13 +17,14 @@ public class MojangSkinProvider {
     private static final String API = "https://api.mojang.com/users/profiles/minecraft/";
     private static final String SESSION_SERVER = "https://sessionserver.mojang.com/session/minecraft/profile/";
 
-    public static Property getSkin(String name) {
+    public static CustomSkinProperty getSkin(String username) {
         try {
-            UUID uuid = getUUID(name);
+            UUID uuid = getUUID(username);
             JsonObject texture = JsonUtils.parseJson(WebUtils.GETRequest(new URL(SESSION_SERVER + uuid + "?unsigned=false")))
                     .getAsJsonArray("properties").get(0).getAsJsonObject();
-            return new Property("textures", texture.get("value").getAsString(), texture.get("signature").getAsString());
+            return new CustomSkinProperty("textures", texture.get("value").getAsString(), texture.get("signature").getAsString(), username);
         } catch (Exception e) {
+            e.printStackTrace();
             return null;
         }
     }

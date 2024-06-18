@@ -8,6 +8,7 @@ import com.google.gson.JsonParser;
 public class JsonUtils {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final JsonParser JSON_PARSER = new JsonParser();
 
     public static <T> T fromJson(String json, Class<T> clazz) {
         return GSON.fromJson(json, clazz);
@@ -18,6 +19,6 @@ public class JsonUtils {
     }
 
     public static JsonObject parseJson(String json) {
-        return new JsonParser().parse(json).getAsJsonObject();
+        return JSON_PARSER.parse(json).getAsJsonObject();
     }
 }

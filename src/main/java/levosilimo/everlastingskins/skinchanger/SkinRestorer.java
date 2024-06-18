@@ -22,12 +22,14 @@ import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class SkinRestorer {
 
     private static SkinStorage skinStorage;
     private static SkinIO skinIO;
-    public static SkinIO getSkinIO(){return skinIO;}
     public static SkinStorage getSkinStorage() {
         return skinStorage;
     }

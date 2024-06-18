@@ -19,6 +19,8 @@ public class WebUtils {
         connection.setRequestProperty("User-Agent", userAgent);
         connection.setDoOutput(true);
         connection.setDoInput(true);
+        connection.setReadTimeout(10000);
+        connection.setConnectTimeout(10000);
 
         try (OutputStream os = connection.getOutputStream()) {
             os.write(input.getBytes(StandardCharsets.UTF_8), 0, input.length());
@@ -34,6 +36,8 @@ public class WebUtils {
 
         connection.setRequestMethod("GET");
         connection.setDoOutput(true);
+        connection.setReadTimeout(10000);
+        connection.setConnectTimeout(10000);
 
         try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
             return StringUtils.readString(br);

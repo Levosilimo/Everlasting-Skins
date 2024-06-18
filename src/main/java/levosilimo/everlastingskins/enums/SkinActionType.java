@@ -3,7 +3,7 @@ package levosilimo.everlastingskins.enums;
 public enum SkinActionType {
     clear("clear"),
     url("url"),
-    nickname("nickname"),
+    username("username"),
     random("random"),
     NEW("new");
 

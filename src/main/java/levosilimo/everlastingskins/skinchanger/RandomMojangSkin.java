@@ -1,118 +1,139 @@
 package levosilimo.everlastingskins.skinchanger;
 
-import com.google.common.collect.Lists;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinVariant;
-import net.minecraft.util.math.MathHelper;
+import levosilimo.everlastingskins.util.JsonUtils;
+import levosilimo.everlastingskins.util.WebUtils;
 
-import java.io.BufferedReader;
+import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
-import java.nio.charset.Charset;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class RandomMojangSkin {
-    private static final ArrayList<String> blackList=Lists.newArrayList("ad");
-    public static String randomNick(boolean needCape,SkinVariant variant) {
-        StringBuilder html = new StringBuilder();
-        InputStream response = null;
-        int min = 0;
-        int max = 999999;
+
+    private static final URL LATEST_SKINS_URL;
+    private static final URL RANDOM_SKINS_URL;
+
+    static {
         try {
-            String url;
-            if (needCape) {
-                Random rand = new Random();
-                int year = MathHelper.nextInt(rand, 2011, 2016);
-                while (year == 2014) {
-                    year = MathHelper.nextInt(rand, 2011, 2016);
-                }
-                int page = MathHelper.nextInt(rand, 1, 24) + ((year % 10) * 5);
-                url = "https://mskins.net/en/cape/minecon_" + MathHelper.nextInt(new Random(), 2011, 2016) + "?page=" + page;
-                min = 11000;
-                max = 65000;
-            } else {
-                url = "https://mskins.net/en/skins/random";
-                min = 11000;
-                max = 38000;
-            }
-            response = new URL(url).openStream();
-
-
-            Scanner scanner = new Scanner(response);
-            String responseLine = scanner.useDelimiter("</body>").next();
-            html.append(responseLine);
-
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        } finally {
-            try {
-                if (response != null) response.close();
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
+            LATEST_SKINS_URL = new URL("https://mskins.net/ru/skins/latest");
+            RANDOM_SKINS_URL = new URL("https://mskins.net/en/skins/random");
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
         }
-        int RandomSkinIndex = html.indexOf("<span class=\"card-title green-text truncate\">", MathHelper.nextInt(new Random(), min, max)) + 45;
-        String nickname = "";
-        if (RandomSkinIndex > 44) {
-            int RandomSkinIndexStop = html.indexOf("<", RandomSkinIndex);
-            nickname = html.substring(RandomSkinIndex, RandomSkinIndexStop);
-            while (nickname.isEmpty()) {
-                nickname = RandomMojangSkin.randomNick(needCape, variant);
-            }
-            if(blackList.contains(nickname))nickname = RandomMojangSkin.newNick(variant);
-            if (needCape && !hasCape(nickname)) nickname = RandomMojangSkin.randomNick(true, variant);
-            if ((variant.equals(SkinVariant.slim) && !isSlim(nickname)) || ((variant.equals(SkinVariant.classic) && isSlim(nickname))))
-                nickname = RandomMojangSkin.randomNick(needCape, variant);
-        } else {
-            nickname = RandomMojangSkin.randomNick(needCape, variant);
-        }
-        return nickname;
     }
-    public static String newNick(SkinVariant variant) {
-        StringBuilder html = new StringBuilder();
+
+    private static final Random rand = new Random();
+
+    @Nullable
+    public static String randomUsername(boolean needCape, SkinVariant variant) throws IOException {
+        for (int i = 0; i < 5; i++) {
+            String html = WebUtils.GETRequest(needCape ? getRandomCapeUrl() : RANDOM_SKINS_URL);
+            List<String> usernames = extractUsernames(html);
+            for (String username : usernames) {
+                if (username == null || username.isEmpty() || username.equals("ad")) {
+                    continue;
+                }
+
+                if (needCape && !hasCape(username)) {
+                    continue;
+                }
+
+                if ((variant.equals(SkinVariant.slim) && !isSlim(username)) || ((variant.equals(SkinVariant.classic) && isSlim(username)))) {
+                    continue;
+                }
+                return username;
+            }
+        }
+        return null;
+    }
+
+    private static URL getRandomCapeUrl() throws MalformedURLException {
+        int year = getRandomYearExcept2014();
+        int page = getRandomPageForYear(year);
+        return new URL("https://mskins.net/en/cape/minecon_" + year + "?page=" + page);
+    }
+
+    private static int getRandomYearExcept2014() {
+        int year = rand.nextInt(6) + 2011;
+        while (year == 2014) {
+            year = rand.nextInt(6) + 2011;
+        }
+        return year;
+    }
+
+    private static int getRandomPageForYear(int year) {
+        return rand.nextInt(24) + ((year % 10) * 5) + 1;
+    }
+
+
+    private static List<String> extractUsernames(String html) {
+        List<String> usernames = new ArrayList<>();
+        int currentIndex = 0;
+
+        while (true) {
+            int charPointer = html.indexOf("<span class=\"card-title green-text truncate\">", currentIndex);
+            if (charPointer == -1 || charPointer <= currentIndex) {
+                break;
+            }
+            charPointer += 45;
+            int stopIndex = html.indexOf("<", charPointer);
+            if (stopIndex == -1) {
+                break;
+            }
+
+            String username = html.substring(charPointer, stopIndex);
+            if (!username.isEmpty()) {
+                usernames.add(username);
+            }
+
+            currentIndex = stopIndex;
+        }
+
+        return usernames;
+    }
+
+    @Nullable
+    public static String newUsername(SkinVariant variant) throws IOException {
+        for (int i = 0; i < 5; i++) {
+            String html = WebUtils.GETRequest(LATEST_SKINS_URL);
+            List<String> usernames = extractUsernames(html);
+            for (String username : usernames) {
+                if (username.isEmpty() || username.equals("ad") || (variant.equals(SkinVariant.slim) && !isSlim(username))) {
+                    continue;
+                }
+                return username;
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasCape(String username) {
         try {
-            URL url = new URL("https://mskins.net/ru/skins/latest");
-            HttpURLConnection connection = ((HttpURLConnection)url.openConnection());
-            connection.addRequestProperty("User-Agent", "Mozilla/4.0");
-            InputStream input;
-            if (connection.getResponseCode() == 200)  // this must be called before 'getErrorStream()' works
-                input = connection.getInputStream();
-            else input = connection.getErrorStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-            String msg;
-            while ((msg =reader.readLine()) != null)
-                html.append(msg);
+            String decodedSTR = getDecodedStringForUsername(username);
+            JsonObject decodedJSON = JsonUtils.parseJson(decodedSTR);
+            return decodedJSON.getAsJsonObject("textures").has("CAPE");
         } catch (IOException e) {
             e.printStackTrace();
+            return false;
         }
-        int RandomSkinIndex = html.indexOf("<span class=\"card-title green-text truncate\">", MathHelper.nextInt(new Random(),11000,65000)) + 45;
-        if(RandomSkinIndex>44){
-            int RandomSkinIndexStop = html.indexOf("<", RandomSkinIndex);
-            String nickname = html.substring(RandomSkinIndex, RandomSkinIndexStop);
-            if(blackList.contains(nickname))nickname = RandomMojangSkin.newNick(variant);
-            if((variant.equals(SkinVariant.slim)&&!isSlim(nickname))||((variant.equals(SkinVariant.classic)&&isSlim(nickname)))) nickname = RandomMojangSkin.newNick(variant);
-            return nickname;
+    }
+
+    private static boolean isSlim(String username) {
+        try {
+            String decodedSTR = getDecodedStringForUsername(username);
+            JsonObject decodedJSON = JsonUtils.parseJson(decodedSTR);
+            return decodedJSON.getAsJsonObject("textures").getAsJsonObject("SKIN").has("metadata");
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
         }
-        else return "Notch";
     }
-    private static final JsonParser parser = new JsonParser();
-    public static boolean hasCape(String nick){
-        String decodedSTR = new String(Base64.getDecoder().decode(MojangSkinProvider.getSkin(nick).getValue()));
-        JsonObject decodedJSON = parser.parse(decodedSTR).getAsJsonObject();
-        return decodedJSON.getAsJsonObject("textures").has("CAPE");
-        //return decodedJSON.getAsJsonObject("textures").getAsJsonObject("CAPE").getAsJsonPrimitive("url").getAsString().contains("http");
-    }
-    public static boolean isSlim(String nick){
-        String decodedSTR = new String(Base64.getDecoder().decode(MojangSkinProvider.getSkin(nick).getValue()));
-        JsonObject decodedJSON = parser.parse(decodedSTR).getAsJsonObject();
-        return decodedJSON.getAsJsonObject("textures").getAsJsonObject("SKIN").has("metadata");
+
+    private static String getDecodedStringForUsername(String username) throws IOException {
+        String skinValue = MojangSkinProvider.getSkin(username).getValue();
+        return new String(Base64.getDecoder().decode(skinValue));
     }
 }
