@@ -17,18 +17,6 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.uuid;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import lombok.Getter;
 
-@Getter
-@SuppressWarnings("unused")
-@SuppressFBWarnings({"UWF_UNWRITTEN_FIELD", "URF_UNREAD_FIELD"})
-public class MojangUUIDResponse {
-    private String name;
-    /**
-     * UUID without dashes
-     */
-    private String id;
-    private String error;
-    private String errorMessage;
+public record MojangUUIDResponse(String name, String id, String error, String errorMessage) {
 }

@@ -17,7 +17,5 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-public class MineSkinErrorResponse {
-    private String errorCode;
-    private String error;
+public record MineSkinErrorResponse(String errorCode, String error) {
 }

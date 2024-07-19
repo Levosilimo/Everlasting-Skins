@@ -17,17 +17,5 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.profile;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import lombok.Getter;
-
-@Getter
-@SuppressWarnings("unused")
-@SuppressFBWarnings({"UWF_UNWRITTEN_FIELD", "URF_UNREAD_FIELD"})
-public class MojangProfileResponse {
-    /**
-     * UUID without dashes
-     */
-    private String id;
-    private String name;
-    private PropertyResponse[] properties;
+public record DecodedTextureProperty(long timestamp, String profileId, String profileName, boolean signatureRequired, MojangProfileTextures textures) {
 }

@@ -17,8 +17,5 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-public class MineSkinTexture {
-    private String value;
-    private String signature;
-    private String url;
+public record MineSkinTexture(String value, String signature, String url) {
 }

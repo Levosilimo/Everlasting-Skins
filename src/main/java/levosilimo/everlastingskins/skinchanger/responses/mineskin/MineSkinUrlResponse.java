@@ -17,21 +17,5 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-import com.google.gson.annotations.SerializedName;
-public class MineSkinUrlResponse {
-    private String id;
-    private String idStr;
-    private String uuid;
-    private String name;
-    private String variant;
-    private MineSkinData data;
-    private long timestamp;
-    private int duration;
-    private int account;
-    private String server;
-    @SerializedName("private")
-    private boolean private_;
-    private int views;
-    private int nextRequest;
-    private boolean duplicate;
+public record MineSkinUrlResponse (String id, String idStr, String uuid, String name, String variant, MineSkinData data, long timestamp, int duration, int account, String server, boolean private_, int views, int nextRequest, boolean duplicate) {
 }

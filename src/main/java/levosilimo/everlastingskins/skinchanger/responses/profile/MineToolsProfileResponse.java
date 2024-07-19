@@ -17,23 +17,9 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.profile;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import lombok.Getter;
+public record MineToolsProfileResponse(Raw raw) {
 
-@Getter
-@SuppressWarnings("unused")
-@SuppressFBWarnings({"UWF_UNWRITTEN_FIELD", "URF_UNREAD_FIELD"})
-public class MineToolsProfileResponse {
-    private Raw raw;
-
-    @Getter
-    public static class Raw {
-        /**
-         * UUID without dashes
-         */
-        private String id;
-        private String name;
-        private PropertyResponse[] properties;
-        private String status;
+    public record Raw (String id, String name, PropertyResponse[] properties, String status) {
     }
+
 }

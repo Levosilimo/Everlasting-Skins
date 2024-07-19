@@ -17,7 +17,7 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.uuid;
 
-import net.skinsrestorer.shared.connections.responses.EclipseCacheData;
+import levosilimo.everlastingskins.skinchanger.responses.EclipseCacheData;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;

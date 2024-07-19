@@ -17,7 +17,5 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-public class MineSkinData {
-    private String uuid;
-    private MineSkinTexture texture;
+public record MineSkinData (String uuid, MineSkinTexture texture) {
 }

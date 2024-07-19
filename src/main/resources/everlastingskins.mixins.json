@@ -1,17 +1,18 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_17",
   "package": "levosilimo.everlastingskins.mixin",
   "refmap": "everlastingskins.refmap.json",
   "mixins": [
     "server.MixinCommandManager",
-    "server.MixinPlayerManager",
-    "server.data.MixinTickingEntities"
+    "server.MixinPlayerManager"
   ],
   "client": [
-    "client.MixinMinecraft"
   ],
   "server": [
-  ]
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
 }

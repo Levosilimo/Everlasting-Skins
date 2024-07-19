@@ -41,7 +41,7 @@ public class RandomMojangSkin {
                     continue;
                 }
 
-                if ((variant.equals(SkinVariant.slim) && !isSlim(username)) || ((variant.equals(SkinVariant.classic) && isSlim(username)))) {
+                if ((variant.equals(SkinVariant.SLIM) && !isSlim(username)) || ((variant.equals(SkinVariant.CLASSIC) && isSlim(username)))) {
                     continue;
                 }
                 return username;
@@ -101,7 +101,7 @@ public class RandomMojangSkin {
             String html = WebUtils.GETRequest(LATEST_SKINS_URL);
             List<String> usernames = extractUsernames(html);
             for (String username : usernames) {
-                if (username.isEmpty() || username.equals("ad") || (variant.equals(SkinVariant.slim) && !isSlim(username))) {
+                if (username.isEmpty() || username.equals("ad") || (variant.equals(SkinVariant.SLIM) && !isSlim(username))) {
                     continue;
                 }
                 return username;
@@ -133,7 +133,7 @@ public class RandomMojangSkin {
     }
 
     private static String getDecodedStringForUsername(String username) throws IOException {
-        String skinValue = MojangSkinProvider.getSkin(username).getValue();
+        String skinValue = SkinCommand.mojangAPI.getSkin(username).skinProperty().getOriginalProperty().value();
         return new String(Base64.getDecoder().decode(skinValue));
     }
 }

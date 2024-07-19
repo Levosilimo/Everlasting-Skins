@@ -17,8 +17,6 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-public class MineSkinErrorDelayResponse {
-    private String error;
-    private Integer nextRequest;
-    private Integer delay;
+public record MineSkinErrorDelayResponse(String error, Integer nextRequest, Integer delay) {
+
 }

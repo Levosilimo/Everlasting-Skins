@@ -20,9 +20,7 @@ package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
-public class MineSkinResponse {
-    private final CustomSkinProperty property;
-    private final String mineSkinId;
-    private final SkinVariant requestedVariant;
-    private final SkinVariant generatedVariant;
+import javax.annotation.Nullable;
+
+public record MineSkinResponse(CustomSkinProperty property, @Nullable String mineSkinId, @Nullable SkinVariant requestedVariant, @Nullable SkinVariant generatedVariant) {
 }

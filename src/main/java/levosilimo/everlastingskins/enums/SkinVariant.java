@@ -2,9 +2,9 @@ package levosilimo.everlastingskins.enums;
 
 public enum SkinVariant {
 
-    classic("classic"),
-    slim("slim"),
-    all("all");
+    CLASSIC("classic"),
+    SLIM("slim"),
+    ALL("all");
 
     private final String name;
 
