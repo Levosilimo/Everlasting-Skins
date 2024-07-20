@@ -1,6 +1,7 @@
 package levosilimo.everlastingskins.util;
 
 
+import io.netty.util.CharsetUtil;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import org.apache.logging.log4j.Logger;
@@ -83,7 +84,7 @@ public class HttpClient {
 
         HttpResponse response = new HttpResponse(
                 connection.getResponseCode(),
-                byteData.toString(StandardCharsets.UTF_8),
+                byteData.toString("UTF-8"),
                 connection.getHeaderFields()
         );
 
@@ -115,6 +116,24 @@ public class HttpClient {
         }
     }
 
-    public record RequestBody(String body, HttpType type) {
+
+    public static class RequestBody {
+
+        private final String body;
+        private final HttpType type;
+        public RequestBody(String body, HttpType type) {
+            this.body = body;
+            this.type = type;
+        }
+
+        public String body() {
+            return body;
+        }
+
+        public HttpType type() {
+            return type;
+        }
     }
 }
+
+

@@ -35,13 +35,13 @@ public class MojangAPIImpl {
 
     public MojangSkinDataResult getSkin(String nameOrUniqueId) {
         Optional<UUID> uuidParseResult = UUIDUtils.tryParseUniqueId(nameOrUniqueId);
-        if (SRHelpers.invalidMinecraftUsername(nameOrUniqueId) && uuidParseResult.isEmpty()) {
+        if (SRHelpers.invalidMinecraftUsername(nameOrUniqueId) && !uuidParseResult.isPresent()) {
             return null;
         }
 
-        Optional<UUID> uuidResult = uuidParseResult.isEmpty()
+        Optional<UUID> uuidResult = !uuidParseResult.isPresent()
                 ? getUUID(nameOrUniqueId) : uuidParseResult;
-        if (uuidResult.isEmpty()) {
+        if (!uuidResult.isPresent()) {
             return null;
         }
 
@@ -154,7 +154,7 @@ public class MojangAPIImpl {
             return Optional.empty();
         }
 
-        return Optional.of(new CustomSkinProperty(response.skinProperty().value(), response.skinProperty().signature(), usernameUUIDPair.getA()));
+        return Optional.of(new CustomSkinProperty(response.skinProperty.value(), response.skinProperty.signature(), usernameUUIDPair.getA()));
     }
 
     public Optional<CustomSkinProperty> getProfileMojang(Tuple<String, Optional<UUID>> usernameUUIDPair)  {

@@ -17,6 +17,53 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-public record MineSkinErrorDelayResponse(String error, Integer nextRequest, Integer delay) {
+import java.util.Objects;
+
+public final class MineSkinErrorDelayResponse {
+    private final String error;
+    private final Integer nextRequest;
+    private final Integer delay;
+
+    MineSkinErrorDelayResponse(String error, Integer nextRequest, Integer delay) {
+        this.error = error;
+        this.nextRequest = nextRequest;
+        this.delay = delay;
+    }
+
+    public String error() {
+        return error;
+    }
+
+    public Integer nextRequest() {
+        return nextRequest;
+    }
+
+    public Integer delay() {
+        return delay;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        MineSkinErrorDelayResponse that = (MineSkinErrorDelayResponse) obj;
+        return Objects.equals(this.error, that.error) &&
+                Objects.equals(this.nextRequest, that.nextRequest) &&
+                Objects.equals(this.delay, that.delay);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(error, nextRequest, delay);
+    }
+
+    @Override
+    public String toString() {
+        return "MineSkinErrorDelayResponse[" +
+                "error=" + error + ", " +
+                "nextRequest=" + nextRequest + ", " +
+                "delay=" + delay + ']';
+    }
+
 
 }

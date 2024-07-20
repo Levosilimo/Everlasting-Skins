@@ -17,5 +17,44 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-public record MineSkinData (String uuid, MineSkinTexture texture) {
+import java.util.Objects;
+
+public final class MineSkinData {
+    private final String uuid;
+    private final MineSkinTexture texture;
+
+    MineSkinData(String uuid, MineSkinTexture texture) {
+        this.uuid = uuid;
+        this.texture = texture;
+    }
+
+    public String uuid() {
+        return uuid;
+    }
+
+    public MineSkinTexture texture() {
+        return texture;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        MineSkinData that = (MineSkinData) obj;
+        return Objects.equals(this.uuid, that.uuid) &&
+                Objects.equals(this.texture, that.texture);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(uuid, texture);
+    }
+
+    @Override
+    public String toString() {
+        return "MineSkinData[" +
+                "uuid=" + uuid + ", " +
+                "texture=" + texture + ']';
+    }
+
 }

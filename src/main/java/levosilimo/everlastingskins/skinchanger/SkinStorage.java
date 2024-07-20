@@ -1,7 +1,7 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.ServerPlayerEntity;
 
 import javax.annotation.Nullable;
 import java.util.UUID;
@@ -21,7 +21,7 @@ public class SkinStorage {
     public static SkinStorage getInstance() {
         return SkinRestorer.getSkinStorage();
     }
-    public CustomSkinProperty getSkin(ServerPlayer player) {
+    public CustomSkinProperty getSkin(ServerPlayerEntity player) {
         CustomSkinProperty skinProperty = skinMap.get(player.getUUID());
         if (skinProperty != null) return skinProperty;
 
@@ -35,20 +35,20 @@ public class SkinStorage {
         return skin != null ? skin.getSource() : skinIO.getSourceFromFileStorage(uuid);
     }
 
-    public void saveSkin(ServerPlayer player) {
+    public void saveSkin(ServerPlayerEntity player) {
         CustomSkinProperty skinProperty = skinMap.get(player.getUUID());
         if (skinProperty != null) {
             skinIO.saveSkin(player.getUUID(), skinProperty);
         }
     }
 
-    public CustomSkinProperty setSkin(ServerPlayer player, @Nullable CustomSkinProperty skin) {
+    public CustomSkinProperty setSkin(ServerPlayerEntity player, @Nullable CustomSkinProperty skin) {
         if (skin == null) skin = DEFAULT_SKIN;
         skinMap.put(player.getUUID(), skin);
         return skin;
     }
 
-    public boolean hasDefaultSkin(ServerPlayer player) {
+    public boolean hasDefaultSkin(ServerPlayerEntity player) {
         return DEFAULT_SKIN.equals(getSkin(player));
     }
 }

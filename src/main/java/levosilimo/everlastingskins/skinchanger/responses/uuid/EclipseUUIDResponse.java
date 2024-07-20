@@ -18,9 +18,55 @@
 package levosilimo.everlastingskins.skinchanger.responses.uuid;
 
 import levosilimo.everlastingskins.skinchanger.responses.EclipseCacheData;
-import org.jetbrains.annotations.Nullable;
 
+import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.UUID;
 
-public record EclipseUUIDResponse(EclipseCacheData cacheData, boolean exists, @Nullable UUID uuid) {
-  }
+public final class EclipseUUIDResponse {
+    private final EclipseCacheData cacheData;
+    private final boolean exists;
+    private final UUID uuid;
+
+    EclipseUUIDResponse(EclipseCacheData cacheData, boolean exists,  @Nullable UUID uuid) {
+        this.cacheData = cacheData;
+        this.exists = exists;
+        this.uuid = uuid;
+    }
+
+    public EclipseCacheData cacheData() {
+        return cacheData;
+    }
+
+    public boolean exists() {
+        return exists;
+    }
+
+    public UUID uuid() {
+        return uuid;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        EclipseUUIDResponse that = (EclipseUUIDResponse) obj;
+        return Objects.equals(this.cacheData, that.cacheData) &&
+                this.exists == that.exists &&
+                Objects.equals(this.uuid, that.uuid);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(cacheData, exists, uuid);
+    }
+
+    @Override
+    public String toString() {
+        return "EclipseUUIDResponse[" +
+                "cacheData=" + cacheData + ", " +
+                "exists=" + exists + ", " +
+                "uuid=" + uuid + ']';
+    }
+
+}

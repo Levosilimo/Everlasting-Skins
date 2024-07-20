@@ -1,11 +1,9 @@
 package levosilimo.everlastingskins.skinchanger;
 
-import net.minecraft.FileUtil;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraft.world.storage.FolderName;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-
-import java.io.IOException;
+import net.minecraftforge.fml.event.server.FMLServerStartingEvent;
 import java.nio.file.Path;
 
 public class SkinRestorer {
@@ -17,14 +15,9 @@ public class SkinRestorer {
     }
     public static MinecraftServer server;
     @SubscribeEvent
-    public void onInitializeServer(ServerStartingEvent event) {
+    public void onInitializeServer(FMLServerStartingEvent event) {
         server = event.getServer();
-        Path path = event.getServer().getFile("EverlastingSkins");
-        try {
-            FileUtil.createDirectoriesSafe(path);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        Path path = event.getServer().getWorldPath(new FolderName("EverlastingSkins"));
         skinIO=new SkinIO(path);
         skinStorage = new SkinStorage(skinIO);
     }

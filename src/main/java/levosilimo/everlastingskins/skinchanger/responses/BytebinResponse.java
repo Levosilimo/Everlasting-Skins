@@ -18,5 +18,36 @@
 package levosilimo.everlastingskins.skinchanger.responses;
 
 
-public record BytebinResponse(String key) {
+import java.util.Objects;
+
+public final class BytebinResponse {
+    private final String key;
+
+    BytebinResponse(String key) {
+        this.key = key;
+    }
+
+    public String key() {
+        return key;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        BytebinResponse that = (BytebinResponse) obj;
+        return Objects.equals(this.key, that.key);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key);
+    }
+
+    @Override
+    public String toString() {
+        return "BytebinResponse[" +
+                "key=" + key + ']';
+    }
+
 }

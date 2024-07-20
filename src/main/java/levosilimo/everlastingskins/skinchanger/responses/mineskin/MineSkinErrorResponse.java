@@ -17,5 +17,44 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-public record MineSkinErrorResponse(String errorCode, String error) {
+import java.util.Objects;
+
+public final class MineSkinErrorResponse {
+    private final String errorCode;
+    private final String error;
+
+    MineSkinErrorResponse(String errorCode, String error) {
+        this.errorCode = errorCode;
+        this.error = error;
+    }
+
+    public String errorCode() {
+        return errorCode;
+    }
+
+    public String error() {
+        return error;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        MineSkinErrorResponse that = (MineSkinErrorResponse) obj;
+        return Objects.equals(this.errorCode, that.errorCode) &&
+                Objects.equals(this.error, that.error);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(errorCode, error);
+    }
+
+    @Override
+    public String toString() {
+        return "MineSkinErrorResponse[" +
+                "errorCode=" + errorCode + ", " +
+                "error=" + error + ']';
+    }
+
 }

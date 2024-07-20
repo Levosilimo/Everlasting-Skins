@@ -43,53 +43,48 @@ repositories {
 version = "${mod_version}"
 archivesBaseName = "${mod_name}-${minecraft_version}"
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
-}
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
-java {
-    // withSourcesJar()
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
 
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-}
 
 
 minecraft {
 
     mappings channel: 'official', version: "${minecraft_version}".toString()
-    reobf = false
 
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
-    copyIdeResources = true
 	
     runs {
 
-        configureEach {
+        client {
+
             workingDirectory project.file('run')
+            taskName "${mod_name}".replaceAll("\\s","") + 'Client'
             property 'forge.logging.console.level', 'debug'
-            property 'fml.earlyprogresswindow', 'false'
-            property 'mixin.env.disableRefMap', 'true'
+            property 'terminal.ansi', 'true'
+            arg "-mixin.config=" + project.findProperty('mixin_id') + ".mixins.json"
+            jvmArg "-Dmixin.env.disableRefMap=true"
 
             mods {
-                "everlastingskins" {
+                enchdesc {
                     source sourceSets.main
                 }
             }
         }
 
-        client {
-            properties 'mixin.env.remapRefMap': 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
-
-            property 'forge.logging.markers', 'REGISTRYDUMP'
-        }
-
         server {
-            workingDirectory project.file('server')
-            property 'mixin.env.disableRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
-            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+
+            workingDirectory project.file('run')
+            taskName "${mod_name}".replaceAll("\\s","") + 'Server'
+            property 'forge.logging.console.level', 'debug'
+            property 'terminal.ansi', 'true'
+            arg "-mixin.config=" + project.findProperty('mixin_id') + ".mixins.json"
+            jvmArg "-Dmixin.env.disableRefMap=true"
+
+            mods {
+                enchdesc {
+                    source sourceSets.main
+                }
+            }
         }
     }
 }
@@ -131,12 +126,5 @@ jar {
 
 
 processResources {
-    inputs.property "version", project.mod_version
 
-}
-
-sourceSets.each {
-    def dir = layout.buildDirectory.dir("sourcesSets/$it.name")
-    it.output.resourcesDir = dir
-    it.java.destinationDirectory = dir
 }

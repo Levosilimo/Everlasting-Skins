@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.skinchanger.responses.profile.DecodedTextureProperty;
 import levosilimo.everlastingskins.skinchanger.responses.profile.MojangProfileTextureMeta;
-import org.jetbrains.annotations.NotNull;
+import org.antlr.v4.runtime.misc.NotNull;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -63,7 +63,7 @@ public class PropertyUtils {
      * @return Decoded profile data as java object
      */
     public static DecodedTextureProperty getSkinProfileData(@NotNull CustomSkinProperty property) {
-        String decodedString = new String(Base64.getDecoder().decode(property.getOriginalProperty().value()), StandardCharsets.UTF_8);
+        String decodedString = new String(Base64.getDecoder().decode(property.getOriginalProperty().getValue()), StandardCharsets.UTF_8);
 
         return GSON.fromJson(decodedString, DecodedTextureProperty.class);
     }

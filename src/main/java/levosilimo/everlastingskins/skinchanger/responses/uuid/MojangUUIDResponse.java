@@ -18,5 +18,60 @@
 package levosilimo.everlastingskins.skinchanger.responses.uuid;
 
 
-public record MojangUUIDResponse(String name, String id, String error, String errorMessage) {
+import java.util.Objects;
+
+public final class MojangUUIDResponse {
+    private final String name;
+    private final String id;
+    private final String error;
+    private final String errorMessage;
+
+    MojangUUIDResponse(String name, String id, String error, String errorMessage) {
+        this.name = name;
+        this.id = id;
+        this.error = error;
+        this.errorMessage = errorMessage;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public String id() {
+        return id;
+    }
+
+    public String error() {
+        return error;
+    }
+
+    public String errorMessage() {
+        return errorMessage;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        MojangUUIDResponse that = (MojangUUIDResponse) obj;
+        return Objects.equals(this.name, that.name) &&
+                Objects.equals(this.id, that.id) &&
+                Objects.equals(this.error, that.error) &&
+                Objects.equals(this.errorMessage, that.errorMessage);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, id, error, errorMessage);
+    }
+
+    @Override
+    public String toString() {
+        return "MojangUUIDResponse[" +
+                "name=" + name + ", " +
+                "id=" + id + ", " +
+                "error=" + error + ", " +
+                "errorMessage=" + errorMessage + ']';
+    }
+
 }

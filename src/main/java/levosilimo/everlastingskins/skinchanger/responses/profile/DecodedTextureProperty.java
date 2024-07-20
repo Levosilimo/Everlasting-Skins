@@ -17,5 +17,68 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.profile;
 
-public record DecodedTextureProperty(long timestamp, String profileId, String profileName, boolean signatureRequired, MojangProfileTextures textures) {
+import java.util.Objects;
+
+public final class DecodedTextureProperty {
+    private final long timestamp;
+    private final String profileId;
+    private final String profileName;
+    private final boolean signatureRequired;
+    private final MojangProfileTextures textures;
+
+    DecodedTextureProperty(long timestamp, String profileId, String profileName, boolean signatureRequired, MojangProfileTextures textures) {
+        this.timestamp = timestamp;
+        this.profileId = profileId;
+        this.profileName = profileName;
+        this.signatureRequired = signatureRequired;
+        this.textures = textures;
+    }
+
+    public long timestamp() {
+        return timestamp;
+    }
+
+    public String profileId() {
+        return profileId;
+    }
+
+    public String profileName() {
+        return profileName;
+    }
+
+    public boolean signatureRequired() {
+        return signatureRequired;
+    }
+
+    public MojangProfileTextures textures() {
+        return textures;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        DecodedTextureProperty that = (DecodedTextureProperty) obj;
+        return this.timestamp == that.timestamp &&
+                Objects.equals(this.profileId, that.profileId) &&
+                Objects.equals(this.profileName, that.profileName) &&
+                this.signatureRequired == that.signatureRequired &&
+                Objects.equals(this.textures, that.textures);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(timestamp, profileId, profileName, signatureRequired, textures);
+    }
+
+    @Override
+    public String toString() {
+        return "DecodedTextureProperty[" +
+                "timestamp=" + timestamp + ", " +
+                "profileId=" + profileId + ", " +
+                "profileName=" + profileName + ", " +
+                "signatureRequired=" + signatureRequired + ", " +
+                "textures=" + textures + ']';
+    }
+
 }

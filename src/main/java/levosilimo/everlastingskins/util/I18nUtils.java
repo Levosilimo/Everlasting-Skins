@@ -43,7 +43,7 @@ public class I18nUtils {
     }
 
     public I18nUtils() {
-        Path localizationsDir = SkinRestorer.server.getServerDirectory().resolve("config/EverlastingSkins/");
+        Path localizationsDir = SkinRestorer.server.getServerDirectory().toPath().resolve("config/EverlastingSkins/");
         try {
             Files.createDirectories(localizationsDir);
         } catch (IOException e) {

@@ -17,5 +17,52 @@
  */
 package levosilimo.everlastingskins.skinchanger.responses.uuid;
 
-public record MineToolsUUIDResponse(String id, String name, String status) {
+import java.util.Objects;
+
+public final class MineToolsUUIDResponse {
+    private final String id;
+    private final String name;
+    private final String status;
+
+    MineToolsUUIDResponse(String id, String name, String status) {
+        this.id = id;
+        this.name = name;
+        this.status = status;
+    }
+
+    public String id() {
+        return id;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public String status() {
+        return status;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        MineToolsUUIDResponse that = (MineToolsUUIDResponse) obj;
+        return Objects.equals(this.id, that.id) &&
+                Objects.equals(this.name, that.name) &&
+                Objects.equals(this.status, that.status);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, name, status);
+    }
+
+    @Override
+    public String toString() {
+        return "MineToolsUUIDResponse[" +
+                "id=" + id + ", " +
+                "name=" + name + ", " +
+                "status=" + status + ']';
+    }
+
 }
