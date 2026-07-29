@@ -96,9 +96,10 @@ public class MojangAPIImpl {
             return Optional.empty();
         }
 
-        // Rate limited
+        // Rate limited — return empty so the fallback chain in getUUID()
+        // tries MineTools instead. Propagating the HTTP code to callers
+        // doesn't add value here: all callers treat empty as "try next source."
         if (httpResponse.statusCode() == 429) {
-            // TODO: Return http code to api and translate internally
             return Optional.empty();
         }
 
