@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Pre-commit quality gate for EverlastingSkins.
+# Runs aislop against staged files to catch AI-slop patterns:
+# god-files, god-functions, narrative comments, swallowed exceptions,
+# FizzBuzz-Enterprise-style overengineering, etc.
+#
+# Requires: bunx (bun) or npx on PATH. aislop is fetched on demand.
+# Setup: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+if ! command -v bunx >/dev/null 2>&1 && ! command -v npx >/dev/null 2>&1; then
+  echo "[aislop] neither bunx nor npx found on PATH; skipping scan" >&2
+  exit 0
+fi
+
+if [ -z "$(git diff --cached --name-only --diff-filter=ACMR | head -n1)" ]; then
+  exit 0
+fi
+
+echo "[aislop] scanning staged files..."
+
+if command -v bunx >/dev/null 2>&1; then
+  RUNNER=bunx
+else
+  RUNNER=npx
+fi
+
+# shellcheck disable=SC2086
+if ! $RUNNER aislop scan --staged; then
+  cat >&2 <<'EOF'
+
+aislop reported findings on staged files.
+
+Common fixes:
+  - aislop fix                  Auto-fix mechanical issues (formatting, unused imports, narrative comments)
+  - aislop rules                List every rule and what triggers it
+  - aislop scan --staged -d     Verbose output with file details per rule
+
+Disable this hook for a single commit with: git commit --no-verify
+Re-enable per the project setup note in AGENTS.md.
+EOF
+  exit 1
+fi
