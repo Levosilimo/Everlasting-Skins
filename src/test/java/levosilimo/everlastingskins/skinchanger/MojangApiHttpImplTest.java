@@ -16,12 +16,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Provider fallback order (Eclipse → Mojang → MineTools) and HTTP outcome
- * handling for every status code and transport failure mentioned in the
- * Phase 1 plan.
- * <p>
- * All HTTP responses are served by {@link FakeHttpClient}. No live endpoint
- * is ever contacted.
+ * Provider fallback order (Eclipse -> Mojang -> MineTools) and HTTP outcome
+ * handling for every status code and transport failure.
  */
 class MojangApiHttpImplTest {
 
@@ -60,12 +56,13 @@ class MojangApiHttpImplTest {
         httpClient = new FakeHttpClient();
         api = new MojangApiHttpImpl(TEST_ENDPOINTS, httpClient);
     }
+
     @Nested
     @DisplayName("UUID fallback order")
     class UuidFallback {
 
         @Test
-        @DisplayName("Eclipse 200 OK → returns UUID")
+        @DisplayName("Eclipse 200 OK -> returns UUID")
         void eclipseFirst() {
             httpClient.addResponse(eclipseUuidUri, 200, uuidEclipseBody(PLAYER_UUID));
 
@@ -76,7 +73,7 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("Eclipse 404 → Mojang 200 OK → returns UUID")
+        @DisplayName("Eclipse 404 -> Mojang 200 OK -> returns UUID")
         void eclipseFailsMojangSucceeds() {
             httpClient.addResponse(eclipseUuidUri, 404, "");
             httpClient.addResponse(mojangUuidUri, 200, uuidMojangBody(PLAYER_NAME, PLAYER_UUID));
@@ -88,7 +85,7 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("Eclipse 404 → Mojang 404 → MineTools 200 OK → returns UUID")
+        @DisplayName("Eclipse 404 -> Mojang 404 -> MineTools 200 OK -> returns UUID")
         void eclipseAndMojangFailMineToolsSucceeds() {
             httpClient.addResponse(eclipseUuidUri, 404, "");
             httpClient.addResponse(mojangUuidUri, 404, "");
@@ -101,16 +98,17 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("All providers fail → empty")
+        @DisplayName("All providers fail -> empty")
         void allProvidersFail() {
             httpClient.addResponse(eclipseUuidUri, 404, "");
             httpClient.addResponse(mojangUuidUri, 404, "");
             httpClient.addResponse(mineToolsUuidUri, 200, uuidMineToolsErrBody());
 
             Optional<UUID> result = api.getUUID(PLAYER_NAME);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
     }
+
     @Nested
     @DisplayName("Profile fallback order")
     class ProfileFallback {
@@ -119,22 +117,22 @@ class MojangApiHttpImplTest {
 
         @BeforeEach
         void init() {
-            pair = new Tuple<>(PLAYER_NAME, Optional.of(PLAYER_UUID));
+            pair = new Tuple<String, Optional<UUID>>(PLAYER_NAME, Optional.<UUID>of(PLAYER_UUID));
         }
 
         @Test
-        @DisplayName("Eclipse 200 OK → returns property")
+        @DisplayName("Eclipse 200 OK -> returns property")
         void eclipseFirst() {
             httpClient.addResponse(eclipseProfileUri, 200, profileEclipseBody("value1", "sig1"));
 
             Optional<CustomSkinProperty> result = api.getProfile(pair);
 
             assertTrue(result.isPresent());
-            assertEquals("value1", result.get().getOriginalProperty().value());
+            assertEquals("value1", result.get().getOriginalProperty().getValue());
         }
 
         @Test
-        @DisplayName("Eclipse 404 → Mojang 200 OK → returns property")
+        @DisplayName("Eclipse 404 -> Mojang 200 OK -> returns property")
         void eclipseFailsMojangSucceeds() {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 200, profileMojangBody("value2", "sig2"));
@@ -142,11 +140,11 @@ class MojangApiHttpImplTest {
             Optional<CustomSkinProperty> result = api.getProfile(pair);
 
             assertTrue(result.isPresent());
-            assertEquals("value2", result.get().getOriginalProperty().value());
+            assertEquals("value2", result.get().getOriginalProperty().getValue());
         }
 
         @Test
-        @DisplayName("Eclipse 404 → Mojang 404 → MineTools 200 OK → returns property")
+        @DisplayName("Eclipse 404 -> Mojang 404 -> MineTools 200 OK -> returns property")
         void eclipseAndMojangFailMineToolsSucceeds() {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 404, "");
@@ -155,45 +153,46 @@ class MojangApiHttpImplTest {
             Optional<CustomSkinProperty> result = api.getProfile(pair);
 
             assertTrue(result.isPresent());
-            assertEquals("value3", result.get().getOriginalProperty().value());
+            assertEquals("value3", result.get().getOriginalProperty().getValue());
         }
 
         @Test
-        @DisplayName("All profile providers fail → empty")
+        @DisplayName("All profile providers fail -> empty")
         void allProvidersFail() {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 404, "");
 
             Optional<CustomSkinProperty> result = api.getProfile(pair);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
     }
+
     @Nested
     @DisplayName("HTTP outcomes per UUID provider")
     class UuidHttpOutcomes {
 
         @Test
-        @DisplayName("Eclipse 204 → empty (falls through)")
+        @DisplayName("Eclipse 204 -> empty (falls through)")
         void eclipse204() {
             httpClient.addResponse(eclipseUuidUri, 204, "");
             httpClient.addResponse(mojangUuidUri, 404, "");
 
             Optional<UUID> result = api.getUUID(PLAYER_NAME);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
 
         @Test
-        @DisplayName("Mojang 204 → empty")
+        @DisplayName("Mojang 204 -> empty")
         void mojang204() {
             httpClient.addResponse(eclipseUuidUri, 404, "");
             httpClient.addResponse(mojangUuidUri, 204, "");
 
             Optional<UUID> result = api.getUUID(PLAYER_NAME);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
 
         @Test
-        @DisplayName("Mojang 429 → empty (falls through to MineTools)")
+        @DisplayName("Mojang 429 -> empty (falls through to MineTools)")
         void mojang429() {
             httpClient.addResponse(eclipseUuidUri, 404, "");
             httpClient.addResponse(mojangUuidUri, 429, "");
@@ -206,7 +205,7 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("Mojang 500 → empty (falls through)")
+        @DisplayName("Mojang 500 -> empty (falls through)")
         void mojang500() {
             httpClient.addResponse(eclipseUuidUri, 404, "");
             httpClient.addResponse(mojangUuidUri, 500, "{}");
@@ -217,7 +216,7 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("Mojang malformed body → empty (falls through)")
+        @DisplayName("Mojang malformed body -> empty (falls through)")
         void mojangMalformedBody() {
             httpClient.addResponse(eclipseUuidUri, 404, "");
             httpClient.addResponse(mojangUuidUri, 200, "not-json-at-all");
@@ -228,7 +227,7 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("Transport timeout → empty (falls through)")
+        @DisplayName("Transport timeout -> empty (falls through)")
         void transportTimeout() {
             httpClient.addTimeout(eclipseUuidUri);
             httpClient.addResponse(mojangUuidUri, 200, uuidMojangBody(PLAYER_NAME, PLAYER_UUID));
@@ -240,16 +239,17 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("All providers timeout → empty")
+        @DisplayName("All providers timeout -> empty")
         void allTimeouts() {
             httpClient.addTimeout(eclipseUuidUri);
             httpClient.addTimeout(mojangUuidUri);
             httpClient.addTimeout(mineToolsUuidUri);
 
             Optional<UUID> result = api.getUUID(PLAYER_NAME);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
     }
+
     @Nested
     @DisplayName("HTTP outcomes per profile provider")
     class ProfileHttpOutcomes {
@@ -258,11 +258,11 @@ class MojangApiHttpImplTest {
 
         @BeforeEach
         void init() {
-            pair = new Tuple<>(PLAYER_NAME, Optional.of(PLAYER_UUID));
+            pair = new Tuple<String, Optional<UUID>>(PLAYER_NAME, Optional.<UUID>of(PLAYER_UUID));
         }
 
         @Test
-        @DisplayName("Eclipse 204 → empty (falls through)")
+        @DisplayName("Eclipse 204 -> empty (falls through)")
         void eclipse204() {
             httpClient.addResponse(eclipseProfileUri, 204, "");
             httpClient.addResponse(mojangProfileUri, 200, profileMojangBody("v", "s"));
@@ -272,60 +272,59 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("Mojang 204 → empty (falls through)")
+        @DisplayName("Mojang 204 -> empty (falls through)")
         void mojang204() {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 204, "");
 
             Optional<CustomSkinProperty> result = api.getProfile(pair);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
 
         @Test
-        @DisplayName("Mojang null properties → empty")
+        @DisplayName("Mojang null properties -> empty")
         void mojangNullProperties() {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 200, "{\"id\":\"abc\",\"name\":\"x\"}");
 
             Optional<CustomSkinProperty> result = api.getProfile(pair);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
 
         @Test
-        @DisplayName("Mojang empty value → empty")
+        @DisplayName("Mojang empty value -> empty")
         void mojangEmptyValue() {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 200,
                     "{\"id\":\"x\",\"name\":\"x\",\"properties\":[{\"name\":\"textures\",\"value\":\"\",\"signature\":\"\"}]}");
 
             Optional<CustomSkinProperty> result = api.getProfile(pair);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
 
         @Test
-        @DisplayName("MineTools ERR status → empty")
+        @DisplayName("MineTools ERR status -> empty")
         void mineToolsErrStatus() {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 404, "");
             httpClient.addResponse(mineToolsProfileUri, 200, "{\"raw\":{\"id\":\"x\",\"name\":\"x\",\"status\":\"ERR\",\"properties\":[]}}");
 
             Optional<CustomSkinProperty> result = api.getProfile(pair);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
 
         @Test
-        @DisplayName("Mojang 429 → empty (falls through)")
+        @DisplayName("Mojang 429 -> empty (falls through)")
         void mojang429() {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 429, "");
 
             Optional<CustomSkinProperty> result = api.getProfile(pair);
-            // MojangProfileResponse parsing of empty body returns null properties → empty
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
 
         @Test
-        @DisplayName("Profile transport timeout → empty (falls through)")
+        @DisplayName("Profile transport timeout -> empty (falls through)")
         void transportTimeout() {
             httpClient.addTimeout(eclipseProfileUri);
             httpClient.addResponse(mojangProfileUri, 200, profileMojangBody("v", "sig"));
@@ -334,12 +333,13 @@ class MojangApiHttpImplTest {
             assertTrue(result.isPresent());
         }
     }
+
     @Nested
     @DisplayName("getSkin integration")
     class GetSkin {
 
         @Test
-        @DisplayName("Valid UUID and profile → returns MojangSkinDataResult")
+        @DisplayName("Valid UUID and profile -> returns MojangSkinDataResult")
         void fullSuccess() {
             httpClient.addResponse(eclipseUuidUri, 200, uuidEclipseBody(PLAYER_UUID));
             httpClient.addResponse(eclipseProfileUri, 200, profileEclipseBody("val", "sig"));
@@ -351,14 +351,14 @@ class MojangApiHttpImplTest {
         }
 
         @Test
-        @DisplayName("Invalid username → empty")
+        @DisplayName("Invalid username -> empty")
         void invalidUsername() {
             Optional<MojangSkinDataResult> result = api.getSkin("$$$invalid");
-            assertTrue(result.isEmpty());
+            assertFalse(result.isPresent());
         }
 
         @Test
-        @DisplayName("UUID input (dashed) bypasses name lookup → looks up profile directly")
+        @DisplayName("UUID input (dashed) bypasses name lookup -> looks up profile directly")
         void uuidInput() {
             String uuidStr = PLAYER_UUID.toString();
             httpClient.addResponse(URI.create("http://test.local/profile/eclipse/" + PLAYER_UUID), 200, profileEclipseBody("v", "s"));

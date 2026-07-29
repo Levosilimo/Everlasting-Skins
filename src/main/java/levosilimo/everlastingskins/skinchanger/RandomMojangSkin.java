@@ -141,7 +141,7 @@ public class RandomMojangSkin {
     private static String getDecodedStringForUsername(String username) throws IOException {
         String skinValue = SkinCommand.mojangAPI.getSkin(username)
                 .orElseThrow(() -> new IOException("No skin data for username: " + username))
-                .skinProperty().getOriginalProperty().value();
+                .skinProperty().getOriginalProperty().getValue();
         return new String(Base64.getDecoder().decode(skinValue));
     }
 }

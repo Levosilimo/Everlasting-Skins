@@ -71,24 +71,23 @@ class SRHelpersTest {
         }
     }
     @Nested
-    @DisplayName("invalidMinecraftUsername")
     class InvalidUsername {
 
         @ParameterizedTest
         @ValueSource(strings = {"Notch", "Steve", "a", "abc123", "Test_Player", " hyphen-name", ""})
-        @DisplayName("Valid usernames → false")
+        @DisplayName("Valid usernames -> false")
         void validUsernames(String name) {
             assertFalse(SRHelpers.invalidMinecraftUsername(name));
         }
 
         @ParameterizedTest
         @ValueSource(strings = {
-                "thisnameiswaytoolong16", // 17 chars
+                "thisnameiswaytoolong16",
                 "name with spaces",
                 "special!chars",
                 "$$$invalid"
         })
-        @DisplayName("Invalid usernames → true")
+        @DisplayName("Invalid usernames -> true")
         void invalidUsernames(String name) {
             assertTrue(SRHelpers.invalidMinecraftUsername(name));
         }
@@ -102,14 +101,14 @@ class SRHelpersTest {
                 "http://example.com/skin.png",
                 "https://namemc.com/skin/abc"
         })
-        @DisplayName("Valid URLs → true")
+        @DisplayName("Valid URLs -> true")
         void validUrls(String url) {
             assertTrue(SRHelpers.validSkinUrl(url));
         }
 
         @ParameterizedTest
         @ValueSource(strings = {"not-a-url", "ftp://bad.com", "", "   "})
-        @DisplayName("Invalid URLs → false")
+        @DisplayName("Invalid URLs -> false")
         void invalidUrls(String url) {
             assertFalse(SRHelpers.validSkinUrl(url));
         }
@@ -128,8 +127,8 @@ class SRHelpersTest {
         @Test
         @DisplayName("Invalid string returns Optional.empty()")
         void invalidUrl() {
-            assertTrue(SRHelpers.parseURL("").isEmpty());
-            assertTrue(SRHelpers.parseURL(null).isEmpty());
+            assertFalse(SRHelpers.parseURL("").isPresent());
+            assertFalse(SRHelpers.parseURL(null).isPresent());
         }
     }
     @Nested

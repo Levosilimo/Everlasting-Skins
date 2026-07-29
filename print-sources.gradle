@@ -1,0 +1,6 @@
+task printSources {
+    doLast {
+        sourceSets.main.allJava.srcDirs.each { println "Source dir: $it" }
+        sourceSets.main.allJava.files.each { println "  FILE: $it" }
+    }
+}

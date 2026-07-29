@@ -1,334 +1,285 @@
 package levosilimo.everlastingskins.skinchanger;
 
-import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.BoolArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import levosilimo.everlastingskins.util.I18nUtils;
 import levosilimo.everlastingskins.util.SRHelpers;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.protocol.game.*;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.players.PlayerList;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.storage.LevelData;
-import net.minecraftforge.server.command.EnumArgument;
+import net.minecraft.command.CommandBase;
+import net.minecraft.command.CommandException;
+import net.minecraft.command.CommandHandler;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.play.server.SPacketPlayerAbilities;
+import net.minecraft.network.play.server.SPacketPlayerListItem;
+import net.minecraft.network.play.server.SPacketPlayerPosLook;
+import net.minecraft.network.play.server.SPacketRespawn;
+import net.minecraft.network.play.server.SPacketServerDifficulty;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.management.PlayerList;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
+import net.minecraft.world.WorldServer;
 
 import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
 
-
-public class SkinCommand {
-
-    private static final ScheduledExecutorService skinCommandExecutor = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors() * 2);
-    private static final String FEEDBACK_PREFIX = "§6[EverlastingSkins]§f";
-
-    private static I18nUtils i18nUtils;
+/**
+ * SkinCommand — MCP-mapped 1.12.2 ICommand implementation.
+ *
+ * <p>Uses only MCP method names (no SRG, no reflection for fields).
+ * Subcommands: set mojang &lt;name&gt;, set web &lt;classic|slim&gt; &lt;url&gt;,
+ * set random, clear, source.
+ */
+public class SkinCommand extends CommandBase {
+    private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
+        Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
+    private static final String PREFIX = "§6[" + EverlastingSkins.MOD_NAME + "]§f ";
 
     public static final MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
     public static final MojangAPI mojangAPI = new MojangApiHttpImpl();
 
-    private record SkinActionParameters(
-            Collection<ServerPlayer> targets,
-            SkinActionType type,
-            boolean setByOperator,
-            SkinVariant variant,
-            boolean withCape,
-            @Nullable String customSource
-    ) {}
-
-    private static String getLocalizedString(String key) {
-        if(i18nUtils == null) i18nUtils = new I18nUtils();
-        return i18nUtils.getLocalizedString(key, Config.LANGUAGE.get());
+    @Override
+    public String getName() {
+        return "skin";
     }
 
-
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        LiteralArgumentBuilder<CommandSourceStack> skinCommand = Commands.literal("skin")
-                .then(buildSetSubcommand())
-                .then(buildSourceSubcommand())
-                .then(buildClearSubcommand());
-        dispatcher.register(skinCommand);
+    @Override
+    public String getUsage(ICommandSender sender) {
+        return "/skin <set|clear|source> ...";
     }
 
-    private static LiteralArgumentBuilder<CommandSourceStack> buildSourceSubcommand() {
-        return Commands.literal("source")
-                .executes(context -> sourceAction(context, context.getSource().getPlayer()))
-                .then(Commands.argument("target", EntityArgument.player())
-                        .executes(context -> sourceAction(context, EntityArgument.getPlayer(context, "target")))
-                );
+    @Override
+    public List<String> getAliases() {
+        return Collections.singletonList("eskin");
     }
 
-    private static LiteralArgumentBuilder<CommandSourceStack> buildClearSubcommand() {
-        return Commands.literal("clear")
-                .executes(context -> skinAction(context, new SkinActionParameters(
-                        Collections.singleton(context.getSource().getPlayer()),
-                        SkinActionType.clear, context.getSource().hasPermission(3), SkinVariant.ALL, false, null
-                )))
-                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                EntityArgument.getPlayers(context, "targets"),
-                                SkinActionType.clear, context.getSource().hasPermission(3), SkinVariant.ALL, false, null
-                        )))
-                );
+    @Override
+    public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
+        if (args.length < 1) {
+            sender.sendMessage(new TextComponentString(PREFIX + getUsage(sender)));
+            return;
+        }
+        switch (args[0]) {
+            case "clear":  doClear(server, sender, args); break;
+            case "source": doSource(server, sender, args); break;
+            case "set":    doSet(server, sender, args); break;
+            default:
+                sender.sendMessage(new TextComponentString(PREFIX + getUsage(sender)));
+        }
     }
 
-    private static LiteralArgumentBuilder<CommandSourceStack> buildSetSubcommand() {
-        return Commands.literal("set")
-                // /skin set mojang
-                .then(Commands.literal("mojang")
-                        .then(Commands.argument("skin_name", StringArgumentType.word())
-                                .executes(context -> skinAction(context, new SkinActionParameters(
-                                        Collections.singleton(context.getSource().getPlayer()),
-                                        SkinActionType.username, context.getSource().hasPermission(3), SkinVariant.ALL, false,
-                                        StringArgumentType.getString(context, "skin_name")
-                                )))
-                                .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                                EntityArgument.getPlayers(context, "targets"),
-                                                SkinActionType.username, context.getSource().hasPermission(3), SkinVariant.ALL, false,
-                                                StringArgumentType.getString(context, "skin_name")
-                                        )))
-                                )
-                        )
-                )
-                // /skin set web
-                .then(Commands.literal("web")
-                        .then(Commands.literal("classic")
-                                .then(Commands.argument("url", StringArgumentType.string())
-                                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                                Collections.singleton(context.getSource().getPlayer()),
-                                                SkinActionType.url, context.getSource().hasPermission(3), SkinVariant.CLASSIC, false,
-                                                StringArgumentType.getString(context, "url")
-                                        )))
-                                        .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                                                .executes(context -> skinAction(context, new SkinActionParameters(
-                                                        EntityArgument.getPlayers(context, "targets"),
-                                                        SkinActionType.url, context.getSource().hasPermission(3), SkinVariant.CLASSIC, true,
-                                                        StringArgumentType.getString(context, "url")
-                                                )))
-                                        )
-                                )
-                        )
-                        .then(Commands.literal("slim")
-                                .then(Commands.argument("url", StringArgumentType.string())
-                                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                                Collections.singleton(context.getSource().getPlayer()),
-                                                SkinActionType.url, context.getSource().hasPermission(3), SkinVariant.SLIM, false,
-                                                StringArgumentType.getString(context, "url")
-                                        )))
-                                        .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                                                .executes(context -> skinAction(context, new SkinActionParameters(
-                                                        EntityArgument.getPlayers(context, "targets"),
-                                                        SkinActionType.url, context.getSource().hasPermission(3), SkinVariant.SLIM, true,
-                                                        StringArgumentType.getString(context, "url")
-                                                )))
-                                        )
-                                )
-
-                        )
-                )
-                // /skin set random
-                .then(Commands.literal("random")
-                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                Collections.singleton(context.getSource().getPlayer()),
-                                SkinActionType.random, context.getSource().hasPermission(3), SkinVariant.ALL, false, null
-                        )))
-                        .then(Commands.argument("cape", BoolArgumentType.bool())
-                                .executes(context -> skinAction(context, new SkinActionParameters(
-                                        Collections.singleton(context.getSource().getPlayer()),
-                                        SkinActionType.random, context.getSource().hasPermission(3), SkinVariant.ALL, BoolArgumentType.getBool(context, "cape"), null
-                                )))
-                                .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
-                                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                                Collections.singleton(context.getSource().getPlayer()),
-                                                SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
-                                        )))
-                                )
-                        )
-                        .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
-                                .executes(context -> skinAction(context, new SkinActionParameters(
-                                        Collections.singleton(context.getSource().getPlayer()),
-                                        SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), false, null
-                                )))
-                                .then(Commands.argument("cape", BoolArgumentType.bool())
-                                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                                Collections.singleton(context.getSource().getPlayer()),
-                                                SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
-                                        )))
-                                )
-                        )
-                        .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                                .executes(context -> skinAction(context, new SkinActionParameters(
-                                        EntityArgument.getPlayers(context, "targets"),
-                                        SkinActionType.random, context.getSource().hasPermission(3), SkinVariant.ALL, false, null
-                                )))
-                                .then(Commands.argument("cape", BoolArgumentType.bool())
-                                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                                EntityArgument.getPlayers(context, "targets"),
-                                                SkinActionType.random, context.getSource().hasPermission(3), SkinVariant.ALL, BoolArgumentType.getBool(context, "cape"), null
-                                        )))
-                                        .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
-                                                .executes(context -> skinAction(context, new SkinActionParameters(
-                                                        EntityArgument.getPlayers(context, "targets"),
-                                                        SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
-                                                )))
-                                        )
-                                )
-                                .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
-                                        .executes(context -> skinAction(context, new SkinActionParameters(
-                                                EntityArgument.getPlayers(context, "targets"),
-                                                SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), false, null
-                                        )))
-                                        .then(Commands.argument("cape", BoolArgumentType.bool())
-                                                .executes(context -> skinAction(context, new SkinActionParameters(
-                                                        EntityArgument.getPlayers(context, "targets"),
-                                                        SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
-                                                )))
-                                        )
-                                )
-                        )
-                );
+    @Override
+    public boolean checkPermission(MinecraftServer server, ICommandSender sender) {
+        return true;
     }
 
-    private static int sourceAction(CommandContext<CommandSourceStack> context, ServerPlayer target) {
-        String source = SkinRestorer.getSkinStorage().getSource(target.getUUID());
-        MutableComponent message;
-        if(source == null) message = Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("no_source"));
-        else message = Component.literal(FEEDBACK_PREFIX + " " + source);
-        context.getSource().sendSuccess(() -> message, false);
-        return 1;
+    @Override
+    public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender,
+            String[] args, @Nullable BlockPos targetPos) {
+        if (args.length == 1) return Arrays.asList("set", "clear", "source");
+        return Collections.emptyList();
     }
 
-    private static int skinAction(CommandContext<CommandSourceStack> context, SkinActionParameters params) {
-        Collection<ServerPlayer> targets = params.targets();
-        SkinActionType type = params.type();
-        SkinVariant variant = params.variant();
-        boolean withCape = params.withCape();
-        String customSource = params.customSource();
+    public static void register(MinecraftServer server) {
+        ((CommandHandler) server.getCommandManager()).registerCommand(new SkinCommand());
+    }
 
-        targets.forEach(player -> {
-                if(Config.TOGGLE.get()) {
-                    if(player == context.getSource().getEntity()) context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("change")), false);
-                    else player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("change")));
+    private void doClear(MinecraftServer server, ICommandSender sender, String[] args) {
+        Collection<EntityPlayerMP> targets = parseTargets(server, sender, args, true, 2);
+        applySkinChange(targets, sender, SkinActionType.clear, SkinVariant.ALL, false, null);
+    }
+
+    private void doSource(MinecraftServer server, ICommandSender sender, String[] args) {
+        EntityPlayerMP target;
+        try {
+            target = args.length >= 2
+                ? CommandBase.getPlayer(server, sender, args[1])
+                : CommandBase.getCommandSenderAsPlayer(sender);
+        } catch (CommandException e) {
+            sender.sendMessage(new TextComponentString(PREFIX + e.getMessage()));
+            return;
+        }
+        String source = SkinRestorer.getSkinStorage().getSource(target.getUniqueID());
+        sender.sendMessage(new TextComponentString(PREFIX + (source != null ? source : "No source available")));
+    }
+
+    private void doSet(MinecraftServer server, ICommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(new TextComponentString(PREFIX + getUsage(sender)));
+            return;
+        }
+        switch (args[1]) {
+            case "mojang": {
+                if (args.length < 3) {
+                    sender.sendMessage(new TextComponentString(PREFIX + "Usage: /skin set mojang <name>"));
+                    return;
                 }
-        });
-
-        CompletableFuture<CustomSkinProperty> skinPropertyCompletableFuture = CompletableFuture.supplyAsync(() -> {
-            CustomSkinProperty skinProperty = null;
-            switch (type) {
-                case clear:
-                    skinProperty = mojangAPI.getSkin(targets.stream().findFirst().get().getGameProfile().getName())
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    break;
-                case url: {
-                    String sanitized = SRHelpers.sanitizeSkinInput(customSource);
-                    if (!sanitized.equals(customSource)) {
-                        /* NameMC profile URL resolved to username — route to Mojang API */
-                        skinProperty = mojangAPI.getSkin(sanitized)
-                                .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    } else {
-                        skinProperty = mineSkinAPI.genSkin(customSource, variant).property();
-                    }
-                    break;
-                }
-                case username:
-                    skinProperty = mojangAPI.getSkin(customSource)
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    break;
-                case random:
-                    try {
-                        skinProperty = mojangAPI.getSkin(Objects.requireNonNull(RandomMojangSkin.randomUsername(withCape, variant)))
-                                .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    } catch (Exception e) {
-                        throw new CompletionException(e);
-                    }
-                    break;
-                case NEW:
-                    try {
-                        skinProperty = mojangAPI.getSkin(Objects.requireNonNull(RandomMojangSkin.newUsername(variant)))
-                                .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    } catch (Exception e) {
-                        throw new CompletionException(e);
-                    }
-                    break;
+                Collection<EntityPlayerMP> targets = parseTargets(server, sender, args, false, 4);
+                applySkinChange(targets, sender, SkinActionType.username, SkinVariant.ALL, false, args[2]);
+                break;
             }
-            return skinProperty;
-        }, skinCommandExecutor).whenComplete((skinProperty, throwable) -> {
-            if(throwable != null || skinProperty == null) {
-                EverlastingSkins.logger.error("Skin process error occurred");
-                for(ServerPlayer player: targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("error")));
+            case "web": {
+                if (!Config.MINESKIN_ENABLED) {
+                    sender.sendMessage(new TextComponentString(PREFIX + "MineSkin is disabled in config"));
+                    return;
+                }
+                if (args.length < 4) {
+                    sender.sendMessage(new TextComponentString(PREFIX + "Usage: /skin set web <classic|slim> <url>"));
+                    return;
+                }
+                SkinVariant variant = "slim".equalsIgnoreCase(args[2]) ? SkinVariant.SLIM : SkinVariant.CLASSIC;
+                applySkinChange(parseTargets(server, sender, args, false, 5),
+                    sender, SkinActionType.url, variant, false, args[3]);
+                break;
+            }
+            case "random":
+                applySkinChange(parseTargets(server, sender, args, false, 3),
+                    sender, SkinActionType.random, SkinVariant.ALL, false, null);
+                break;
+            default:
+                sender.sendMessage(new TextComponentString(PREFIX + "Usage: /skin set <mojang|web|random>"));
+        }
+    }
+
+    private Collection<EntityPlayerMP> parseTargets(MinecraftServer server, ICommandSender sender,
+            String[] args, boolean requiresOpAtLeastOne, int targetIndex) {
+        if (args.length > targetIndex) {
+            if (!canUseOp(sender)) {
+                sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+                return Collections.emptyList();
+            }
+            List<EntityPlayerMP> out = new ArrayList<>();
+            for (int i = targetIndex; i < args.length; i++) {
+                try {
+                    out.add(CommandBase.getPlayer(server, sender, args[i]));
+                } catch (CommandException ignored) {
+                }
+            }
+            return out;
+        }
+        try {
+            return Collections.singletonList(CommandBase.getCommandSenderAsPlayer(sender));
+        } catch (CommandException e) {
+            sender.sendMessage(new TextComponentString(PREFIX + e.getMessage()));
+            return Collections.emptyList();
+        }
+    }
+
+    private boolean canUseOp(ICommandSender sender) {
+        if (sender instanceof EntityPlayerMP) {
+            return ((EntityPlayerMP) sender).canUseCommand(3, "skin");
+        }
+        return sender.canUseCommand(3, "skin");
+    }
+
+    private void applySkinChange(Collection<EntityPlayerMP> targets, ICommandSender sender,
+            SkinActionType type, SkinVariant variant, boolean withCape, @Nullable String customSource) {
+        for (EntityPlayerMP p : targets) {
+            if (Config.TOGGLE) {
+                p.sendMessage(new TextComponentString(PREFIX + "Processing..."));
+            }
+        }
+        CompletableFuture<CustomSkinProperty> future = CompletableFuture.supplyAsync(() -> {
+            CustomSkinProperty sp = null;
+            try {
+                switch (type) {
+                    case clear:
+                        sp = mojangAPI.getSkin(targets.iterator().next().getGameProfile().getName())
+                            .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        break;
+                    case url: {
+                        String sanitized = SRHelpers.sanitizeSkinInput(customSource);
+                        if (!sanitized.equals(customSource)) {
+                            sp = mojangAPI.getSkin(sanitized)
+                                .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        } else {
+                            sp = MineSkinFeatureFlag.isEnabled()
+                                ? mineSkinAPI.genSkin(customSource, variant).property()
+                                : null;
+                        }
+                        break;
+                    }
+                    case username:
+                        sp = mojangAPI.getSkin(customSource)
+                            .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        break;
+                    case random:
+                        sp = mojangAPI.getSkin(RandomMojangSkin.randomUsername(withCape, variant))
+                            .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        break;
+                    case NEW:
+                        sp = mojangAPI.getSkin(RandomMojangSkin.newUsername(variant))
+                            .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        break;
+                }
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+            return sp;
+        }, EXECUTOR).whenComplete((sp, err) -> {
+            if (err != null || sp == null) {
+                EverlastingSkins.logger.error("Skin process error", err);
+                for (EntityPlayerMP p : targets) {
+                    p.sendMessage(new TextComponentString(PREFIX + "Skin process error"));
+                }
                 return;
             }
-            for (ServerPlayer player : targets) {
-                SkinRestorer.getSkinStorage().setSkin(player.getUUID(), skinProperty);
-                if(Config.TOGGLE.get()) {
-                    if(player == context.getSource().getEntity()) context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("fulfilled")), false);
-                    else player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("fulfilled_force")));
+            for (EntityPlayerMP p : targets) {
+                SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
+                if (Config.TOGGLE) {
+                    p.sendMessage(new TextComponentString(PREFIX + "Skin applied"));
                 }
             }
-            for (ServerPlayer player : targets) {
-                SkinRestorer.server.execute(() -> task(player));
+            for (EntityPlayerMP p : targets) {
+                SkinRestorer.getServer().addScheduledTask(() -> task(p));
             }
         });
 
-        skinCommandExecutor.schedule(() -> {
-            if(skinPropertyCompletableFuture.completeExceptionally(new TimeoutException("Skin fetch timeout occurred"))) {
-                EverlastingSkins.logger.error(getLocalizedString("timeout"));
-                for(ServerPlayer player: targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("timeout")));
+        EXECUTOR.schedule(() -> {
+            if (future.completeExceptionally(new TimeoutException("Skin fetch timeout"))) {
+                EverlastingSkins.logger.error("Skin fetch timeout");
+                for (EntityPlayerMP p : targets) {
+                    p.sendMessage(new TextComponentString(PREFIX + "Skin fetch timeout"));
+                }
             }
-        }, 10000, TimeUnit.MILLISECONDS);
-
-        return targets.size();
+        }, 10, TimeUnit.SECONDS);
     }
 
-    private static void task(ServerPlayer player) {
-        //Position and rotation packet info
-        double x = player.position().x;
-        double y = player.position().y;
-        double z = player.position().z;
-        float yaw = player.getYRot();
-        float pitch = player.getXRot();
-        ServerLevel serverLevel = player.serverLevel();
-        LevelData levelData = serverLevel.getLevelData();
-        PlayerList playerlist = player.server.getPlayerList();
-        //Skin change
-        SkinRestorer.getSkinStorage().saveSkin(player.getUUID());
+    private void task(EntityPlayerMP player) {
+        WorldServer world = player.getServerWorld();
+        int dimension = player.dimension;
+        net.minecraft.world.EnumDifficulty difficulty = world.getDifficulty();
+        net.minecraft.world.WorldType terrainType = world.getWorldInfo().getTerrainType();
+        net.minecraft.world.GameType gameType = player.interactionManager.getGameType();
+        PlayerList playerList = SkinRestorer.getServer().getPlayerList();
+
+        double x = player.posX;
+        double y = player.posY;
+        double z = player.posZ;
+        float yaw = player.rotationYaw;
+        float pitch = player.rotationPitch;
+
+        SkinRestorer.getSkinStorage().saveSkin(player.getUniqueID());
         player.getGameProfile().getProperties().removeAll("textures");
-        player.getGameProfile().getProperties().put("textures", SkinRestorer.getSkinStorage().getSkin(player.getUUID()).getOriginalProperty());
+        player.getGameProfile().getProperties().put("textures",
+            SkinRestorer.getSkinStorage().getSkin(player.getUniqueID()).getOriginalProperty());
 
-        //Reconnect emulation
+        // Broadcast player list refresh to all players
+        playerList.sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.REMOVE_PLAYER, player));
+        playerList.sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.ADD_PLAYER, player));
 
-        SkinRestorer.server.getPlayerList().broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
-        SkinRestorer.server.getPlayerList().broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player));
-        player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), (byte)3));
-        player.absMoveTo(x,y,z,yaw,pitch);
-        player.connection.send(new ClientboundPlayerPositionPacket(x,y,z,yaw,pitch,Collections.emptySet(), 0));
-        playerlist.sendLevelInfo(player, serverLevel);
-        playerlist.sendPlayerPermissionLevel(player);
-        playerlist.sendAllPlayerInfo(player);
-        playerlist.sendActivePlayerEffects(player);
-        player.connection.send(new ClientboundPlayerAbilitiesPacket(player.getAbilities()));
-        player.connection.send(new ClientboundChangeDifficultyPacket(levelData.getDifficulty(), levelData.isDifficultyLocked()));
-        SkinRestorer.server.getPlayerList().sendPlayerPermissionLevel(player);
+        // Send reconnect-emulation packets to the specific player
+        player.connection.sendPacket(new SPacketRespawn(dimension, difficulty, terrainType, gameType));
+        player.connection.sendPacket(new SPacketServerDifficulty(difficulty, world.getWorldInfo().isDifficultyLocked()));
+        player.connection.sendPacket(new SPacketPlayerPosLook(x, y, z, yaw, pitch,
+            EnumSet.noneOf(SPacketPlayerPosLook.EnumFlags.class), 0));
+        player.connection.sendPacket(new SPacketPlayerAbilities(player.capabilities));
 
-        serverLevel.getChunkSource().chunkMap.removeEntity(player);
-        serverLevel.getChunkSource().chunkMap.addEntity(player);
+        player.setPositionAndRotation(x, y, z, yaw, pitch);
     }
 }

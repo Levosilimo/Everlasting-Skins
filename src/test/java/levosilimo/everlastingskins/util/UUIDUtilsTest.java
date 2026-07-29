@@ -32,9 +32,9 @@ class UUIDUtilsTest {
     @Test
     @DisplayName("tryParseUniqueId with invalid string")
     void parseInvalid() {
-        assertTrue(UUIDUtils.tryParseUniqueId("not-a-uuid").isEmpty());
-        assertTrue(UUIDUtils.tryParseUniqueId("").isEmpty());
-        assertTrue(UUIDUtils.tryParseUniqueId("short").isEmpty());
+        assertFalse(UUIDUtils.tryParseUniqueId("not-a-uuid").isPresent());
+        assertFalse(UUIDUtils.tryParseUniqueId("").isPresent());
+        assertFalse(UUIDUtils.tryParseUniqueId("short").isPresent());
     }
 
     @Test

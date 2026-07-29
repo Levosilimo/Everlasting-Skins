@@ -32,6 +32,21 @@ public interface HttpClient {
         }
     }
 
-    record RequestBody(String body, HttpType type) {
+    final class RequestBody {
+        private final String body;
+        private final HttpType type;
+
+        public RequestBody(String body, HttpType type) {
+            this.body = body;
+            this.type = type;
+        }
+
+        public String body() {
+            return body;
+        }
+
+        public HttpType type() {
+            return type;
+        }
     }
 }

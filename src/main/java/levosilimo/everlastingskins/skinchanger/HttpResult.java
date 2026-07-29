@@ -4,20 +4,55 @@ import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 
 import java.io.IOException;
 
-public sealed interface HttpResult {
+public abstract class HttpResult {
 
-    record Success(HttpResponse response) implements HttpResult {}
+    private HttpResult() {}
 
-    record Failure(IOException cause) implements HttpResult {}
+    public abstract boolean isSuccess();
 
-    default boolean isSuccess() {
-        return this instanceof Success;
+    public abstract HttpResponse get();
+
+    public static final class Success extends HttpResult {
+        private final HttpResponse response;
+
+        public Success(HttpResponse response) {
+            this.response = response;
+        }
+
+        @Override
+        public boolean isSuccess() {
+            return true;
+        }
+
+        @Override
+        public HttpResponse get() {
+            return response;
+        }
+
+        public HttpResponse response() {
+            return response;
+        }
     }
 
-    default HttpResponse get() {
-        return switch (this) {
-            case Success(var response) -> response;
-            case Failure(var cause) -> throw new IllegalStateException("Cannot unwrap failed HTTP result", cause);
-        };
+    public static final class Failure extends HttpResult {
+        private final IOException cause;
+
+        public Failure(IOException cause) {
+            this.cause = cause;
+        }
+
+        @Override
+        public boolean isSuccess() {
+            return false;
+        }
+
+        @Override
+        public HttpResponse get() {
+            throw new IllegalStateException("Cannot unwrap failed HTTP result", cause);
+        }
+
+        public IOException cause() {
+            return cause;
+        }
     }
 }

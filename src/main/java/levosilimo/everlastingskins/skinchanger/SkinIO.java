@@ -35,7 +35,7 @@ public class SkinIO {
         String skinJson = readSkinFile(uuid);
         if (skinJson == null) return null;
         try {
-            JsonObject obj = JsonParser.parseString(skinJson).getAsJsonObject();
+            JsonObject obj = new JsonParser().parse(skinJson).getAsJsonObject();
             if (obj.has("source") && !obj.get("source").isJsonNull()) {
                 return obj.get("source").getAsString();
             }
@@ -51,7 +51,7 @@ public class SkinIO {
         if (skinJson == null) return null;
         try {
             CustomSkinProperty skin = JsonUtils.fromJson(skinJson, CustomSkinProperty.class);
-            if (skin == null || skin.getOriginalProperty() == null || skin.getOriginalProperty().value() == null || skin.getOriginalProperty().value().isEmpty()) {
+            if (skin == null || skin.getOriginalProperty() == null || skin.getOriginalProperty().getValue() == null || skin.getOriginalProperty().getValue().isEmpty()) {
                 return null;
             }
             return skin;
@@ -69,7 +69,7 @@ public class SkinIO {
             Files.createDirectories(savePath);
             Files.deleteIfExists(temp);
 
-            Files.writeString(temp, json, StandardCharsets.UTF_8);
+            Files.write(temp, json.getBytes(StandardCharsets.UTF_8));
 
             try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
                 channel.force(true);
@@ -93,7 +93,8 @@ public class SkinIO {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
         if (!Files.exists(target)) return null;
         try {
-            String content = Files.readString(target, StandardCharsets.UTF_8);
+            byte[] bytes = Files.readAllBytes(target);
+            String content = new String(bytes, StandardCharsets.UTF_8);
             if (!isValidJson(content)) {
                 quarantineFile(uuid);
                 return null;
@@ -105,9 +106,9 @@ public class SkinIO {
     }
 
     private static boolean isValidJson(String content) {
-        if (content == null || content.isBlank()) return false;
+        if (content == null || content.trim().isEmpty()) return false;
         try {
-            JsonElement element = JsonParser.parseString(content);
+            JsonElement element = new JsonParser().parse(content);
             return element.isJsonObject() || element.isJsonArray();
         } catch (JsonParseException e) {
             return false;

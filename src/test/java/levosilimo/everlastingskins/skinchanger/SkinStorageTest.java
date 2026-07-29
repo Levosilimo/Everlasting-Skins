@@ -14,8 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * SkinStorage tests: cache hit/miss, default skin, set/clear, source
- * retrieval. Operates on {@link UUID} directly. No live endpoints
- * or filesystem state leak between tests.
+ * retrieval. No live endpoints or filesystem state leak between tests.
  */
 class SkinStorageTest {
 
@@ -39,49 +38,43 @@ class SkinStorageTest {
         @Test
         @DisplayName("First getSkin loads from SkinIO and caches")
         void firstLoadPopulatesCache() {
-            // Pre-save a skin so SkinIO has something to load
-            var persisted = new CustomSkinProperty("persisted", "sig", "disk");
+            CustomSkinProperty persisted = new CustomSkinProperty("persisted", "sig", "disk");
             skinIO.saveSkin(uuid, persisted);
 
-            // First call should load from SkinIO
             CustomSkinProperty result = storage.getSkin(uuid);
             assertNotNull(result);
-            assertEquals("persisted", result.getOriginalProperty().value());
+            assertEquals("persisted", result.getOriginalProperty().getValue());
 
-            // Second call should return cached value without hitting SkinIO
-            // Delete the backing file to prove cache hit
             Path target = tempDir.resolve(uuid + ".json");
             assertTrue(target.toFile().delete());
 
             CustomSkinProperty cached = storage.getSkin(uuid);
             assertNotNull(cached);
-            assertEquals("persisted", cached.getOriginalProperty().value());
+            assertEquals("persisted", cached.getOriginalProperty().getValue());
         }
 
         @Test
         @DisplayName("setSkin updates cache without writing to disk")
         void setSkinUpdatesCache() {
-            var skin = new CustomSkinProperty("cached", "sig", "cache");
+            CustomSkinProperty skin = new CustomSkinProperty("cached", "sig", "cache");
 
             storage.setSkin(uuid, skin);
 
-            // Should return cache value even though nothing is on disk
             CustomSkinProperty result = storage.getSkin(uuid);
             assertNotNull(result);
-            assertEquals("cached", result.getOriginalProperty().value());
+            assertEquals("cached", result.getOriginalProperty().getValue());
         }
 
         @Test
         @DisplayName("saveSkin writes cached value to disk")
         void saveSkinWritesToDisk() {
-            var skin = new CustomSkinProperty("tosave", "sig", "mem");
+            CustomSkinProperty skin = new CustomSkinProperty("tosave", "sig", "mem");
             storage.setSkin(uuid, skin);
             storage.saveSkin(uuid);
 
-            // Reload from SkinIO directly to verify disk write
             CustomSkinProperty onDisk = skinIO.loadSkin(uuid);
             assertNotNull(onDisk);
-            assertEquals("tosave", onDisk.getOriginalProperty().value());
+            assertEquals("tosave", onDisk.getOriginalProperty().getValue());
         }
     }
 
@@ -91,14 +84,13 @@ class SkinStorageTest {
         @Test
         @DisplayName("hasDefaultSkin returns true for unset player")
         void defaultForUnsetPlayer() {
-            // When nothing is cached or on disk, getSkin returns DEFAULT_SKIN
             assertTrue(storage.hasDefaultSkin(uuid));
         }
 
         @Test
         @DisplayName("hasDefaultSkin returns false after setting a custom skin")
         void notDefaultAfterSet() {
-            var skin = new CustomSkinProperty("custom", "sig", "src");
+            CustomSkinProperty skin = new CustomSkinProperty("custom", "sig", "src");
             storage.setSkin(uuid, skin);
 
             assertFalse(storage.hasDefaultSkin(uuid));
@@ -111,7 +103,7 @@ class SkinStorageTest {
         @Test
         @DisplayName("getSource returns source from cached skin")
         void sourceFromCache() {
-            var skin = new CustomSkinProperty("v", "s", "my-source");
+            CustomSkinProperty skin = new CustomSkinProperty("v", "s", "my-source");
             storage.setSkin(uuid, skin);
 
             assertEquals("my-source", storage.getSource(uuid));
@@ -120,7 +112,7 @@ class SkinStorageTest {
         @Test
         @DisplayName("getSource returns source from disk when not cached")
         void sourceFromDisk() {
-            var skin = new CustomSkinProperty("v", "s", "disk-source");
+            CustomSkinProperty skin = new CustomSkinProperty("v", "s", "disk-source");
             skinIO.saveSkin(uuid, skin);
 
             assertEquals("disk-source", storage.getSource(uuid));
@@ -140,7 +132,7 @@ class SkinStorageTest {
         @Test
         @DisplayName("setSkin(null) resets to default skin")
         void resetToDefault() {
-            var custom = new CustomSkinProperty("custom", "sig", "src");
+            CustomSkinProperty custom = new CustomSkinProperty("custom", "sig", "src");
             storage.setSkin(uuid, custom);
             assertFalse(storage.hasDefaultSkin(uuid));
 

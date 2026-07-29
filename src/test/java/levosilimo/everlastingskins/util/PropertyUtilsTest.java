@@ -100,10 +100,6 @@ class PropertyUtilsTest {
     /*  Helpers                                                            */
     /* ================================================================== */
 
-    /**
-     * Create a CustomSkinProperty whose value is a base64-encoded texture
-     * JSON. The texture JSON includes an optional "model" metadata field.
-     */
     private static CustomSkinProperty createProperty(String model) {
         String texturesJson = buildTexturesJson(model);
         String base64 = Base64.getEncoder().encodeToString(texturesJson.getBytes(StandardCharsets.UTF_8));
@@ -113,32 +109,26 @@ class PropertyUtilsTest {
     private static String buildTexturesJson(String model) {
         String skinEntry;
         if (model != null) {
-            skinEntry = """
-                    "SKIN": {
-                      "url": "%s",
-                      "metadata": {
-                        "model": "%s"
-                      }
-                    }
-                    """.formatted(TEXTURE_URL, model);
+            skinEntry = "\"SKIN\": {\n" +
+                "  \"url\": \"" + TEXTURE_URL + "\",\n" +
+                "  \"metadata\": {\n" +
+                "    \"model\": \"" + model + "\"\n" +
+                "  }\n" +
+                "}";
         } else {
-            skinEntry = """
-                    "SKIN": {
-                      "url": "%s"
-                    }
-                    """.formatted(TEXTURE_URL);
+            skinEntry = "\"SKIN\": {\n" +
+                "  \"url\": \"" + TEXTURE_URL + "\"\n" +
+                "}";
         }
 
-        return """
-                {
-                  "timestamp": 1234567890,
-                  "profileId": "f0000000000000000000000000000000",
-                  "profileName": "TestPlayer",
-                  "signatureRequired": false,
-                  "textures": {
-                    %s
-                  }
-                }
-                """.formatted(skinEntry);
+        return "{\n" +
+            "  \"timestamp\": 1234567890,\n" +
+            "  \"profileId\": \"f0000000000000000000000000000000\",\n" +
+            "  \"profileName\": \"TestPlayer\",\n" +
+            "  \"signatureRequired\": false,\n" +
+            "  \"textures\": {\n" +
+            "    " + skinEntry + "\n" +
+            "  }\n" +
+            "}";
     }
 }

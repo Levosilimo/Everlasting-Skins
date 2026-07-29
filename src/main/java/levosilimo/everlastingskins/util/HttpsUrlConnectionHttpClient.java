@@ -1,8 +1,8 @@
 package levosilimo.everlastingskins.util;
 
 
-import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class HttpsUrlConnectionHttpClient implements HttpClient {
-    private final Logger logger = EverlastingSkins.logger;
+    private final Logger logger = LogManager.getLogger(HttpsUrlConnectionHttpClient.class);
 
     @Override
     public HttpResponse execute(URI uri, RequestBody requestBody, HttpType accepts,
@@ -80,7 +80,7 @@ public class HttpsUrlConnectionHttpClient implements HttpClient {
 
         HttpResponse response = new HttpResponse(
                 connection.getResponseCode(),
-                byteData.toString(StandardCharsets.UTF_8),
+                new String(byteData.toByteArray(), StandardCharsets.UTF_8),
                 connection.getHeaderFields()
         );
 

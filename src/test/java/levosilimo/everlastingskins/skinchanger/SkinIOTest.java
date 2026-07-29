@@ -17,9 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Persistence atomicity and corrupt-record handling for {@link SkinIO}.
- * <p>
- * Tests use a temporary directory for each test method. No filesystem
- * state leaks between tests.
+ * Uses a temporary directory for each test method.
  */
 class SkinIOTest {
 
@@ -34,24 +32,30 @@ class SkinIOTest {
         skinIO = new SkinIO(tempDir);
         uuid = UUID.randomUUID();
     }
+
     @Nested
     class AtomicWrite {
 
         @Test
         @DisplayName("saveSkin creates a valid JSON file at the target path")
         void saveCreatesFile() {
-            var skin = new CustomSkinProperty("value1", "sig1", "source1");
+            CustomSkinProperty skin = new CustomSkinProperty("value1", "sig1", "source1");
             skinIO.saveSkin(uuid, skin);
 
             Path target = tempDir.resolve(uuid + ".json");
             assertTrue(Files.exists(target), "Target file must exist after save");
-            assertDoesNotThrow(() -> Files.readString(target, StandardCharsets.UTF_8));
+            assertDoesNotThrow(new org.junit.jupiter.api.function.Executable() {
+                @Override
+                public void execute() throws Throwable {
+                    new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
+                }
+            });
         }
 
         @Test
         @DisplayName("saveSkin does not leave a .tmp file behind")
         void saveCleansTempFile() throws IOException {
-            var skin = new CustomSkinProperty("value", "sig", "src");
+            CustomSkinProperty skin = new CustomSkinProperty("value", "sig", "src");
             skinIO.saveSkin(uuid, skin);
 
             Path temp = tempDir.resolve(uuid + ".json.tmp");
@@ -59,50 +63,45 @@ class SkinIOTest {
         }
 
         @Test
-        @DisplayName("Simulated crash mid-write: delete temp before rename → prior state readable")
+        @DisplayName("Simulated crash mid-write: prior state readable")
         void crashBeforeRenameReturnsPriorState() throws IOException {
-            // Write an initial skin
-            var initialSkin = new CustomSkinProperty("initialValue", "initialSig", "initial");
+            CustomSkinProperty initialSkin = new CustomSkinProperty("initialValue", "initialSig", "initial");
             skinIO.saveSkin(uuid, initialSkin);
 
-            // Verify initial state is readable
             CustomSkinProperty loaded = skinIO.loadSkin(uuid);
             assertNotNull(loaded);
-            assertEquals("initialValue", loaded.getOriginalProperty().value());
+            assertEquals("initialValue", loaded.getOriginalProperty().getValue());
 
-            // Now simulate a crash mid-write: create a .tmp file but crash before rename
             Path temp = tempDir.resolve(uuid + ".json.tmp");
             String crashedJson = "{\"value\":\"crashValue\",\"signature\":\"crashSig\",\"name\":\"textures\",\"source\":\"crash\"}";
-            Files.writeString(temp, crashedJson, StandardCharsets.UTF_8);
-            // Intentionally NOT moving temp to target — simulating crash
+            Files.write(temp, crashedJson.getBytes(StandardCharsets.UTF_8));
 
-            // Reading should return the prior committed state (the temp file is ignored)
             CustomSkinProperty afterCrash = skinIO.loadSkin(uuid);
             assertNotNull(afterCrash);
-            assertEquals("initialValue", afterCrash.getOriginalProperty().value(),
+            assertEquals("initialValue", afterCrash.getOriginalProperty().getValue(),
                     "Must return prior state when crash prevented atomic rename");
         }
     }
+
     @Nested
     @DisplayName("Corrupt record handling")
     class CorruptRecord {
 
         @Test
-        @DisplayName("Malformed JSON in storage → returns null, file quarantined")
+        @DisplayName("Malformed JSON in storage -> returns null, file quarantined")
         void malformedJson() throws IOException {
             writeRawSkinFile("this is not json at all");
 
             CustomSkinProperty loaded = skinIO.loadSkin(uuid);
             assertNull(loaded);
 
-            // The original file should be renamed to .corrupt-*
             Path target = tempDir.resolve(uuid + ".json");
             assertFalse(Files.exists(target), "Original file should be quarantined");
             assertCorruptFileExists();
         }
 
         @Test
-        @DisplayName("Partial JSON (truncated) → returns null, file quarantined")
+        @DisplayName("Partial JSON (truncated) -> returns null, file quarantined")
         void partialJson() throws IOException {
             writeRawSkinFile("{\"value\":\"abc\",\"signature\"");
 
@@ -112,7 +111,7 @@ class SkinIOTest {
         }
 
         @Test
-        @DisplayName("Empty file → returns null, file quarantined")
+        @DisplayName("Empty file -> returns null, file quarantined")
         void emptyFile() throws IOException {
             writeRawSkinFile("");
 
@@ -122,7 +121,7 @@ class SkinIOTest {
         }
 
         @Test
-        @DisplayName("Missing fields (no value) → JsonUtils returns null, loadSkin returns null")
+        @DisplayName("Missing fields (no value) -> JsonUtils returns null, loadSkin returns null")
         void missingFields() throws IOException {
             writeRawSkinFile("{\"name\":\"textures\",\"signature\":\"sig\"}");
 
@@ -131,7 +130,7 @@ class SkinIOTest {
         }
 
         @Test
-        @DisplayName("getSourceFromFileStorage with corrupt JSON → returns null")
+        @DisplayName("getSourceFromFileStorage with corrupt JSON -> returns null")
         void sourceFromCorruptFile() throws IOException {
             writeRawSkinFile("garbage");
 
@@ -140,13 +139,14 @@ class SkinIOTest {
         }
 
         @Test
-        @DisplayName("Non-existent file → returns null (not quarantined, not created)")
+        @DisplayName("Non-existent file -> returns null (not quarantined, not created)")
         void nonExistentFile() {
             assertNull(skinIO.loadSkin(uuid));
             Path target = tempDir.resolve(uuid + ".json");
             assertFalse(Files.exists(target));
         }
     }
+
     @Nested
     @DisplayName("Load/save round-trip")
     class RoundTrip {
@@ -154,20 +154,20 @@ class SkinIOTest {
         @Test
         @DisplayName("save then load returns equivalent skin")
         void saveThenLoad() {
-            var original = new CustomSkinProperty("val", "sig", "test-source");
+            CustomSkinProperty original = new CustomSkinProperty("val", "sig", "test-source");
             skinIO.saveSkin(uuid, original);
 
             CustomSkinProperty loaded = skinIO.loadSkin(uuid);
             assertNotNull(loaded);
-            assertEquals("val", loaded.getOriginalProperty().value());
-            assertEquals("sig", loaded.getOriginalProperty().signature());
+            assertEquals("val", loaded.getOriginalProperty().getValue());
+            assertEquals("sig", loaded.getOriginalProperty().getSignature());
             assertEquals("test-source", loaded.getSource());
         }
 
         @Test
         @DisplayName("getSourceFromFileStorage returns source")
         void getSource() {
-            var skin = new CustomSkinProperty("v", "s", "my-source");
+            CustomSkinProperty skin = new CustomSkinProperty("v", "s", "my-source");
             skinIO.saveSkin(uuid, skin);
 
             String source = skinIO.getSourceFromFileStorage(uuid);
@@ -177,15 +177,15 @@ class SkinIOTest {
         @Test
         @DisplayName("Multiple saves overwrite")
         void overwrite() {
-            var first = new CustomSkinProperty("val1", "sig1", "src1");
+            CustomSkinProperty first = new CustomSkinProperty("val1", "sig1", "src1");
             skinIO.saveSkin(uuid, first);
 
-            var second = new CustomSkinProperty("val2", "sig2", "src2");
+            CustomSkinProperty second = new CustomSkinProperty("val2", "sig2", "src2");
             skinIO.saveSkin(uuid, second);
 
             CustomSkinProperty loaded = skinIO.loadSkin(uuid);
             assertNotNull(loaded);
-            assertEquals("val2", loaded.getOriginalProperty().value());
+            assertEquals("val2", loaded.getOriginalProperty().getValue());
         }
     }
 
@@ -195,11 +195,11 @@ class SkinIOTest {
 
     private void writeRawSkinFile(String content) throws IOException {
         Path target = tempDir.resolve(uuid + ".json");
-        Files.writeString(target, content, StandardCharsets.UTF_8);
+        Files.write(target, content.getBytes(StandardCharsets.UTF_8));
     }
 
     private void assertCorruptFileExists() {
-        try (var files = Files.list(tempDir)) {
+        try (java.util.stream.Stream<Path> files = Files.list(tempDir)) {
             boolean found = files.anyMatch(p -> p.getFileName().toString().startsWith(uuid + ".json.corrupt-"));
             assertTrue(found, "Expected a .corrupt-* quarantine file");
         } catch (IOException e) {

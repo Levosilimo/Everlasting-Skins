@@ -1,80 +1,82 @@
-apply plugin: 'java'
-
-version = "${mod_version}"
-group = "${mod_group_id}"
-archivesBaseName = "${mod_name}-${minecraft_version}"
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { name = 'forge'; url = 'https://files.minecraftforge.net/maven' }
+        maven { name = 'sonatype'; url = 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3.4'
+    }
 }
 
-compileJava.options.encoding = 'UTF-8'
+plugins {
+    id 'java'
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = '0.1.0-beta.1'
+group = 'levosilimo.everlastingskins'
+archivesBaseName = 'everlastingskins-1.12.2'
+
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+
+minecraft {
+    version = '1.12.2-14.23.5.2847'
+    runDir = 'run'
+    mappings = 'snapshot_20171003'
+    replace '@VERSION@', project.version
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+            // Exclude Mixin support files — no Mixin annotation processor configured for 1.12.2
+            exclude 'levosilimo/everlastingskins/mixin/**'
+        }
+    }
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    compileOnly files('libs/forge-1.12.2-14.23.5.2860.jar')
-    implementation 'org.apache.logging.log4j:log4j-api:2.11.2'
+    // JUnit 5 for test source set
+    testCompile 'org.junit.jupiter:junit-jupiter-api:5.10.3'
+    testCompile 'org.junit.jupiter:junit-jupiter-params:5.10.3'
+    testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.10.3'
+    testRuntime 'org.junit.platform:junit-platform-launcher:1.10.3'
 }
 
-// Phase 3 probe: only compile the probe file, skip tests
-sourceSets {
-    main {
-        java {
-            include 'levosilimo/everlastingskins/EverlastingSkinsProbe.java'
-        }
+test {
+    useJUnitPlatform()
+    // Prevent test task from failing if no tests are found (clean build)
+    testLogging {
+        events "passed", "skipped", "failed"
     }
 }
-
-compileTestJava.onlyIf { false }
-processTestResources.onlyIf { false }
-test.onlyIf { false }
 
 processResources {
-    inputs.property('version', project.mod_version)
-    inputs.property('mcversion', project.minecraft_version)
-    filesMatching('mcmod.info') {
-        expand 'version': project.mod_version, 'mcversion': project.minecraft_version
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.minecraft.version
     }
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
-}
-
-// Task to download and extract the Forge API jar from the installer
-task setupForge {
-    doLast {
-        def libsDir = file('libs')
-        libsDir.mkdirs()
-        def forgeJar = file('libs/forge-1.12.2-14.23.5.2860.jar')
-        if (!forgeJar.exists()) {
-            def installerUrl = 'https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar'
-            def installerFile = new File(temporaryDir, 'installer.jar')
-            new URL(installerUrl).withInputStream { i ->
-                installerFile.withOutputStream { it << i }
-            }
-            project.exec {
-                executable 'java'
-                args '-jar', installerFile.absolutePath, '--extract', libsDir.absolutePath
-            }
-            logger.lifecycle("Forge API jar extracted to ${forgeJar}")
-        }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
     }
 }
-
-compileJava.dependsOn setupForge
 
 jar {
     manifest {
         attributes([
-            'Specification-Title': "${mod_name}",
-            'Specification-Vendor': "${mod_vendor}",
-            'Specification-Version': "${version}",
-            'Implementation-Title': project.archivesBaseName,
+            'Specification-Title': archivesBaseName,
+            'Specification-Vendor': 'Levosilimo',
+            'Specification-Version': project.version,
+            'Implementation-Title': project.name,
             'Implementation-Version': project.version,
-            'Implementation-Vendor': "${mod_vendor}",
-            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+            'Implementation-Vendor': 'Levosilimo'
         ])
     }
 }

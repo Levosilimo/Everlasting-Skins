@@ -1,40 +1,47 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.FileUtil;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class SkinRestorer {
 
-    // Singleton storage instance, initialised via constructor injection in onInitializeServer.
     private static SkinStorage skinStorage;
     private static SkinIO skinIO;
-    public static MinecraftServer server;
+    private static MinecraftServer server;
 
     public static SkinStorage getSkinStorage() {
         return skinStorage;
     }
 
-    @SubscribeEvent
-    public void onInitializeServer(ServerStartingEvent event) {
+    public static MinecraftServer getServer() {
+        return server;
+    }
+
+    public static void onServerStarting(FMLServerStartingEvent event) {
         server = event.getServer();
-        Path path = event.getServer().getFile("EverlastingSkins");
+        Path dataDir = server.getFile("EverlastingSkins").toPath();
         try {
-            FileUtil.createDirectoriesSafe(path);
+            Files.createDirectories(dataDir);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            EverlastingSkins.logger.error("Failed to create skin data directory", e);
         }
-        skinIO = new SkinIO(path);
+        skinIO = new SkinIO(dataDir);
         skinStorage = new SkinStorage(skinIO);
+        Config.load(new File(server.getFile("config"), "everlastingskins.cfg"));
+        SkinCommand.register(server);
     }
 
     /**
@@ -42,24 +49,21 @@ public class SkinRestorer {
      *
      * NOTE: PlayerLoggedInEvent fires after the player is already visible to
      * other players on the server. This means there is a brief flash of the
-     * default/vanilla skin before the saved custom skin is applied — a known
-     * timing trade-off versus mixing into PlayerList#placeNewPlayer HEAD,
-     * which applied the skin before the player became visible. The Forge event
-     * is preferred for maintainability; the visual flash is imperceptible under
-     * normal network conditions on a local server.
+     * default/vanilla skin before the saved custom skin is applied.
      */
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (!(event.player instanceof EntityPlayerMP)) return;
+        EntityPlayerMP player = (EntityPlayerMP) event.player;
 
-        if (skinStorage.hasDefaultSkin(player.getUUID())) {
+        if (skinStorage.hasDefaultSkin(player.getUniqueID())) {
             MojangSkinDataResult skinDataResult = SkinCommand.mojangAPI.getSkin(player.getGameProfile().getName()).orElse(null);
             if (skinDataResult != null) {
-                skinStorage.setSkin(player.getUUID(), skinDataResult.skinProperty());
+                skinStorage.setSkin(player.getUniqueID(), skinDataResult.skinProperty());
             }
         }
 
-        CustomSkinProperty skin = skinStorage.getSkin(player.getUUID());
+        CustomSkinProperty skin = skinStorage.getSkin(player.getUniqueID());
         if (skin != null && skin.getOriginalProperty() != null) {
             player.getGameProfile().getProperties().removeAll("textures");
             player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
@@ -71,18 +75,18 @@ public class SkinRestorer {
      */
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        skinStorage.saveSkin(player.getUUID());
+        if (!(event.player instanceof EntityPlayerMP)) return;
+        EntityPlayerMP player = (EntityPlayerMP) event.player;
+        skinStorage.saveSkin(player.getUniqueID());
     }
 
     /**
      * Saves all online players' skin data during graceful server shutdown.
      */
-    @SubscribeEvent
-    public void onServerStopping(ServerStoppingEvent event) {
+    public static void onServerStopping() {
         if (server == null) return;
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            skinStorage.saveSkin(player.getUUID());
+        for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
+            skinStorage.saveSkin(player.getUniqueID());
         }
     }
 }

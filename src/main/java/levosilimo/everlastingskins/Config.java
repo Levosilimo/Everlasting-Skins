@@ -1,25 +1,30 @@
 package levosilimo.everlastingskins;
 
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.common.config.Configuration;
 
-@Mod.EventBusSubscriber
-public class Config {
-    public static ForgeConfigSpec COMMON_CONFIG;
+import java.io.File;
 
-    public static ForgeConfigSpec.ConfigValue<String> LANGUAGE;
-    public static ForgeConfigSpec.BooleanValue TOGGLE;
+public final class Config {
+    public static String LANGUAGE = "en";
+    public static boolean TOGGLE = true;
+    public static String MINESKIN_API_KEY = "";
+    public static boolean MINESKIN_ENABLED = false; // OFF for Phase 5 viability gate.
 
-    public static ForgeConfigSpec.ConfigValue<String> MINESKIN_API_KEY;
-
-
-    static {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
-        builder.push("Messages");
-        LANGUAGE = builder.comment("Language of mod messages").define("localization","en");
-        TOGGLE = builder.comment("Display mod messages").define("display",true);
-        MINESKIN_API_KEY = builder.comment("Mineskin api key").define("key","");
-        builder.pop();
-        COMMON_CONFIG = builder.build();
+    public static void load(File configFile) {
+        Configuration cfg = new Configuration(configFile);
+        try {
+            cfg.load();
+            LANGUAGE = cfg.getString("localization", "Messages", LANGUAGE, "Language of mod messages");
+            TOGGLE = cfg.getBoolean("display", "Messages", TOGGLE, "Display mod messages");
+            MINESKIN_API_KEY = cfg.getString("key", "Messages", MINESKIN_API_KEY, "Mineskin api key");
+            MINESKIN_ENABLED = cfg.getBoolean("enabled", "MineSkin", false,
+                "Enable MineSkin URL-based skin generation (off during Phase 5 viability gate)");
+        } catch (Exception e) {
+            EverlastingSkins.logger.error("Failed to load config", e);
+        } finally {
+            if (cfg.hasChanged()) cfg.save();
+        }
     }
+
+    private Config() {}
 }

@@ -1,22 +1,50 @@
-/*
- * SkinsRestorer
- * Copyright (C) 2024  SkinsRestorer Team
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
-public record MineSkinErrorDelayResponse(String error, Integer nextRequest, Integer delay) {
+import javax.annotation.Nullable;
+import java.util.Objects;
 
+public final class MineSkinErrorDelayResponse {
+    private final String error;
+    private final Integer nextRequest;
+    private final Integer delay;
+
+    public MineSkinErrorDelayResponse(@Nullable String error, @Nullable Integer nextRequest, @Nullable Integer delay) {
+        this.error = error;
+        this.nextRequest = nextRequest;
+        this.delay = delay;
+    }
+
+    @Nullable
+    public String error() {
+        return error;
+    }
+
+    @Nullable
+    public Integer nextRequest() {
+        return nextRequest;
+    }
+
+    @Nullable
+    public Integer delay() {
+        return delay;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MineSkinErrorDelayResponse that = (MineSkinErrorDelayResponse) o;
+        return Objects.equals(error, that.error) && Objects.equals(nextRequest, that.nextRequest)
+            && Objects.equals(delay, that.delay);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(error, nextRequest, delay);
+    }
+
+    @Override
+    public String toString() {
+        return "MineSkinErrorDelayResponse[error=" + error + ", nextRequest=" + nextRequest + ", delay=" + delay + "]";
+    }
 }

@@ -2,7 +2,8 @@ package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.MineSkinResponse;
-import org.jetbrains.annotations.Nullable;
+
+import javax.annotation.Nullable;
 
 public interface MineSkinAPI {
     /**

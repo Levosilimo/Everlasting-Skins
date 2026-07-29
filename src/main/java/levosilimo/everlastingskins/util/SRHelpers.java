@@ -11,6 +11,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SRHelpers {
@@ -55,7 +56,7 @@ public class SRHelpers {
     public static void renameFile(Path parent, String oldName, String newName) throws IOException {
         try (Stream<Path> stream = Files.list(parent)) {
             // Folders are case-insensitive on Windows, so we need to check it using this method
-            List<String> files = stream.map(Path::getFileName).map(Path::toString).toList();
+            List<String> files = stream.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
 
             String tempName = newName + "_temp";
             if (files.contains(oldName) && !files.contains(tempName) && !files.contains(newName)) {
@@ -134,7 +135,7 @@ public class SRHelpers {
 
     public static String sanitizeImageURL(String imageUrl) {
         Optional<URL> uriOptional = parseURL(imageUrl);
-        if (uriOptional.isEmpty()) {
+        if (!uriOptional.isPresent()) {
             return imageUrl;
         }
 
@@ -165,7 +166,7 @@ public class SRHelpers {
 
     public static String sanitizeSkinInput(String skinInput) {
         Optional<URL> uriOptional = parseURL(skinInput);
-        if (uriOptional.isEmpty()) {
+        if (!uriOptional.isPresent()) {
             return skinInput;
         }
 

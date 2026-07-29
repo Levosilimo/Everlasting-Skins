@@ -5,6 +5,7 @@ import levosilimo.everlastingskins.util.HttpClient;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,9 +17,9 @@ import java.util.Map;
  */
 public class FakeHttpClient implements HttpClient {
 
-    private static final Map<String, List<String>> EMPTY_HEADERS = Map.of();
+    private static final Map<String, List<String>> EMPTY_HEADERS = Collections.emptyMap();
 
-    private final Map<URI, HttpResponse> responses = new HashMap<>();
+    private final Map<URI, HttpResponse> responses = new HashMap<URI, HttpResponse>();
     private URI timeoutUri = null;
     private URI errorUri = null;
     private IOException errorException = null;
