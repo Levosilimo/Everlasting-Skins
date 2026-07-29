@@ -1,160 +1,80 @@
-buildscript {
-    repositories {
-        maven { url = 'https://maven.minecraftforge.net/' }
-        maven { url 'https://plugins.gradle.org/m2/' }
-        maven {
-            
-            name 'Sponge / Mixin Maven'
-            url 'https://repo.spongepowered.org/repository/maven-public/'
-        }
-        mavenCentral()
-    }
-    dependencies {
-        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '[6.0,6.2)', changing: true
-        classpath 'org.spongepowered:mixingradle:0.7.+'
-        classpath 'org.apache.httpcomponents:httpclient:4.5.13'
-    }
+apply plugin: 'java'
+
+version = "${mod_version}"
+group = "${mod_group_id}"
+archivesBaseName = "${mod_name}-${minecraft_version}"
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
 }
 
-plugins {
-    id 'eclipse'
-    id 'idea'
-    id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
-    id 'org.spongepowered.mixin' version '0.7.+'
-}
+compileJava.options.encoding = 'UTF-8'
 
 repositories {
-    maven {
-        // location of a maven mirror for JEI files, as a fallback
-        name = "ModMaven"
-        url = "https://modmaven.dev"
-    }
-    maven {
-        name = "CurseForge"
-        url = "https://minecraft.curseforge.com/api/maven/"
-    }
-    maven {
-        name = "CurseMaven"
-        url = "https://www.cursemaven.com"
-    }
-    maven {
-        name = "Forge"
-        url = "https://maven.minecraftforge.net/"
-    }
     mavenCentral()
 }
 
-version = "${mod_version}"
-archivesBaseName = "${mod_name}-${minecraft_version}"
-[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
-}
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
-java {
-    // withSourcesJar()
-
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-}
-
-
-minecraft {
-
-    mappings channel: 'official', version: "${minecraft_version}".toString()
-    reobf = false
-
-    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
-    copyIdeResources = true
-	
-    runs {
-
-        configureEach {
-            workingDirectory project.file('run')
-            property 'forge.logging.console.level', 'debug'
-            property 'fml.earlyprogresswindow', 'false'
-            property 'mixin.env.disableRefMap', 'true'
-
-            mods {
-                "everlastingskins" {
-                    source sourceSets.main
-                }
-            }
-        }
-
-        client {
-            properties 'mixin.env.remapRefMap': 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
-
-            property 'forge.logging.markers', 'REGISTRYDUMP'
-        }
-
-        server {
-            workingDirectory project.file('server')
-            property 'mixin.env.disableRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
-            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
-        }
-    }
-}
-
-mixin {
-    add sourceSets.main, "everlastingskins.refmap.json"
-    config 'everlastingskins.mixins.json'
-}
-
 dependencies {
-    implementation 'org.apache.httpcomponents:httpclient:4.5.13'
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-    annotationProcessor "org.spongepowered:mixin:0.8.5:processor"
-    // Hack fix for now, force jopt-simple to be exactly 5.0.4 because Mojang ships that version, but some transitive dependencies request 6.0+
-    implementation('net.sf.jopt-simple:jopt-simple:5.0.4') { version { strictly '5.0.4' } }
-
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
-    testImplementation 'org.mockito:mockito-core:5.12.0'
-    testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.3'
+    compileOnly files('libs/forge-1.12.2-14.23.5.2860.jar')
+    implementation 'org.apache.logging.log4j:log4j-api:2.11.2'
 }
 
-test {
-    useJUnitPlatform()
-    testLogging {
-        events "passed", "skipped", "failed"
-        showStandardStreams = false
+// Phase 3 probe: only compile the probe file, skip tests
+sourceSets {
+    main {
+        java {
+            include 'levosilimo/everlastingskins/EverlastingSkinsProbe.java'
+        }
     }
 }
+
+compileTestJava.onlyIf { false }
+processTestResources.onlyIf { false }
+test.onlyIf { false }
+
+processResources {
+    inputs.property('version', project.mod_version)
+    inputs.property('mcversion', project.minecraft_version)
+    filesMatching('mcmod.info') {
+        expand 'version': project.mod_version, 'mcversion': project.minecraft_version
+    }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+// Task to download and extract the Forge API jar from the installer
+task setupForge {
+    doLast {
+        def libsDir = file('libs')
+        libsDir.mkdirs()
+        def forgeJar = file('libs/forge-1.12.2-14.23.5.2860.jar')
+        if (!forgeJar.exists()) {
+            def installerUrl = 'https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar'
+            def installerFile = new File(temporaryDir, 'installer.jar')
+            new URL(installerUrl).withInputStream { i ->
+                installerFile.withOutputStream { it << i }
+            }
+            project.exec {
+                executable 'java'
+                args '-jar', installerFile.absolutePath, '--extract', libsDir.absolutePath
+            }
+            logger.lifecycle("Forge API jar extracted to ${forgeJar}")
+        }
+    }
+}
+
+compileJava.dependsOn setupForge
 
 jar {
-    duplicatesStrategy(DuplicatesStrategy.INCLUDE)
     manifest {
         attributes([
-            'Timestamp': System.currentTimeMillis(),
             'Specification-Title': "${mod_name}",
             'Specification-Vendor': "${mod_vendor}",
             'Specification-Version': "${version}",
             'Implementation-Title': project.archivesBaseName,
             'Implementation-Version': project.version,
-            'Implementation-Vendor' :"${mod_vendor}",
-            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-            'Built-On-Java': "${System.getProperty('java.vm.version')} (${System.getProperty('java.vm.vendor')})",
-            'Built-On': "${forge_version}",
-            "TweakClass"              : 'org.spongepowered.asm.launch.MixinTweaker',
-            "TweakOrder"              : 0,
-            "MixinConfigs": "${mixin_id}.mixins.json"
+            'Implementation-Vendor': "${mod_vendor}",
+            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
         ])
     }
-}
-
-
-
-processResources {
-    inputs.property "version", project.mod_version
-
-}
-
-sourceSets.each {
-    def dir = layout.buildDirectory.dir("sourcesSets/$it.name")
-    it.output.resourcesDir = dir
-    it.java.destinationDirectory = dir
 }

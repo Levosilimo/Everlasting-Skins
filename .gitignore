@@ -23,3 +23,9 @@ run/
 
 # Magic Context sentinel artifacts
 .cortexkit/
+
+# Forge 1.12.2 API jar (extracted by `setupForge` task)
+/libs/forge-*.jar
+
+# Forge installer log
+/installer.jar.log

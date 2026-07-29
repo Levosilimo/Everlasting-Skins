@@ -103,6 +103,8 @@ All config values are in `server/config/everlastingskins-common.toml`:
 
 ## Building from source
 
+### 1.21 (current reference)
+
 Requires JDK 21 and a network connection.
 
 ```bash
@@ -121,6 +123,26 @@ sed -i 's/\r$//' gradlew && chmod +x gradlew
 The compiled JAR is at `build/libs/EverlastingSkins-1.21-1.0.jar`.
 
 **Known issue:** The `gradlew` wrapper has CRLF line endings and a missing executable bit on checkout. This is tracked in Phase 0 of [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+
+### Building 1.12.2 (legacy)
+
+Check out the `mc1.12.2` branch (or worktree) and build with:
+
+```bash
+./gradlew build
+```
+
+This produces `build/libs/EverlastingSkins-1.12.2-0.1.0-beta.1.jar`.
+
+**Note:** The 1.12.2 build currently uses a direct Gradle setup (no ForgeGradle; Phase 4 will introduce ForgeGradle for full reobfuscation). The Forge API jar (`forge-1.12.2-14.23.5.2860.jar`) is extracted from the Forge installer and placed in `libs/`. The build targets Java 8 bytecode using JDK 21's `javac` with `--release 8`. Only the Phase 3 probe class is compiled; the 1.21 source files in the worktree are excluded from compilation.
+
+Expected log line on successful load:
+
+```
+[INFO] [EverlastingSkins] Phase 3 probe preInit on 1.12.2
+```
+
+The 1.12.2 build does not yet include Mixin or coremod support (Phase 4).
 
 ## License
 
