@@ -24,6 +24,7 @@ import levosilimo.everlastingskins.skinchanger.requests.mineskin.MineSkinUrlRequ
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.*;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.EndpointsConfig;
 import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.PropertyUtils;
@@ -45,7 +46,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class MineSkinApiHttpImpl implements MineSkinAPI {
     private static final int MAX_RETRIES = 5;
     private static final String MINESKIN_USER_AGENT = "SkinsRestorer/MineSkinAPI";
-    private static final URI MINESKIN_ENDPOINT = URI.create("https://api.mineskin.org/generate/url"); // TODO: extract to Config module (Phase 1 config extraction step)
+    private static final URI MINESKIN_ENDPOINT = EndpointsConfig.getURI("endpoint.mineskin.generate");
     private final ReentrantLock lock = new ReentrantLock();
     private final Gson gson = new Gson();
     private final Logger logger = LogManager.getLogger();

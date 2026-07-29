@@ -2,6 +2,7 @@ package levosilimo.everlastingskins.skinchanger;
 
 import com.google.gson.JsonObject;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.util.EndpointsConfig;
 import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.JsonUtils;
@@ -15,8 +16,8 @@ public class RandomMojangSkin {
 
     private static final HttpClient httpClient = new HttpsUrlConnectionHttpClient();
 
-    private static final URI LATEST_SKINS_URI = URI.create("https://mskins.net/ru/skins/latest");
-    private static final URI RANDOM_SKINS_URI = URI.create("https://mskins.net/en/skins/random");
+    private static final URI LATEST_SKINS_URI = EndpointsConfig.getURI("url.mskins.latest");
+    private static final URI RANDOM_SKINS_URI = EndpointsConfig.getURI("url.mskins.random");
 
     private static final Random rand = new Random();
 
@@ -58,7 +59,7 @@ public class RandomMojangSkin {
     private static URI getRandomCapeUri() {
         int year = getRandomYearExcept2014();
         int page = getRandomPageForYear(year);
-        return URI.create("https://mskins.net/en/cape/minecon_" + year + "?page=" + page);
+        return URI.create(EndpointsConfig.getString("url.mskins.cape") + year + "?page=" + page);
     }
 
     private static int getRandomYearExcept2014() {

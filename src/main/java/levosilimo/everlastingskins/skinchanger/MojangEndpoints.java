@@ -1,10 +1,12 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.util.EndpointsConfig;
+
 /**
  * Centralized endpoint URLs for Mojang profile and UUID lookups.
  * <p>
- * TODO (Phase 1): Extract into {@code HttpClient} configuration once that interface
- * is created. These are currently consumed directly by {@link MojangApiHttpImpl}.
+ * Values are loaded from {@code /endpoints.properties} on the classpath
+ * via {@link EndpointsConfig} rather than hardcoded as Java string literals.
  */
 public record MojangEndpoints(
         String uuidEclipse,
@@ -15,11 +17,11 @@ public record MojangEndpoints(
         String profileMineTools
 ) {
     public static final MojangEndpoints DEFAULT = new MojangEndpoints(
-            "https://eclipse.skinsrestorer.net/mojang/uuid/%playerName%",
-            "https://api.mojang.com/users/profiles/minecraft/%playerName%",
-            "https://api.minetools.eu/uuid/%playerName%",
-            "https://eclipse.skinsrestorer.net/mojang/skin/%uuid%",
-            "https://sessionserver.mojang.com/session/minecraft/profile/%uuid%?unsigned=false",
-            "https://api.minetools.eu/profile/%uuid%"
+            EndpointsConfig.getString("endpoint.uuid.eclipse"),
+            EndpointsConfig.getString("endpoint.uuid.mojang"),
+            EndpointsConfig.getString("endpoint.uuid.minetools"),
+            EndpointsConfig.getString("endpoint.profile.eclipse"),
+            EndpointsConfig.getString("endpoint.profile.mojang"),
+            EndpointsConfig.getString("endpoint.profile.minetools")
     );
 }

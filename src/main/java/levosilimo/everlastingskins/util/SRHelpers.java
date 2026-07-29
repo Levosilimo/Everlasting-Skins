@@ -14,7 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 
 public class SRHelpers {
-    private static final String NAMEMC_IMG_URL = "https://s.namemc.com/i/%s.png";
+    private static final String NAMEMC_IMG_URL = EndpointsConfig.getString("url.namemc.img");
 
     private SRHelpers() {
     }

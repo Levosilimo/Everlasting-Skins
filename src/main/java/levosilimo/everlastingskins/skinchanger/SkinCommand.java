@@ -9,8 +9,10 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.I18nUtils;
+import levosilimo.everlastingskins.util.SRHelpers;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -39,8 +41,8 @@ public class SkinCommand {
 
     private static I18nUtils i18nUtils;
 
-    public static final MineSkinAPIImpl mineSkinAPI = new MineSkinAPIImpl();
-    public static final MojangAPIImpl mojangAPI = new MojangAPIImpl();
+    public static final MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
+    public static final MojangAPI mojangAPI = new MojangApiHttpImpl();
 
     private static String getLocalizedString(String key) {
         if(i18nUtils == null) i18nUtils = new I18nUtils();
@@ -196,7 +198,7 @@ public class SkinCommand {
     }
 
     private static int sourceAction(CommandContext<CommandSourceStack> context, ServerPlayer target) {
-        String source = SkinStorage.getInstance().getSource(target.getUUID());
+        String source = SkinRestorer.getSkinStorage().getSource(target.getUUID());
         MutableComponent message;
         if(source == null) message = Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("no_source"));
         else message = Component.literal(FEEDBACK_PREFIX + " " + source);
@@ -216,24 +218,36 @@ public class SkinCommand {
             CustomSkinProperty skinProperty = null;
             switch (type) {
                 case clear:
-                    skinProperty = mojangAPI.getSkin(targets.stream().findFirst().get().getGameProfile().getName()).skinProperty();
+                    skinProperty = mojangAPI.getSkin(targets.stream().findFirst().get().getGameProfile().getName())
+                            .map(MojangSkinDataResult::skinProperty).orElse(null);
                     break;
-                case url:
-                    skinProperty = mineSkinAPI.genSkin(customSource, variant).property();
+                case url: {
+                    String sanitized = SRHelpers.sanitizeSkinInput(customSource);
+                    if (!sanitized.equals(customSource)) {
+                        /* NameMC profile URL resolved to username — route to Mojang API */
+                        skinProperty = mojangAPI.getSkin(sanitized)
+                                .map(MojangSkinDataResult::skinProperty).orElse(null);
+                    } else {
+                        skinProperty = mineSkinAPI.genSkin(customSource, variant).property();
+                    }
                     break;
+                }
                 case username:
-                    skinProperty = mojangAPI.getSkin(customSource).skinProperty();
+                    skinProperty = mojangAPI.getSkin(customSource)
+                            .map(MojangSkinDataResult::skinProperty).orElse(null);
                     break;
                 case random:
                     try {
-                        skinProperty = mojangAPI.getSkin(Objects.requireNonNull(RandomMojangSkin.randomUsername(withCape, variant))).skinProperty();
+                        skinProperty = mojangAPI.getSkin(Objects.requireNonNull(RandomMojangSkin.randomUsername(withCape, variant)))
+                                .map(MojangSkinDataResult::skinProperty).orElse(null);
                     } catch (Exception e) {
                         throw new CompletionException(e);
                     }
                     break;
                 case NEW:
                     try {
-                        skinProperty = mojangAPI.getSkin(Objects.requireNonNull(RandomMojangSkin.newUsername(variant))).skinProperty();
+                        skinProperty = mojangAPI.getSkin(Objects.requireNonNull(RandomMojangSkin.newUsername(variant)))
+                                .map(MojangSkinDataResult::skinProperty).orElse(null);
                     } catch (Exception e) {
                         throw new CompletionException(e);
                     }
@@ -247,7 +261,7 @@ public class SkinCommand {
                 return;
             }
             for (ServerPlayer player : targets) {
-                SkinStorage.getInstance().setSkin(player, skinProperty);
+                SkinRestorer.getSkinStorage().setSkin(player, skinProperty);
                 if(Config.TOGGLE.get()) {
                     if(player == context.getSource().getEntity()) context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("fulfilled")), false);
                     else player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("fulfilled_force")));
@@ -279,9 +293,9 @@ public class SkinCommand {
         LevelData levelData = serverLevel.getLevelData();
         PlayerList playerlist = player.server.getPlayerList();
         //Skin change
-        SkinStorage.getInstance().saveSkin(player);
+        SkinRestorer.getSkinStorage().saveSkin(player);
         player.getGameProfile().getProperties().removeAll("textures");
-        player.getGameProfile().getProperties().put("textures", SkinStorage.getInstance().getSkin(player).getOriginalProperty());
+        player.getGameProfile().getProperties().put("textures", SkinRestorer.getSkinStorage().getSkin(player).getOriginalProperty());
 
         //Reconnect emulation
 
