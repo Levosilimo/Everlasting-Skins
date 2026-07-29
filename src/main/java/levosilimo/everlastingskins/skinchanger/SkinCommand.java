@@ -44,6 +44,15 @@ public class SkinCommand {
     public static final MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
     public static final MojangAPI mojangAPI = new MojangApiHttpImpl();
 
+    private record SkinActionParameters(
+            Collection<ServerPlayer> targets,
+            SkinActionType type,
+            boolean setByOperator,
+            SkinVariant variant,
+            boolean withCape,
+            @Nullable String customSource
+    ) {}
+
     private static String getLocalizedString(String key) {
         if(i18nUtils == null) i18nUtils = new I18nUtils();
         return i18nUtils.getLocalizedString(key, Config.LANGUAGE.get());
@@ -51,150 +60,151 @@ public class SkinCommand {
 
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        LiteralArgumentBuilder<CommandSourceStack> skinCommand = Commands.literal("skin")
+                .then(buildSetSubcommand())
+                .then(buildSourceSubcommand())
+                .then(buildClearSubcommand());
+        dispatcher.register(skinCommand);
+    }
 
-        // Command: /skin source
-        LiteralArgumentBuilder<CommandSourceStack> skinSourceLiteral = Commands.literal("source")
+    private static LiteralArgumentBuilder<CommandSourceStack> buildSourceSubcommand() {
+        return Commands.literal("source")
                 .executes(context -> sourceAction(context, context.getSource().getPlayer()))
                 .then(Commands.argument("target", EntityArgument.player())
                         .executes(context -> sourceAction(context, EntityArgument.getPlayer(context, "target")))
                 );
+    }
 
-        // Command: /skin clear
-        LiteralArgumentBuilder<CommandSourceStack> skinClearLiteral = Commands.literal("clear")
-                .executes(context -> skinAction(context,
+    private static LiteralArgumentBuilder<CommandSourceStack> buildClearSubcommand() {
+        return Commands.literal("clear")
+                .executes(context -> skinAction(context, new SkinActionParameters(
                         Collections.singleton(context.getSource().getPlayer()),
                         SkinActionType.clear, context.getSource().hasPermission(3), SkinVariant.ALL, false, null
-                ))
+                )))
                 .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                        .executes(context -> skinAction(context,
+                        .executes(context -> skinAction(context, new SkinActionParameters(
                                 EntityArgument.getPlayers(context, "targets"),
                                 SkinActionType.clear, context.getSource().hasPermission(3), SkinVariant.ALL, false, null
-                        ))
+                        )))
                 );
+    }
 
-        // Command: /skin set
-        LiteralArgumentBuilder<CommandSourceStack> skinSetLiteral = Commands.literal("set")
-                // Command: /skin set mojang
+    private static LiteralArgumentBuilder<CommandSourceStack> buildSetSubcommand() {
+        return Commands.literal("set")
+                // /skin set mojang
                 .then(Commands.literal("mojang")
                         .then(Commands.argument("skin_name", StringArgumentType.word())
-                                .executes(context -> skinAction(context,
+                                .executes(context -> skinAction(context, new SkinActionParameters(
                                         Collections.singleton(context.getSource().getPlayer()),
                                         SkinActionType.username, context.getSource().hasPermission(3), SkinVariant.ALL, false,
                                         StringArgumentType.getString(context, "skin_name")
-                                ))
+                                )))
                                 .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                                        .executes(context -> skinAction(context,
+                                        .executes(context -> skinAction(context, new SkinActionParameters(
                                                 EntityArgument.getPlayers(context, "targets"),
                                                 SkinActionType.username, context.getSource().hasPermission(3), SkinVariant.ALL, false,
                                                 StringArgumentType.getString(context, "skin_name")
-                                        ))
+                                        )))
                                 )
                         )
                 )
-                // Command: /skin set web
+                // /skin set web
                 .then(Commands.literal("web")
                         .then(Commands.literal("classic")
                                 .then(Commands.argument("url", StringArgumentType.string())
-                                        .executes(context -> skinAction(context,
+                                        .executes(context -> skinAction(context, new SkinActionParameters(
                                                 Collections.singleton(context.getSource().getPlayer()),
                                                 SkinActionType.url, context.getSource().hasPermission(3), SkinVariant.CLASSIC, false,
                                                 StringArgumentType.getString(context, "url")
-                                        ))
+                                        )))
                                         .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                                                .executes(context -> skinAction(context,
+                                                .executes(context -> skinAction(context, new SkinActionParameters(
                                                         EntityArgument.getPlayers(context, "targets"),
                                                         SkinActionType.url, context.getSource().hasPermission(3), SkinVariant.CLASSIC, true,
                                                         StringArgumentType.getString(context, "url")
-                                                ))
+                                                )))
                                         )
                                 )
                         )
                         .then(Commands.literal("slim")
                                 .then(Commands.argument("url", StringArgumentType.string())
-                                        .executes(context -> skinAction(context,
+                                        .executes(context -> skinAction(context, new SkinActionParameters(
                                                 Collections.singleton(context.getSource().getPlayer()),
                                                 SkinActionType.url, context.getSource().hasPermission(3), SkinVariant.SLIM, false,
                                                 StringArgumentType.getString(context, "url")
-                                        ))
+                                        )))
                                         .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                                                .executes(context -> skinAction(context,
+                                                .executes(context -> skinAction(context, new SkinActionParameters(
                                                         EntityArgument.getPlayers(context, "targets"),
                                                         SkinActionType.url, context.getSource().hasPermission(3), SkinVariant.SLIM, true,
                                                         StringArgumentType.getString(context, "url")
-                                                ))
+                                                )))
                                         )
                                 )
 
                         )
                 )
-                // Command: /skin set random
+                // /skin set random
                 .then(Commands.literal("random")
-                        .executes(context -> skinAction(context,
+                        .executes(context -> skinAction(context, new SkinActionParameters(
                                 Collections.singleton(context.getSource().getPlayer()),
                                 SkinActionType.random, context.getSource().hasPermission(3), SkinVariant.ALL, false, null
-                        ))
+                        )))
                         .then(Commands.argument("cape", BoolArgumentType.bool())
-                                .executes(context -> skinAction(context,
+                                .executes(context -> skinAction(context, new SkinActionParameters(
                                         Collections.singleton(context.getSource().getPlayer()),
                                         SkinActionType.random, context.getSource().hasPermission(3), SkinVariant.ALL, BoolArgumentType.getBool(context, "cape"), null
-                                ))
+                                )))
                                 .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
-                                        .executes(context -> skinAction(context,
+                                        .executes(context -> skinAction(context, new SkinActionParameters(
                                                 Collections.singleton(context.getSource().getPlayer()),
                                                 SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
-                                        ))
+                                        )))
                                 )
                         )
                         .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
-                                .executes(context -> skinAction(context,
+                                .executes(context -> skinAction(context, new SkinActionParameters(
                                         Collections.singleton(context.getSource().getPlayer()),
                                         SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), false, null
-                                ))
+                                )))
                                 .then(Commands.argument("cape", BoolArgumentType.bool())
-                                        .executes(context -> skinAction(context,
+                                        .executes(context -> skinAction(context, new SkinActionParameters(
                                                 Collections.singleton(context.getSource().getPlayer()),
                                                 SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
-                                        ))
+                                        )))
                                 )
                         )
                         .then(Commands.argument("targets", EntityArgument.players()).requires(source -> source.hasPermission(3))
-                                .executes(context -> skinAction(context,
+                                .executes(context -> skinAction(context, new SkinActionParameters(
                                         EntityArgument.getPlayers(context, "targets"),
                                         SkinActionType.random, context.getSource().hasPermission(3), SkinVariant.ALL, false, null
-                                ))
+                                )))
                                 .then(Commands.argument("cape", BoolArgumentType.bool())
-                                        .executes(context -> skinAction(context,
+                                        .executes(context -> skinAction(context, new SkinActionParameters(
                                                 EntityArgument.getPlayers(context, "targets"),
                                                 SkinActionType.random, context.getSource().hasPermission(3), SkinVariant.ALL, BoolArgumentType.getBool(context, "cape"), null
-                                        ))
+                                        )))
                                         .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
-                                                .executes(context -> skinAction(context,
+                                                .executes(context -> skinAction(context, new SkinActionParameters(
                                                         EntityArgument.getPlayers(context, "targets"),
                                                         SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
-                                                ))
+                                                )))
                                         )
                                 )
                                 .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
-                                        .executes(context -> skinAction(context,
+                                        .executes(context -> skinAction(context, new SkinActionParameters(
                                                 EntityArgument.getPlayers(context, "targets"),
                                                 SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), false, null
-                                        ))
+                                        )))
                                         .then(Commands.argument("cape", BoolArgumentType.bool())
-                                                .executes(context -> skinAction(context,
+                                                .executes(context -> skinAction(context, new SkinActionParameters(
                                                         EntityArgument.getPlayers(context, "targets"),
                                                         SkinActionType.random, context.getSource().hasPermission(3), context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
-                                                ))
+                                                )))
                                         )
                                 )
                         )
                 );
-
-        LiteralArgumentBuilder<CommandSourceStack> skinCommand = Commands.literal("skin")
-                .then(skinSetLiteral)
-                .then(skinSourceLiteral)
-                .then(skinClearLiteral);
-
-        dispatcher.register(skinCommand);
     }
 
     private static int sourceAction(CommandContext<CommandSourceStack> context, ServerPlayer target) {
@@ -206,7 +216,13 @@ public class SkinCommand {
         return 1;
     }
 
-    private static int skinAction(CommandContext<CommandSourceStack> context, Collection<ServerPlayer> targets, SkinActionType type, boolean setByOperator, SkinVariant variant, boolean withCape, @Nullable String customSource) {
+    private static int skinAction(CommandContext<CommandSourceStack> context, SkinActionParameters params) {
+        Collection<ServerPlayer> targets = params.targets();
+        SkinActionType type = params.type();
+        SkinVariant variant = params.variant();
+        boolean withCape = params.withCape();
+        String customSource = params.customSource();
+
         targets.forEach(player -> {
                 if(Config.TOGGLE.get()) {
                     if(player == context.getSource().getEntity()) context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("change")), false);
