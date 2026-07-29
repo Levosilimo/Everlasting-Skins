@@ -5,7 +5,6 @@
   "package": "levosilimo.everlastingskins.mixin",
   "refmap": "everlastingskins.refmap.json",
   "mixins": [
-    "server.MixinCommandManager",
     "server.MixinPlayerManager"
   ],
   "client": [

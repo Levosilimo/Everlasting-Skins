@@ -12,6 +12,7 @@ import levosilimo.everlastingskins.skinchanger.responses.uuid.MineToolsUUIDRespo
 import levosilimo.everlastingskins.skinchanger.responses.uuid.MojangUUIDResponse;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.HttpClient;
+import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.SRHelpers;
 import levosilimo.everlastingskins.util.UUIDUtils;
 import net.minecraft.util.Tuple;
@@ -31,7 +32,7 @@ public class MojangAPIImpl {
     private static final String PROFILE_MINETOOLS = "https://api.minetools.eu/profile/%uuid%";
 
     private final Logger logger = EverlastingSkins.logger;
-    private final HttpClient httpClient = new HttpClient();
+    private final HttpClient httpClient = new HttpsUrlConnectionHttpClient();
 
     public MojangSkinDataResult getSkin(String nameOrUniqueId) {
         Optional<UUID> uuidParseResult = UUIDUtils.tryParseUniqueId(nameOrUniqueId);

@@ -25,6 +25,7 @@ import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.*;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.HttpClient;
+import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.PropertyUtils;
 import levosilimo.everlastingskins.util.SRHelpers;
 import org.apache.logging.log4j.LogManager;
@@ -49,7 +50,7 @@ public class MineSkinAPIImpl {
     private final ReentrantLock lock = new ReentrantLock();
     private final Gson gson = new Gson();
     private final Logger logger = LogManager.getLogger();
-    private static final HttpClient httpClient = new HttpClient();
+    private static final HttpClient httpClient = new HttpsUrlConnectionHttpClient();
 
     public MineSkinResponse genSkin(String imageUrl, @Nullable SkinVariant skinVariant) {
         imageUrl = SRHelpers.sanitizeImageURL(imageUrl);

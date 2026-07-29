@@ -2,35 +2,28 @@ package levosilimo.everlastingskins.skinchanger;
 
 import com.google.gson.JsonObject;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.util.HttpClient;
+import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.JsonUtils;
-import levosilimo.everlastingskins.util.WebUtils;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 import java.util.*;
 
 public class RandomMojangSkin {
 
-    private static final URL LATEST_SKINS_URL;
-    private static final URL RANDOM_SKINS_URL;
+    private static final HttpClient httpClient = new HttpsUrlConnectionHttpClient();
 
-    static {
-        try {
-            LATEST_SKINS_URL = new URL("https://mskins.net/ru/skins/latest");
-            RANDOM_SKINS_URL = new URL("https://mskins.net/en/skins/random");
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    private static final URI LATEST_SKINS_URI = URI.create("https://mskins.net/ru/skins/latest");
+    private static final URI RANDOM_SKINS_URI = URI.create("https://mskins.net/en/skins/random");
 
     private static final Random rand = new Random();
 
     @Nullable
     public static String randomUsername(boolean needCape, SkinVariant variant) throws IOException {
         for (int i = 0; i < 5; i++) {
-            String html = WebUtils.GETRequest(needCape ? getRandomCapeUrl() : RANDOM_SKINS_URL);
+            String html = fetchPage(needCape ? getRandomCapeUri() : RANDOM_SKINS_URI);
             List<String> usernames = extractUsernames(html);
             for (String username : usernames) {
                 if (username == null || username.isEmpty() || username.equals("ad")) {
@@ -50,10 +43,22 @@ public class RandomMojangSkin {
         return null;
     }
 
-    private static URL getRandomCapeUrl() throws MalformedURLException {
+    private static String fetchPage(URI uri) throws IOException {
+        return httpClient.execute(
+                uri,
+                null,
+                HttpClient.HttpType.JSON,
+                "SkinRestorer",
+                HttpClient.HttpMethod.GET,
+                Collections.emptyMap(),
+                10_000
+        ).body();
+    }
+
+    private static URI getRandomCapeUri() {
         int year = getRandomYearExcept2014();
         int page = getRandomPageForYear(year);
-        return new URL("https://mskins.net/en/cape/minecon_" + year + "?page=" + page);
+        return URI.create("https://mskins.net/en/cape/minecon_" + year + "?page=" + page);
     }
 
     private static int getRandomYearExcept2014() {
@@ -98,7 +103,7 @@ public class RandomMojangSkin {
     @Nullable
     public static String newUsername(SkinVariant variant) throws IOException {
         for (int i = 0; i < 5; i++) {
-            String html = WebUtils.GETRequest(LATEST_SKINS_URL);
+            String html = fetchPage(LATEST_SKINS_URI);
             List<String> usernames = extractUsernames(html);
             for (String username : usernames) {
                 if (username.isEmpty() || username.equals("ad") || (variant.equals(SkinVariant.SLIM) && !isSlim(username))) {
