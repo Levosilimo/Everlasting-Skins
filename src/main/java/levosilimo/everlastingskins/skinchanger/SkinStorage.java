@@ -35,7 +35,17 @@ public class SkinStorage {
         if (value == null || signature == null) {
             throw new RuntimeException("Default skin resource missing required properties");
         }
+        CustomSkinProperty.setDefaultSkinValue(value);
         return new CustomSkinProperty("textures", value, signature, null);
+    }
+
+    public CustomSkinProperty loadSkin(UUID uuid) {
+        CustomSkinProperty skin = skinIO.loadSkin(uuid);
+        if (skin != null && skin.isEmpty()) {
+            skinIO.deleteSkin(uuid);
+            return null;
+        }
+        return skin;
     }
 
     // Access via SkinRestorer.getSkinStorage().
@@ -43,14 +53,19 @@ public class SkinStorage {
         CustomSkinProperty skinProperty = skinMap.get(uuid);
         if (skinProperty != null) return skinProperty;
 
-        skinProperty = skinIO.loadSkin(uuid);
+        skinProperty = loadSkin(uuid);
         skinProperty = setSkin(uuid, skinProperty);
         return skinProperty;
     }
     @Nullable
     public String getSource(UUID uuid) {
         CustomSkinProperty skin = skinMap.get(uuid);
-        return skin != null ? skin.getSource() : skinIO.getSourceFromFileStorage(uuid);
+        if (skin != null) {
+            return skin.isEmpty() ? null : skin.getSource();
+        }
+        CustomSkinProperty loaded = loadSkin(uuid);
+        if (loaded == null || loaded.isEmpty()) return null;
+        return loaded.getSource();
     }
 
     public void saveSkin(UUID uuid) {
@@ -60,13 +75,25 @@ public class SkinStorage {
         }
     }
 
+    public CustomSkinProperty removeSkin(UUID uuid) {
+        skinMap.remove(uuid);
+        skinIO.deleteSkin(uuid);
+        return null;
+    }
+
     public CustomSkinProperty setSkin(UUID uuid, @Nullable CustomSkinProperty skin) {
-        if (skin == null) skin = DEFAULT_SKIN;
+        if (skin == null || skin.isEmpty()) return removeSkin(uuid);
         skinMap.put(uuid, skin);
         return skin;
     }
 
     public boolean hasDefaultSkin(UUID uuid) {
-        return DEFAULT_SKIN.equals(getSkin(uuid));
+        CustomSkinProperty skin = skinMap.get(uuid);
+        if (skin == null) {
+            skin = loadSkin(uuid);
+            if (skin == null) return true;
+            skinMap.put(uuid, skin);
+        }
+        return DEFAULT_SKIN.equals(skin) || skin.isEmpty();
     }
 }

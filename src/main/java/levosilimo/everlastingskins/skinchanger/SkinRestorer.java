@@ -64,10 +64,12 @@ public class SkinRestorer {
         }
 
         CustomSkinProperty skin = skinStorage.getSkin(player.getUniqueID());
-        if (skin != null && skin.getOriginalProperty() != null) {
+        if (skin != null && !skin.isEmpty()) {
             player.getGameProfile().getProperties().removeAll("textures");
             player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
         }
+        // When skin is null or empty (no custom skin on disk), leave the profile
+        // unmutated — the client renders Steve or Alex based on UUID hash.
     }
 
     /**
@@ -77,7 +79,9 @@ public class SkinRestorer {
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.player instanceof EntityPlayerMP)) return;
         EntityPlayerMP player = (EntityPlayerMP) event.player;
-        skinStorage.saveSkin(player.getUniqueID());
+        if (skinStorage.getSkin(player.getUniqueID()) != null) {
+            skinStorage.saveSkin(player.getUniqueID());
+        }
     }
 
     /**

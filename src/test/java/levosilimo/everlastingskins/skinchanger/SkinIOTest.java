@@ -189,6 +189,30 @@ class SkinIOTest {
         }
     }
 
+    @Nested
+    @DisplayName("deleteSkin")
+    class DeleteSkin {
+
+        @Test
+        @DisplayName("deleteSkin removes the file when it exists")
+        void deleteExistingFile() throws IOException {
+            CustomSkinProperty skin = new CustomSkinProperty("v", "s", "src");
+            skinIO.saveSkin(uuid, skin);
+            Path target = tempDir.resolve(uuid + ".json");
+            assertTrue(Files.exists(target));
+
+            skinIO.deleteSkin(uuid);
+
+            assertFalse(Files.exists(target));
+        }
+
+        @Test
+        @DisplayName("deleteSkin does not throw when file does not exist")
+        void deleteNonExistentFile() {
+            assertDoesNotThrow(() -> skinIO.deleteSkin(uuid));
+        }
+    }
+
     /* ================================================================== */
     /*  Helpers                                                            */
     /* ================================================================== */
