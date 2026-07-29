@@ -20,3 +20,6 @@ run/
 .settings/
 /bin/
 *.launch
+
+# Magic Context sentinel artifacts
+.cortexkit/

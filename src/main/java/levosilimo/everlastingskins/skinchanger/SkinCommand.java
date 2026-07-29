@@ -277,7 +277,7 @@ public class SkinCommand {
                 return;
             }
             for (ServerPlayer player : targets) {
-                SkinRestorer.getSkinStorage().setSkin(player, skinProperty);
+                SkinRestorer.getSkinStorage().setSkin(player.getUUID(), skinProperty);
                 if(Config.TOGGLE.get()) {
                     if(player == context.getSource().getEntity()) context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("fulfilled")), false);
                     else player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("fulfilled_force")));
@@ -309,9 +309,9 @@ public class SkinCommand {
         LevelData levelData = serverLevel.getLevelData();
         PlayerList playerlist = player.server.getPlayerList();
         //Skin change
-        SkinRestorer.getSkinStorage().saveSkin(player);
+        SkinRestorer.getSkinStorage().saveSkin(player.getUUID());
         player.getGameProfile().getProperties().removeAll("textures");
-        player.getGameProfile().getProperties().put("textures", SkinRestorer.getSkinStorage().getSkin(player).getOriginalProperty());
+        player.getGameProfile().getProperties().put("textures", SkinRestorer.getSkinStorage().getSkin(player.getUUID()).getOriginalProperty());
 
         //Reconnect emulation
 

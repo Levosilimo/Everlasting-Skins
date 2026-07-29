@@ -50,7 +50,21 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     private final ReentrantLock lock = new ReentrantLock();
     private final Gson gson = new Gson();
     private final Logger logger = LogManager.getLogger();
-    private static final HttpClient httpClient = new HttpsUrlConnectionHttpClient();
+    private final HttpClient httpClient;
+    private final String apiKey;
+
+    public MineSkinApiHttpImpl() {
+        this(new HttpsUrlConnectionHttpClient(), Config.MINESKIN_API_KEY.get());
+    }
+
+    public MineSkinApiHttpImpl(HttpClient httpClient) {
+        this(httpClient, Config.MINESKIN_API_KEY.get());
+    }
+
+    public MineSkinApiHttpImpl(HttpClient httpClient, String apiKey) {
+        this.httpClient = httpClient;
+        this.apiKey = apiKey == null ? "" : apiKey;
+    }
 
     @Override
     public MineSkinResponse genSkin(String imageUrl, @Nullable SkinVariant skinVariant) {
@@ -60,6 +74,10 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
             lock.lock();
             try {
                 Optional<MineSkinResponse> optional = genSkinInternal(imageUrl, skinVariant);
+
+                if (optional == null) {
+                    return null;
+                }
 
                 if (optional.isPresent()) {
                     return optional.get();
@@ -75,7 +93,7 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         return null;
     }
 
-    private Optional<MineSkinResponse> genSkinInternal(String imageUrl, @Nullable SkinVariant skinVariant) throws IOException, InterruptedException {
+    Optional<MineSkinResponse> genSkinInternal(String imageUrl, @Nullable SkinVariant skinVariant) throws IOException, InterruptedException {
         HttpResponse httpResponse = queryURL(imageUrl, skinVariant);
         logger.debug("MineSkinAPI: Response: " + httpResponse);
 
@@ -84,8 +102,14 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
                 MineSkinUrlResponse response = httpResponse.getBodyAs(MineSkinUrlResponse.class);
                 MineSkinTexture texture = response.data().texture();
                 CustomSkinProperty property = new CustomSkinProperty(texture.value(), texture.signature(), texture.url());
+                SkinVariant generatedVariant;
+                try {
+                    generatedVariant = PropertyUtils.getSkinVariant(property);
+                } catch (Exception e) {
+                    generatedVariant = null;
+                }
                 return Optional.of(new MineSkinResponse(property, response.idStr(),
-                        skinVariant, PropertyUtils.getSkinVariant(property)));
+                        skinVariant, generatedVariant));
             }
             case 500, 400 -> {
                 MineSkinErrorResponse response = httpResponse.getBodyAs(MineSkinErrorResponse.class);
@@ -182,7 +206,6 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     }
 
     private Optional<String> getApiKey() {
-        String apiKey = Config.MINESKIN_API_KEY.get();
         if (apiKey.isEmpty() || apiKey.equals("key")) {
             return Optional.empty();
         }

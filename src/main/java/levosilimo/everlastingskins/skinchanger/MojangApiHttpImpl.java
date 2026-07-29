@@ -27,14 +27,19 @@ public class MojangApiHttpImpl implements MojangAPI {
 
     private final MojangEndpoints endpoints;
     private final Logger logger = EverlastingSkins.logger;
-    private final HttpClient httpClient = new HttpsUrlConnectionHttpClient();
+    private final HttpClient httpClient;
 
     public MojangApiHttpImpl() {
-        this(MojangEndpoints.DEFAULT);
+        this(MojangEndpoints.DEFAULT, new HttpsUrlConnectionHttpClient());
     }
 
     public MojangApiHttpImpl(MojangEndpoints endpoints) {
+        this(endpoints, new HttpsUrlConnectionHttpClient());
+    }
+
+    public MojangApiHttpImpl(MojangEndpoints endpoints, HttpClient httpClient) {
         this.endpoints = endpoints;
+        this.httpClient = httpClient;
     }
 
     @Override
@@ -89,6 +94,9 @@ public class MojangApiHttpImpl implements MojangAPI {
         }
 
         EclipseUUIDResponse response = httpResponse.getBodyAs(EclipseUUIDResponse.class);
+        if (response == null) {
+            return Optional.empty();
+        }
         return Optional.ofNullable(response.uuid());
     }
 
@@ -112,7 +120,7 @@ public class MojangApiHttpImpl implements MojangAPI {
         }
 
         MojangUUIDResponse response = httpResponse.getBodyAs(MojangUUIDResponse.class);
-        if (response.error() != null) {
+        if (response == null || response.error() != null) {
             return Optional.empty();
         }
 
@@ -127,6 +135,9 @@ public class MojangApiHttpImpl implements MojangAPI {
         }
         HttpResponse httpResponse = result.get();
         MineToolsUUIDResponse response = httpResponse.getBodyAs(MineToolsUUIDResponse.class);
+        if (response == null) {
+            return Optional.empty();
+        }
 
         if (response.status() != null && response.status().equals("ERR")) {
             return Optional.empty();
@@ -167,7 +178,7 @@ public class MojangApiHttpImpl implements MojangAPI {
         }
 
         EclipseProfileResponse response = httpResponse.getBodyAs(EclipseProfileResponse.class);
-        if (response.isPropertyNull()) {
+        if (response == null || response.isPropertyNull()) {
             return Optional.empty();
         }
 
@@ -180,6 +191,9 @@ public class MojangApiHttpImpl implements MojangAPI {
             return Optional.empty();
         }
         HttpResponse httpResponse = result.get();
+        if (httpResponse.statusCode() != 200) {
+            return Optional.empty();
+        }
         MojangProfileResponse response = httpResponse.getBodyAs(MojangProfileResponse.class);
         if (response.properties() == null) {
             return Optional.empty();

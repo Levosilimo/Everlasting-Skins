@@ -50,7 +50,11 @@ public class SkinIO {
         String skinJson = readSkinFile(uuid);
         if (skinJson == null) return null;
         try {
-            return JsonUtils.fromJson(skinJson, CustomSkinProperty.class);
+            CustomSkinProperty skin = JsonUtils.fromJson(skinJson, CustomSkinProperty.class);
+            if (skin == null || skin.getOriginalProperty() == null || skin.getOriginalProperty().value() == null || skin.getOriginalProperty().value().isEmpty()) {
+                return null;
+            }
+            return skin;
         } catch (JsonParseException e) {
             return null;
         }

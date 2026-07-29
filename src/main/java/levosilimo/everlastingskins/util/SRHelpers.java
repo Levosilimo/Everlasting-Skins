@@ -196,6 +196,7 @@ public class SRHelpers {
     }
 
     public static boolean invalidMinecraftUsername(String str) {
+        str = str.trim();
         // Note: there are exceptions to players with under 3 characters, who bought the game early in its development.
         if (str.length() > 16) {
             return true;

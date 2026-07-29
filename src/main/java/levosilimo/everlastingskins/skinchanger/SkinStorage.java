@@ -1,7 +1,6 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.server.level.ServerPlayer;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -40,12 +39,12 @@ public class SkinStorage {
     }
 
     // Access via SkinRestorer.getSkinStorage().
-    public CustomSkinProperty getSkin(ServerPlayer player) {
-        CustomSkinProperty skinProperty = skinMap.get(player.getUUID());
+    public CustomSkinProperty getSkin(UUID uuid) {
+        CustomSkinProperty skinProperty = skinMap.get(uuid);
         if (skinProperty != null) return skinProperty;
 
-        skinProperty = skinIO.loadSkin(player.getUUID());
-        skinProperty = setSkin(player, skinProperty);
+        skinProperty = skinIO.loadSkin(uuid);
+        skinProperty = setSkin(uuid, skinProperty);
         return skinProperty;
     }
     @Nullable
@@ -54,20 +53,20 @@ public class SkinStorage {
         return skin != null ? skin.getSource() : skinIO.getSourceFromFileStorage(uuid);
     }
 
-    public void saveSkin(ServerPlayer player) {
-        CustomSkinProperty skinProperty = skinMap.get(player.getUUID());
+    public void saveSkin(UUID uuid) {
+        CustomSkinProperty skinProperty = skinMap.get(uuid);
         if (skinProperty != null) {
-            skinIO.saveSkin(player.getUUID(), skinProperty);
+            skinIO.saveSkin(uuid, skinProperty);
         }
     }
 
-    public CustomSkinProperty setSkin(ServerPlayer player, @Nullable CustomSkinProperty skin) {
+    public CustomSkinProperty setSkin(UUID uuid, @Nullable CustomSkinProperty skin) {
         if (skin == null) skin = DEFAULT_SKIN;
-        skinMap.put(player.getUUID(), skin);
+        skinMap.put(uuid, skin);
         return skin;
     }
 
-    public boolean hasDefaultSkin(ServerPlayer player) {
-        return DEFAULT_SKIN.equals(getSkin(player));
+    public boolean hasDefaultSkin(UUID uuid) {
+        return DEFAULT_SKIN.equals(getSkin(uuid));
     }
 }

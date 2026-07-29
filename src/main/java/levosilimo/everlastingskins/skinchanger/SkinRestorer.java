@@ -52,14 +52,14 @@ public class SkinRestorer {
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        if (skinStorage.hasDefaultSkin(player)) {
+        if (skinStorage.hasDefaultSkin(player.getUUID())) {
             MojangSkinDataResult skinDataResult = SkinCommand.mojangAPI.getSkin(player.getGameProfile().getName()).orElse(null);
             if (skinDataResult != null) {
-                skinStorage.setSkin(player, skinDataResult.skinProperty());
+                skinStorage.setSkin(player.getUUID(), skinDataResult.skinProperty());
             }
         }
 
-        CustomSkinProperty skin = skinStorage.getSkin(player);
+        CustomSkinProperty skin = skinStorage.getSkin(player.getUUID());
         if (skin != null && skin.getOriginalProperty() != null) {
             player.getGameProfile().getProperties().removeAll("textures");
             player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
@@ -72,7 +72,7 @@ public class SkinRestorer {
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        skinStorage.saveSkin(player);
+        skinStorage.saveSkin(player.getUUID());
     }
 
     /**
@@ -82,7 +82,7 @@ public class SkinRestorer {
     public void onServerStopping(ServerStoppingEvent event) {
         if (server == null) return;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            skinStorage.saveSkin(player);
+            skinStorage.saveSkin(player.getUUID());
         }
     }
 }
