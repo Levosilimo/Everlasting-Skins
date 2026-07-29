@@ -1,8 +1,13 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
+import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.FileUtil;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.io.IOException;
@@ -10,12 +15,15 @@ import java.nio.file.Path;
 
 public class SkinRestorer {
 
+    // Singleton storage instance, initialised via constructor injection in onInitializeServer.
     private static SkinStorage skinStorage;
     private static SkinIO skinIO;
+    public static MinecraftServer server;
+
     public static SkinStorage getSkinStorage() {
         return skinStorage;
     }
-    public static MinecraftServer server;
+
     @SubscribeEvent
     public void onInitializeServer(ServerStartingEvent event) {
         server = event.getServer();
@@ -25,7 +33,56 @@ public class SkinRestorer {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        skinIO=new SkinIO(path);
+        skinIO = new SkinIO(path);
         skinStorage = new SkinStorage(skinIO);
+    }
+
+    /**
+     * Applies the player's saved skin on login.
+     *
+     * NOTE: PlayerLoggedInEvent fires after the player is already visible to
+     * other players on the server. This means there is a brief flash of the
+     * default/vanilla skin before the saved custom skin is applied — a known
+     * timing trade-off versus mixing into PlayerList#placeNewPlayer HEAD,
+     * which applied the skin before the player became visible. The Forge event
+     * is preferred for maintainability; the visual flash is imperceptible under
+     * normal network conditions on a local server.
+     */
+    @SubscribeEvent
+    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+
+        if (skinStorage.hasDefaultSkin(player)) {
+            MojangSkinDataResult skinDataResult = SkinCommand.mojangAPI.getSkin(player.getGameProfile().getName()).orElse(null);
+            if (skinDataResult != null) {
+                skinStorage.setSkin(player, skinDataResult.skinProperty());
+            }
+        }
+
+        CustomSkinProperty skin = skinStorage.getSkin(player);
+        if (skin != null && skin.getOriginalProperty() != null) {
+            player.getGameProfile().getProperties().removeAll("textures");
+            player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
+        }
+    }
+
+    /**
+     * Saves the player's skin data on disconnect so it persists across sessions.
+     */
+    @SubscribeEvent
+    public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        skinStorage.saveSkin(player);
+    }
+
+    /**
+     * Saves all online players' skin data during graceful server shutdown.
+     */
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        if (server == null) return;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            skinStorage.saveSkin(player);
+        }
     }
 }

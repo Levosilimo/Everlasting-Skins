@@ -38,6 +38,11 @@ repositories {
         name = "CurseMaven"
         url = "https://www.cursemaven.com"
     }
+    maven {
+        name = "Forge"
+        url = "https://maven.minecraftforge.net/"
+    }
+    mavenCentral()
 }
 
 version = "${mod_version}"
