@@ -48,14 +48,14 @@ jobs:
       - name: Publish to CurseForge, Modrinth, GitHub Releases
         uses: Kira-NT/mc-publish@v3
         with:
-          curseforge-id: 250419
+          curseforge-id: 538149
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           modrinth-id: everlasting-skins
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ github.ref_name }}
           name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: beta
+          version-type: release
           loaders: forge
           game-versions: "1.21"
           game-version-filter: releases
@@ -103,14 +103,14 @@ jobs:
       - name: Publish to CurseForge, Modrinth, GitHub Releases
         uses: Kira-NT/mc-publish@v3
         with:
-          curseforge-id: 250419
+          curseforge-id: 538149
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           modrinth-id: everlasting-skins
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ github.ref_name }}
           name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: beta
+          version-type: release
           loaders: forge
           game-versions: "1.12.2"
           game-version-filter: releases
