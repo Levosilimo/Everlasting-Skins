@@ -46,6 +46,9 @@ dependencies {
     // LuckPerms soft-dependency (compile-only)
     provided 'net.luckperms:api:5.5'
 
+    // Apache HttpClient for HTTP transport
+    compile 'org.apache.httpcomponents:httpclient:4.5.13'
+
     // JUnit 5 for test source set
     testCompile 'org.junit.jupiter:junit-jupiter-api:5.10.3'
     testCompile 'org.junit.jupiter:junit-jupiter-params:5.10.3'
