@@ -10,6 +10,9 @@ public final class Config {
     public static String MINESKIN_API_KEY = "";
     public static boolean MINESKIN_ENABLED = false; // OFF for Phase 5 viability gate.
 
+    public static boolean DISCORDSRV_ENABLED = false;
+    public static String DISCORDSRV_CHANNEL_ID = "";
+
     public static void load(File configFile) {
         Configuration cfg = new Configuration(configFile);
         try {
@@ -19,6 +22,10 @@ public final class Config {
             MINESKIN_API_KEY = cfg.getString("key", "Messages", MINESKIN_API_KEY, "Mineskin api key");
             MINESKIN_ENABLED = cfg.getBoolean("enabled", "MineSkin", false,
                 "Enable MineSkin URL-based skin generation (off during Phase 5 viability gate)");
+            DISCORDSRV_ENABLED = cfg.getBoolean("discordsrv_enabled", "Integration", false,
+                "Enable DiscordSRV skin change announcements");
+            DISCORDSRV_CHANNEL_ID = cfg.getString("discordsrv_channel_id", "Integration", "",
+                "Discord channel ID for skin change announcements");
         } catch (Exception e) {
             EverlastingSkins.logger.error("Failed to load config", e);
         } finally {
