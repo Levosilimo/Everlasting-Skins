@@ -51,6 +51,11 @@ public class PermissionServiceManager {
         return activeService.hasPermission(player, node);
     }
 
+    static void reset() {
+        activeService = null;
+        initialized = false;
+    }
+
     public static String getActiveBackendName() {
         return activeService != null ? activeService.getActiveBackendName() : "Not initialized";
     }
