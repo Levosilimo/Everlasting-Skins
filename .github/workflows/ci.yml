@@ -76,7 +76,7 @@ jobs:
         volumes:
           - ${{ github.workspace }}/test-infrastructure/wiremock/fixtures/mappings:/home/wiremock/mappings
         options: >-
-          --health-cmd "wget --spider http://localhost:8080/__admin || exit 1"
+          --health-cmd "curl -sf http://localhost:8080/__admin/health || exit 1"
           --health-interval 5s
           --health-timeout 10s
           --health-retries 12
@@ -267,7 +267,7 @@ jobs:
         volumes:
           - ${{ github.workspace }}/test-infrastructure/wiremock/fixtures/mappings:/home/wiremock/mappings
         options: >-
-          --health-cmd "wget --spider http://localhost:8080/__admin || exit 1"
+          --health-cmd "curl -sf http://localhost:8080/__admin/health || exit 1"
           --health-interval 5s
           --health-timeout 10s
           --health-retries 12
