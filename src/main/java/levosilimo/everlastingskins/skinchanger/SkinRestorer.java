@@ -11,6 +11,7 @@ import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,10 +19,11 @@ import java.nio.file.Path;
 
 public class SkinRestorer {
 
-    private static SkinStorage skinStorage;
-    private static SkinIO skinIO;
-    private static MinecraftServer server;
+    private static volatile SkinStorage skinStorage;
+    private static volatile SkinIO skinIO;
+    private static volatile MinecraftServer server;
 
+    @Nullable
     public static SkinStorage getSkinStorage() {
         return skinStorage;
     }

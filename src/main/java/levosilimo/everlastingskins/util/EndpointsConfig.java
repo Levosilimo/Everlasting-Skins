@@ -1,5 +1,6 @@
 package levosilimo.everlastingskins.util;
 
+import levosilimo.everlastingskins.EverlastingSkins;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -38,8 +39,9 @@ public class EndpointsConfig {
         }
         // Existing resource-based lookup
         String value = props.getProperty(key);
-        if (value == null) {
-            throw new IllegalArgumentException("Missing endpoint property: " + key);
+        if (value == null || value.isEmpty()) {
+            EverlastingSkins.logger.warn("Missing endpoint property: {}, returning empty fallback", key);
+            return "";
         }
         return value;
     }
