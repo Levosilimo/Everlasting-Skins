@@ -11,7 +11,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Stream;
 
-public class I18nUtils {
+public final class I18nUtils {
+    private static volatile I18nUtils INSTANCE;
+
     private static final Map<String, Map<String, String>> localizedStrings = new HashMap<>();
     static {
         Map<String, String> russianStrings = new HashMap<>();
@@ -42,13 +44,23 @@ public class I18nUtils {
         localizedStrings.put("en", englishStrings);
     }
 
-    public I18nUtils() {
+    public static I18nUtils getInstance() {
+        if (INSTANCE == null) {
+            synchronized (I18nUtils.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new I18nUtils();
+                }
+            }
+        }
+        return INSTANCE;
+    }
+
+    private I18nUtils() {
         Path localizationsDir = SkinRestorer.server.getServerDirectory().resolve("config/EverlastingSkins/");
         try {
             Files.createDirectories(localizationsDir);
         } catch (IOException e) {
-            EverlastingSkins.logger.error("Failed to create i18n directory: " + e.getMessage());
-            e.printStackTrace();
+            EverlastingSkins.logger.error("Failed to create i18n directory.", e);
         }
         createLocalizationFiles(localizationsDir);
         loadProperties(localizationsDir);
@@ -73,7 +85,7 @@ public class I18nUtils {
                 localizedStrings.put(file.getFileName().toString(), localizedMap);
             });
         } catch (IOException e) {
-            e.printStackTrace();
+            EverlastingSkins.logger.error("Failed to load i18n properties.", e);
         }
     }
 
@@ -94,7 +106,7 @@ public class I18nUtils {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            EverlastingSkins.logger.error("Failed to create localization files.", e);
         }
     }
 

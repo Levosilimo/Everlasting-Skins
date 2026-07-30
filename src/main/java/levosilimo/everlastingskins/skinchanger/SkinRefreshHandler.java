@@ -19,11 +19,8 @@ import java.util.UUID;
 
 public class SkinRefreshHandler {
 
-    private static I18nUtils i18nUtils;
-
     static String getLocalizedString(String key) {
-        if (i18nUtils == null) i18nUtils = new I18nUtils();
-        return i18nUtils.getLocalizedString(key, Config.LANGUAGE.get());
+        return I18nUtils.getInstance().getLocalizedString(key, Config.LANGUAGE.get());
     }
 
     static void task(ServerPlayer player) {
