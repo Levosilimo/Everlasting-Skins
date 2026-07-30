@@ -264,15 +264,20 @@ public class SkinCommand {
         });
 
         CompletableFuture<CustomSkinProperty> skinPropertyCompletableFuture = fetchSkinProperty(type, variant, withCape, customSource, targets);
-        skinPropertyCompletableFuture.whenComplete((skinProperty, throwable) ->
-                handleSkinCompletion(skinProperty, throwable, targets, context, type, customSource));
 
-        skinCommandExecutor.schedule(() -> {
+        ScheduledFuture<?> timeoutFuture = skinCommandExecutor.schedule(() -> {
             if(skinPropertyCompletableFuture.completeExceptionally(new TimeoutException("Skin fetch timeout occurred"))) {
                 EverlastingSkins.logger.error(SkinRefreshHandler.getLocalizedString("timeout"));
                 for(ServerPlayer player: targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("timeout")));
             }
         }, 10000, TimeUnit.MILLISECONDS);
+
+        skinPropertyCompletableFuture.whenComplete((skinProperty, throwable) -> {
+            if (timeoutFuture != null) {
+                timeoutFuture.cancel(false);
+            }
+            handleSkinCompletion(skinProperty, throwable, targets, context, type, customSource);
+        });
 
         return targets.size();
     }

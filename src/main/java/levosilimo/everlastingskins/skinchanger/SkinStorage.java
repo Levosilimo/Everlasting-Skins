@@ -50,14 +50,7 @@ public class SkinStorage {
 
     // Access via SkinRestorer.getSkinStorage().
     public CustomSkinProperty getSkin(UUID uuid) {
-        CustomSkinProperty skinProperty = skinMap.get(uuid);
-        if (skinProperty != null) return skinProperty;
-
-        skinProperty = loadSkin(uuid);
-        if (skinProperty != null) {
-            skinMap.put(uuid, skinProperty);
-        }
-        return skinProperty;
+        return skinMap.computeIfAbsent(uuid, k -> loadSkin(k));
     }
 
     @Nullable

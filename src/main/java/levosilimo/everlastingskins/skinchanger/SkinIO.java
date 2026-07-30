@@ -90,12 +90,14 @@ public class SkinIO {
             Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             EverlastingSkins.logger.error("Failed to save skin for player {}", uuid, e);
-            try {
-                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException ex) {
+            if (Files.exists(temp)) {
                 try {
-                    Files.deleteIfExists(temp);
-                } catch (IOException ignored) {
+                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException ex) {
+                    try {
+                        Files.deleteIfExists(temp);
+                    } catch (IOException ignored) {
+                    }
                 }
             }
         }
