@@ -209,7 +209,7 @@ jobs:
         run: |
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
-            --command "launch forge:1.21 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
+            --command "launch forge:1.21 -lwjgl -offline -specifics --uid 51.0.24 --jvm -Djava.awt.headless=true" \
             --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
       - name: Assert GameProfile property via server log
         if: always()
@@ -250,7 +250,7 @@ jobs:
         run: |
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
-            --command "launch forge:1.21 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
+            --command "launch forge:1.21 -lwjgl -offline -specifics --uid 51.0.24 --jvm -Djava.awt.headless=true" \
             --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-clear.log"
       - name: Verify skin file cleared (after clear)
         if: always()
@@ -285,7 +285,7 @@ jobs:
         run: |
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
-            --command "launch forge:1.21 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
+            --command "launch forge:1.21 -lwjgl -offline -specifics --uid 51.0.24 --jvm -Djava.awt.headless=true" \
             --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-persistence.log"
       - name: Assert GameProfile property via server log (persistence)
         if: always()

@@ -18,7 +18,7 @@ if [ "$BRANCH" = "mc1.12.2" ]; then
     MC_VERSION="1.12.2"
 else
     BRANCH_DIR="1.21"
-    FORGE_VERSION="51.0.8"
+    FORGE_VERSION="51.0.24"
     MC_VERSION="1.21"
 fi
 
