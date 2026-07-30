@@ -155,6 +155,10 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.3'
 }
 
+configurations.testRuntimeClasspath {
+    exclude group: 'org.slf4j', module: 'slf4j-simple'
+}
+
 test {
     useJUnitPlatform()
     testLogging {
