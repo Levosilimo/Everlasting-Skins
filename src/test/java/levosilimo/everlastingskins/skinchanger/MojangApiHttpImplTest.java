@@ -3,7 +3,6 @@ package levosilimo.everlastingskins.skinchanger;
 import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.util.Tuple;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -115,11 +114,11 @@ class MojangApiHttpImplTest {
     @DisplayName("Profile fallback order")
     class ProfileFallback {
 
-        private Tuple<String, Optional<UUID>> pair;
+        private ProfileLookup lookup;
 
         @BeforeEach
         void init() {
-            pair = new Tuple<>(PLAYER_NAME, Optional.of(PLAYER_UUID));
+            lookup = new ProfileLookup(PLAYER_NAME, PLAYER_UUID);
         }
 
         @Test
@@ -127,7 +126,7 @@ class MojangApiHttpImplTest {
         void eclipseFirst() {
             httpClient.addResponse(eclipseProfileUri, 200, profileEclipseBody("value1", "sig1"));
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
 
             assertTrue(result.isPresent());
             assertEquals("value1", result.get().getOriginalProperty().value());
@@ -139,7 +138,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 200, profileMojangBody("value2", "sig2"));
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
 
             assertTrue(result.isPresent());
             assertEquals("value2", result.get().getOriginalProperty().value());
@@ -152,7 +151,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(mojangProfileUri, 404, "");
             httpClient.addResponse(mineToolsProfileUri, 200, profileMineToolsBody("value3", "sig3"));
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
 
             assertTrue(result.isPresent());
             assertEquals("value3", result.get().getOriginalProperty().value());
@@ -164,7 +163,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 404, "");
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
             assertTrue(result.isEmpty());
         }
     }
@@ -254,11 +253,11 @@ class MojangApiHttpImplTest {
     @DisplayName("HTTP outcomes per profile provider")
     class ProfileHttpOutcomes {
 
-        private Tuple<String, Optional<UUID>> pair;
+        private ProfileLookup lookup;
 
         @BeforeEach
         void init() {
-            pair = new Tuple<>(PLAYER_NAME, Optional.of(PLAYER_UUID));
+            lookup = new ProfileLookup(PLAYER_NAME, PLAYER_UUID);
         }
 
         @Test
@@ -267,7 +266,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(eclipseProfileUri, 204, "");
             httpClient.addResponse(mojangProfileUri, 200, profileMojangBody("v", "s"));
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
             assertTrue(result.isPresent());
         }
 
@@ -277,7 +276,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 204, "");
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
             assertTrue(result.isEmpty());
         }
 
@@ -287,7 +286,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 200, "{\"id\":\"abc\",\"name\":\"x\"}");
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
             assertTrue(result.isEmpty());
         }
 
@@ -298,7 +297,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(mojangProfileUri, 200,
                     "{\"id\":\"x\",\"name\":\"x\",\"properties\":[{\"name\":\"textures\",\"value\":\"\",\"signature\":\"\"}]}");
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
             assertTrue(result.isEmpty());
         }
 
@@ -309,7 +308,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(mojangProfileUri, 404, "");
             httpClient.addResponse(mineToolsProfileUri, 200, "{\"raw\":{\"id\":\"x\",\"name\":\"x\",\"status\":\"ERR\",\"properties\":[]}}");
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
             assertTrue(result.isEmpty());
         }
 
@@ -319,7 +318,7 @@ class MojangApiHttpImplTest {
             httpClient.addResponse(eclipseProfileUri, 404, "");
             httpClient.addResponse(mojangProfileUri, 429, "");
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
             // MojangProfileResponse parsing of empty body returns null properties → empty
             assertTrue(result.isEmpty());
         }
@@ -330,7 +329,7 @@ class MojangApiHttpImplTest {
             httpClient.addTimeout(eclipseProfileUri);
             httpClient.addResponse(mojangProfileUri, 200, profileMojangBody("v", "sig"));
 
-            Optional<CustomSkinProperty> result = api.getProfile(pair);
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
             assertTrue(result.isPresent());
         }
     }
