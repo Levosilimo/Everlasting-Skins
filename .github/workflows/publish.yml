@@ -48,7 +48,7 @@ jobs:
       - name: Publish to CurseForge, Modrinth, GitHub Releases
         uses: Kira-NT/mc-publish@v3
         with:
-          curseforge-id: 250419
+          curseforge-id: 538149
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           modrinth-id: everlasting-skins
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
@@ -103,7 +103,7 @@ jobs:
       - name: Publish to CurseForge, Modrinth, GitHub Releases
         uses: Kira-NT/mc-publish@v3
         with:
-          curseforge-id: 250419
+          curseforge-id: 538149
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           modrinth-id: everlasting-skins
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
