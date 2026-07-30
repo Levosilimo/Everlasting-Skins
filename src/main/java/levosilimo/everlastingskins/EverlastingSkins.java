@@ -1,5 +1,7 @@
 package levosilimo.everlastingskins;
 
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
@@ -23,7 +25,8 @@ public class EverlastingSkins {
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
-        // Config loaded by Config.load; SkinRestorer registered on serverStarting.
+        PermissionServiceManager.init();
+        ForgePermissionService.registerNodes(event);
     }
 
     @Mod.EventHandler
