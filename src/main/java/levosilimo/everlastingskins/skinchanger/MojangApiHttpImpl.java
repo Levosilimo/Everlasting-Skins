@@ -12,7 +12,7 @@ import levosilimo.everlastingskins.skinchanger.responses.uuid.MojangUUIDResponse
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
-import levosilimo.everlastingskins.util.SRHelpers;
+import levosilimo.everlastingskins.util.EverlastingHelpers;
 import levosilimo.everlastingskins.util.UUIDUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,7 +46,7 @@ public class MojangApiHttpImpl implements MojangAPI {
     @Override
     public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
         Optional<UUID> uuidParseResult = UUIDUtils.tryParseUniqueId(nameOrUniqueId);
-        if (SRHelpers.invalidMinecraftUsername(nameOrUniqueId) && !uuidParseResult.isPresent()) {
+        if (EverlastingHelpers.invalidMinecraftUsername(nameOrUniqueId) && !uuidParseResult.isPresent()) {
             return Optional.empty();
         }
 
@@ -62,7 +62,7 @@ public class MojangApiHttpImpl implements MojangAPI {
 
     @Override
     public Optional<UUID> getUUID(String playerName) {
-        if (SRHelpers.invalidMinecraftUsername(playerName)) {
+        if (EverlastingHelpers.invalidMinecraftUsername(playerName)) {
             return Optional.empty();
         }
 
@@ -259,7 +259,7 @@ public class MojangApiHttpImpl implements MojangAPI {
                     uri,
                     null,
                     HttpClient.HttpType.JSON,
-                    "SkinRestorer",
+                    "EverlastingSkins/1.0",
                     HttpClient.HttpMethod.GET,
                     Collections.emptyMap(),
                     timeout
