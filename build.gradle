@@ -74,6 +74,7 @@ dependencies {
     testCompile 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
     testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.10.3'
     testRuntime 'org.junit.platform:junit-platform-launcher:1.10.3'
+    testCompile 'com.discordsrv:discordsrv:1.30.5'
     testCompile 'org.mockito:mockito-core:2.28.2'
 }
 
