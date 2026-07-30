@@ -103,10 +103,10 @@ jobs:
       - name: Find mod JAR
         id: find-jar
         run: |
-          JAR=$(ls ${{ github.workspace }}/build/libs/*.jar 2>/dev/null | head -1)
+          JAR=$(ls ${{ github.workspace }}/build/libs/*.jar 2>/dev/null || ls ${{ github.workspace }}/*.jar 2>/dev/null | head -1)
           if [ -z "$JAR" ]; then
-            echo "ERROR: No mod JAR found in build/libs/"
-            ls -la ${{ github.workspace }}/build/libs/ || true
+            echo "ERROR: No mod JAR found"
+            find ${{ github.workspace }} -maxdepth 3 -name "*.jar" -type f 2>/dev/null || true
             exit 1
           fi
           echo "jar_path=$JAR" >> $GITHUB_OUTPUT
@@ -294,10 +294,10 @@ jobs:
       - name: Find mod JAR
         id: find-jar
         run: |
-          JAR=$(ls ${{ github.workspace }}/build/libs/*.jar 2>/dev/null | head -1)
+          JAR=$(ls ${{ github.workspace }}/build/libs/*.jar 2>/dev/null || ls ${{ github.workspace }}/*.jar 2>/dev/null | head -1)
           if [ -z "$JAR" ]; then
-            echo "ERROR: No mod JAR found in build/libs/"
-            ls -la ${{ github.workspace }}/build/libs/ || true
+            echo "ERROR: No mod JAR found"
+            find ${{ github.workspace }} -maxdepth 3 -name "*.jar" -type f 2>/dev/null || true
             exit 1
           fi
           echo "jar_path=$JAR" >> $GITHUB_OUTPUT
