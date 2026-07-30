@@ -71,7 +71,7 @@ minecraft {
     runs {
 
         configureEach {
-            workingDirectory project.file('run')
+            workingDirectory project.file(project.findProperty('mc.runDir') ?: 'run')
             property 'forge.logging.console.level', 'debug'
             property 'fml.earlyprogresswindow', 'false'
             property 'mixin.env.disableRefMap', 'true'
