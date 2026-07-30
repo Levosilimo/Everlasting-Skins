@@ -229,10 +229,15 @@ public class SkinCommand {
     }
 
     private static int sourceAction(CommandContext<CommandSourceStack> context, ServerPlayer target) {
-        String source = SkinRestorer.getSkinStorage().getSource(target.getUUID());
-        MutableComponent message;
-        if(source == null) message = Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("no_source"));
-        else message = Component.literal(FEEDBACK_PREFIX + " " + source);
+        UUID uuid = target.getUUID();
+        if (SkinRestorer.getSkinStorage().hasDefaultSkin(uuid)) {
+            context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + target.getGameProfile().getName()), false);
+            return 1;
+        }
+        String source = SkinRestorer.getSkinStorage().getSource(uuid);
+        MutableComponent message = source != null
+            ? Component.literal(FEEDBACK_PREFIX + " " + source)
+            : Component.literal(FEEDBACK_PREFIX + " No source available");
         context.getSource().sendSuccess(() -> message, false);
         return 1;
     }
