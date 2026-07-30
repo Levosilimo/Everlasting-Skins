@@ -1,0 +1,13 @@
+name: Test With
+on:
+  push:
+    branches: ["1.21"]
+jobs:
+  test:
+    name: With Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Step with with
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
