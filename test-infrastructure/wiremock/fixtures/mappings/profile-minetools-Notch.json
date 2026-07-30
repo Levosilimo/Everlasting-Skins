@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPattern": "/profile/minetools/([0-9a-f]+)"
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "raw": {
+        "id": "069a79f444e94726a5befca90e38aaf5",
+        "name": "Notch",
+        "status": "OK",
+        "properties": [
+          {
+            "name": "textures",
+            "value": "eyJ0aW1lc3RhbXAiOjEyMzQ1Njc4OTAsInByb2ZpbGVJZCI6IjA2OWE3OWY0LTQ0ZTktNDcyNi1hNWJlLWZjYTkwZTM4YWFmNSIsInByb2ZpbGVOYW1lIjoiTm90Y2giLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYWJjMTIzZGVmNDU2In19fQ==",
+            "signature": "SIGNATURE_PLACEHOLDER_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        ]
+      }
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

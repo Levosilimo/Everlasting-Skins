@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPattern": "/uuid/mojang/([a-zA-Z0-9_]+)"
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "id": "069a79f444e94726a5befca90e38aaf5",
+      "name": "{{request.pathSegments.[2]}}"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "transformers": ["response-template"]
+  }
+}

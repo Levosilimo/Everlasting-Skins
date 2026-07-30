@@ -1,6 +1,7 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -34,6 +35,9 @@ public class SkinRefreshHandler {
         SkinRestorer.getSkinStorage().saveSkin(player.getUUID());
         player.getGameProfile().getProperties().removeAll("textures");
         player.getGameProfile().getProperties().put("textures", SkinRestorer.getSkinStorage().getSkin(player.getUUID()).getOriginalProperty());
+        EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
+                player.getGameProfile().getName(),
+                player.getGameProfile().getProperties().get("textures"));
 
         SkinRestorer.server.getPlayerList().broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME, player));
         player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), (byte) 3));
