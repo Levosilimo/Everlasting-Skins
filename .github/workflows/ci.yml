@@ -41,7 +41,7 @@ jobs:
             branch: "mc1.12.2"
             java-version: 8
             java-distribution: temurin
-    if: ${{ (github.event_name == 'push' && github.ref_name == matrix.branch) || (github.event_name == 'pull_request' && github.base_ref == matrix.branch) }}
+    if: (github.event_name == 'push' && github.ref_name == matrix.branch) || (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
     steps:
       - uses: actions/checkout@v4
 
