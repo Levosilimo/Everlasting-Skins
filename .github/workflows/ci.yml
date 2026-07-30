@@ -182,7 +182,7 @@ jobs:
           curl -L -o "${{ env.MODS_DIR }}/hmc-specifics.jar" \
             "https://github.com/headlesshq/hmc-specifics/releases/download/2.4.0/hmc-specifics-1.21-2.4.0-lexforge-release.jar" \
             || echo "WARNING: HMCSpecifics download failed, continuing"
-      - name: Configure HeadlessMC
+      - name: Configure HeadlessMC (skin-set-mojang)
         run: |
           {
             echo "hmc.java.versions=$JAVA_HOME/bin/java"
@@ -197,12 +197,72 @@ jobs:
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
           } > "${{ env.HMC_DIR }}/config.properties"
-      - name: Run E2E scenario via xvfb
+      - name: Run E2E scenario - skin-set-mojang
         run: |
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "launch forge:1.21 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
-            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output.log"
+            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
+      - name: Verify skin file exists (after set)
+        if: always()
+        run: |
+          USERNAME="TestPlayer"
+          UUID=$(python3 -c "import hashlib,uuid; d=hashlib.md5(('OfflinePlayer:'+'$USERNAME').encode('utf-8')).digest(); print(uuid.UUID(bytes=d,version=3).hex)")
+          SKIN_FILE="${{ env.SERVER_DIR }}/EverlastingSkins/$UUID.json"
+          echo "UUID: $UUID"
+          echo "Skin file: $SKIN_FILE"
+          if [ -f "$SKIN_FILE" ]; then
+            echo "SKIN FILE: exists ✅"
+            echo "CONTENT: $(head -c 200 $SKIN_FILE)"
+          else
+            echo "SKIN FILE: missing ❌"
+            ls -la "${{ env.SERVER_DIR }}/EverlastingSkins/" 2>/dev/null || echo "No EverlastingSkins dir"
+          fi
+      - name: Configure HeadlessMC (skin-clear)
+        run: |
+          {
+            echo "hmc.java.versions=$JAVA_HOME/bin/java"
+            echo "hmc.gamedir=${{ github.workspace }}/headlessmc-run"
+            echo "hmc.mcdir=$HOME/.minecraft"
+            echo "hmc.offline=true"
+            echo "hmc.offline.username=TestPlayer"
+            echo "hmc.rethrow.launch.exceptions=true"
+            echo "hmc.exit.on.failed.command=true"
+            echo "hmc.test.filename=${{ github.workspace }}/test-infrastructure/scenarios/skin-clear.json"
+            echo "hmc.test.leave.after=true"
+            echo "hmc.assets.dummy=true"
+            echo "hmc.always.lwjgl.flag=true"
+          } > "${{ env.HMC_DIR }}/config.properties"
+      - name: Run E2E scenario - skin-clear
+        run: |
+          cd "${{ env.HMC_DIR }}"
+          xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+            --command "launch forge:1.21 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
+            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-clear.log"
+      - name: Verify skin file cleared (after clear)
+        if: always()
+        run: |
+          USERNAME="TestPlayer"
+          UUID=$(python3 -c "import hashlib,uuid; d=hashlib.md5(('OfflinePlayer:'+'$USERNAME').encode('utf-8')).digest(); print(uuid.UUID(bytes=d,version=3).hex)")
+          SKIN_FILE="${{ env.SERVER_DIR }}/EverlastingSkins/$UUID.json"
+          echo "UUID: $UUID"
+          echo "Skin file: $SKIN_FILE"
+          if [ ! -f "$SKIN_FILE" ]; then
+            echo "SKIN FILE CLEARED: does not exist ✅"
+          else
+            echo "SKIN FILE: still exists ❌"
+            echo "CONTENT: $(head -c 200 $SKIN_FILE)"
+          fi
+      - name: Verify WireMock requests
+        if: always()
+        run: |
+          REQUESTS=$(curl -s http://localhost:8080/__admin/requests 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('requests',[])))" 2>/dev/null || echo "0")
+          echo "WireMock requests served: $REQUESTS"
+          if [ "$REQUESTS" -ge "1" ]; then
+            echo "WireMock: received requests ✅"
+          else
+            echo "WireMock: NO requests received ❌"
+          fi
       - name: Kill server
         if: always()
         run: |
@@ -373,7 +433,7 @@ jobs:
           curl -L -o "${{ env.MODS_DIR }}/hmc-specifics.jar" \
             "https://github.com/headlesshq/hmc-specifics/releases/download/2.4.0/hmc-specifics-1.12.2-2.4.0-lexforge-release.jar" \
             || echo "WARNING: HMCSpecifics download failed, continuing"
-      - name: Configure HeadlessMC
+      - name: Configure HeadlessMC (skin-set-mojang)
         run: |
           {
             echo "hmc.java.versions=$JAVA_HOME/bin/java"
@@ -388,12 +448,72 @@ jobs:
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
           } > "${{ env.HMC_DIR }}/config.properties"
-      - name: Run E2E scenario via xvfb
+      - name: Run E2E scenario - skin-set-mojang
         run: |
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "launch forge:1.12.2 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
-            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output.log"
+            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
+      - name: Verify skin file exists (after set)
+        if: always()
+        run: |
+          USERNAME="TestPlayer"
+          UUID=$(python3 -c "import hashlib,uuid; d=hashlib.md5(('OfflinePlayer:'+'$USERNAME').encode('utf-8')).digest(); print(uuid.UUID(bytes=d,version=3).hex)")
+          SKIN_FILE="${{ env.SERVER_DIR }}/EverlastingSkins/$UUID.json"
+          echo "UUID: $UUID"
+          echo "Skin file: $SKIN_FILE"
+          if [ -f "$SKIN_FILE" ]; then
+            echo "SKIN FILE: exists ✅"
+            echo "CONTENT: $(head -c 200 $SKIN_FILE)"
+          else
+            echo "SKIN FILE: missing ❌"
+            ls -la "${{ env.SERVER_DIR }}/EverlastingSkins/" 2>/dev/null || echo "No EverlastingSkins dir"
+          fi
+      - name: Configure HeadlessMC (skin-clear)
+        run: |
+          {
+            echo "hmc.java.versions=$JAVA_HOME/bin/java"
+            echo "hmc.gamedir=${{ github.workspace }}/headlessmc-run"
+            echo "hmc.mcdir=$HOME/.minecraft"
+            echo "hmc.offline=true"
+            echo "hmc.offline.username=TestPlayer"
+            echo "hmc.rethrow.launch.exceptions=true"
+            echo "hmc.exit.on.failed.command=true"
+            echo "hmc.test.filename=${{ github.workspace }}/test-infrastructure/scenarios/skin-clear.json"
+            echo "hmc.test.leave.after=true"
+            echo "hmc.assets.dummy=true"
+            echo "hmc.always.lwjgl.flag=true"
+          } > "${{ env.HMC_DIR }}/config.properties"
+      - name: Run E2E scenario - skin-clear
+        run: |
+          cd "${{ env.HMC_DIR }}"
+          xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+            --command "launch forge:1.12.2 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
+            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-clear.log"
+      - name: Verify skin file cleared (after clear)
+        if: always()
+        run: |
+          USERNAME="TestPlayer"
+          UUID=$(python3 -c "import hashlib,uuid; d=hashlib.md5(('OfflinePlayer:'+'$USERNAME').encode('utf-8')).digest(); print(uuid.UUID(bytes=d,version=3).hex)")
+          SKIN_FILE="${{ env.SERVER_DIR }}/EverlastingSkins/$UUID.json"
+          echo "UUID: $UUID"
+          echo "Skin file: $SKIN_FILE"
+          if [ ! -f "$SKIN_FILE" ]; then
+            echo "SKIN FILE CLEARED: does not exist ✅"
+          else
+            echo "SKIN FILE: still exists ❌"
+            echo "CONTENT: $(head -c 200 $SKIN_FILE)"
+          fi
+      - name: Verify WireMock requests
+        if: always()
+        run: |
+          REQUESTS=$(curl -s http://localhost:8080/__admin/requests 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('requests',[])))" 2>/dev/null || echo "0")
+          echo "WireMock requests served: $REQUESTS"
+          if [ "$REQUESTS" -ge "1" ]; then
+            echo "WireMock: received requests ✅"
+          else
+            echo "WireMock: NO requests received ❌"
+          fi
       - name: Kill server
         if: always()
         run: |
