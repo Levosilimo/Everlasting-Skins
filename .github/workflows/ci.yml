@@ -75,11 +75,12 @@ jobs:
           - 8080:8080
         volumes:
           - ${{ github.workspace }}/test-infrastructure/wiremock/fixtures/mappings:/home/wiremock/mappings
-        health:
-          test: ["CMD", "wget", "--spider", "http://localhost:8080/__admin"]
-          interval: 2s
-          timeout: 5s
-          retries: 30
+        options: >-
+          --health-cmd "curl -sf http://localhost:8080/__admin/health || exit 1"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+          --health-start-period 15s
     env:
       HMC_DIR: ${{ github.workspace }}/HeadlessMC
       SERVER_DIR: ${{ github.workspace }}/test-server
@@ -265,11 +266,12 @@ jobs:
           - 8080:8080
         volumes:
           - ${{ github.workspace }}/test-infrastructure/wiremock/fixtures/mappings:/home/wiremock/mappings
-        health:
-          test: ["CMD", "wget", "--spider", "http://localhost:8080/__admin"]
-          interval: 2s
-          timeout: 5s
-          retries: 30
+        options: >-
+          --health-cmd "curl -sf http://localhost:8080/__admin/health || exit 1"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+          --health-start-period 15s
     env:
       HMC_DIR: ${{ github.workspace }}/HeadlessMC
       SERVER_DIR: ${{ github.workspace }}/test-server
