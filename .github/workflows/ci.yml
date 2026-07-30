@@ -203,6 +203,11 @@ jobs:
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "launch forge:1.21 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
             --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
+      - name: Assert GameProfile property via server log
+        if: always()
+        run: |
+          chmod +x ${{ github.workspace }}/test-infrastructure/assert-skin-property.sh
+          bash ${{ github.workspace }}/test-infrastructure/assert-skin-property.sh ${{ env.SERVER_DIR }}/logs/latest.log TestPlayer
       - name: Verify skin file exists (after set)
         if: always()
         run: |
