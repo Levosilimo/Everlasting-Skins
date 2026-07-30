@@ -81,7 +81,7 @@ public final class I18nUtils {
         }
     }
 
-    private void loadProperties(Path localizationsDir) {
+    private static void loadProperties(Path localizationsDir) {
         Properties properties = new Properties();
 
         try (Stream<Path> files = Files.walk(localizationsDir)) {
@@ -105,6 +105,7 @@ public final class I18nUtils {
     }
 
     private static void createLocalizationFiles(Path localizationsDir) {
+        if (localizationsDir == null) return;
         try {
             for (Map.Entry<String, Map<String, String>> entry : localizedStrings.entrySet()) {
                 String locale = entry.getKey();

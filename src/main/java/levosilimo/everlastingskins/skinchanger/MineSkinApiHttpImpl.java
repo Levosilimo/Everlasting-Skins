@@ -51,7 +51,7 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     private final Gson gson = new Gson();
     private final Logger logger = LogManager.getLogger();
     private final HttpClient httpClient;
-    private final String apiKey;
+    private String apiKey;
 
     public MineSkinApiHttpImpl() {
         this(new HttpsUrlConnectionHttpClient());
