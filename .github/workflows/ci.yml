@@ -369,3 +369,4 @@ jobs:
             ${{ env.SERVER_DIR }}/logs/
             ${{ env.HMC_DIR }}/*.log
           if-no-files-found: warn
+
