@@ -1,6 +1,7 @@
 package levosilimo.everlastingskins;
 
 import com.google.common.collect.Lists;
+import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
@@ -34,6 +35,7 @@ public class EverlastingSkins {
         MinecraftForge.EVENT_BUS.addListener(ForgePermissionService::onPermissionGather);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
+        PlaceholderApiHook.tryRegister();
     }
 
     @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
