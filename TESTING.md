@@ -3,8 +3,8 @@
 EverlastingSkins uses a three-tier testing pyramid:
 
 ## Tier 1: Pure Java unit tests (JUnit 5)
-- 130+ tests on 1.21 branch
-- 150+ tests on mc1.12.2 branch
+- 151 tests on 1.21 branch
+- 137 tests on mc1.12.2 branch
 - Coverage: provider fallback, HTTP outcomes, persistence atomicity, corruption handling, cache behavior, permission system, command dispatch, integration hooks
 - Run: `./gradlew test`
 
