@@ -138,7 +138,7 @@ jobs:
         id: start-server
         run: |
           cd "${{ env.SERVER_DIR }}"
-          SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar 2>/dev/null | head -1 || true)
+          SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar forge-*-shim.jar 2>/dev/null | head -1 || true)
           if [ -z "$SERVER_JAR" ]; then
             SERVER_JAR="$(ls minecraft_server*.jar 2>/dev/null | head -1)"
           fi
@@ -331,7 +331,7 @@ jobs:
         id: start-server
         run: |
           cd "${{ env.SERVER_DIR }}"
-          SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar 2>/dev/null | head -1 || true)
+          SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar forge-*-shim.jar 2>/dev/null | head -1 || true)
           if [ -z "$SERVER_JAR" ]; then
             SERVER_JAR="$(ls minecraft_server*.jar 2>/dev/null | head -1)"
           fi
