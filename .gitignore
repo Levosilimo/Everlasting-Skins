@@ -29,3 +29,14 @@ run/
 
 # Forge installer log
 /installer.jar.log
+
+# Research and librarian artifacts
+research_*.json
+research_*.md
+forge-installer-dl*.log
+*.tmp
+*output.json
+librarian-output-*.json
+
+# SDK man local config
+.sdkmanrc
