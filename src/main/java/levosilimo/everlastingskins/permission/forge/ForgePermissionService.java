@@ -1,8 +1,8 @@
 package levosilimo.everlastingskins.permission.forge;
 
 import levosilimo.everlastingskins.permission.IPermissionService;
+import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
-import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.server.permission.DefaultPermissionLevel;
 import net.minecraftforge.server.permission.PermissionAPI;
@@ -27,10 +27,9 @@ public class ForgePermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(EntityPlayerMP player, String permissionNode) {
-        if (PermissionAPI.hasPermission(player, permissionNode)) return true;
+    public boolean hasPermission(PermissionContext context, String permissionNode) {
         if (permissionNode.endsWith(".source")) return true;
-        return false;
+        return context.isOp();
     }
 
     @Override

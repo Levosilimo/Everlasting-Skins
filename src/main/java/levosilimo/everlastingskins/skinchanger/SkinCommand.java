@@ -4,6 +4,7 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -166,7 +167,9 @@ public class SkinCommand extends CommandBase {
 
     private boolean checkPermission(ICommandSender sender, String node) {
         if (sender instanceof EntityPlayerMP) {
-            if (!PermissionServiceManager.hasPermission((EntityPlayerMP) sender, node)) {
+            EntityPlayerMP player = (EntityPlayerMP) sender;
+            PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player.canUseCommand(2, "everlastingskins"));
+            if (!PermissionServiceManager.hasPermission(ctx, node)) {
                 sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
                 return false;
             }

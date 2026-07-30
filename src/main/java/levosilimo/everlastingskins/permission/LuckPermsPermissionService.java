@@ -1,6 +1,6 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.entity.player.EntityPlayerMP;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,9 +37,9 @@ public class LuckPermsPermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(EntityPlayerMP player, String permissionNode) {
+    public boolean hasPermission(PermissionContext context, String permissionNode) {
         try {
-            UUID uuid = player.getUniqueID();
+            UUID uuid = context.uuid();
             Method loadUserMethod = userManager.getClass().getMethod("loadUser", UUID.class);
             Object userFuture = loadUserMethod.invoke(userManager, uuid);
 
