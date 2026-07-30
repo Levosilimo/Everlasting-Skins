@@ -14,7 +14,6 @@ import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.SRHelpers;
 import levosilimo.everlastingskins.util.UUIDUtils;
-import net.minecraft.util.Tuple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -56,7 +55,7 @@ public class MojangApiHttpImpl implements MojangAPI {
             return Optional.empty();
         }
 
-        return getProfile(new Tuple<>(nameOrUniqueId, uuidResult)).map(propertyResponse ->
+        return getProfile(new ProfileLookup(nameOrUniqueId, uuidResult.get())).map(propertyResponse ->
                 new MojangSkinDataResult(uuidResult.get(), propertyResponse));
     }
 
@@ -149,13 +148,13 @@ public class MojangApiHttpImpl implements MojangAPI {
     }
 
     @Override
-    public Optional<CustomSkinProperty> getProfile(Tuple<String, Optional<UUID>> usernameUUIDPair) {
+    public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
         Optional<CustomSkinProperty> customSkinProperty = Optional.empty();
 
         List<Supplier<Optional<CustomSkinProperty>>> profileSources = Arrays.asList(
-                () -> getProfileEclipse(usernameUUIDPair),
-                () -> getProfileMojang(usernameUUIDPair),
-                () -> getProfileMineTools(usernameUUIDPair)
+                () -> getProfileEclipse(lookup),
+                () -> getProfileMojang(lookup),
+                () -> getProfileMineTools(lookup)
         );
 
         for (Supplier<Optional<CustomSkinProperty>> source : profileSources) {
@@ -168,8 +167,8 @@ public class MojangApiHttpImpl implements MojangAPI {
         return customSkinProperty;
     }
 
-    public Optional<CustomSkinProperty> getProfileEclipse(Tuple<String, Optional<UUID>> usernameUUIDPair) {
-        HttpResult result = readURL(URI.create(endpoints.profileEclipse().replace("%uuid%", usernameUUIDPair.getSecond().get().toString())));
+    public Optional<CustomSkinProperty> getProfileEclipse(ProfileLookup lookup) {
+        HttpResult result = readURL(URI.create(endpoints.profileEclipse().replace("%uuid%", lookup.getUuid().toString())));
         if (!result.isSuccess()) {
             return Optional.empty();
         }
@@ -183,11 +182,11 @@ public class MojangApiHttpImpl implements MojangAPI {
             return Optional.empty();
         }
 
-        return Optional.of(new CustomSkinProperty(response.skinProperty().value(), response.skinProperty().signature(), usernameUUIDPair.getFirst()));
+        return Optional.of(new CustomSkinProperty(response.skinProperty().value(), response.skinProperty().signature(), lookup.getUsername()));
     }
 
-    public Optional<CustomSkinProperty> getProfileMojang(Tuple<String, Optional<UUID>> usernameUUIDPair) {
-        HttpResult result = readURL(URI.create(endpoints.profileMojang().replace("%uuid%", UUIDUtils.convertToNoDashes(usernameUUIDPair.getSecond().get()))));
+    public Optional<CustomSkinProperty> getProfileMojang(ProfileLookup lookup) {
+        HttpResult result = readURL(URI.create(endpoints.profileMojang().replace("%uuid%", UUIDUtils.convertToNoDashes(lookup.getUuid()))));
         if (!result.isSuccess()) {
             return Optional.empty();
         }
@@ -205,11 +204,11 @@ public class MojangApiHttpImpl implements MojangAPI {
             return Optional.empty();
         }
 
-        return Optional.of(new CustomSkinProperty(property.value(), property.signature(), usernameUUIDPair.getFirst()));
+        return Optional.of(new CustomSkinProperty(property.value(), property.signature(), lookup.getUsername()));
     }
 
-    protected Optional<CustomSkinProperty> getProfileMineTools(Tuple<String, Optional<UUID>> usernameUUIDPair) {
-        HttpResult result = readURL(URI.create(endpoints.profileMineTools().replace("%uuid%", UUIDUtils.convertToNoDashes(usernameUUIDPair.getSecond().get()))), 10_000);
+    protected Optional<CustomSkinProperty> getProfileMineTools(ProfileLookup lookup) {
+        HttpResult result = readURL(URI.create(endpoints.profileMineTools().replace("%uuid%", UUIDUtils.convertToNoDashes(lookup.getUuid()))), 10_000);
         if (!result.isSuccess()) {
             return Optional.empty();
         }
@@ -229,7 +228,7 @@ public class MojangApiHttpImpl implements MojangAPI {
             return Optional.empty();
         }
 
-        return Optional.of(new CustomSkinProperty(property.value(), property.signature(), usernameUUIDPair.getFirst()));
+        return Optional.of(new CustomSkinProperty(property.value(), property.signature(), lookup.getUsername()));
     }
 
     private HttpResult readURL(URI uri) {
