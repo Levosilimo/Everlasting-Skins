@@ -11,7 +11,7 @@
     {"type": "WAIT", "timeout": 10},
     {"type": "SEND", "message": "/skin set mojang Notch"},
     {"type": "WAIT", "timeout": 5},
-    {"type": "CONTAINS", "message": "applied."},
+    {"type": "CONTAINS", "message": "applied"},
     {"type": "SEND", "message": "/skin source"},
     {"type": "CONTAINS", "message": "Notch"}
   ]

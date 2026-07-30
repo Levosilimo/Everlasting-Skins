@@ -10,6 +10,6 @@
     {"type": "ENDS_WITH", "message": "For help, type \"help\""},
     {"type": "WAIT", "timeout": 15},
     {"type": "SEND", "message": "/skin source TestPlayer"},
-    {"type": "CONTAINS", "message": "mojang"}
+    {"type": "CONTAINS", "message": "Notch"}
   ]
 }
