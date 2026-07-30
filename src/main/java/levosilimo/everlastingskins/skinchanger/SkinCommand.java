@@ -4,6 +4,7 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.SRHelpers;
@@ -28,13 +29,6 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.*;
 
-/**
- * SkinCommand — MCP-mapped 1.12.2 ICommand implementation.
- *
- * <p>Uses only MCP method names (no SRG, no reflection for fields).
- * Subcommands: set mojang &lt;name&gt;, set web &lt;classic|slim&gt; &lt;url&gt;,
- * set random, clear, source.
- */
 public class SkinCommand extends CommandBase {
     private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
         Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
@@ -91,6 +85,10 @@ public class SkinCommand extends CommandBase {
 
     private void doClear(MinecraftServer server, ICommandSender sender, String[] args) {
         Collection<EntityPlayerMP> targets = parseTargets(server, sender, args, true, 2);
+        String node = targets.size() == 1 && targets.iterator().next() == sender
+            ? "everlastingskins.command.skin.clear"
+            : "everlastingskins.command.skin.other";
+        if (!checkPermission(sender, node)) return;
         applySkinChange(targets, sender, SkinActionType.clear, SkinVariant.ALL, false, null);
     }
 
@@ -103,6 +101,9 @@ public class SkinCommand extends CommandBase {
         } catch (CommandException e) {
             sender.sendMessage(new TextComponentString(PREFIX + e.getMessage()));
             return;
+        }
+        if (args.length >= 2) {
+            if (!checkPermission(sender, "everlastingskins.command.skin.other")) return;
         }
         UUID uuid = target.getUniqueID();
         if (SkinRestorer.getSkinStorage().hasDefaultSkin(uuid)) {
@@ -125,6 +126,10 @@ public class SkinCommand extends CommandBase {
                     return;
                 }
                 Collection<EntityPlayerMP> targets = parseTargets(server, sender, args, false, 4);
+                String node = targets.size() == 1 && targets.iterator().next() == sender
+                    ? "everlastingskins.command.skin"
+                    : "everlastingskins.command.skin.other";
+                if (!checkPermission(sender, node)) return;
                 applySkinChange(targets, sender, SkinActionType.username, SkinVariant.ALL, false, args[2]);
                 break;
             }
@@ -138,24 +143,41 @@ public class SkinCommand extends CommandBase {
                     return;
                 }
                 SkinVariant variant = "slim".equalsIgnoreCase(args[2]) ? SkinVariant.SLIM : SkinVariant.CLASSIC;
-                applySkinChange(parseTargets(server, sender, args, false, 5),
-                    sender, SkinActionType.url, variant, false, args[3]);
+                Collection<EntityPlayerMP> targets = parseTargets(server, sender, args, false, 5);
+                String node = targets.size() == 1 && targets.iterator().next() == sender
+                    ? "everlastingskins.command.skin.url"
+                    : "everlastingskins.command.skin.other";
+                if (!checkPermission(sender, node)) return;
+                applySkinChange(targets, sender, SkinActionType.url, variant, false, args[3]);
                 break;
             }
             case "random":
-                applySkinChange(parseTargets(server, sender, args, false, 3),
-                    sender, SkinActionType.random, SkinVariant.ALL, false, null);
+                Collection<EntityPlayerMP> targets = parseTargets(server, sender, args, false, 3);
+                String node = targets.size() == 1 && targets.iterator().next() == sender
+                    ? "everlastingskins.command.skin"
+                    : "everlastingskins.command.skin.other";
+                if (!checkPermission(sender, node)) return;
+                applySkinChange(targets, sender, SkinActionType.random, SkinVariant.ALL, false, null);
                 break;
             default:
                 sender.sendMessage(new TextComponentString(PREFIX + "Usage: /skin set <mojang|web|random>"));
         }
     }
 
+    private boolean checkPermission(ICommandSender sender, String node) {
+        if (sender instanceof EntityPlayerMP) {
+            if (!PermissionServiceManager.hasPermission((EntityPlayerMP) sender, node)) {
+                sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+                return false;
+            }
+        }
+        return true;
+    }
+
     private Collection<EntityPlayerMP> parseTargets(MinecraftServer server, ICommandSender sender,
             String[] args, boolean requiresOpAtLeastOne, int targetIndex) {
         if (args.length > targetIndex) {
-            if (!canUseOp(sender)) {
-                sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+            if (!checkPermission(sender, "everlastingskins.command.skin.other")) {
                 return Collections.emptyList();
             }
             List<EntityPlayerMP> out = new ArrayList<>();
@@ -173,13 +195,6 @@ public class SkinCommand extends CommandBase {
             sender.sendMessage(new TextComponentString(PREFIX + e.getMessage()));
             return Collections.emptyList();
         }
-    }
-
-    private boolean canUseOp(ICommandSender sender) {
-        if (sender instanceof EntityPlayerMP) {
-            return ((EntityPlayerMP) sender).canUseCommand(3, "skin");
-        }
-        return sender.canUseCommand(3, "skin");
     }
 
     private void applySkinChange(Collection<EntityPlayerMP> targets, ICommandSender sender,
@@ -308,12 +323,10 @@ public class SkinCommand extends CommandBase {
             player.getGameProfile().getProperties().removeAll("textures");
             player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
 
-            // Broadcast player list refresh to all players
             playerList.sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.REMOVE_PLAYER, player));
             playerList.sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.ADD_PLAYER, player));
         }
 
-        // Send reconnect-emulation packets to the specific player
         player.connection.sendPacket(new SPacketRespawn(dimension, difficulty, terrainType, gameType));
         player.connection.sendPacket(new SPacketServerDifficulty(difficulty, world.getWorldInfo().isDifficultyLocked()));
         player.connection.sendPacket(new SPacketPlayerPosLook(x, y, z, yaw, pitch,
