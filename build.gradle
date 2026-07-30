@@ -55,6 +55,9 @@ repositories {
 }
 
 dependencies {
+    // JetBrains annotations for @Nullable/@NotNull
+    provided 'org.jetbrains:annotations:24.0.0'
+
     // LuckPerms soft-dependency (compile-only)
     provided 'net.luckperms:api:5.5'
     provided 'me.clip:placeholderapi:2.12.3'

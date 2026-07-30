@@ -1,15 +1,18 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.entity.player.EntityPlayerMP;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class PermissionServiceManagerTest {
+
+    private static final UUID TEST_UUID = UUID.randomUUID();
 
     @BeforeEach
     @AfterEach
@@ -58,9 +61,8 @@ class PermissionServiceManagerTest {
     @DisplayName("hasPermission before init falls back to Vanilla")
     void hasPermission_beforeInit_returnsFallback() {
         PermissionServiceManager.reset();
-        EntityPlayerMP mockPlayer = mock(EntityPlayerMP.class);
-        when(mockPlayer.canUseCommand(2, "everlastingskins")).thenReturn(true);
-        assertTrue(PermissionServiceManager.hasPermission(mockPlayer, "any.node"));
+        PermissionContext ctx = PermissionContext.of(TEST_UUID, true);
+        assertTrue(PermissionServiceManager.hasPermission(ctx, "any.node"));
     }
 
     @Test

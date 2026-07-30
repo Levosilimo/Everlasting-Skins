@@ -1,53 +1,31 @@
 package levosilimo.everlastingskins.permission.forge;
 
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraftforge.server.permission.PermissionAPI;
+import levosilimo.everlastingskins.permission.PermissionContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
+
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
 
 class ForgePermissionServiceTest {
 
-    @Test
-    @DisplayName("hasPermission returns true when PermissionAPI grants it")
-    void hasPermission_granted_returnsTrue() {
-        try (MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
-            EntityPlayerMP mockPlayer = mock(EntityPlayerMP.class);
-            api.when(() -> PermissionAPI.hasPermission(eq(mockPlayer), eq("everlastingskins.command.skin")))
-               .thenReturn(true);
-            ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(mockPlayer, "everlastingskins.command.skin"));
-        }
-    }
+    private static final UUID TEST_UUID = UUID.randomUUID();
 
     @Test
-    @DisplayName("hasPermission returns false when PermissionAPI denies and not .source")
-    void hasPermission_denied_returnsFalse() {
-        try (MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
-            EntityPlayerMP mockPlayer = mock(EntityPlayerMP.class);
-            api.when(() -> PermissionAPI.hasPermission(any(EntityPlayerMP.class), anyString()))
-               .thenReturn(false);
-            ForgePermissionService service = new ForgePermissionService();
-            assertFalse(service.hasPermission(mockPlayer, "everlastingskins.command.skin"));
-        }
-    }
-
-    @Test
-    @DisplayName("hasPermission .skin.source always returns true even when API denies")
+    @DisplayName("hasPermission returns true for .source nodes")
     void hasPermission_sourceNode_returnsTrue() {
-        try (MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
-            EntityPlayerMP mockPlayer = mock(EntityPlayerMP.class);
-            api.when(() -> PermissionAPI.hasPermission(any(EntityPlayerMP.class), anyString()))
-               .thenReturn(false);
-            ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(mockPlayer, "everlastingskins.command.skin.source"));
-        }
+        PermissionContext ctx = PermissionContext.of(TEST_UUID, false);
+        ForgePermissionService service = new ForgePermissionService();
+        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.source"));
+    }
+
+    @Test
+    @DisplayName("hasPermission returns context.isOp() for non-source nodes")
+    void hasPermission_nonSource_usesContextIsOp() {
+        ForgePermissionService service = new ForgePermissionService();
+        assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, true), "everlastingskins.command.skin"));
+        assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, false), "everlastingskins.command.skin"));
     }
 
     @Test
