@@ -14,7 +14,7 @@ HMC_DIR_NAME="HeadlessMC"
 # Determine branch directory
 if [ "$BRANCH" = "mc1.12.2" ]; then
     BRANCH_DIR="mc1.12.2"
-    FORGE_VERSION="14.23.5.2860"
+    FORGE_VERSION="14.23.5.2847"
     MC_VERSION="1.12.2"
 else
     BRANCH_DIR="1.21"
