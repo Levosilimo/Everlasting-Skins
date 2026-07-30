@@ -56,7 +56,7 @@ class SkinCommandTest {
             FakeMojangAPI api = new FakeMojangAPI();
             api.addSkin(STORED_SOURCE, new CustomSkinProperty(FAKE_VALUE, FAKE_SIG, STORED_SOURCE));
 
-            SkinCommand.MojangRestoreResult result = SkinCommand.tryRestoreFromMojang(api, STORED_SOURCE, PLAYER_NAME);
+            SkinRefreshHandler.MojangRestoreResult result = SkinRefreshHandler.tryRestoreFromMojang(api, STORED_SOURCE, PLAYER_NAME);
 
             assertNotNull(result);
             assertEquals(FAKE_VALUE, result.skin.getOriginalProperty().value());
@@ -69,7 +69,7 @@ class SkinCommandTest {
             FakeMojangAPI api = new FakeMojangAPI();
             api.addSkin(PLAYER_NAME, new CustomSkinProperty(FAKE_VALUE, FAKE_SIG, PLAYER_NAME));
 
-            SkinCommand.MojangRestoreResult result = SkinCommand.tryRestoreFromMojang(api, null, PLAYER_NAME);
+            SkinRefreshHandler.MojangRestoreResult result = SkinRefreshHandler.tryRestoreFromMojang(api, null, PLAYER_NAME);
 
             assertNotNull(result);
             assertEquals(FAKE_VALUE, result.skin.getOriginalProperty().value());
@@ -82,7 +82,7 @@ class SkinCommandTest {
             FakeMojangAPI api = new FakeMojangAPI();
             api.addSkin(PLAYER_NAME, new CustomSkinProperty(FAKE_VALUE, FAKE_SIG, PLAYER_NAME));
 
-            SkinCommand.MojangRestoreResult result = SkinCommand.tryRestoreFromMojang(api, "", PLAYER_NAME);
+            SkinRefreshHandler.MojangRestoreResult result = SkinRefreshHandler.tryRestoreFromMojang(api, "", PLAYER_NAME);
 
             assertNotNull(result);
             assertEquals(FAKE_VALUE, result.skin.getOriginalProperty().value());
@@ -95,7 +95,7 @@ class SkinCommandTest {
             FakeMojangAPI api = new FakeMojangAPI();
             api.addSkin(STORED_SOURCE, new CustomSkinProperty(FAKE_VALUE, FAKE_SIG, STORED_SOURCE));
 
-            SkinCommand.MojangRestoreResult result = SkinCommand.tryRestoreFromMojang(api, STORED_SOURCE, PLAYER_NAME);
+            SkinRefreshHandler.MojangRestoreResult result = SkinRefreshHandler.tryRestoreFromMojang(api, STORED_SOURCE, PLAYER_NAME);
 
             assertNotNull(result);
             assertEquals(STORED_SOURCE, result.licensedUsername);
@@ -106,7 +106,7 @@ class SkinCommandTest {
         void mojangNoProfile() {
             FakeMojangAPI api = new FakeMojangAPI();
 
-            SkinCommand.MojangRestoreResult result = SkinCommand.tryRestoreFromMojang(api, STORED_SOURCE, PLAYER_NAME);
+            SkinRefreshHandler.MojangRestoreResult result = SkinRefreshHandler.tryRestoreFromMojang(api, STORED_SOURCE, PLAYER_NAME);
 
             assertNull(result);
         }
@@ -118,7 +118,7 @@ class SkinCommandTest {
             FakeMojangAPI api = new FakeMojangAPI();
             api.addSkin(STORED_SOURCE, emptySkin);
 
-            SkinCommand.MojangRestoreResult result = SkinCommand.tryRestoreFromMojang(api, STORED_SOURCE, PLAYER_NAME);
+            SkinRefreshHandler.MojangRestoreResult result = SkinRefreshHandler.tryRestoreFromMojang(api, STORED_SOURCE, PLAYER_NAME);
 
             assertNull(result);
         }
