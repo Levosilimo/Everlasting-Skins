@@ -1,33 +1,25 @@
+/*
+ * SPDX-License-Identifier: MIT
+ */
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangProfileResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
-import levosilimo.everlastingskins.skinchanger.responses.profile.EclipseProfileResponse;
-import levosilimo.everlastingskins.skinchanger.responses.profile.MineToolsProfileResponse;
-import levosilimo.everlastingskins.skinchanger.responses.profile.PropertyResponse;
-import levosilimo.everlastingskins.skinchanger.responses.uuid.EclipseUUIDResponse;
-import levosilimo.everlastingskins.skinchanger.responses.uuid.MineToolsUUIDResponse;
-import levosilimo.everlastingskins.skinchanger.responses.uuid.MojangUUIDResponse;
-import levosilimo.everlastingskins.util.CustomSkinProperty;
-import levosilimo.everlastingskins.util.HttpClient;
-import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
-import levosilimo.everlastingskins.util.EverlastingHelpers;
-import levosilimo.everlastingskins.util.UUIDUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import levosilimo.everlastingskins.skinchanger.responses.profile.*;
+import levosilimo.everlastingskins.skinchanger.responses.uuid.*;
+import levosilimo.everlastingskins.util.*;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class MojangApiHttpImpl implements MojangAPI {
 
+    private static final String USER_AGENT = "EverlastingSkins/1.0";
+    private static final int REQUEST_TIMEOUT = 10000;
+
     private final MojangEndpoints endpoints;
-    private final Logger logger = LogManager.getLogger(MojangApiHttpImpl.class);
     private final HttpClient httpClient;
 
     public MojangApiHttpImpl() {
@@ -46,227 +38,251 @@ public class MojangApiHttpImpl implements MojangAPI {
     @Override
     public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
         Optional<UUID> uuidParseResult = UUIDUtils.tryParseUniqueId(nameOrUniqueId);
-        if (EverlastingHelpers.invalidMinecraftUsername(nameOrUniqueId) && !uuidParseResult.isPresent()) {
+
+        if (!uuidParseResult.isPresent()) {
+            if (EverlastingHelpers.invalidMinecraftUsername(nameOrUniqueId)) {
+                return Optional.empty();
+            }
+        }
+
+        UUID playerUuid;
+        if (uuidParseResult.isPresent()) {
+            playerUuid = uuidParseResult.get();
+        } else {
+            Optional<UUID> resolved = getUUID(nameOrUniqueId);
+            if (!resolved.isPresent()) {
+                return Optional.empty();
+            }
+            playerUuid = resolved.get();
+        }
+
+        ProfileLookup lookup = new ProfileLookup(nameOrUniqueId, playerUuid);
+        Optional<CustomSkinProperty> property = getProfile(lookup);
+        if (!property.isPresent()) {
             return Optional.empty();
         }
 
-        Optional<UUID> uuidResult = !uuidParseResult.isPresent()
-                ? getUUID(nameOrUniqueId) : uuidParseResult;
-        if (!uuidResult.isPresent()) {
-            return Optional.empty();
-        }
-
-        return getProfile(new ProfileLookup(nameOrUniqueId, uuidResult.get())).map(propertyResponse ->
-                new MojangSkinDataResult(uuidResult.get(), propertyResponse));
+        return Optional.of(new MojangSkinDataResult(playerUuid, property.get()));
     }
 
     @Override
     public Optional<UUID> getUUID(String playerName) {
-        if (EverlastingHelpers.invalidMinecraftUsername(playerName)) {
-            return Optional.empty();
+        Optional<UUID> result = tryEclipseUuid(playerName);
+        if (result.isPresent()) {
+            return result;
         }
-
-        Optional<UUID> uuid = Optional.empty();
-
-        List<Supplier<Optional<UUID>>> uuidSources = Arrays.asList(
-                () -> getUUIDEclipse(playerName),
-                () -> getUUIDMojang(playerName),
-                () -> getUUIDMineTools(playerName)
-        );
-
-        for (Supplier<Optional<UUID>> source : uuidSources) {
-            uuid = source.get();
-            if (uuid.isPresent()) {
-                break;
-            }
+        result = tryMojangUuid(playerName);
+        if (result.isPresent()) {
+            return result;
         }
-
-        return uuid;
-    }
-
-    public Optional<UUID> getUUIDEclipse(String playerName) {
-        HttpResult result = readURL(URI.create(endpoints.uuidEclipse().replace("%playerName%", playerName)));
-        if (!result.isSuccess()) {
-            return Optional.empty();
-        }
-        HttpResponse httpResponse = result.get();
-        if (httpResponse.statusCode() != 200) {
-            return Optional.empty();
-        }
-
-        EclipseUUIDResponse response = httpResponse.getBodyAs(EclipseUUIDResponse.class);
-        if (response == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(response.uuid());
-    }
-
-    public Optional<UUID> getUUIDMojang(String playerName) {
-        HttpResult result = readURL(URI.create(endpoints.uuidMojang().replace("%playerName%", playerName)));
-        if (!result.isSuccess()) {
-            return Optional.empty();
-        }
-        HttpResponse httpResponse = result.get();
-
-        // Not found
-        if (httpResponse.statusCode() == 204 || httpResponse.statusCode() == 404 || httpResponse.body().isEmpty()) {
-            return Optional.empty();
-        }
-
-        // Rate limited — return empty so the fallback chain in getUUID()
-        // tries MineTools instead. Propagating the HTTP code to callers
-        // doesn't add value here: all callers treat empty as "try next source."
-        if (httpResponse.statusCode() == 429) {
-            return Optional.empty();
-        }
-
-        MojangUUIDResponse response = httpResponse.getBodyAs(MojangUUIDResponse.class);
-        if (response == null || response.error() != null) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(response.id())
-                .map(UUIDUtils::convertToDashed);
-    }
-
-    protected Optional<UUID> getUUIDMineTools(String playerName) {
-        HttpResult result = readURL(URI.create(endpoints.uuidMineTools().replace("%playerName%", playerName)), 10_000);
-        if (!result.isSuccess()) {
-            return Optional.empty();
-        }
-        HttpResponse httpResponse = result.get();
-        MineToolsUUIDResponse response = httpResponse.getBodyAs(MineToolsUUIDResponse.class);
-        if (response == null) {
-            return Optional.empty();
-        }
-
-        if (response.status() != null && response.status().equals("ERR")) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(response.id())
-                .map(UUIDUtils::convertToDashed);
+        return tryMineToolsUuid(playerName);
     }
 
     @Override
     public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
-        Optional<CustomSkinProperty> customSkinProperty = Optional.empty();
-
-        List<Supplier<Optional<CustomSkinProperty>>> profileSources = Arrays.asList(
-                () -> getProfileEclipse(lookup),
-                () -> getProfileMojang(lookup),
-                () -> getProfileMineTools(lookup)
-        );
-
-        for (Supplier<Optional<CustomSkinProperty>> source : profileSources) {
-            customSkinProperty = source.get();
-            if (customSkinProperty.isPresent()) {
-                break;
-            }
+        Optional<CustomSkinProperty> result = tryEclipseProfile(lookup);
+        if (result.isPresent()) {
+            return result;
         }
-
-        return customSkinProperty;
+        result = tryMojangProfile(lookup);
+        if (result.isPresent()) {
+            return result;
+        }
+        return tryMineToolsProfile(lookup);
     }
 
-    public Optional<CustomSkinProperty> getProfileEclipse(ProfileLookup lookup) {
-        HttpResult result = readURL(URI.create(endpoints.profileEclipse().replace("%uuid%", lookup.getUuid().toString())));
-        if (!result.isSuccess()) {
-            return Optional.empty();
-        }
-        HttpResponse httpResponse = result.get();
-        if (httpResponse.statusCode() != 200) {
-            return Optional.empty();
-        }
-
-        EclipseProfileResponse response = httpResponse.getBodyAs(EclipseProfileResponse.class);
-        if (response == null || response.isPropertyNull()) {
-            return Optional.empty();
-        }
-
-        return Optional.of(new CustomSkinProperty(response.skinProperty().value(), response.skinProperty().signature(), lookup.getUsername()));
-    }
-
-    public Optional<CustomSkinProperty> getProfileMojang(ProfileLookup lookup) {
-        HttpResult result = readURL(URI.create(endpoints.profileMojang().replace("%uuid%", UUIDUtils.convertToNoDashes(lookup.getUuid()))));
-        if (!result.isSuccess()) {
-            return Optional.empty();
-        }
-        HttpResponse httpResponse = result.get();
-        if (httpResponse.statusCode() != 200) {
-            return Optional.empty();
-        }
-        MojangProfileResponse response = httpResponse.getBodyAs(MojangProfileResponse.class);
-        if (response.properties() == null) {
-            return Optional.empty();
-        }
-
-        PropertyResponse property = findTextureProperty(response.properties());
-        if (property == null || property.value().isEmpty() || property.signature().isEmpty()) {
-            return Optional.empty();
-        }
-
-        return Optional.of(new CustomSkinProperty(property.value(), property.signature(), lookup.getUsername()));
-    }
-
-    @Nullable
-    private static PropertyResponse findTextureProperty(PropertyResponse[] properties) {
-        if (properties == null) return null;
-        for (PropertyResponse p : properties) {
-            if ("textures".equals(p.name())) {
-                return p;
-            }
-        }
-        // Fallback: first non-empty property
-        for (PropertyResponse p : properties) {
-            if (p.value() != null && !p.value().isEmpty()) {
-                return p;
-            }
-        }
-        return null;
-    }
-
-    protected Optional<CustomSkinProperty> getProfileMineTools(ProfileLookup lookup) {
-        HttpResult result = readURL(URI.create(endpoints.profileMineTools().replace("%uuid%", UUIDUtils.convertToNoDashes(lookup.getUuid()))), 10_000);
-        if (!result.isSuccess()) {
-            return Optional.empty();
-        }
-        HttpResponse httpResponse = result.get();
-        MineToolsProfileResponse response = httpResponse.getBodyAs(MineToolsProfileResponse.class);
-        if (response.raw() == null) {
-            return Optional.empty();
-        }
-
-        MineToolsProfileResponse.Raw raw = response.raw();
-        if (raw.status() != null && raw.status().equals("ERR")) {
-            return Optional.empty();
-        }
-
-        PropertyResponse property = raw.properties()[0];
-        if (property.value().isEmpty() || property.signature().isEmpty()) {
-            return Optional.empty();
-        }
-
-        return Optional.of(new CustomSkinProperty(property.value(), property.signature(), lookup.getUsername()));
-    }
-
-    private HttpResult readURL(URI uri) {
-        return readURL(uri, 5_000);
-    }
-
-    private HttpResult readURL(URI uri, int timeout) {
+    private Optional<UUID> tryEclipseUuid(String playerName) {
         try {
-            return new HttpResult.Success(httpClient.execute(
-                    uri,
+            String url = endpoints.uuidEclipse().replace("%playerName%", playerName);
+            HttpResponse response = httpClient.execute(
+                    URI.create(url),
                     null,
                     HttpClient.HttpType.JSON,
-                    "EverlastingSkins/1.0",
+                    USER_AGENT,
                     HttpClient.HttpMethod.GET,
-                    Collections.emptyMap(),
-                    timeout
-            ));
+                    Collections.<String, String>emptyMap(),
+                    REQUEST_TIMEOUT
+            );
+            if (response.statusCode() != 200) {
+                return Optional.empty();
+            }
+            EclipseUUIDResponse eclipse = response.getBodyAs(EclipseUUIDResponse.class);
+            if (eclipse == null) {
+                return Optional.empty();
+            }
+            if (!eclipse.exists() || eclipse.uuid() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(eclipse.uuid());
         } catch (IOException e) {
-            logger.debug("Error while reading URL: " + uri, e);
-            return new HttpResult.Failure(e);
+            return Optional.empty();
+        }
+    }
+
+    private Optional<UUID> tryMojangUuid(String playerName) {
+        try {
+            String url = endpoints.uuidMojang().replace("%playerName%", playerName);
+            HttpResponse response = httpClient.execute(
+                    URI.create(url),
+                    null,
+                    HttpClient.HttpType.JSON,
+                    USER_AGENT,
+                    HttpClient.HttpMethod.GET,
+                    Collections.<String, String>emptyMap(),
+                    REQUEST_TIMEOUT
+            );
+            if (response.statusCode() != 200) {
+                return Optional.empty();
+            }
+            MojangUUIDResponse mojang = response.getBodyAs(MojangUUIDResponse.class);
+            if (mojang == null) {
+                return Optional.empty();
+            }
+            if (mojang.id() == null || mojang.id().isEmpty()) {
+                return Optional.empty();
+            }
+            Optional<UUID> parsed = UUIDUtils.tryParseUniqueId(mojang.id());
+            return parsed;
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<UUID> tryMineToolsUuid(String playerName) {
+        try {
+            String url = endpoints.uuidMineTools().replace("%playerName%", playerName);
+            HttpResponse response = httpClient.execute(
+                    URI.create(url),
+                    null,
+                    HttpClient.HttpType.JSON,
+                    USER_AGENT,
+                    HttpClient.HttpMethod.GET,
+                    Collections.<String, String>emptyMap(),
+                    REQUEST_TIMEOUT
+            );
+            if (response.statusCode() != 200) {
+                return Optional.empty();
+            }
+            MineToolsUUIDResponse mineTools = response.getBodyAs(MineToolsUUIDResponse.class);
+            if (mineTools == null) {
+                return Optional.empty();
+            }
+            if (!"OK".equalsIgnoreCase(mineTools.status())) {
+                return Optional.empty();
+            }
+            if (mineTools.id() == null || mineTools.id().isEmpty()) {
+                return Optional.empty();
+            }
+            return UUIDUtils.tryParseUniqueId(mineTools.id());
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<CustomSkinProperty> tryEclipseProfile(ProfileLookup lookup) {
+        try {
+            String uuidStr = lookup.getUuid().toString();
+            String url = endpoints.profileEclipse().replace("%uuid%", uuidStr);
+            HttpResponse response = httpClient.execute(
+                    URI.create(url),
+                    null,
+                    HttpClient.HttpType.JSON,
+                    USER_AGENT,
+                    HttpClient.HttpMethod.GET,
+                    Collections.<String, String>emptyMap(),
+                    REQUEST_TIMEOUT
+            );
+            if (response.statusCode() != 200) {
+                return Optional.empty();
+            }
+            EclipseProfileResponse eclipse = response.getBodyAs(EclipseProfileResponse.class);
+            if (eclipse == null) {
+                return Optional.empty();
+            }
+            if (!eclipse.exists() || eclipse.isPropertyNull()) {
+                return Optional.empty();
+            }
+            EclipseProfileResponse.SkinProperty skin = eclipse.skinProperty();
+            return Optional.of(new CustomSkinProperty("textures", skin.value(), skin.signature(), "MojangAPI"));
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<CustomSkinProperty> tryMojangProfile(ProfileLookup lookup) {
+        try {
+            String uuidNoDash = lookup.getUuid().toString().replace("-", "");
+            String url = endpoints.profileMojang().replace("%uuid%", uuidNoDash);
+            HttpResponse response = httpClient.execute(
+                    URI.create(url),
+                    null,
+                    HttpClient.HttpType.JSON,
+                    USER_AGENT,
+                    HttpClient.HttpMethod.GET,
+                    Collections.<String, String>emptyMap(),
+                    REQUEST_TIMEOUT
+            );
+            if (response.statusCode() != 200) {
+                return Optional.empty();
+            }
+            MojangProfileResponse profile = response.getBodyAs(MojangProfileResponse.class);
+            if (profile == null) {
+                return Optional.empty();
+            }
+            PropertyResponse[] properties = profile.properties();
+            if (properties == null || properties.length == 0) {
+                return Optional.empty();
+            }
+            for (PropertyResponse prop : properties) {
+                if ("textures".equals(prop.name()) && prop.value() != null && !prop.value().isEmpty()) {
+                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), "MojangAPI"));
+                }
+            }
+            return Optional.empty();
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<CustomSkinProperty> tryMineToolsProfile(ProfileLookup lookup) {
+        try {
+            String uuidNoDash = lookup.getUuid().toString().replace("-", "");
+            String url = endpoints.profileMineTools().replace("%uuid%", uuidNoDash);
+            HttpResponse response = httpClient.execute(
+                    URI.create(url),
+                    null,
+                    HttpClient.HttpType.JSON,
+                    USER_AGENT,
+                    HttpClient.HttpMethod.GET,
+                    Collections.<String, String>emptyMap(),
+                    REQUEST_TIMEOUT
+            );
+            if (response.statusCode() != 200) {
+                return Optional.empty();
+            }
+            MineToolsProfileResponse mineTools = response.getBodyAs(MineToolsProfileResponse.class);
+            if (mineTools == null) {
+                return Optional.empty();
+            }
+            MineToolsProfileResponse.Raw raw = mineTools.raw();
+            if (raw == null) {
+                return Optional.empty();
+            }
+            if (!"OK".equalsIgnoreCase(raw.status())) {
+                return Optional.empty();
+            }
+            PropertyResponse[] properties = raw.properties();
+            if (properties == null || properties.length == 0) {
+                return Optional.empty();
+            }
+            for (PropertyResponse prop : properties) {
+                if ("textures".equals(prop.name()) && prop.value() != null && !prop.value().isEmpty()) {
+                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), "MojangAPI"));
+                }
+            }
+            return Optional.empty();
+        } catch (IOException e) {
+            return Optional.empty();
         }
     }
 }

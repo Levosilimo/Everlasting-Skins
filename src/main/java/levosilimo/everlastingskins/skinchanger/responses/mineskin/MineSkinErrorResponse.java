@@ -1,3 +1,6 @@
+/*
+ * SPDX-License-Identifier: MIT
+ */
 package levosilimo.everlastingskins.skinchanger.responses.mineskin;
 
 import java.util.Objects;

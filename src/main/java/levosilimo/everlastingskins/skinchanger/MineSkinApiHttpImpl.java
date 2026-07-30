@@ -1,42 +1,30 @@
 /*
  * SPDX-License-Identifier: MIT
- * This file is part of EverlastingSkins.
  */
 package levosilimo.everlastingskins.skinchanger;
 
 import com.google.gson.Gson;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinVariant;
-import levosilimo.everlastingskins.skinchanger.requests.mineskin.MineSkinUrlRequest;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.*;
-import levosilimo.everlastingskins.util.CustomSkinProperty;
-import levosilimo.everlastingskins.util.EndpointsConfig;
-import levosilimo.everlastingskins.util.HttpClient;
-import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
-import levosilimo.everlastingskins.util.PropertyUtils;
-import levosilimo.everlastingskins.util.EverlastingHelpers;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import levosilimo.everlastingskins.util.*;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URI;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.UUID;
 
 public class MineSkinApiHttpImpl implements MineSkinAPI {
+
+    private static final String USER_AGENT = "EverlastingSkins/MineSkinAPI";
     private static final int MAX_RETRIES = 5;
-    private static final String MINESKIN_USER_AGENT = "EverlastingSkins/MineSkinAPI";
-    private static final URI MINESKIN_ENDPOINT = EndpointsConfig.getURI("endpoint.mineskin.generate");
-    private final ReentrantLock lock = new ReentrantLock();
-    private final Gson gson = new Gson();
-    private final Logger logger = LogManager.getLogger();
+    private static final int REQUEST_TIMEOUT = 30000;
+    private static final URI API_URI = EndpointsConfig.getURI("endpoint.mineskin.generate");
+
     private final HttpClient httpClient;
     private final String apiKey;
 
@@ -50,146 +38,148 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
 
     public MineSkinApiHttpImpl(HttpClient httpClient, String apiKey) {
         this.httpClient = httpClient;
-        this.apiKey = apiKey == null ? "" : apiKey;
+        this.apiKey = apiKey;
     }
 
-    @Override
     @Nullable
-    public MineSkinResponse genSkin(String imageUrl, @Nullable SkinVariant skinVariant) {
-        imageUrl = EverlastingHelpers.sanitizeImageURL(imageUrl);
-        int retryAttempts = 0;
-        do {
-            Optional<MineSkinResponse> optional;
-            lock.lock();
-            try {
-                optional = genSkinInternal(imageUrl, skinVariant);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                logger.debug("[ERROR] MineSkin Failed! IOException (connection/disk): (" + imageUrl + ")", e);
-                optional = null;
-            } finally {
-                lock.unlock();
-            }
-
-            if (optional == null) {
+    @Override
+    public MineSkinResponse genSkin(String url, @Nullable SkinVariant variant) {
+        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            Optional<MineSkinResponse> result = genSkinInternal(url, variant);
+            if (result == null) {
                 return null;
             }
-
-            if (optional.isPresent()) {
-                return optional.get();
+            if (result.isPresent()) {
+                return result.get();
             }
-        } while (++retryAttempts < MAX_RETRIES);
+            sleepBeforeRetry();
+        }
         return null;
     }
 
-    Optional<MineSkinResponse> genSkinInternal(String imageUrl, @Nullable SkinVariant skinVariant) throws IOException, InterruptedException {
-        HttpResponse httpResponse = queryURL(imageUrl, skinVariant);
-        logger.debug("MineSkinAPI: Response: " + httpResponse);
+    Optional<MineSkinResponse> genSkinInternal(String url, @Nullable SkinVariant variant) {
+        String processedUrl = EverlastingHelpers.sanitizeImageURL(url);
 
-        int statusCode = httpResponse.statusCode();
-        if (statusCode == 200) {
-            MineSkinUrlResponse response = httpResponse.getBodyAs(MineSkinUrlResponse.class);
-            MineSkinTexture texture = response.data().texture();
-            CustomSkinProperty property = new CustomSkinProperty(texture.value(), texture.signature(), texture.url());
-            SkinVariant generatedVariant;
-            try {
-                generatedVariant = PropertyUtils.getSkinVariant(property);
-            } catch (Exception e) {
-                generatedVariant = null;
+        try {
+            Gson gson = new Gson();
+            Map<String, Object> requestMap = new HashMap<String, Object>();
+            requestMap.put("variant", variant != null ? variant.toString() : "auto");
+            requestMap.put("name", UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            requestMap.put("visibility", 0);
+            requestMap.put("url", processedUrl);
+            String requestJson = gson.toJson(requestMap);
+
+            Map<String, String> headers = new HashMap<String, String>();
+            if (apiKey != null && !apiKey.isEmpty()) {
+                headers.put("Authorization", "Bearer " + apiKey);
             }
-            return Optional.of(new MineSkinResponse(property, response.idStr(),
-                    skinVariant, generatedVariant));
-        } else if (statusCode == 500 || statusCode == 400) {
-            MineSkinErrorResponse response = httpResponse.getBodyAs(MineSkinErrorResponse.class);
-            String error = response.errorCode();
-            logger.debug(String.format("[ERROR] MineSkin Failed! Reason: %s Image URL: %s", error, imageUrl));
 
-            if ("failed_to_create_id".equals(error) || "skin_change_failed".equals(error)) {
-                logger.debug("Trying again in 6 seconds...");
-                TimeUnit.SECONDS.sleep(6);
+            HttpResponse response = httpClient.execute(
+                    API_URI,
+                    new HttpClient.RequestBody(requestJson, HttpClient.HttpType.JSON),
+                    HttpClient.HttpType.JSON,
+                    USER_AGENT,
+                    HttpClient.HttpMethod.POST,
+                    headers,
+                    REQUEST_TIMEOUT
+            );
+
+            int statusCode = response.statusCode();
+
+            if (statusCode == 200) {
+                return handleSuccessResponse(response, variant);
+            }
+
+            if (statusCode == 429) {
+                return handleRateLimit(response);
+            }
+
+            if (statusCode == 403) {
                 return Optional.empty();
-            } else {
+            }
+
+            if (statusCode == 400) {
                 return null;
             }
-        } else if (statusCode == 403) {
-            MineSkinErrorResponse response = httpResponse.getBodyAs(MineSkinErrorResponse.class);
-            String errorCode = response.errorCode();
-            String error = response.error();
-            if ("invalid_api_key".equals(errorCode)) {
-                logger.error("[ERROR] MineSkin API key is invalid! Reason: " + error);
-                if ("Invalid API Key".equals(error)) {
-                    logger.error("The API Key provided is not registered on MineSkin! Please check your config.");
-                } else if ("Client not allowed".equals(error)) {
-                    logger.error("This server ip is not on the api key allowed IPs list!");
-                } else if ("Origin not allowed".equals(error)) {
-                    logger.error("This server Origin is not on the api key allowed Origins list!");
-                } else if ("Agent not allowed".equals(error)) {
-                    logger.error(String.format("EverlastingSkins' agent \"%s\" is not on the api key allowed agents list!", MINESKIN_USER_AGENT));
-                } else {
-                    logger.error("Unknown error, please report this to the mod author!");
-                }
-            }
-            return Optional.empty();
-        } else if (statusCode == 429) {
-            MineSkinErrorDelayResponse response = httpResponse.getBodyAs(MineSkinErrorDelayResponse.class);
 
-            if (response.delay() != null) {
-                TimeUnit.SECONDS.sleep(response.delay());
-            } else if (response.nextRequest() != null) {
-                Instant nextRequestInstant = Instant.ofEpochSecond(response.nextRequest());
-                int delay = (int) Duration.between(Instant.now(), nextRequestInstant).getSeconds();
-
-                if (delay > 0) {
-                    TimeUnit.SECONDS.sleep(delay);
-                }
-            } else {
-                TimeUnit.SECONDS.sleep(6);
+            if (statusCode == 500) {
+                return null;
             }
 
             return Optional.empty();
-        } else {
-            logger.debug("[ERROR] MineSkin Failed! Unknown error: (Image URL: " + imageUrl + ") " + statusCode);
+        } catch (IOException e) {
             return Optional.empty();
         }
     }
 
-    private HttpResponse queryURL(String url, @Nullable SkinVariant skinVariant) throws IOException {
-        for (int i = 0; true; i++) {
-            try {
-                Map<String, String> headers = new HashMap<String, String>();
-                Optional<String> apiKey = getApiKey();
-                if (apiKey.isPresent()) {
-                    headers.put("Authorization", String.format("Bearer %s", apiKey.get()));
-                }
-
-                return httpClient.execute(
-                        MINESKIN_ENDPOINT,
-                        new HttpClient.RequestBody(gson.toJson(new MineSkinUrlRequest(
-                                skinVariant,
-                                null,
-                                null,
-                                url
-                        )), HttpClient.HttpType.JSON),
-                        HttpClient.HttpType.JSON,
-                        MINESKIN_USER_AGENT,
-                        HttpClient.HttpMethod.POST,
-                        headers,
-                        90_000
-                );
-            } catch (IOException e) {
-                if (i >= 2) {
-                    throw new IOException(e);
-                }
-            }
-        }
-    }
-
-    private Optional<String> getApiKey() {
-        if (apiKey.isEmpty() || apiKey.equals("key")) {
+    private Optional<MineSkinResponse> handleSuccessResponse(HttpResponse response, @Nullable SkinVariant requestedVariant) {
+        MineSkinUrlResponse urlResponse = response.getBodyAs(MineSkinUrlResponse.class);
+        if (urlResponse == null) {
             return Optional.empty();
         }
 
-        return Optional.of(apiKey);
+        MineSkinData data = urlResponse.data();
+        if (data == null) {
+            return Optional.empty();
+        }
+
+        MineSkinTexture texture = data.texture();
+        if (texture == null || texture.value() == null || texture.value().isEmpty()) {
+            return Optional.empty();
+        }
+
+        CustomSkinProperty property = new CustomSkinProperty(
+                texture.value(),
+                texture.signature(),
+                "MineSkin"
+        );
+
+        SkinVariant generatedVariant = resolveVariant(urlResponse.variant());
+        String skinId = urlResponse.idStr() != null ? urlResponse.idStr() : String.valueOf(urlResponse.id());
+
+        return Optional.of(new MineSkinResponse(
+                property,
+                skinId,
+                requestedVariant,
+                generatedVariant
+        ));
+    }
+
+    private Optional<MineSkinResponse> handleRateLimit(HttpResponse response) {
+        MineSkinErrorDelayResponse delay = response.getBodyAs(MineSkinErrorDelayResponse.class);
+        if (delay != null) {
+            int waitMs = 0;
+            if (delay.nextRequest() != null && delay.nextRequest() > 0) {
+                waitMs = delay.nextRequest();
+            } else if (delay.delay() != null && delay.delay() > 0) {
+                waitMs = delay.delay() * 1000;
+            }
+            if (waitMs > 0) {
+                try {
+                    Thread.sleep(waitMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static SkinVariant resolveVariant(String variantStr) {
+        if (variantStr == null) {
+            return SkinVariant.CLASSIC;
+        }
+        if (variantStr.equalsIgnoreCase("slim")) {
+            return SkinVariant.SLIM;
+        }
+        return SkinVariant.CLASSIC;
+    }
+
+    private static void sleepBeforeRetry() {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
