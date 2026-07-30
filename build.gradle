@@ -11,6 +11,11 @@ buildscript {
 
 plugins {
     id 'java'
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = '0.8.11'
 }
 
 apply plugin: 'net.minecraftforge.gradle.forge'
@@ -83,6 +88,15 @@ test {
     // Prevent test task from failing if no tests are found (clean build)
     testLogging {
         events "passed", "skipped", "failed"
+    }
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.enabled = true
+        html.enabled = true
     }
 }
 
