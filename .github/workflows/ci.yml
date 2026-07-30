@@ -101,7 +101,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mod-121
-          path: ${{ github.workspace }}/build/
+          path: ${{ github.workspace }}
       - name: Find mod JAR
         id: find-jar
         run: |
@@ -292,7 +292,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mod-1122
-          path: ${{ github.workspace }}/build/
+          path: ${{ github.workspace }}
       - name: Find mod JAR
         id: find-jar
         run: |
