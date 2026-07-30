@@ -77,15 +77,18 @@ jobs:
           - ${{ github.workspace }}/test-infrastructure/wiremock/fixtures/mappings:/home/wiremock/mappings
         options: >-
           --health-cmd "curl -sf http://localhost:8080/__admin/health || exit 1"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 30
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+          --health-start-period 15s
     env:
       HMC_DIR: ${{ github.workspace }}/HeadlessMC
       SERVER_DIR: ${{ github.workspace }}/test-server
       MODS_DIR: ${{ github.workspace }}/test-server/mods
       HMC_VERSION: "2.10.0"
     steps:
+      - name: Clean WireMock artifacts (EACCES workaround)
+        run: sudo rm -rf ${{ github.workspace }}/test-infrastructure/wiremock || true
       - uses: actions/checkout@v4
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -146,12 +149,12 @@ jobs:
           fi
           java -Xmx1G -Xms512M \
             -Deverlastingskins.allowHttp=true \
-            -Deverlastingskins.endpoints.uuid.eclipse="http://localhost:8080/uuid/eclipse/%playerName%" \
-            -Deverlastingskins.endpoints.uuid.mojang="http://localhost:8080/uuid/mojang/%playerName%" \
-            -Deverlastingskins.endpoints.uuid.minetools="http://localhost:8080/uuid/minetools/%playerName%" \
-            -Deverlastingskins.endpoints.profile.eclipse="http://localhost:8080/profile/eclipse/%uuid%" \
-            -Deverlastingskins.endpoints.profile.mojang="http://localhost:8080/profile/mojang/%uuid%" \
-            -Deverlastingskins.endpoints.profile.minetools="http://localhost:8080/profile/minetools/%uuid%" \
+            -Deverlastingskins.endpoint.uuid.eclipse="http://localhost:8080/uuid/eclipse/%playerName%" \
+            -Deverlastingskins.endpoint.uuid.mojang="http://localhost:8080/uuid/mojang/%playerName%" \
+            -Deverlastingskins.endpoint.uuid.minetools="http://localhost:8080/uuid/minetools/%playerName%" \
+            -Deverlastingskins.endpoint.profile.eclipse="http://localhost:8080/profile/eclipse/%uuid%" \
+            -Deverlastingskins.endpoint.profile.mojang="http://localhost:8080/profile/mojang/%uuid%" \
+            -Deverlastingskins.endpoint.profile.minetools="http://localhost:8080/profile/minetools/%uuid%" \
             -jar "$SERVER_JAR" nogui > "${{ env.SERVER_DIR }}/logs/server-stdout.log" 2>&1 &
           SERVER_PID=$!
           echo "server_pid=$SERVER_PID" >> $GITHUB_OUTPUT
@@ -172,8 +175,8 @@ jobs:
       - name: Download HeadlessMC launcher
         run: |
           mkdir -p "${{ env.HMC_DIR }}"
-          curl -L -o "${{ env.HMC_DIR }}/headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
-            "https://github.com/headlesshq/headlessmc/releases/download/${{ env.HMC_VERSION }}/headlessmc-launcher-${{ env.HMC_VERSION }}.jar"
+          curl -L -o "${{ env.HMC_DIR }}/headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+            "https://github.com/headlesshq/headlessmc/releases/download/${{ env.HMC_VERSION }}/headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar"
       - name: Download HMCSpecifics
         run: |
           curl -L -o "${{ env.MODS_DIR }}/hmc-specifics.jar" \
@@ -197,7 +200,7 @@ jobs:
       - name: Run E2E scenario via xvfb
         run: |
           cd "${{ env.HMC_DIR }}"
-          xvfb-run -a java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
+          xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "launch forge:1.21 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
             --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output.log"
       - name: Kill server
@@ -267,15 +270,18 @@ jobs:
           - ${{ github.workspace }}/test-infrastructure/wiremock/fixtures/mappings:/home/wiremock/mappings
         options: >-
           --health-cmd "curl -sf http://localhost:8080/__admin/health || exit 1"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 30
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+          --health-start-period 15s
     env:
       HMC_DIR: ${{ github.workspace }}/HeadlessMC
       SERVER_DIR: ${{ github.workspace }}/test-server
       MODS_DIR: ${{ github.workspace }}/test-server/mods
       HMC_VERSION: "2.10.0"
     steps:
+      - name: Clean WireMock artifacts (EACCES workaround)
+        run: sudo rm -rf ${{ github.workspace }}/test-infrastructure/wiremock || true
       - uses: actions/checkout@v4
       - name: Set up JDK 8
         uses: actions/setup-java@v4
@@ -336,12 +342,12 @@ jobs:
           fi
           java -Xmx1G -Xms512M \
             -Deverlastingskins.allowHttp=true \
-            -Deverlastingskins.endpoints.uuid.eclipse="http://localhost:8080/uuid/eclipse/%playerName%" \
-            -Deverlastingskins.endpoints.uuid.mojang="http://localhost:8080/uuid/mojang/%playerName%" \
-            -Deverlastingskins.endpoints.uuid.minetools="http://localhost:8080/uuid/minetools/%playerName%" \
-            -Deverlastingskins.endpoints.profile.eclipse="http://localhost:8080/profile/eclipse/%uuid%" \
-            -Deverlastingskins.endpoints.profile.mojang="http://localhost:8080/profile/mojang/%uuid%" \
-            -Deverlastingskins.endpoints.profile.minetools="http://localhost:8080/profile/minetools/%uuid%" \
+            -Deverlastingskins.endpoint.uuid.eclipse="http://localhost:8080/uuid/eclipse/%playerName%" \
+            -Deverlastingskins.endpoint.uuid.mojang="http://localhost:8080/uuid/mojang/%playerName%" \
+            -Deverlastingskins.endpoint.uuid.minetools="http://localhost:8080/uuid/minetools/%playerName%" \
+            -Deverlastingskins.endpoint.profile.eclipse="http://localhost:8080/profile/eclipse/%uuid%" \
+            -Deverlastingskins.endpoint.profile.mojang="http://localhost:8080/profile/mojang/%uuid%" \
+            -Deverlastingskins.endpoint.profile.minetools="http://localhost:8080/profile/minetools/%uuid%" \
             -jar "$SERVER_JAR" nogui > "${{ env.SERVER_DIR }}/logs/server-stdout.log" 2>&1 &
           SERVER_PID=$!
           echo "server_pid=$SERVER_PID" >> $GITHUB_OUTPUT
@@ -362,8 +368,8 @@ jobs:
       - name: Download HeadlessMC launcher
         run: |
           mkdir -p "${{ env.HMC_DIR }}"
-          curl -L -o "${{ env.HMC_DIR }}/headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
-            "https://github.com/headlesshq/headlessmc/releases/download/${{ env.HMC_VERSION }}/headlessmc-launcher-${{ env.HMC_VERSION }}.jar"
+          curl -L -o "${{ env.HMC_DIR }}/headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+            "https://github.com/headlesshq/headlessmc/releases/download/${{ env.HMC_VERSION }}/headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar"
       - name: Download HMCSpecifics
         run: |
           curl -L -o "${{ env.MODS_DIR }}/hmc-specifics.jar" \
@@ -387,7 +393,7 @@ jobs:
       - name: Run E2E scenario via xvfb
         run: |
           cd "${{ env.HMC_DIR }}"
-          xvfb-run -a java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
+          xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "launch forge:1.12.2 -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
             --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output.log"
       - name: Kill server
