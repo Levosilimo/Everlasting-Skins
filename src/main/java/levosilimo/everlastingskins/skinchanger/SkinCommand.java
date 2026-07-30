@@ -7,6 +7,7 @@ import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
+import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.command.CommandBase;
@@ -306,6 +307,13 @@ public class SkinCommand extends CommandBase {
             }
             for (EntityPlayerMP p : targets) {
                 SkinRestorer.getServer().addScheduledTask(() -> task(p));
+            }
+            for (EntityPlayerMP p : targets) {
+                try {
+                    DiscordSrvHook.announceSkinChange(p, customSource);
+                } catch (Exception e) {
+                    EverlastingSkins.logger.warn("Failed to announce skin change to DiscordSRV", e);
+                }
             }
         });
     }
