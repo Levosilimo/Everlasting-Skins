@@ -80,3 +80,45 @@ jobs:
           name: everlasting-skins-${{ matrix.name }}-${{ github.sha }}
           path: |
             build/libs/*.jar
+
+  e2e-test:
+    name: E2E (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        include:
+          - name: java-21
+            branch: "1.21"
+            java-version: 21
+            java-distribution: temurin
+            mc-version: "1.21"
+            mc-forge-version: "51.0.8"
+          - name: java-8
+            branch: "mc1.12.2"
+            java-version: 8
+            java-distribution: temurin
+            mc-version: "1.12.2"
+            mc-forge-version: "14.23.5.2847"
+    if: |
+      (github.event_name == 'push' && github.ref_name == matrix.branch) ||
+      (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: ${{ matrix.java-distribution }}
+          java-version: ${{ matrix.java-version }}
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Build and test
+        run: ./gradlew test --no-daemon
+      - name: Run HeadlessMC scenario
+        uses: headlesshq/mc-runtime-test@4.5.1
+        with:
+          mc: ${{ matrix.mc-version }}
+          modloader: forge
+          version: ${{ matrix.mc-forge-version }}
+          xvfb: true
+          cache-mc: github
+          scenario: test-infrastructure/scenarios/skin-set-mojang.json

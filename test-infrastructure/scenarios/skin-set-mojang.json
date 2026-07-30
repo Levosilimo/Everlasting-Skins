@@ -1,0 +1,35 @@
+{
+  "name": "Set Skin to Mojang Username",
+  "description": "Verifies that /skin set mojang <name> applies a Mojang skin to the executing player",
+  "type": "RUNS",
+  "config": {
+    "accountType": "offline",
+    "username": "TestPlayer"
+  },
+  "steps": [
+    {
+      "type": "ENDS_WITH",
+      "message": "For help, type \"help\""
+    },
+    {
+      "type": "WAIT",
+      "timeout": 5
+    },
+    {
+      "type": "SEND",
+      "message": "/skin set mojang Notch"
+    },
+    {
+      "type": "CONTAINS",
+      "message": "Skin set to"
+    },
+    {
+      "type": "SEND",
+      "message": "/skin source"
+    },
+    {
+      "type": "CONTAINS",
+      "message": "Notch"
+    }
+  ]
+}
