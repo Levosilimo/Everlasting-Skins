@@ -2,12 +2,14 @@ package levosilimo.everlastingskins.skinchanger;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.server.level.ServerPlayer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -47,24 +49,14 @@ class SkinCommandPermissionTest {
     @Test
     @DisplayName("canTargetOthers is false for non-op player via PermissionServiceManager")
     void canTargetOthers_nonOp_returnsFalse() {
-        CommandSourceStack mockSource = mock(CommandSourceStack.class);
-        ServerPlayer mockPlayer = mock(ServerPlayer.class);
-        when(mockSource.getPlayer()).thenReturn(mockPlayer);
-        when(mockPlayer.hasPermissions(2)).thenReturn(false);
-
-        assertFalse(levosilimo.everlastingskins.permission.PermissionServiceManager
-            .hasPermission(mockPlayer, "everlastingskins.command.skin.other"));
+        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), false);
+        assertFalse(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin.other"));
     }
 
     @Test
     @DisplayName("canTargetOthers is true for op player")
     void canTargetOthers_op_returnsTrue() {
-        CommandSourceStack mockSource = mock(CommandSourceStack.class);
-        ServerPlayer mockPlayer = mock(ServerPlayer.class);
-        when(mockSource.getPlayer()).thenReturn(mockPlayer);
-        when(mockPlayer.hasPermissions(2)).thenReturn(true);
-
-        assertTrue(levosilimo.everlastingskins.permission.PermissionServiceManager
-            .hasPermission(mockPlayer, "everlastingskins.command.skin.other"));
+        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), true);
+        assertTrue(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin.other"));
     }
 }
