@@ -1,0 +1,12 @@
+name: Test Block Scalar If
+on:
+  push:
+    branches: ["test/minimal-ci"]
+jobs:
+  test:
+    name: Block Scalar Test
+    runs-on: ubuntu-latest
+    if: |
+      github.ref_name == 'test/minimal-ci'
+    steps:
+      - run: echo "Block scalar if works"
