@@ -93,13 +93,19 @@ jobs:
             java-version: 21
             java-distribution: temurin
             mc-version: "1.21"
-            mc-forge-version: "51.0.8"
+            mc-forge-version: "51.0.24"
+            forge-installer-url: "https://maven.minecraftforge.net/net/minecraftforge/forge/1.21-51.0.24/forge-1.21-51.0.24-installer.jar"
+            hmc-specifics-version: "2.4.0"
+            hmc-specifics-url: "https://github.com/headlesshq/hmc-specifics/releases/download/2.4.0/hmc-specifics-1.21-2.4.0-lexforge-release.jar"
           - name: java-8
             branch: "mc1.12.2"
             java-version: 8
             java-distribution: temurin
             mc-version: "1.12.2"
-            mc-forge-version: "14.23.5.2847"
+            mc-forge-version: "14.23.5.2860"
+            forge-installer-url: "https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar"
+            hmc-specifics-version: "2.4.0"
+            hmc-specifics-url: "https://github.com/headlesshq/hmc-specifics/releases/download/2.4.0/hmc-specifics-1.12.2-2.4.0-lexforge-release.jar"
     if: |
       (github.event_name == 'push' && github.ref_name == matrix.branch) ||
       (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
@@ -113,12 +119,19 @@ jobs:
         run: chmod +x gradlew
       - name: Build and test
         run: ./gradlew test --no-daemon
+      - name: Download HeadlessMC launcher
+        env:
+          HMC_VERSION: "2.10.0"
+        run: |
+          mkdir -p headlessmc
+          curl -L -o "headlessmc/headlessmc-launcher-wrapper.jar" \
+            "https://github.com/headlesshq/headlessmc/releases/download/$HMC_VERSION/headlessmc-launcher-wrapper-$HMC_VERSION.jar"
+      - name: Download HMCSpecifics
+        run: |
+          mkdir -p mods
+          curl -L -o "mods/hmc-specifics.jar" "${{ matrix.hmc-specifics-url }}"
       - name: Run HeadlessMC scenario
-        uses: headlesshq/mc-runtime-test@4.5.1
-        with:
-          mc: ${{ matrix.mc-version }}
-          modloader: forge
-          version: ${{ matrix.mc-forge-version }}
-          xvfb: true
-          cache-mc: github
-          scenario: test-infrastructure/scenarios/skin-set-mojang.json
+        run: |
+          xvfb-run -a java -jar "headlessmc/headlessmc-launcher-wrapper.jar" \
+            --command "launch forge:${{ matrix.mc-version }} -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
+            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee hmc-output.log
