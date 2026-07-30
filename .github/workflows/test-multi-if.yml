@@ -1,0 +1,12 @@
+name: Test Multi-line If
+on:
+  push:
+    branches: ["test/minimal-ci"]
+jobs:
+  test:
+    name: Multi-line If
+    runs-on: ubuntu-latest
+    if: |
+      github.ref_name == 'test/minimal-ci'
+    steps:
+      - run: echo "Multi-line if works"
