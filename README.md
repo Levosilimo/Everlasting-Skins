@@ -1,8 +1,26 @@
 # EverlastingSkins
 
-<!-- Badges: shield.io patterns. Live status unknown until CI runs first time; use static placeholder for now. -->
+Persistent player skin management for Minecraft Forge servers.
 
-Server-side Minecraft Forge mod for persistent custom skins. Players change their skin with `/skin` — no client mod required. Skins survive server restarts.
+[![CI (1.21)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml/badge.svg?branch=1.21)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml?query=branch%3A1.21)
+[![CI (mc1.12.2)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml/badge.svg?branch=mc1.12.2)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml?query=branch%3Amc1.12.2)
+[![Release](https://img.shields.io/github/v/release/Levosilimo/Everlasting-Skins?include_prereleases&label=latest)](https://github.com/Levosilimo/Everlasting-Skins/releases)
+[![License](https://img.shields.io/github/license/Levosilimo/Everlasting-Skins)](LICENSE)
+[![CurseForge](https://cf.way2muchnoise.eu/versions/538149.svg)](https://www.curseforge.com/minecraft/mc-mods/everlasting-skins)
+[![Modrinth](https://img.shields.io/modrinth/dt/everlasting-skins?label=Modrinth)](https://modrinth.com/mod/everlasting-skins)
+[![Java](https://img.shields.io/badge/java-21%20%7C%208-blue)](https://adoptium.net/)
+
+This repository uses **git branches** to target different Minecraft versions.
+Each branch is isolated with its own toolchain, Forge version, and Java runtime.
+
+## Branches
+
+| Branch | Minecraft | Forge | Java | Status |
+|--------|-----------|-------|------|--------|
+| [1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/1.21) | 1.21 | 51.0.24 | 21 | Active |
+| [mc1.12.2](https://github.com/Levosilimo/Everlasting-Skins/tree/mc1.12.2) | 1.12.2 | 14.23.5.2860 | 8 | Active |
+
+Each branch has its own README with version-specific installation instructions, config paths, and command documentation.
 
 ## ✨ Features
 
