@@ -40,3 +40,7 @@ librarian-output-*.json
 
 # SDK man local config
 .sdkmanrc
+
+# HeadlessMC launcher JAR (download binary, not part of source)
+test-infrastructure/headlessmc/
+.trees/
