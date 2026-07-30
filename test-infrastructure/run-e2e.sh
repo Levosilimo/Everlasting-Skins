@@ -14,11 +14,11 @@ HMC_DIR_NAME="HeadlessMC"
 # Determine branch directory
 if [ "$BRANCH" = "mc1.12.2" ]; then
     BRANCH_DIR="mc1.12.2"
-    FORGE_VERSION="14.23.5.2860"
+    FORGE_VERSION="14.23.5.2847"
     MC_VERSION="1.12.2"
 else
     BRANCH_DIR="1.21"
-    FORGE_VERSION="51.0.24"
+    FORGE_VERSION="51.0.8"
     MC_VERSION="1.21"
 fi
 
@@ -117,17 +117,6 @@ if [ ! -f "$HMC_DIR/headlessmc-launcher-wrapper.jar" ]; then
         "https://github.com/headlesshq/headlessmc/releases/download/$HMC_VERSION/headlessmc-launcher-wrapper-$HMC_VERSION.jar"
 fi
 
-if [ ! -f "$SERVER_DIR/mods/hmc-specifics.jar" ]; then
-    echo "  Downloading HMCSpecifics v2.4.0..."
-    HMCS_VERSION="2.4.0"
-    if [ "$BRANCH" = "mc1.12.2" ]; then
-        HMCS_URL="https://github.com/headlesshq/hmc-specifics/releases/download/${HMCS_VERSION}/hmc-specifics-1.12.2-${HMCS_VERSION}-lexforge-release.jar"
-    else
-        HMCS_URL="https://github.com/headlesshq/hmc-specifics/releases/download/${HMCS_VERSION}/hmc-specifics-1.21-${HMCS_VERSION}-lexforge-release.jar"
-    fi
-    curl -L -o "$SERVER_DIR/mods/hmc-specifics.jar" "$HMCS_URL"
-fi
-
 # Configure HeadlessMC for test
 HMC_CONFIG_DIR="$PROJECT_DIR/$HMC_DIR_NAME"
 mkdir -p "$HMC_CONFIG_DIR"
@@ -143,14 +132,13 @@ hmc.test.filename=$SCENARIO_FILE
 hmc.test.leave.after=true
 hmc.assets.dummy=true
 hmc.always.lwjgl.flag=true
-hmc.crash.report.watcher=true
 CONFIG
 
 # 6. Run test
 echo "[6/6] Running E2E test scenario: $SCENARIO..."
 cd "$PROJECT_DIR"
-xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
-    --command "launch forge:$MC_VERSION -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
+java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
+    --command launch forge:$MC_VERSION \
     --game-args "--server localhost --port 25565 --username TestPlayer"
 
 EXIT_CODE=$?
