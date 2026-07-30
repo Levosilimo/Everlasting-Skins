@@ -22,6 +22,11 @@ plugins {
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
     id 'org.spongepowered.mixin' version '0.7.+'
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = '0.8.11'
 }
 
 repositories {
@@ -154,6 +159,15 @@ test {
     testLogging {
         events "passed", "skipped", "failed"
         showStandardStreams = false
+    }
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
     }
 }
 
