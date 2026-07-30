@@ -1,6 +1,6 @@
 {
   "name": "Two-Client Skin Visibility (Observer)",
-  "description": "Observer client connects and checks another player's skin source after skin change",
+  "description": "Observer client connects after TestPlayer's skin change. Verifies the persisted skin is visible.",
   "type": "RUNS",
   "config": {
     "accountType": "offline",
@@ -8,6 +8,7 @@
   },
   "steps": [
     {"type": "ENDS_WITH", "message": "For help, type \"help\""},
+    {"type": "WAIT", "timeout": 15},
     {"type": "SEND", "message": "/skin source TestPlayer"},
     {"type": "SUCCESS", "message": "Source check sent"}
   ]
