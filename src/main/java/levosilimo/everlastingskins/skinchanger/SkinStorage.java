@@ -54,7 +54,9 @@ public class SkinStorage {
         if (skinProperty != null) return skinProperty;
 
         skinProperty = loadSkin(uuid);
-        skinProperty = setSkin(uuid, skinProperty);
+        if (skinProperty != null) {
+            skinMap.put(uuid, skinProperty);
+        }
         return skinProperty;
     }
     @Nullable
