@@ -71,23 +71,25 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         imageUrl = SRHelpers.sanitizeImageURL(imageUrl);
         int retryAttempts = 0;
         do {
+            Optional<MineSkinResponse> optional;
             lock.lock();
             try {
-                Optional<MineSkinResponse> optional = genSkinInternal(imageUrl, skinVariant);
-
-                if (optional == null) {
-                    return null;
-                }
-
-                if (optional.isPresent()) {
-                    return optional.get();
-                }
+                optional = genSkinInternal(imageUrl, skinVariant);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             } catch (IOException e) {
-                logger.debug( "[ERROR] MineSkin Failed! IOException (connection/disk): (" + imageUrl + ")", e);
+                logger.debug("[ERROR] MineSkin Failed! IOException (connection/disk): (" + imageUrl + ")", e);
+                optional = null;
             } finally {
                 lock.unlock();
+            }
+
+            if (optional == null) {
+                return null;
+            }
+
+            if (optional.isPresent()) {
+                return optional.get();
             }
         } while (++retryAttempts < MAX_RETRIES);
         return null;

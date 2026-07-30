@@ -2,7 +2,6 @@ package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.util.Tuple;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -41,7 +40,7 @@ class SkinCommandTest {
         }
 
         @Override
-        public Optional<CustomSkinProperty> getProfile(Tuple<String, Optional<UUID>> usernameUUIDPair) {
+        public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
             return Optional.empty();
         }
     }
