@@ -1,0 +1,11 @@
+name: Test 1.21 Trigger
+on:
+  push:
+    branches: ["1.21"]
+jobs:
+  test:
+    name: 1.21 Test
+    runs-on: ubuntu-latest
+    if: github.ref_name == '1.21'
+    steps:
+      - run: echo "1.21 trigger works"
