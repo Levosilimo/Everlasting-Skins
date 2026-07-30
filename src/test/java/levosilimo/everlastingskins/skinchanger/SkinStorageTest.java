@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 
@@ -19,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class SkinStorageTest {
 
+    private static final String TEST_DEFAULT_VALUE = "testDefaultSkinValue";
+
     @TempDir
     Path tempDir;
 
@@ -30,6 +34,7 @@ class SkinStorageTest {
     void setUp() {
         skinIO = new SkinIO(tempDir);
         storage = new SkinStorage(skinIO);
+        CustomSkinProperty.setDefaultSkinValue(TEST_DEFAULT_VALUE);
         uuid = UUID.randomUUID();
     }
 
@@ -134,17 +139,87 @@ class SkinStorageTest {
     }
 
     @Nested
-    @DisplayName("setSkin null resets to default")
+    @DisplayName("setSkin null removes entry")
     class ResetToDefault {
 
         @Test
-        @DisplayName("setSkin(null) resets to default skin")
+        @DisplayName("setSkin(null) removes entry from map and disk")
         void resetToDefault() {
             var custom = new CustomSkinProperty("custom", "sig", "src");
             storage.setSkin(uuid, custom);
+            storage.saveSkin(uuid);
+            Path skinFile = tempDir.resolve(uuid + ".json");
+            assertTrue(skinFile.toFile().exists());
             assertFalse(storage.hasDefaultSkin(uuid));
 
             storage.setSkin(uuid, null);
+
+            assertNull(storage.getSkin(uuid));
+            assertTrue(storage.hasDefaultSkin(uuid));
+            assertFalse(skinFile.toFile().exists());
+        }
+    }
+
+    @Nested
+    @DisplayName("removeSkin")
+    class RemoveSkin {
+
+        @Test
+        @DisplayName("removeSkin removes from map and deletes file")
+        void removeSkinTest() {
+            var custom = new CustomSkinProperty("custom", "sig", "src");
+            storage.setSkin(uuid, custom);
+            storage.saveSkin(uuid);
+            Path skinFile = tempDir.resolve(uuid + ".json");
+            assertTrue(skinFile.toFile().exists());
+
+            storage.removeSkin(uuid);
+
+            assertNull(storage.getSkin(uuid));
+            assertTrue(storage.hasDefaultSkin(uuid));
+            assertFalse(skinFile.toFile().exists());
+        }
+    }
+
+    @Nested
+    @DisplayName("Empty skin handling")
+    class EmptySkinHandling {
+
+        @Test
+        @DisplayName("loadSkin returns null and deletes file for empty skin")
+        void loadEmptySkinReturnsNull() throws Exception {
+            String stubJson = "{\"source\":\"legacy\",\"originalProperty\":{\"name\":\"textures\",\"value\":\"" + TEST_DEFAULT_VALUE + "\",\"signature\":\"sig\"}}";
+            Files.write(tempDir.resolve(uuid + ".json"), stubJson.getBytes(StandardCharsets.UTF_8));
+
+            assertNull(storage.loadSkin(uuid));
+            assertFalse(Files.exists(tempDir.resolve(uuid + ".json")));
+        }
+
+        @Test
+        @DisplayName("getSource returns null for empty skin")
+        void getSourceForEmptySkinReturnsNull() {
+            var emptySkin = new CustomSkinProperty("textures", "", "", "stub-source");
+            storage.setSkin(uuid, emptySkin);
+
+            assertNull(storage.getSource(uuid));
+        }
+
+        @Test
+        @DisplayName("setSkin with empty skin removes from storage")
+        void setEmptySkinRemovesFromStorage() {
+            var emptySkin = new CustomSkinProperty("textures", "", "", "stub");
+            storage.setSkin(uuid, emptySkin);
+
+            assertNull(storage.getSkin(uuid));
+            assertTrue(storage.hasDefaultSkin(uuid));
+        }
+
+        @Test
+        @DisplayName("hasDefaultSkin returns true for empty cached skin")
+        void defaultForEmptyCachedSkin() {
+            var emptySkin = new CustomSkinProperty("textures", "", "", "src");
+            storage.setSkin(uuid, emptySkin);
+
             assertTrue(storage.hasDefaultSkin(uuid));
         }
     }

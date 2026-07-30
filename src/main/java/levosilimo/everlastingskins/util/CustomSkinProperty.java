@@ -8,6 +8,11 @@ import java.util.Objects;
 public class CustomSkinProperty {
     private final String source;
     private final Property originalProperty;
+    private static String defaultSkinValue;
+
+    public static void setDefaultSkinValue(String value) {
+        defaultSkinValue = value;
+    }
 
     public CustomSkinProperty(final String name, final String value, final String signature, @Nullable final String source) {
         this.originalProperty = new Property(name, value, signature);
@@ -17,6 +22,14 @@ public class CustomSkinProperty {
     public CustomSkinProperty(final String value, final String signature, @Nullable final String source) {
         this.originalProperty = new Property("textures", value, signature);
         this.source = source;
+    }
+
+    public boolean isEmpty() {
+        if (originalProperty == null) return true;
+        String value = originalProperty.value();
+        if (value == null || value.trim().isEmpty()) return true;
+        if (defaultSkinValue != null && defaultSkinValue.equals(value)) return true;
+        return false;
     }
 
     @Override
@@ -31,6 +44,7 @@ public class CustomSkinProperty {
     public int hashCode() {
         return Objects.hash(source);
     }
+
     public Property getOriginalProperty() {
         return originalProperty;
     }

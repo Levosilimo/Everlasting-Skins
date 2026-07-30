@@ -53,17 +53,19 @@ public class SkinRestorer {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
         if (skinStorage.hasDefaultSkin(player.getUUID())) {
-            MojangSkinDataResult skinDataResult = SkinCommand.mojangAPI.getSkin(player.getGameProfile().getName()).orElse(null);
+            MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(player.getGameProfile().getName()).orElse(null);
             if (skinDataResult != null) {
                 skinStorage.setSkin(player.getUUID(), skinDataResult.skinProperty());
             }
         }
 
         CustomSkinProperty skin = skinStorage.getSkin(player.getUUID());
-        if (skin != null && skin.getOriginalProperty() != null) {
+        if (skin != null && !skin.isEmpty()) {
             player.getGameProfile().getProperties().removeAll("textures");
             player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
         }
+        // When skin is null or empty (no custom skin on disk), leave the profile
+        // unmutated — the client renders Steve or Alex based on UUID hash.
     }
 
     /**
@@ -72,7 +74,9 @@ public class SkinRestorer {
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        skinStorage.saveSkin(player.getUUID());
+        if (skinStorage.getSkin(player.getUUID()) != null) {
+            skinStorage.saveSkin(player.getUUID());
+        }
     }
 
     /**

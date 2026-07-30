@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.JsonUtils;
 
@@ -57,6 +58,17 @@ public class SkinIO {
             return skin;
         } catch (JsonParseException e) {
             return null;
+        }
+    }
+
+    public void deleteSkin(UUID uuid) {
+        Path target = savePath.resolve(uuid + FILE_EXTENSION);
+        try {
+            if (Files.deleteIfExists(target)) {
+                EverlastingSkins.logger.info("Deleted skin file for {}", uuid);
+            }
+        } catch (IOException e) {
+            EverlastingSkins.logger.warn("Failed to delete skin file for {}", uuid, e);
         }
     }
 

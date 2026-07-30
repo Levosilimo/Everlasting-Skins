@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 
@@ -41,8 +42,28 @@ public class SkinCommand {
 
     private static I18nUtils i18nUtils;
 
-    public static final MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
-    public static final MojangAPI mojangAPI = new MojangApiHttpImpl();
+    private static MineSkinAPI mineSkinAPIInstance;
+    private static MojangAPI mojangAPIInstance;
+
+    public static MineSkinAPI getMineSkinAPI() {
+        if (mineSkinAPIInstance == null) {
+            mineSkinAPIInstance = new MineSkinApiHttpImpl();
+        }
+        return mineSkinAPIInstance;
+    }
+
+    public static MojangAPI getMojangAPI() {
+        if (mojangAPIInstance == null) {
+            mojangAPIInstance = new MojangApiHttpImpl();
+        }
+        return mojangAPIInstance;
+    }
+
+    /* package-private for tests */
+    static void resetAPIs() {
+        mineSkinAPIInstance = null;
+        mojangAPIInstance = null;
+    }
 
     private record SkinActionParameters(
             Collection<ServerPlayer> targets,
@@ -233,28 +254,32 @@ public class SkinCommand {
         CompletableFuture<CustomSkinProperty> skinPropertyCompletableFuture = CompletableFuture.supplyAsync(() -> {
             CustomSkinProperty skinProperty = null;
             switch (type) {
-                case clear:
-                    skinProperty = mojangAPI.getSkin(targets.stream().findFirst().get().getGameProfile().getName())
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
+                case clear: {
+                    ServerPlayer first = targets.stream().findFirst().get();
+                    String storedSrc = SkinRestorer.getSkinStorage().getSource(first.getUUID());
+                    String pName = first.getGameProfile().getName();
+                    MojangRestoreResult restore = tryRestoreFromMojang(getMojangAPI(), storedSrc, pName);
+                    skinProperty = restore != null ? restore.skin : null;
                     break;
+                }
                 case url: {
                     String sanitized = SRHelpers.sanitizeSkinInput(customSource);
                     if (!sanitized.equals(customSource)) {
                         /* NameMC profile URL resolved to username — route to Mojang API */
-                        skinProperty = mojangAPI.getSkin(sanitized)
+                        skinProperty = getMojangAPI().getSkin(sanitized)
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
                     } else {
-                        skinProperty = mineSkinAPI.genSkin(customSource, variant).property();
+                        skinProperty = getMineSkinAPI().genSkin(customSource, variant).property();
                     }
                     break;
                 }
                 case username:
-                    skinProperty = mojangAPI.getSkin(customSource)
+                    skinProperty = getMojangAPI().getSkin(customSource)
                             .map(MojangSkinDataResult::skinProperty).orElse(null);
                     break;
                 case random:
                     try {
-                        skinProperty = mojangAPI.getSkin(Objects.requireNonNull(RandomMojangSkin.randomUsername(withCape, variant)))
+                        skinProperty = getMojangAPI().getSkin(Objects.requireNonNull(RandomMojangSkin.randomUsername(withCape, variant)))
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
                     } catch (Exception e) {
                         throw new CompletionException(e);
@@ -262,7 +287,7 @@ public class SkinCommand {
                     break;
                 case NEW:
                     try {
-                        skinProperty = mojangAPI.getSkin(Objects.requireNonNull(RandomMojangSkin.newUsername(variant)))
+                        skinProperty = getMojangAPI().getSkin(Objects.requireNonNull(RandomMojangSkin.newUsername(variant)))
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
                     } catch (Exception e) {
                         throw new CompletionException(e);
@@ -271,16 +296,43 @@ public class SkinCommand {
             }
             return skinProperty;
         }, skinCommandExecutor).whenComplete((skinProperty, throwable) -> {
-            if(throwable != null || skinProperty == null) {
+            if (throwable != null) {
                 EverlastingSkins.logger.error("Skin process error occurred");
-                for(ServerPlayer player: targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("error")));
+                for (ServerPlayer player : targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("error")));
                 return;
             }
+            boolean isClear = type == SkinActionType.clear;
+            if (skinProperty == null && !isClear) {
+                String reason = deriveReason(type, customSource);
+                EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
+                for (ServerPlayer player : targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + reason));
+                return;
+            }
+            if (isClear && skinProperty == null) {
+                EverlastingSkins.logger.info("Skin cleared for player(s) — no Mojang profile found");
+                for (ServerPlayer player : targets) {
+                    SkinRestorer.getSkinStorage().setSkin(player.getUUID(), null);
+                    if (Config.TOGGLE.get()) {
+                        player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " Skin cleared (no Mojang profile found)"));
+                    }
+                }
+                for (ServerPlayer player : targets) {
+                    SkinRestorer.server.execute(() -> task(player));
+                }
+                return;
+            }
+            boolean isRestore = isClear && skinProperty != null;
             for (ServerPlayer player : targets) {
                 SkinRestorer.getSkinStorage().setSkin(player.getUUID(), skinProperty);
-                if(Config.TOGGLE.get()) {
-                    if(player == context.getSource().getEntity()) context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("fulfilled")), false);
-                    else player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + getLocalizedString("fulfilled_force")));
+                if (Config.TOGGLE.get()) {
+                    String msg = isRestore
+                        ? "Skin restored from " + skinProperty.getSource()
+                        : getLocalizedString("fulfilled");
+                    if (player == context.getSource().getEntity()) {
+                        context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + msg), false);
+                    } else {
+                        player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + msg));
+                    }
                 }
             }
             for (ServerPlayer player : targets) {
@@ -330,5 +382,50 @@ public class SkinCommand {
 
         serverLevel.getChunkSource().chunkMap.removeEntity(player);
         serverLevel.getChunkSource().chunkMap.addEntity(player);
+    }
+
+    @Nullable
+    static MojangRestoreResult tryRestoreFromMojang(MojangAPI mojangAPI, @Nullable String storedSource, String playerName) {
+        String licensedUsername = (storedSource != null && !storedSource.trim().isEmpty())
+            ? storedSource : playerName;
+        CustomSkinProperty skin = mojangAPI.getSkin(licensedUsername)
+            .map(MojangSkinDataResult::skinProperty)
+            .filter(s -> !s.isEmpty())
+            .orElse(null);
+        if (skin == null) return null;
+        return new MojangRestoreResult(skin, licensedUsername);
+    }
+
+    static class MojangRestoreResult {
+        final CustomSkinProperty skin;
+        final String licensedUsername;
+
+        MojangRestoreResult(CustomSkinProperty skin, String licensedUsername) {
+            this.skin = skin;
+            this.licensedUsername = licensedUsername;
+        }
+    }
+
+    private static String deriveReason(SkinActionType type, @Nullable String customSource) {
+        switch (type) {
+            case username:
+                return customSource != null
+                    ? "No skin found for \"" + customSource + "\""
+                    : "No skin found";
+            case url: {
+                if (customSource != null) {
+                    String sanitized = SRHelpers.sanitizeSkinInput(customSource);
+                    if (!sanitized.equals(customSource)) {
+                        return "No skin found for \"" + sanitized + "\"";
+                    }
+                }
+                return "MineSkin rejected the URL";
+            }
+            case random:
+            case NEW:
+                return "No random username available";
+            default:
+                return "Provider returned no result";
+        }
     }
 }
