@@ -8,7 +8,7 @@ import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import levosilimo.everlastingskins.util.SRHelpers;
+import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.CommandHandler;
@@ -223,7 +223,7 @@ public class SkinCommand extends CommandBase {
                         sp = restore != null ? restore.skin : null;
                         break;
                     case url: {
-                        String sanitized = SRHelpers.sanitizeSkinInput(customSource);
+                        String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
                         if (!sanitized.equals(customSource)) {
                             sp = mojangAPI.getSkin(sanitized)
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
@@ -374,7 +374,7 @@ public class SkinCommand extends CommandBase {
                     : "No skin found";
             case url: {
                 if (customSource != null) {
-                    String sanitized = SRHelpers.sanitizeSkinInput(customSource);
+                    String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
                     if (!sanitized.equals(customSource)) {
                         return "No skin found for \"" + sanitized + "\"";
                     }

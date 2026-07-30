@@ -14,10 +14,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class SRHelpers {
+public class EverlastingHelpers {
     private static final String NAMEMC_IMG_URL = EndpointsConfig.getString("url.namemc.img");
 
-    private SRHelpers() {
+    private EverlastingHelpers() {
     }
 
     public static Throwable getRootCause(Throwable throwable) {
@@ -215,7 +215,7 @@ public class SRHelpers {
     }
 
     public static boolean validSkinUrl(String str) {
-        Optional<URL> uriOptional = SRHelpers.parseURL(str);
+        Optional<URL> uriOptional = EverlastingHelpers.parseURL(str);
         return uriOptional.isPresent() && (uriOptional.get().getProtocol().equals("http") || uriOptional.get().getProtocol().equals("https"));
     }
 }

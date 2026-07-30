@@ -1,19 +1,6 @@
 /*
- * SkinsRestorer
- * Copyright (C) 2024  SkinsRestorer Team
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * SPDX-License-Identifier: MIT
+ * This file is part of EverlastingSkins.
  */
 package levosilimo.everlastingskins.skinchanger;
 
@@ -28,7 +15,7 @@ import levosilimo.everlastingskins.util.EndpointsConfig;
 import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.PropertyUtils;
-import levosilimo.everlastingskins.util.SRHelpers;
+import levosilimo.everlastingskins.util.EverlastingHelpers;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -45,7 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class MineSkinApiHttpImpl implements MineSkinAPI {
     private static final int MAX_RETRIES = 5;
-    private static final String MINESKIN_USER_AGENT = "SkinsRestorer/MineSkinAPI";
+    private static final String MINESKIN_USER_AGENT = "EverlastingSkins/MineSkinAPI";
     private static final URI MINESKIN_ENDPOINT = EndpointsConfig.getURI("endpoint.mineskin.generate");
     private final ReentrantLock lock = new ReentrantLock();
     private final Gson gson = new Gson();
@@ -69,7 +56,7 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     @Override
     @Nullable
     public MineSkinResponse genSkin(String imageUrl, @Nullable SkinVariant skinVariant) {
-        imageUrl = SRHelpers.sanitizeImageURL(imageUrl);
+        imageUrl = EverlastingHelpers.sanitizeImageURL(imageUrl);
         int retryAttempts = 0;
         do {
             Optional<MineSkinResponse> optional;
@@ -138,9 +125,9 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
                 } else if ("Origin not allowed".equals(error)) {
                     logger.error("This server Origin is not on the api key allowed Origins list!");
                 } else if ("Agent not allowed".equals(error)) {
-                    logger.error(String.format("SkinsRestorer's agent \"%s\" is not on the api key allowed agents list!", MINESKIN_USER_AGENT));
+                    logger.error(String.format("EverlastingSkins' agent \"%s\" is not on the api key allowed agents list!", MINESKIN_USER_AGENT));
                 } else {
-                    logger.error("Unknown error, please report this to SkinsRestorer's discord!");
+                    logger.error("Unknown error, please report this to the mod author!");
                 }
             }
             return Optional.empty();
