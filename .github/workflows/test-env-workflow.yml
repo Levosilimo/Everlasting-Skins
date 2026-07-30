@@ -1,0 +1,11 @@
+name: Test Env Workflow
+on:
+  push:
+    branches: ["1.21"]
+env:
+  X: y
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "env works: $X"'
