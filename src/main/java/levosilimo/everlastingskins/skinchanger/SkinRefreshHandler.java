@@ -6,7 +6,7 @@ import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.I18nUtils;
-import levosilimo.everlastingskins.util.SRHelpers;
+import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -85,7 +85,7 @@ public class SkinRefreshHandler {
                         : "No skin found";
             case url: {
                 if (customSource != null) {
-                    String sanitized = SRHelpers.sanitizeSkinInput(customSource);
+                    String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
                     if (!sanitized.equals(customSource)) {
                         return "No skin found for \"" + sanitized + "\"";
                     }

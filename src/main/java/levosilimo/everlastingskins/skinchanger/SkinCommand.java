@@ -13,7 +13,7 @@ import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import levosilimo.everlastingskins.util.SRHelpers;
+import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -295,7 +295,7 @@ public class SkinCommand {
                     break;
                 }
                 case url: {
-                    String sanitized = SRHelpers.sanitizeSkinInput(customSource);
+                    String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
                     if (!sanitized.equals(customSource)) {
                         skinProperty = getMojangAPI().getSkin(sanitized)
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
