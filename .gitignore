@@ -25,9 +25,16 @@ server/
 # Magic Context sentinel artifacts
 .cortexkit/
 
-# Research artifacts
+# Research and librarian artifacts
 research_*.json
 research_*.md
 forge-installer-dl*.log
 *.tmp
 *output.json
+librarian-output-*.json
+
+# Build run directories
+run2/
+
+# SDK man local config
+.sdkmanrc
