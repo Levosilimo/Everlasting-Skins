@@ -118,3 +118,4 @@ If you find this mod useful, consider sponsoring development via [GitHub Sponsor
 
 
 
+// CI trigger Thu Jul 30 22:03:28 CEST 2026
