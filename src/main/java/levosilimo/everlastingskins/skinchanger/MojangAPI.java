@@ -2,7 +2,6 @@ package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.util.Tuple;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -36,8 +35,8 @@ public interface MojangAPI {
      * Fetch profile properties (skin texture) for a player identified by a
      * username/UUID pair.
      *
-     * @param usernameUUIDPair tuple of (username, optional UUID)
+     * @param lookup resolved username and UUID (never partial)
      * @return the skin property if found, or empty on error
      */
-    Optional<CustomSkinProperty> getProfile(Tuple<String, Optional<UUID>> usernameUUIDPair);
+    Optional<CustomSkinProperty> getProfile(ProfileLookup lookup);
 }

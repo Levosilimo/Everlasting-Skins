@@ -18,6 +18,7 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import com.google.gson.Gson;
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.skinchanger.requests.mineskin.MineSkinUrlRequest;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
@@ -53,11 +54,11 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     private final String apiKey;
 
     public MineSkinApiHttpImpl() {
-        this(new HttpsUrlConnectionHttpClient(), "");
+        this(new HttpsUrlConnectionHttpClient(), Config.MINESKIN_API_KEY);
     }
 
     public MineSkinApiHttpImpl(HttpClient httpClient) {
-        this(httpClient, "");
+        this(httpClient, Config.MINESKIN_API_KEY);
     }
 
     public MineSkinApiHttpImpl(HttpClient httpClient, String apiKey) {
@@ -71,23 +72,25 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         imageUrl = SRHelpers.sanitizeImageURL(imageUrl);
         int retryAttempts = 0;
         do {
+            Optional<MineSkinResponse> optional;
             lock.lock();
             try {
-                Optional<MineSkinResponse> optional = genSkinInternal(imageUrl, skinVariant);
-
-                if (optional == null) {
-                    return null;
-                }
-
-                if (optional.isPresent()) {
-                    return optional.get();
-                }
+                optional = genSkinInternal(imageUrl, skinVariant);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             } catch (IOException e) {
                 logger.debug("[ERROR] MineSkin Failed! IOException (connection/disk): (" + imageUrl + ")", e);
+                optional = null;
             } finally {
                 lock.unlock();
+            }
+
+            if (optional == null) {
+                return null;
+            }
+
+            if (optional.isPresent()) {
+                return optional.get();
             }
         } while (++retryAttempts < MAX_RETRIES);
         return null;
