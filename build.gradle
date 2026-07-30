@@ -40,15 +40,32 @@ sourceSets {
 
 repositories {
     mavenCentral()
+    maven {
+        name = "PlaceholderAPI"
+        url = "https://repo.extendedclip.com/content/repositories/placeholderapi/"
+    }
+    maven {
+        name = "DiscordSRV"
+        url = "https://nexus.scarsz.me/content/groups/public/"
+    }
+    maven {
+        name = "Spigot"
+        url = "https://hub.spigotmc.org/nexus/content/repositories/snapshots/"
+    }
 }
 
 dependencies {
     // LuckPerms soft-dependency (compile-only)
     provided 'net.luckperms:api:5.5'
+    provided 'me.clip:placeholderapi:2.12.3'
+    provided 'com.discordsrv:discordsrv:1.30.5'
+    compile 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
 
     // JUnit 5 for test source set
     testCompile 'org.junit.jupiter:junit-jupiter-api:5.10.3'
     testCompile 'org.junit.jupiter:junit-jupiter-params:5.10.3'
+    testCompile 'me.clip:placeholderapi:2.12.3'
+    testCompile 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
     testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.10.3'
     testRuntime 'org.junit.platform:junit-platform-launcher:1.10.3'
     testCompile 'org.mockito:mockito-core:2.28.2'
