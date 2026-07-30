@@ -1,5 +1,6 @@
 package levosilimo.everlastingskins;
 
+import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
@@ -33,6 +34,7 @@ public class EverlastingSkins {
     public void preInit(FMLPreInitializationEvent event) {
         ForgePermissionService.registerNodes(event);
         MinecraftForge.EVENT_BUS.register(this);
+        PlaceholderApiHook.tryRegister();
     }
 
     @Mod.EventHandler
