@@ -251,7 +251,21 @@ public class SkinCommand extends CommandBase {
                 throw new CompletionException(e);
             }
             return sp;
-        }, EXECUTOR).whenComplete((sp, err) -> {
+        }, EXECUTOR);
+
+        final ScheduledFuture<?> timeoutFuture = EXECUTOR.schedule(() -> {
+            if (future.completeExceptionally(new TimeoutException("Skin fetch timeout"))) {
+                EverlastingSkins.logger.error("Skin fetch timeout");
+                for (EntityPlayerMP p : targets) {
+                    p.sendMessage(new TextComponentString(PREFIX + "Skin fetch timeout"));
+                }
+            }
+        }, 10, TimeUnit.SECONDS);
+
+        future.whenComplete((sp, err) -> {
+            if (timeoutFuture != null) {
+                timeoutFuture.cancel(false);
+            }
             if (err != null) {
                 EverlastingSkins.logger.error("Skin process error", err);
                 for (EntityPlayerMP p : targets) {
@@ -294,15 +308,6 @@ public class SkinCommand extends CommandBase {
                 SkinRestorer.getServer().addScheduledTask(() -> task(p));
             }
         });
-
-        EXECUTOR.schedule(() -> {
-            if (future.completeExceptionally(new TimeoutException("Skin fetch timeout"))) {
-                EverlastingSkins.logger.error("Skin fetch timeout");
-                for (EntityPlayerMP p : targets) {
-                    p.sendMessage(new TextComponentString(PREFIX + "Skin fetch timeout"));
-                }
-            }
-        }, 10, TimeUnit.SECONDS);
     }
 
     private void task(EntityPlayerMP player) {
