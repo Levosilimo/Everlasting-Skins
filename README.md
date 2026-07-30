@@ -60,6 +60,24 @@ Skins are stored as one JSON file per player in `world/EverlastingSkins/<uuid>.j
 - Other skin mods that modify player GameProfiles are incompatible.
 - Anti-cheat plugins may need to whitelist skin-related packet sequences.
 
+## 🧩 Hybrid Server Compatibility
+
+The PlaceholderAPI and DiscordSRV integrations only activate on hybrid Forge+Bukkit
+servers (Mohist, Magma, Arclight, CatServer). On pure Forge servers (the primary
+target), these integrations are non-functional.
+
+To enable PlaceholderAPI on a hybrid server:
+1. Install PlaceholderAPI on the Bukkit side
+2. Place this mod (EverlastingSkins) in the mods folder
+3. Placeholders like `%everlastingskins_skin_source%` will resolve to the player's
+   current skin source
+
+To enable DiscordSRV announcements:
+1. Install DiscordSRV on the Bukkit side
+2. Configure the channel ID in the mod config: `discordsrv_channel_id = "123456789"`
+3. Set `discordsrv_enabled = true` in the mod config
+4. Skin changes will be announced to the configured Discord channel
+
 ## 🔨 Building from Source
 
 Requires JDK 21 and Gradle (via the wrapper):
