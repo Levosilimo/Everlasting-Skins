@@ -57,8 +57,8 @@ repositories {
 dependencies {
     // LuckPerms soft-dependency (compile-only)
     provided 'net.luckperms:api:5.5'
-    compile 'me.clip:placeholderapi:2.11.6'
-    compile 'com.discordsrv:discordsrv:1.28.0'
+    provided 'me.clip:placeholderapi:2.11.6'
+    provided 'com.discordsrv:discordsrv:1.28.0'
     compile 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
 
     // JUnit 5 for test source set
@@ -67,6 +67,8 @@ dependencies {
     testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.10.3'
     testRuntime 'org.junit.platform:junit-platform-launcher:1.10.3'
     testCompile 'org.mockito:mockito-inline:4.11.0'
+    testCompile 'me.clip:placeholderapi:2.11.6'
+    testCompile 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
 }
 
 test {

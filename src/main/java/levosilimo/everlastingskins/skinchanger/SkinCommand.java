@@ -4,6 +4,7 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -268,6 +269,7 @@ public class SkinCommand extends CommandBase {
                 EverlastingSkins.logger.info("Skin cleared for player(s) — no Mojang profile found");
                 for (EntityPlayerMP p : targets) {
                     SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), null);
+                    DiscordSrvHook.announceSkinChange(p, "default");
                     if (Config.TOGGLE) {
                         p.sendMessage(new TextComponentString(PREFIX + "Skin cleared (no Mojang profile found)"));
                     }
@@ -280,6 +282,7 @@ public class SkinCommand extends CommandBase {
             boolean isRestore = (type == SkinActionType.clear);
             for (EntityPlayerMP p : targets) {
                 SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
+                DiscordSrvHook.announceSkinChange(p, sp.getSource());
                 if (Config.TOGGLE) {
                     String msg = isRestore
                         ? "Skin restored from " + sp.getSource()
