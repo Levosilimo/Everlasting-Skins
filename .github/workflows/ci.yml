@@ -1,0 +1,82 @@
+name: CI
+
+"on":
+  push:
+    branches: ["1.21", "mc1.12.2"]
+  pull_request:
+    branches: ["1.21", "mc1.12.2"]
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.daemon=false
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: java-21
+            branch: "1.21"
+            java-version: 21
+            java-distribution: temurin
+          - name: java-8
+            branch: "mc1.12.2"
+            java-version: 8
+            java-distribution: temurin
+    # Run only the matrix entry whose branch matches the triggering push/PR target.
+    # Matrix context is available in job-level if.
+    if: |
+      (github.event_name == 'push' && github.ref_name == matrix.branch) ||
+      (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: ${{ matrix.java-distribution }}
+
+      # Cache Gradle wrapper distributions and ForgeGradle/Maven dependencies.
+      # The modules-2 directory caches heavy ForgeGradle dependency downloads.
+      - name: Cache Gradle wrapper and caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Grant execute permission for gradlew
+        # gradlew may be non-executable on Linux due to CRLF line endings in the repo
+        run: chmod +x gradlew
+
+      # 1.12.2 builds may encounter HTTP 400 on Mojang asset downloads.
+      # ForgeGradle can tolerate these with a continue-on-failure flag if available.
+      # The --no-daemon flag ensures clean JVM exit on self-hosted runners.
+      - name: Build and test
+        run: ./gradlew test --no-daemon
+
+      - name: Run aislop scanner (informational)
+        # Does not block — the pre-commit hook enforces local enforcement.
+        continue-on-error: true
+        run: |
+          if command -v bunx &> /dev/null; then
+            bunx aislop scan
+          elif command -v npx &> /dev/null; then
+            npx aislop scan
+          else
+            echo "aislop skipped: neither bunx nor npx on PATH"
+          fi
+
+      - name: Upload built jar
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: everlasting-skins-${{ matrix.name }}-${{ github.sha }}
+          path: |
+            build/libs/*.jar
