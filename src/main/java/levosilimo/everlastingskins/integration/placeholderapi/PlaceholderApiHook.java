@@ -1,0 +1,24 @@
+package levosilimo.everlastingskins.integration.placeholderapi;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public final class PlaceholderApiHook {
+    private static final Logger LOGGER = LogManager.getLogger();
+    private static boolean registered = false;
+
+    public static void tryRegister() {
+        if (registered) return;
+        try {
+            Class<?> papiClass = Class.forName("me.clip.placeholderapi.PlaceholderAPI");
+            boolean enabled = (boolean) papiClass.getMethod("isPlaceholderAPIOnServer").invoke(null);
+            if (!enabled) { LOGGER.debug("PlaceholderAPI not enabled; skipping"); return; }
+            new EverlastingSkinsExpansion().register();
+            registered = true;
+            LOGGER.info("PlaceholderAPI expansion registered: %everlastingskins_*");
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
+            LOGGER.debug("PlaceholderAPI not present; skipping");
+        }
+    }
+    static boolean isRegistered() { return registered; }
+}
