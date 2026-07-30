@@ -1,6 +1,6 @@
 name: Publish
 
-"on":
+on:
   push:
     tags:
       - 'mc1.21-v*'
