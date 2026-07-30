@@ -44,3 +44,6 @@ librarian-output-*.json
 # HeadlessMC launcher JAR (download binary, not part of source)
 test-infrastructure/headlessmc/
 .trees/
+
+# Agent artifacts
+IMPLEMENTATION_PLAN.md
