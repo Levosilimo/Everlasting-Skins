@@ -9,6 +9,10 @@ import java.util.UUID;
 
 public class LuckPermsPermissionService implements IPermissionService {
 
+    // LP optional dependency: mcmod.info does not support optional dependency
+    // declarations. The reflection-only pattern (Class.forName) is the only
+    // mechanism for soft-integration on Forge 1.12.2.
+
     private static final Logger LOGGER = LogManager.getLogger();
     private final Object luckPermsApi;
     private final Object userManager;
@@ -38,16 +42,24 @@ public class LuckPermsPermissionService implements IPermissionService {
 
     @Override
     public boolean hasPermission(EntityPlayerMP player, String permissionNode) {
+        if (luckPermsApi == null || userManager == null) {
+            return false;
+        }
         try {
             UUID uuid = player.getUniqueID();
-            Method loadUserMethod = userManager.getClass().getMethod("loadUser", UUID.class);
-            Object userFuture = loadUserMethod.invoke(userManager, uuid);
-
-            Method joinMethod = userFuture.getClass().getMethod("join");
-            Object user = joinMethod.invoke(userFuture);
-
-            if (user == null) {
+            Method isLoadedMethod = userManager.getClass().getMethod("isLoaded", UUID.class);
+            Boolean isLoaded = (Boolean) isLoadedMethod.invoke(userManager, uuid);
+            Object user = null;
+            if (Boolean.TRUE.equals(isLoaded)) {
+                Method getUserMethod = userManager.getClass().getMethod("getUser", UUID.class);
+                user = getUserMethod.invoke(userManager, uuid);
+            } else {
+                LOGGER.debug("LP user {} not pre-loaded, skipping async load", uuid);
                 return false;
+            }
+            if (user == null) {
+                LOGGER.warn("LP user {} returned null from getUser, falling back to vanilla", uuid);
+                return vanillaFallback(player, permissionNode);
             }
 
             Method getCachedDataMethod = user.getClass().getMethod("getCachedData");
@@ -55,8 +67,13 @@ public class LuckPermsPermissionService implements IPermissionService {
 
             Class<?> cachedDataClass = Class.forName("net.luckperms.api.cacheddata.CachedPermissionData");
             Class<?> tristateClass = Class.forName("net.luckperms.api.util.Tristate");
-            Method getPermissionDataMethod = cachedDataClass.getMethod("getPermissionData");
-            Object permissionData = getPermissionDataMethod.invoke(cachedData);
+            Class<?> queryOptionsClass = Class.forName("net.luckperms.api.query.QueryOptions");
+
+            Method defaultOfMethod = queryOptionsClass.getMethod("defaultContextualOptions");
+            Object defaultQueryOptions = defaultOfMethod.invoke(null);
+
+            Method getPermissionDataMethod = cachedDataClass.getMethod("getPermissionData", queryOptionsClass);
+            Object permissionData = getPermissionDataMethod.invoke(cachedData, defaultQueryOptions);
 
             Method checkPermissionMethod = permissionData.getClass().getMethod("checkPermission", String.class);
             Object tristate = checkPermissionMethod.invoke(permissionData, permissionNode);
@@ -67,6 +84,10 @@ public class LuckPermsPermissionService implements IPermissionService {
             LOGGER.debug("LuckPerms permission check failed for node {}: {}", permissionNode, e.getMessage());
             return false;
         }
+    }
+
+    private boolean vanillaFallback(EntityPlayerMP player, String permissionNode) {
+        return player.canUseCommand(2, "everlastingskins");
     }
 
     @Override
