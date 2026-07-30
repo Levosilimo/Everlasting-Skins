@@ -188,8 +188,17 @@ jobs:
       - name: Download HMCSpecifics
         run: |
           curl -fL -o "${{ env.MODS_DIR }}/hmc-specifics.jar" \
-            "https://github.com/headlesshq/hmc-specifics/releases/download/2.4.0/hmc-specifics-1.21-2.4.0-lexforge-release.jar" \
+            "https://github.com/headlesshq/hmc-specifics/releases/download/1.21-latest/hmc-specifics-1.21-forge-latest.jar" \
             || (echo "ERROR: HMCSpecifics download failed - E2E requires it"; exit 1)
+      - name: Clear HeadlessMC forge cache
+        run: |
+          echo "Clearing HeadlessMC forge version cache to force re-download of Forge 51.0.24..."
+          rm -rf "$HOME/.minecraft/versions/1.21-forge-"* 2>/dev/null || true
+          rm -rf "$HOME/.minecraft/versions/forge-1.21-"* 2>/dev/null || true
+          rm -rf "$HOME/.minecraft/libraries/net/minecraftforge/forge/1.21-"* 2>/dev/null || true
+          rm -rf "${{ github.workspace }}/headlessmc-run/versions/1.21-forge-"* 2>/dev/null || true
+          rm -rf "${{ github.workspace }}/headlessmc-run/versions/forge-1.21-"* 2>/dev/null || true
+          echo "Done clearing cache"
       - name: Configure HeadlessMC (skin-set-mojang)
         run: |
           {
@@ -205,6 +214,11 @@ jobs:
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
           } > "${{ env.HMC_DIR }}/config.properties"
+      - name: Pre-install Forge 51.0.24 for HeadlessMC client
+        run: |
+          cd "${{ env.HMC_DIR }}"
+          java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+            --command "forge 1.21 --uid 51.0.24" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-forge-install.log"
       - name: Run E2E scenario - skin-set-mojang
         run: |
           cd "${{ env.HMC_DIR }}"
