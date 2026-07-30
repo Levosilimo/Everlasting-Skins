@@ -96,6 +96,19 @@ minecraft {
             property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
             property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
         }
+
+        client2 {
+            parent runs.client
+            taskName 'runClient2'
+            workingDirectory project.file(project.findProperty('mc.runDir2') ?: 'run2')
+            args '--username', 'PlayerB'
+            args '--uuid', 'd1b05a3e-9909-3e16-95e5-7eef2d6c713b'
+            mods {
+                everlastingskins {
+                    source sourceSets.main
+                }
+            }
+        }
     }
 }
 
