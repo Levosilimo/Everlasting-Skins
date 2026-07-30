@@ -44,3 +44,6 @@ run2/
 
 # HeadlessMC launcher JAR (download binary, not part of source)
 test-infrastructure/headlessmc/
+
+# Agent artifacts
+IMPLEMENTATION_PLAN.md
