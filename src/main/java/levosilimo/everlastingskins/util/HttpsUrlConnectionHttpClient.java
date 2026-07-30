@@ -26,7 +26,8 @@ public class HttpsUrlConnectionHttpClient implements HttpClient {
         URL url = uri.toURL();
 
         // Ensure we're never sending a request to a non-HTTPS URL.
-        if (!url.getProtocol().equals("https")) {
+        // Allow HTTP when the system property everlastingskins.allowHttp is true (E2E tests with WireMock).
+        if (!url.getProtocol().equals("https") && !Boolean.getBoolean("everlastingskins.allowHttp")) {
             throw new IOException("Only HTTPS is supported.");
         }
 
