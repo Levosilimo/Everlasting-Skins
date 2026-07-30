@@ -24,3 +24,10 @@ server/
 
 # Magic Context sentinel artifacts
 .cortexkit/
+
+# Research artifacts
+research_*.json
+research_*.md
+forge-installer-dl*.log
+*.tmp
+*output.json
