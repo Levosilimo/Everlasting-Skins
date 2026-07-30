@@ -1,10 +1,11 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.server.level.ServerPlayer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -58,9 +59,8 @@ class PermissionServiceManagerTest {
     @DisplayName("hasPermission before init falls back to Vanilla")
     void hasPermission_beforeInit_returnsFallback() {
         PermissionServiceManager.reset();
-        ServerPlayer mockPlayer = mock(ServerPlayer.class);
-        when(mockPlayer.hasPermissions(2)).thenReturn(true);
-        assertTrue(PermissionServiceManager.hasPermission(mockPlayer, "any.node"));
+        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), true);
+        assertTrue(PermissionServiceManager.hasPermission(ctx, "any.node"));
     }
 
     @Test

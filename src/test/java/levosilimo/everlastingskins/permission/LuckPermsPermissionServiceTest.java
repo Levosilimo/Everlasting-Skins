@@ -8,7 +8,6 @@ import net.luckperms.api.UserManager;
 import net.luckperms.api.cacheddata.CachedPermissionData;
 import net.luckperms.api.query.QueryOptions;
 import net.luckperms.api.util.Tristate;
-import net.minecraft.server.level.ServerPlayer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,18 +61,16 @@ class LuckPermsPermissionServiceTest {
     @DisplayName("hasPermission returns true for granted node")
     void hasPermission_granted_returnsTrue() {
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
-        ServerPlayer mockPlayer = mock(ServerPlayer.class);
-        when(mockPlayer.getUUID()).thenReturn(uuid);
-        assertTrue(service.hasPermission(mockPlayer, "everlastingskins.command.skin"));
+        PermissionContext ctx = PermissionContext.of(uuid, false);
+        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin"));
     }
 
     @Test
     @DisplayName("hasPermission returns false for denied node")
     void hasPermission_denied_returnsFalse() {
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
-        ServerPlayer mockPlayer = mock(ServerPlayer.class);
-        when(mockPlayer.getUUID()).thenReturn(uuid);
-        assertFalse(service.hasPermission(mockPlayer, "other.node"));
+        PermissionContext ctx = PermissionContext.of(uuid, false);
+        assertFalse(service.hasPermission(ctx, "other.node"));
     }
 
     @Test

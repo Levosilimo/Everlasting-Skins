@@ -1,9 +1,8 @@
 package levosilimo.everlastingskins.permission.forge;
 
 import levosilimo.everlastingskins.permission.IPermissionService;
+import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.permission.PermissionAPI;
 import net.minecraftforge.server.permission.events.PermissionGatherEvent;
 import net.minecraftforge.server.permission.nodes.PermissionNode;
@@ -40,7 +39,7 @@ public class ForgePermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(ServerPlayer player, String permissionNode) {
+    public boolean hasPermission(PermissionContext context, String permissionNode) {
         PermissionNode<Boolean> node;
         if (permissionNode.endsWith(".skin.other")) {
             node = SKIN_OTHER_NODE;
@@ -54,9 +53,9 @@ public class ForgePermissionService implements IPermissionService {
             node = SKIN_NODE;
         }
         try {
-            return PermissionAPI.getPermission(player, node);
+            return PermissionAPI.getOfflinePermission(context.uuid(), node);
         } catch (Exception e) {
-            return true;
+            return context.isOp();
         }
     }
 

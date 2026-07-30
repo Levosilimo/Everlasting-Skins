@@ -9,6 +9,7 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -74,7 +75,9 @@ public class SkinCommand {
 
     private static boolean canTargetOthers(CommandSourceStack source) {
         ServerPlayer player = source.getPlayer();
-        return player != null && PermissionServiceManager.hasPermission(player, "everlastingskins.command.skin.other");
+        if (player == null) return false;
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player.hasPermissions(2));
+        return PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin.other");
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> buildSourceSubcommand() {
@@ -241,7 +244,8 @@ public class SkinCommand {
 
         boolean targetingOthers = params.targets().stream().anyMatch(t -> !t.equals(selfPlayer));
         String requiredNode = resolvePermissionNode(params.type(), targetingOthers);
-        if (!PermissionServiceManager.hasPermission(selfPlayer, requiredNode)) {
+        PermissionContext ctx = PermissionContext.of(selfPlayer.getUUID(), selfPlayer.hasPermissions(2));
+        if (!PermissionServiceManager.hasPermission(ctx, requiredNode)) {
             context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " Permission denied"));
             return 0;
         }

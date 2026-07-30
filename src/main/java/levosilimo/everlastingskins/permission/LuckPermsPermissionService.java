@@ -1,6 +1,6 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.server.level.ServerPlayer;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,12 +37,12 @@ public class LuckPermsPermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(ServerPlayer player, String permissionNode) {
+    public boolean hasPermission(PermissionContext context, String permissionNode) {
         if (luckPermsApi == null || userManager == null) {
             return false;
         }
         try {
-            UUID uuid = player.getUUID();
+            UUID uuid = context.uuid();
             Method isLoadedMethod = userManager.getClass().getMethod("isLoaded", UUID.class);
             Boolean isLoaded = (Boolean) isLoadedMethod.invoke(userManager, uuid);
             Object user = null;
@@ -54,8 +54,8 @@ public class LuckPermsPermissionService implements IPermissionService {
                 return false;
             }
             if (user == null) {
-                LOGGER.warn("LP user {} returned null from getUser, falling back to vanilla", uuid);
-                return vanillaFallback(player, permissionNode);
+                LOGGER.warn("LP user {} returned null from getUser, falling back to op status", uuid);
+                return context.isOp();
             }
 
             Method getCachedDataMethod = user.getClass().getMethod("getCachedData");
@@ -80,10 +80,6 @@ public class LuckPermsPermissionService implements IPermissionService {
             LOGGER.debug("LuckPerms permission check failed for node {}: {}", permissionNode, e.getMessage());
             return false;
         }
-    }
-
-    private boolean vanillaFallback(ServerPlayer player, String permissionNode) {
-        return player.hasPermissions(2);
     }
 
     @Override

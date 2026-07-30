@@ -1,11 +1,11 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.server.level.ServerPlayer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 class VanillaPermissionServiceTest {
 
@@ -32,25 +32,21 @@ class VanillaPermissionServiceTest {
     @Test
     @DisplayName("OP player has permission")
     void hasPermission_opPlayer_returnsTrue() {
-        ServerPlayer mockPlayer = mock(ServerPlayer.class);
-        when(mockPlayer.hasPermissions(2)).thenReturn(true);
-        assertTrue(service.hasPermission(mockPlayer, "any.node"));
+        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), true);
+        assertTrue(service.hasPermission(ctx, "any.node"));
     }
 
     @Test
     @DisplayName("Non-OP player lacks permission")
     void hasPermission_nonOpPlayer_returnsFalse() {
-        ServerPlayer mockPlayer = mock(ServerPlayer.class);
-        when(mockPlayer.hasPermissions(2)).thenReturn(false);
-        assertFalse(service.hasPermission(mockPlayer, "any.node"));
+        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), false);
+        assertFalse(service.hasPermission(ctx, "any.node"));
     }
 
     @Test
-    @DisplayName("OP level 1 is insufficient")
-    void hasPermission_opLevel1_returnsFalse() {
-        ServerPlayer mockPlayer = mock(ServerPlayer.class);
-        when(mockPlayer.hasPermissions(2)).thenReturn(false);
-        when(mockPlayer.hasPermissions(1)).thenReturn(true);
-        assertFalse(service.hasPermission(mockPlayer, "any.node"));
+    @DisplayName("Source node is always granted regardless of op status")
+    void hasPermission_sourceNode_returnsTrueForNonOp() {
+        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), false);
+        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.source"));
     }
 }

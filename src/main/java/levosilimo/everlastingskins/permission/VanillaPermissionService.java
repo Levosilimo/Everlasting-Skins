@@ -1,14 +1,13 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.server.level.ServerPlayer;
-
 public class VanillaPermissionService implements IPermissionService {
 
     private static final int REQUIRED_OP_LEVEL = 2;
 
     @Override
-    public boolean hasPermission(ServerPlayer player, String permissionNode) {
-        return player.hasPermissions(REQUIRED_OP_LEVEL);
+    public boolean hasPermission(PermissionContext context, String permissionNode) {
+        if (permissionNode.endsWith(".source")) return true;
+        return context.isOp();
     }
 
     @Override

@@ -1,11 +1,13 @@
 package levosilimo.everlastingskins.permission.forge;
 
-import net.minecraft.server.level.ServerPlayer;
+import levosilimo.everlastingskins.permission.PermissionContext;
 import net.minecraftforge.server.permission.PermissionAPI;
 import net.minecraftforge.server.permission.events.PermissionGatherEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
@@ -17,11 +19,12 @@ class ForgePermissionServiceTest {
     @DisplayName("hasPermission returns true when PermissionAPI grants it")
     void hasPermission_granted_returnsTrue() {
         try (MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
-            ServerPlayer mockPlayer = mock(ServerPlayer.class);
-            api.when(() -> PermissionAPI.getPermission(eq(mockPlayer), eq(ForgePermissionService.SKIN_NODE)))
+            UUID uuid = UUID.randomUUID();
+            PermissionContext ctx = PermissionContext.of(uuid, false);
+            api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.SKIN_NODE)))
                .thenReturn(true);
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(mockPlayer, "everlastingskins.command.skin"));
+            assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin"));
         }
     }
 
@@ -29,11 +32,12 @@ class ForgePermissionServiceTest {
     @DisplayName("hasPermission returns false when PermissionAPI denies it")
     void hasPermission_denied_returnsFalse() {
         try (MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
-            ServerPlayer mockPlayer = mock(ServerPlayer.class);
-            api.when(() -> PermissionAPI.getPermission(eq(mockPlayer), eq(ForgePermissionService.SKIN_NODE)))
+            UUID uuid = UUID.randomUUID();
+            PermissionContext ctx = PermissionContext.of(uuid, false);
+            api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.SKIN_NODE)))
                .thenReturn(false);
             ForgePermissionService service = new ForgePermissionService();
-            assertFalse(service.hasPermission(mockPlayer, "everlastingskins.command.skin"));
+            assertFalse(service.hasPermission(ctx, "everlastingskins.command.skin"));
         }
     }
 
@@ -41,11 +45,12 @@ class ForgePermissionServiceTest {
     @DisplayName("hasPermission maps .skin.other to SKIN_OTHER_NODE")
     void hasPermission_otherNode_mapsCorrectly() {
         try (MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
-            ServerPlayer mockPlayer = mock(ServerPlayer.class);
-            api.when(() -> PermissionAPI.getPermission(eq(mockPlayer), eq(ForgePermissionService.SKIN_OTHER_NODE)))
+            UUID uuid = UUID.randomUUID();
+            PermissionContext ctx = PermissionContext.of(uuid, false);
+            api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.SKIN_OTHER_NODE)))
                .thenReturn(true);
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(mockPlayer, "everlastingskins.command.skin.other"));
+            assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.other"));
         }
     }
 
@@ -53,7 +58,8 @@ class ForgePermissionServiceTest {
     @DisplayName("hasPermission .skin.source always returns true")
     void hasPermission_sourceNode_returnsTrue() {
         ForgePermissionService service = new ForgePermissionService();
-        assertTrue(service.hasPermission(mock(ServerPlayer.class), "everlastingskins.command.skin.source"));
+        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), false);
+        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.source"));
     }
 
     @Test
