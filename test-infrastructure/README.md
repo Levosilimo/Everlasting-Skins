@@ -9,29 +9,21 @@ HeadlessMC-based end-to-end test scenarios for EverlastingSkins. Tests simulate 
 java -version
 
 # Run a scenario
-java -jar headlessmc/headlessmc-launcher-wrapper.jar \
+java -jar test-infrastructure/headlessmc/headlessmc-launcher-wrapper.jar \
   --command test-infrastructure/scenarios/skin-set-mojang.json
 ```
 
 ## Install HeadlessMC
 
-The launcher wrapper JAR is bundled at `headlessmc/headlessmc-launcher-wrapper.jar` (v2.10.0).
-
-To download the latest version:
+The launcher wrapper JAR is v2.10.0. Download it before running locally:
 
 ```bash
-curl -L -o headlessmc/headlessmc-launcher-wrapper.jar \
-  "https://github.com/headlesshq/headlessmc/releases/latest/download/headlessmc-launcher-wrapper.jar"
+mkdir -p test-infrastructure/headlessmc
+curl -L -o test-infrastructure/headlessmc/headlessmc-launcher-wrapper.jar \
+  "https://github.com/headlesshq/headlessmc/releases/download/2.10.0/headlessmc-launcher-wrapper-2.10.0.jar"
 ```
 
 HeadlessMC supports Forge from 1.7.10 through 1.21.5+. Use the `-lwjgl` flag for headless LWJGL mode on servers that require a GL context.
-
-## Local development workflow
-
-1. Build the mod: `./gradlew build --no-daemon`
-2. Copy the built JAR to the server test environment
-3. Run the scenario against a local Forge server with the mod installed
-4. Check exit code (0 = pass, non-zero = assertion failure)
 
 ## Scenario JSON format
 
@@ -56,7 +48,7 @@ Each scenario file follows this structure:
 
 ## Adding scenarios
 
-1. Create a new JSON file in `scenarios/`
+1. Create a new JSON file in `test-infrastructure/scenarios/`
 2. Add descriptive steps that exercise the feature
 3. Run locally to verify
 4. Add the scenario path to the CI workflow's `scenario` input
@@ -75,5 +67,3 @@ The E2E job runs on the `headlesshq/mc-runtime-test` GitHub Action (v4.5.1):
     cache-mc: 'github'
     scenario: 'test-infrastructure/scenarios/skin-set-mojang.json'
 ```
-
-The job depends on the `build` job and runs only after a successful build.

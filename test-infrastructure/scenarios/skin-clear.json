@@ -1,6 +1,6 @@
 {
   "name": "Clear Skin to Default",
-  "description": "Verifies /skin clear resets the player to default skin",
+  "description": "Verifies that /skin clear resets the player to their default (UUID-hash based) skin",
   "type": "RUNS",
   "config": {
     "accountType": "offline",
@@ -8,12 +8,12 @@
   },
   "steps": [
     {"type": "ENDS_WITH", "message": "For help, type \"help\""},
-    {"type": "WAIT", "timeout": 10},
-    {"type": "SEND", "message": "/skin set mojang Notch"},
     {"type": "WAIT", "timeout": 5},
+    {"type": "SEND", "message": "/skin set mojang Notch"},
+    {"type": "WAIT", "timeout": 3},
     {"type": "SEND", "message": "/skin clear"},
     {"type": "CONTAINS", "message": "cleared"},
     {"type": "SEND", "message": "/skin source"},
-    {"type": "CONTAINS", "message": "TestPlayer"}
+    {"type": "CONTAINS", "message": "default"}
   ]
 }

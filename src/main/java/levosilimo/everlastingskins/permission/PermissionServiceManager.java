@@ -51,6 +51,12 @@ public class PermissionServiceManager {
         return activeService.hasPermission(context, node);
     }
 
+    /* package-private for testing */
+    static void reset() {
+        activeService = null;
+        initialized = false;
+    }
+
     public static String getActiveBackendName() {
         return activeService != null ? activeService.getActiveBackendName() : "Not initialized";
     }

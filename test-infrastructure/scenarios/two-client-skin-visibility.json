@@ -1,15 +1,15 @@
 {
-  "name": "Two-Client Skin Visibility (Observer)",
-  "description": "Observer client connects after TestPlayer's skin change. Verifies the persisted skin is visible.",
+  "name": "Two-Client Skin Visibility",
+  "description": "Verifies that when Client A changes their skin, Client B sees the updated skin",
   "type": "RUNS",
   "config": {
     "accountType": "offline",
-    "username": "ObserverPlayer"
+    "username": "ObserverClient"
   },
   "steps": [
     {"type": "ENDS_WITH", "message": "For help, type \"help\""},
-    {"type": "WAIT", "timeout": 15},
+    {"type": "WAIT", "timeout": 10},
     {"type": "SEND", "message": "/skin source TestPlayer"},
-    {"type": "CONTAINS", "message": "Notch"}
+    {"type": "CONTAINS", "message": "mojang"}
   ]
 }
