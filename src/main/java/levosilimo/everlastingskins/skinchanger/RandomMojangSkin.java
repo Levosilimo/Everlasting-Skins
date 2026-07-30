@@ -3,6 +3,7 @@ package levosilimo.everlastingskins.skinchanger;
 import com.google.gson.JsonObject;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.util.EndpointsConfig;
+import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.JsonUtils;
@@ -122,7 +123,7 @@ public class RandomMojangSkin {
             JsonObject decodedJSON = JsonUtils.parseJson(decodedSTR);
             return decodedJSON.getAsJsonObject("textures").has("CAPE");
         } catch (IOException e) {
-            e.printStackTrace();
+            EverlastingSkins.logger.error("Failed to check cape for {}", username, e);
             return false;
         }
     }
@@ -133,7 +134,7 @@ public class RandomMojangSkin {
             JsonObject decodedJSON = JsonUtils.parseJson(decodedSTR);
             return decodedJSON.getAsJsonObject("textures").getAsJsonObject("SKIN").has("metadata");
         } catch (IOException e) {
-            e.printStackTrace();
+            EverlastingSkins.logger.error("Failed to check slim variant for {}", username, e);
             return false;
         }
     }

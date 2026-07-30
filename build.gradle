@@ -61,6 +61,9 @@ dependencies {
     provided 'com.discordsrv:discordsrv:1.30.5'
     compile 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
 
+    // Apache HttpClient for HTTP transport
+    compile 'org.apache.httpcomponents:httpclient:4.5.13'
+
     // JUnit 5 for test source set
     testCompile 'org.junit.jupiter:junit-jupiter-api:5.10.3'
     testCompile 'org.junit.jupiter:junit-jupiter-params:5.10.3'
