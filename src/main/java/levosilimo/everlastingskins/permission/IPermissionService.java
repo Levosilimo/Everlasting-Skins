@@ -1,10 +1,8 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.entity.player.EntityPlayerMP;
-
 public interface IPermissionService {
 
-    boolean hasPermission(EntityPlayerMP player, String permissionNode);
+    boolean hasPermission(PermissionContext context, String permissionNode);
 
     String getActiveBackendName();
 

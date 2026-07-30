@@ -1,6 +1,6 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.entity.player.EntityPlayerMP;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,11 +44,11 @@ public class PermissionServiceManager {
         }
     }
 
-    public static boolean hasPermission(EntityPlayerMP player, String node) {
+    public static boolean hasPermission(PermissionContext context, String node) {
         if (!initialized) {
-            return new VanillaPermissionService().hasPermission(player, node);
+            return new VanillaPermissionService().hasPermission(context, node);
         }
-        return activeService.hasPermission(player, node);
+        return activeService.hasPermission(context, node);
     }
 
     public static String getActiveBackendName() {
