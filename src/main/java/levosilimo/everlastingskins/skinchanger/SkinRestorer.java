@@ -10,16 +10,18 @@ import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 
 public class SkinRestorer {
 
     // Singleton storage instance, initialised via constructor injection in onInitializeServer.
-    private static SkinStorage skinStorage;
-    private static SkinIO skinIO;
-    public static MinecraftServer server;
+    private static volatile SkinStorage skinStorage;
+    private static volatile SkinIO skinIO;
+    public static volatile MinecraftServer server;
 
+    @Nullable
     public static SkinStorage getSkinStorage() {
         return skinStorage;
     }

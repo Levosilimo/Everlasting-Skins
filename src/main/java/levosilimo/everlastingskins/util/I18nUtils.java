@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 public final class I18nUtils {
     private static volatile I18nUtils INSTANCE;
+    private static volatile boolean initialized = false;
 
     private static final Map<String, Map<String, String>> localizedStrings = new HashMap<>();
     static {
@@ -56,14 +57,28 @@ public final class I18nUtils {
     }
 
     private I18nUtils() {
-        Path localizationsDir = SkinRestorer.server.getServerDirectory().resolve("config/EverlastingSkins/");
-        try {
-            Files.createDirectories(localizationsDir);
-        } catch (IOException e) {
-            EverlastingSkins.logger.error("Failed to create i18n directory.", e);
+        // Defer directory init to first use — SkinRestorer.server may not be set yet.
+    }
+
+    /** Lazily initialize the localization directory and load files. */
+    private static void ensureInitialized() {
+        if (initialized) return;
+        synchronized (I18nUtils.class) {
+            if (initialized) return;
+            if (SkinRestorer.server == null) {
+                EverlastingSkins.logger.warn("I18nUtils: server not available yet, using defaults");
+                return;
+            }
+            Path localizationsDir = SkinRestorer.server.getServerDirectory().resolve("config/EverlastingSkins/");
+            try {
+                Files.createDirectories(localizationsDir);
+            } catch (IOException e) {
+                EverlastingSkins.logger.error("Failed to create i18n directory.", e);
+            }
+            createLocalizationFiles(localizationsDir);
+            loadProperties(localizationsDir);
+            initialized = true;
         }
-        createLocalizationFiles(localizationsDir);
-        loadProperties(localizationsDir);
     }
 
     private void loadProperties(Path localizationsDir) {
@@ -111,6 +126,7 @@ public final class I18nUtils {
     }
 
     public String getLocalizedString(String key, String locale) {
+        ensureInitialized();
         Map<String, String> localizedMap = localizedStrings.get(locale);
         if (localizedMap != null) {
             return localizedMap.getOrDefault(key, key);

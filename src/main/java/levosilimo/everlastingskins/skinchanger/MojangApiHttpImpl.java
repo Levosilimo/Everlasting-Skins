@@ -198,12 +198,29 @@ public class MojangApiHttpImpl implements MojangAPI {
             return Optional.empty();
         }
 
-        PropertyResponse property = response.properties()[0];
-        if (property.value().isEmpty() || property.signature().isEmpty()) {
+        PropertyResponse property = findTextureProperty(response.properties());
+        if (property == null || property.value().isEmpty() || property.signature().isEmpty()) {
             return Optional.empty();
         }
 
         return Optional.of(new CustomSkinProperty(property.value(), property.signature(), lookup.username()));
+    }
+
+    @Nullable
+    private static PropertyResponse findTextureProperty(PropertyResponse[] properties) {
+        if (properties == null) return null;
+        for (PropertyResponse p : properties) {
+            if ("textures".equals(p.name())) {
+                return p;
+            }
+        }
+        // Fallback: first non-empty property
+        for (PropertyResponse p : properties) {
+            if (p.value() != null && !p.value().isEmpty()) {
+                return p;
+            }
+        }
+        return null;
     }
 
     protected Optional<CustomSkinProperty> getProfileMineTools(ProfileLookup lookup) {

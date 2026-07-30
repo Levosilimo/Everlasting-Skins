@@ -36,6 +36,9 @@ librarian-output-*.json
 # Build run directories
 run2/
 
+# Git worktrees
+.trees/
+
 # SDK man local config
 .sdkmanrc
 

@@ -54,11 +54,12 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     private final String apiKey;
 
     public MineSkinApiHttpImpl() {
-        this(new HttpsUrlConnectionHttpClient(), Config.MINESKIN_API_KEY.get());
+        this(new HttpsUrlConnectionHttpClient());
     }
 
     public MineSkinApiHttpImpl(HttpClient httpClient) {
-        this(httpClient, Config.MINESKIN_API_KEY.get());
+        this.httpClient = httpClient;
+        this.apiKey = null; // resolved lazily
     }
 
     public MineSkinApiHttpImpl(HttpClient httpClient, String apiKey) {
@@ -208,10 +209,15 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     }
 
     private Optional<String> getApiKey() {
-        if (apiKey.isEmpty() || apiKey.equals("key")) {
+        String key = this.apiKey;
+        if (key == null) {
+            key = Config.MINESKIN_API_KEY.get();
+            this.apiKey = key == null ? "" : key;
+        }
+        if (key.isEmpty() || key.equals("key")) {
             return Optional.empty();
         }
 
-        return Optional.of(apiKey);
+        return Optional.of(key);
     }
 }
