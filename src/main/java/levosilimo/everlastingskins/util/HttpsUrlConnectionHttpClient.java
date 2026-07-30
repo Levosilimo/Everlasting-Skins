@@ -71,18 +71,20 @@ public class HttpsUrlConnectionHttpClient implements HttpClient {
             throw new IOException("Failed to get input stream.");
         }
 
-        ByteArrayOutputStream byteData = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int read;
-        while ((read = is.read(buffer)) != -1) {
-            byteData.write(buffer, 0, read);
-        }
+        HttpResponse response;
+        try (InputStream in = is; ByteArrayOutputStream byteData = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                byteData.write(buffer, 0, read);
+            }
 
-        HttpResponse response = new HttpResponse(
-                connection.getResponseCode(),
-                byteData.toString(StandardCharsets.UTF_8),
-                connection.getHeaderFields()
-        );
+            response = new HttpResponse(
+                    connection.getResponseCode(),
+                    byteData.toString(StandardCharsets.UTF_8),
+                    connection.getHeaderFields()
+            );
+        }
 
         logger.debug("Response body: " + response.body()
                 .replace("\n", "")
