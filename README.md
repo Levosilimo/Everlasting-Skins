@@ -133,7 +133,3 @@ See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for development setup and contrib
 ## 💖 Support
 
 If you find this mod useful, consider sponsoring development via [GitHub Sponsors](https://github.com/sponsors/Levosilimo).
-
-
-
-// CI trigger Thu Jul 30 22:03:28 CEST 2026
