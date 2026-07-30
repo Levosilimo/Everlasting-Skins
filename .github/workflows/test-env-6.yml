@@ -1,0 +1,12 @@
+name: Test Env 6
+on:
+  push:
+    branches: ["1.21"]
+jobs:
+  test:
+    name: Env With Name
+    runs-on: ubuntu-latest
+    env:
+      X: y
+    steps:
+      - run: echo $X
