@@ -1,139 +1,99 @@
 # EverlastingSkins
 
-Server-side Minecraft Forge mod for persistent custom skins. Players can set their skin from a Mojang username, a URL via MineSkin, or a random selection — no client mod required.
+<!-- Badges: shield.io patterns. Live status unknown until CI runs first time; use static placeholder for now. -->
 
-## Supported versions
+Server-side Minecraft Forge mod for persistent custom skins. Players change their skin with `/skin` — no client mod required. Skins survive server restarts.
 
-| Branch | Minecraft | Forge | Java | Status |
-|--------|-----------|-------|------|--------|
-| `1.21` | 1.21 | 51.0.8 | 21 | Current reference implementation |
+## ✨ Features
 
-Planned: `mc1.12.2` (Forge 1.12.2, Java 8). Earlier versions are not supported; see [porting policy](AGENTS.md#porting-policy).
+- `/skin set mojang <name>` — apply any Mojang-registered username's skin
+- `/skin set web <classic|slim> <url>` — generate a skin from an image URL (MineSkin integration, config-gated)
+- `/skin set random` — apply a random skin
+- `/skin clear` — restore your Mojang-registered skin (or your UUID-hash default if offline)
+- `/skin source` — show which username/source your current skin is from
+- Skins persist across server restarts (per-player JSON files)
+- Server-side only — no client-side install needed
 
-## Installation
+## 📦 Installation
 
-1. Download the compiled JAR from [GitHub Releases](https://github.com/Levosilimo/EverlastingSkins/releases).
-2. Place it in your Forge server's `mods/` directory.
-3. Restart the server.
-4. (Optional) Configure a [MineSkin API key](#mineskin-api-key) in the server config file at `server/config/everlastingskins-common.toml`.
+1. Install [Forge for Minecraft 1.21](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.21.html).
+2. Download `EverlastingSkins-1.21-1.0.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
+3. Place the JAR in your server's `mods/` folder.
+4. Restart the server.
 
-No client-side installation is required. The mod operates entirely on the server.
-
-## Commands
-
-All commands use the `/skin` root. Arguments in `<>` are required; `[cape]` and `[variant]` are optional.
+## 🎮 Commands
 
 | Command | Permission | Description |
-|---------|------------|-------------|
-| `/skin set mojang <name> [targets…]` | 0 (self) / 3 (others) | Copy the skin from an existing Mojang account by username |
-| `/skin set web <classic\|slim> <url> [targets…]` | 0 (self) / 3 (others) | Generate a skin from an image URL via MineSkin |
-| `/skin set random [cape] [variant] [targets…]` | 0 (self) / 3 (others) | Apply a random skin from Mojang profiles |
-| `/skin clear [targets…]` | 0 (self) / 3 (others) | Reset to the default skin |
-| `/skin source [player]` | 0 | Show the origin of the current skin (Mojang username, URL, or "Skin is not set") |
+|---------|-----------|-------------|
+| `/skin set mojang <name>` | any | Apply a Mojang-registered skin by username |
+| `/skin set web <classic\|slim> <url>` | any | Apply a skin from an image URL (MineSkin, requires config) |
+| `/skin set random` | any | Apply a random skin |
+| `/skin clear` | any | Restore your Mojang skin or reset to default |
+| `/skin source` | any | Show your current skin source |
 
-**Variants:** `classic` (64×64, 4px arms), `slim` (64×64, 3px arms), `all` (either).
+## ⚙️ Configuration
 
-When an operator targets other players (`targets`), the command notifies each target with a message.
-
-## External services
-
-The mod contacts the following services over HTTPS:
-
-| Service | Purpose | Required |
-|---------|---------|----------|
-| `sessionserver.mojang.com` | Fetch profile textures by UUID (Mojang session server) | Yes |
-| `api.ashcon.app` (Eclipse) | UUID/username resolution and profile lookups (primary) | Yes |
-| `api.minetools.eu` | UUID/username resolution and profile lookups (fallback) | Yes |
-| `api.mineskin.org` | Convert uploaded image URLs into Minecraft skin textures | Only for `/skin set web` |
-| `mskins.net` | Random skin selection and cape lookup (HTML scraping) | No — feature-conditional |
-
-Provider fallback order for UUID/name resolution: Eclipse → Mojang → MineTools.
-
-## MineSkin API key
-
-`/skin set web` requires a MineSkin API key to avoid rate limits. Keys are free and can be obtained at [https://mineskin.org/apikeys](https://mineskin.org/apikeys).
-
-Set the key in `server/config/everlastingskins-common.toml`:
-
-```toml
-[Messages]
-key = "your-mineskin-api-key"
-```
-
-Leaving the key empty (`""`) uses the unauthenticated MineSkin endpoint, which is heavily rate-limited.
-
-## Storage
-
-### Skin data
-
-Per-player skin data is stored as individual JSON files:
-
-```
-<server-directory>/EverlastingSkins/<uuid>.json
-```
-
-Each file contains the player's texture property, signature, source string, and variant. Writes are not yet atomic — in-progress writes may produce partial files on crash.
-
-### Localization overrides
-
-Built-in localizations are provided for English (`en`), Russian (`ru`), and Ukrainian (`uk`). Override any string by placing a properties file at:
-
-```
-<server-directory>/config/EverlastingSkins/<locale-code>
-```
-
-Where `<locale-code>` matches one of `en`, `ru`, `uk`. The mod creates these files automatically on first run with the default values; edit them to override.
-
-The server language is set in the common config:
-
-```toml
-[Messages]
-localization = "en"
-```
-
-## Configuration
-
-All config values are in `server/config/everlastingskins-common.toml`:
+Config file: `world/serverconfig/everlastingskins-server.toml` (auto-generated on first run).
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `Messages.localization` | String | `"en"` | Language code (`en`, `ru`, `uk`) |
-| `Messages.display` | Boolean | `true` | Whether to show mod feedback messages in chat |
-| `Messages.key` | String | `""` | MineSkin API key for URL-based skin generation |
+| `messages.localization` | String | `en` | Language for mod messages |
+| `messages.display` | Boolean | `true` | Show skin application messages in chat |
+| `mineskin.key` | String | (empty) | MineSkin API key (required for `/skin set web`) |
+| `mineskin.enabled` | Boolean | `false` | Enable MineSkin URL-based skin generation |
 
-## Building from source
+## 🌐 External Services
 
-Requires JDK 21 and a network connection.
+| Service | Required | Used For |
+|---------|----------|----------|
+| Mojang Session Server | No (offline-mode supported) | Resolving usernames to skin data |
+| MineSkin API | No | Converting image URLs to skin textures |
+
+## 💾 Storage
+
+Skins are stored as one JSON file per player in `world/EverlastingSkins/<uuid>.json`. Writes are atomic. Files with corrupt JSON are quarantined as `.corrupt-<timestamp>` and a fresh entry is created on next save.
+
+## ⚠️ Compatibility
+
+- Forge 1.21 only. Not compatible with NeoForge or Fabric.
+- Server-side only — players do not need to install the mod.
+- Other skin mods that modify player GameProfiles are incompatible.
+- Anti-cheat plugins may need to whitelist skin-related packet sequences.
+
+## 🔨 Building from Source
+
+Requires JDK 21 and Gradle (via the wrapper):
 
 ```bash
-# Clone
-git clone https://github.com/Levosilimo/EverlastingSkins.git
-cd EverlastingSkins
-
-# The gradlew wrapper currently has CRLF line endings and is not executable
-# on Linux. Fix before first build:
-sed -i 's/\r$//' gradlew && chmod +x gradlew
-
-# Build
+git clone -b 1.21 https://github.com/Levosilimo/Everlasting-Skins
+cd Everlasting-Skins
 ./gradlew build
 ```
 
-The compiled JAR is at `build/libs/EverlastingSkins-1.21-1.0.jar`.
+Output: `build/libs/EverlastingSkins-1.21-1.0.jar`
 
-**Known issue:** The `gradlew` wrapper has CRLF line endings and a missing executable bit on checkout. This is tracked in Phase 0 of [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+## ❓ FAQ
 
-## License
+**Q: Why does my skin not change?**
+A: If `/skin set mojang <name>` reports "No skin found", the username may not exist on Mojang (typo, unverified account, or offline-mode username).
 
-MIT — see [gradle.properties](gradle.properties). (Note: `mods.toml` currently lists "All rights reserved"; this is a metadata inconsistency being reconciled.)
+**Q: Can I use this on a singleplayer (integrated) server?**
+A: Yes — the mod loads on integrated servers too. Open to LAN to test with others.
 
-## Contributing
+**Q: Does this work offline (no internet, online-mode=false)?**
+A: Yes. The mod uses the player's UUID-hash default skin. `/skin set mojang <name>` will fail if no internet, but the mod doesn't crash.
 
-See [AGENTS.md](AGENTS.md) for the product direction and porting policy, and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the phased development plan.
+**Q: How do I report a bug?**
+A: Open an issue at https://github.com/Levosilimo/Everlasting-Skins/issues with your Minecraft version, Forge version, mod version, and relevant server logs.
 
-This repository uses a pre-commit hook that runs `aislop scan --staged`. After cloning, run:
+## 📄 License
 
-```bash
-git config core.hooksPath .githooks
-```
+MIT License. See [LICENSE](LICENSE) for details.
 
-See [AGENTS.md#pre-commit-quality-gate](AGENTS.md#pre-commit-quality-gate) for details.
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for development setup and contribution guidelines.
+
+## 💖 Support
+
+If you find this mod useful, consider sponsoring development via [GitHub Sponsors](https://github.com/sponsors/Levosilimo).
