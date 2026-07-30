@@ -106,7 +106,7 @@ public class SkinCommand extends CommandBase {
         }
         UUID uuid = target.getUniqueID();
         if (SkinRestorer.getSkinStorage().hasDefaultSkin(uuid)) {
-            sender.sendMessage(new TextComponentString(PREFIX + "default"));
+            sender.sendMessage(new TextComponentString(PREFIX + target.getGameProfile().getName()));
             return;
         }
         String source = SkinRestorer.getSkinStorage().getSource(uuid);
@@ -349,22 +349,22 @@ public class SkinCommand extends CommandBase {
         switch (type) {
             case username:
                 return customSource != null
-                    ? "no skin found for \"" + customSource + "\""
-                    : "no skin found";
+                    ? "No skin found for \"" + customSource + "\""
+                    : "No skin found";
             case url: {
                 if (customSource != null) {
                     String sanitized = SRHelpers.sanitizeSkinInput(customSource);
                     if (!sanitized.equals(customSource)) {
-                        return "no skin found for \"" + sanitized + "\"";
+                        return "No skin found for \"" + sanitized + "\"";
                     }
                 }
                 return "MineSkin rejected the URL";
             }
             case random:
             case NEW:
-                return "no random username available";
+                return "No random username available";
             default:
-                return "provider returned no result";
+                return "Provider returned no result";
         }
     }
 }
