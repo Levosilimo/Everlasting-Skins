@@ -7,7 +7,7 @@ on:
       - 'mc1.12.2-v*'
 
 jobs:
-  publish-1.21:
+  publish-1_21:
     if: startsWith(github.ref_name, 'mc1.21')
     runs-on: ubuntu-latest
     name: java-21
@@ -62,7 +62,7 @@ jobs:
           retry-attempts: 3
           retry-delay: 15000
 
-  publish-mc1.12.2:
+  publish-mc1_12_2:
     if: startsWith(github.ref_name, 'mc1.12.2')
     runs-on: ubuntu-latest
     name: java-8
