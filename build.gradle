@@ -42,6 +42,18 @@ repositories {
         name = "Forge"
         url = "https://maven.minecraftforge.net/"
     }
+    maven {
+        name = "DiscordSRV"
+        url = "https://nexus.scarsz.me/content/groups/public/"
+    }
+    maven {
+        name = "PlaceholderAPI"
+        url = "https://repo.extendedclip.com/content/repositories/placeholderapi/"
+    }
+    maven {
+        name = "Spigot"
+        url = "https://hub.spigotmc.org/nexus/content/repositories/snapshots/"
+    }
     mavenCentral()
 }
 
@@ -125,8 +137,13 @@ dependencies {
     implementation('net.sf.jopt-simple:jopt-simple:5.0.4') { version { strictly '5.0.4' } }
 
     compileOnly 'net.luckperms:api:5.5'
+    compileOnly 'me.clip:placeholderapi:2.12.3'
+    compileOnly 'com.discordsrv:discordsrv:1.30.5'
+    compileOnly 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+    testImplementation 'me.clip:placeholderapi:2.12.3'
+    testImplementation 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
     testImplementation 'org.mockito:mockito-core:5.12.0'
     testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.3'
