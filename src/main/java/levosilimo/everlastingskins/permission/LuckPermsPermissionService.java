@@ -1,0 +1,86 @@
+package levosilimo.everlastingskins.permission;
+
+import net.minecraft.server.level.ServerPlayer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.lang.reflect.Method;
+import java.util.UUID;
+
+public class LuckPermsPermissionService implements IPermissionService {
+
+    private static final Logger LOGGER = LogManager.getLogger();
+    private final Object luckPermsApi;
+    private final Object userManager;
+
+    private LuckPermsPermissionService(Object luckPermsApi, Object userManager) {
+        this.luckPermsApi = luckPermsApi;
+        this.userManager = userManager;
+    }
+
+    public static LuckPermsPermissionService tryCreate() {
+        try {
+            Class<?> luckPermsClass = Class.forName("net.luckperms.api.LuckPerms");
+            Class<?> providerClass = Class.forName("net.luckperms.api.LuckPermsProvider");
+            Method getMethod = providerClass.getMethod("get");
+            Object luckPermsApi = getMethod.invoke(null);
+
+            Method getUserManagerMethod = luckPermsClass.getMethod("getUserManager");
+            Object userManager = getUserManagerMethod.invoke(luckPermsApi);
+
+            LOGGER.info("LuckPerms detected! Enabling detailed permission support.");
+            return new LuckPermsPermissionService(luckPermsApi, userManager);
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException
+                | java.lang.reflect.InvocationTargetException | NoClassDefFoundError e) {
+            return null;
+        }
+    }
+
+    @Override
+    public boolean hasPermission(ServerPlayer player, String permissionNode) {
+        try {
+            UUID uuid = player.getUUID();
+            Method loadUserMethod = userManager.getClass().getMethod("loadUser", UUID.class);
+            Object userFuture = loadUserMethod.invoke(userManager, uuid);
+
+            Method joinMethod = userFuture.getClass().getMethod("join");
+            Object user = joinMethod.invoke(userFuture);
+
+            if (user == null) {
+                return false;
+            }
+
+            Method getCachedDataMethod = user.getClass().getMethod("getCachedData");
+            Object cachedData = getCachedDataMethod.invoke(user);
+
+            Class<?> cachedDataClass = Class.forName("net.luckperms.api.cacheddata.CachedPermissionData");
+            Class<?> tristateClass = Class.forName("net.luckperms.api.util.Tristate");
+            Method getPermissionDataMethod = cachedDataClass.getMethod("getPermissionData");
+            Object permissionData = getPermissionDataMethod.invoke(cachedData);
+
+            Method checkPermissionMethod = permissionData.getClass().getMethod("checkPermission", String.class);
+            Object tristate = checkPermissionMethod.invoke(permissionData, permissionNode);
+
+            Method asBooleanMethod = tristateClass.getMethod("asBoolean");
+            return (Boolean) asBooleanMethod.invoke(tristate);
+        } catch (Exception e) {
+            LOGGER.debug("LuckPerms permission check failed for node {}: {}", permissionNode, e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    public String getActiveBackendName() {
+        try {
+            Method getAPIVersionMethod = luckPermsApi.getClass().getMethod("getAPIVersion");
+            return "LuckPerms (v" + getAPIVersionMethod.invoke(luckPermsApi) + ")";
+        } catch (Exception e) {
+            return "LuckPerms";
+        }
+    }
+
+    @Override
+    public int getPriority() {
+        return 20;
+    }
+}

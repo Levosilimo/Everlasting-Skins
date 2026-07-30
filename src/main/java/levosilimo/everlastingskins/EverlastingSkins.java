@@ -1,11 +1,14 @@
 package levosilimo.everlastingskins;
 
 import com.google.common.collect.Lists;
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.server.permission.events.PermissionGatherEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -21,6 +24,9 @@ public class EverlastingSkins {
     public static final String VERSION = "4.1.0";
     public static final List<String> languages = Lists.newArrayList();
     public EverlastingSkins() {
+        PermissionServiceManager.init();
+        ForgePermissionService.registerNodes();
+        MinecraftForge.EVENT_BUS.addListener(ForgePermissionService::onPermissionGather);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
     }
