@@ -17,6 +17,7 @@ import levosilimo.everlastingskins.util.SRHelpers;
 import levosilimo.everlastingskins.util.UUIDUtils;
 import org.apache.logging.log4j.Logger;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
