@@ -17,7 +17,7 @@ Server-side Minecraft Forge mod for persistent custom skins. Players change thei
 ## 📦 Installation
 
 1. Install [Forge for Minecraft 1.21](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.21.html).
-2. Download `EverlastingSkins-1.21-2.0.0-beta.1.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
+2. Download `EverlastingSkins-1.21-2.0.0.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
 3. Place the JAR in your server's `mods/` folder.
 4. Restart the server.
 
@@ -70,7 +70,7 @@ cd Everlasting-Skins
 ./gradlew build
 ```
 
-Output: `build/libs/EverlastingSkins-1.21-2.0.0-beta.1.jar`
+Output: `build/libs/EverlastingSkins-1.21-2.0.0.jar`
 
 ## ❓ FAQ
 
