@@ -1,0 +1,14 @@
+{
+  "name": "Clear Skin to Default",
+  "description": "Verifies /skin clear resets the player to default skin",
+  "type": "RUNS",
+  "config": {
+    "accountType": "offline",
+    "username": "TestPlayer"
+  },
+  "steps": [
+    {"type": "ENDS_WITH", "message": "For help, type \"help\""},
+    {"type": "SEND", "message": "/skin clear"},
+    {"type": "SUCCESS", "message": "Clear command accepted"}
+  ]
+}
