@@ -87,8 +87,6 @@ jobs:
       MODS_DIR: ${{ github.workspace }}/test-server/mods
       HMC_VERSION: "2.10.0"
     steps:
-      - name: Clean WireMock artifacts (EACCES workaround)
-        run: sudo rm -rf ${{ github.workspace }}/test-infrastructure/wiremock || true
       - uses: actions/checkout@v4
       - name: Set up JDK 21
         uses: actions/setup-java@v4
