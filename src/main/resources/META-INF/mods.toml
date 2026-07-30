@@ -57,6 +57,20 @@ versionRange = "[1.21,1.22)"
 ordering = "NONE"
 side = "BOTH"
 
+# PlaceholderAPI optional dependency (Bukkit plugin, only on hybrid servers)
+[[dependencies.levosilimo.everlastingskins]]
+    modId="placeholderapi"
+    mandatory=false
+    ordering="AFTER"
+    side="SERVER"
+
+# DiscordSRV optional dependency (Bukkit plugin, only on hybrid servers)
+[[dependencies.levosilimo.everlastingskins]]
+    modId="discordsrv"
+    mandatory=false
+    ordering="AFTER"
+    side="SERVER"
+
 [[dependencies.everlastingskins]]
     modId="luckperms"
     mandatory=false

@@ -42,6 +42,14 @@ repositories {
         name = "Forge"
         url = "https://maven.minecraftforge.net/"
     }
+    maven {
+        name = "DiscordSRV"
+        url = "https://nexus.scarsz.me/content/groups/public/"
+    }
+    maven {
+        name = "PlaceholderAPI"
+        url = "https://repo.extendedclip.com/content/repositories/placeholderapi/"
+    }
     mavenCentral()
 }
 
@@ -125,6 +133,8 @@ dependencies {
     implementation('net.sf.jopt-simple:jopt-simple:5.0.4') { version { strictly '5.0.4' } }
 
     compileOnly 'net.luckperms:api:5.5'
+    compileOnly 'me.clip:placeholderapi:2.11.6'
+    compileOnly 'com.discordsrv:discordsrv:1.28.0'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
     testImplementation 'org.mockito:mockito-core:5.12.0'
