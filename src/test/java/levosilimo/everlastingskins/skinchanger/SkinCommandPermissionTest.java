@@ -1,15 +1,21 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import net.minecraft.command.CommandHandler;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class SkinCommandPermissionTest {
+
+    private static final UUID TEST_UUID = UUID.randomUUID();
 
     @Test
     @DisplayName("register registers the skin command")
@@ -35,18 +41,14 @@ class SkinCommandPermissionTest {
     @Test
     @DisplayName("hasPermission delegates to PermissionServiceManager for op players")
     void permissionCheck_delegatesToManager() {
-        EntityPlayerMP mockPlayer = mock(EntityPlayerMP.class);
-        when(mockPlayer.canUseCommand(2, "everlastingskins")).thenReturn(true);
-        assertTrue(levosilimo.everlastingskins.permission.PermissionServiceManager
-            .hasPermission(mockPlayer, "everlastingskins.command.skin"));
+        PermissionContext ctx = PermissionContext.of(TEST_UUID, true);
+        assertTrue(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin"));
     }
 
     @Test
     @DisplayName("non-op player lacks permission")
     void nonOp_lacksPermission() {
-        EntityPlayerMP mockPlayer = mock(EntityPlayerMP.class);
-        when(mockPlayer.canUseCommand(2, "everlastingskins")).thenReturn(false);
-        assertFalse(levosilimo.everlastingskins.permission.PermissionServiceManager
-            .hasPermission(mockPlayer, "everlastingskins.command.skin"));
+        PermissionContext ctx = PermissionContext.of(TEST_UUID, false);
+        assertFalse(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin"));
     }
 }

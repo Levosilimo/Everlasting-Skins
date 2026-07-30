@@ -1,6 +1,5 @@
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.entity.player.EntityPlayerMP;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,12 +40,12 @@ public class LuckPermsPermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(EntityPlayerMP player, String permissionNode) {
+    public boolean hasPermission(PermissionContext context, String permissionNode) {
         if (luckPermsApi == null || userManager == null) {
             return false;
         }
         try {
-            UUID uuid = player.getUniqueID();
+            UUID uuid = context.uuid();
             Method isLoadedMethod = userManager.getClass().getMethod("isLoaded", UUID.class);
             Boolean isLoaded = (Boolean) isLoadedMethod.invoke(userManager, uuid);
             Object user = null;
@@ -59,7 +58,7 @@ public class LuckPermsPermissionService implements IPermissionService {
             }
             if (user == null) {
                 LOGGER.warn("LP user {} returned null from getUser, falling back to vanilla", uuid);
-                return vanillaFallback(player, permissionNode);
+                return vanillaFallback(context, permissionNode);
             }
 
             Method getCachedDataMethod = user.getClass().getMethod("getCachedData");
@@ -86,8 +85,8 @@ public class LuckPermsPermissionService implements IPermissionService {
         }
     }
 
-    private boolean vanillaFallback(EntityPlayerMP player, String permissionNode) {
-        return player.canUseCommand(2, "everlastingskins");
+    private boolean vanillaFallback(PermissionContext context, String permissionNode) {
+        return context.isOp();
     }
 
     @Override

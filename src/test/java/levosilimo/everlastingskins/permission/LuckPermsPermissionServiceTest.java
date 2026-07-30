@@ -8,7 +8,6 @@ import net.luckperms.api.UserManager;
 import net.luckperms.api.cacheddata.CachedPermissionData;
 import net.luckperms.api.query.QueryOptions;
 import net.luckperms.api.util.Tristate;
-import net.minecraft.entity.player.EntityPlayerMP;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,11 +23,13 @@ import static org.mockito.Mockito.*;
 class LuckPermsPermissionServiceTest {
 
     private UUID uuid;
+    private PermissionContext ctx;
     private User fakeUser;
 
     @BeforeEach
     void setUp() {
         uuid = UUID.randomUUID();
+        ctx = PermissionContext.of(uuid, true);
         LuckPerms fakeLP = mock(LuckPerms.class);
         UserManager fakeUM = mock(UserManager.class);
         fakeUser = mock(User.class);
@@ -63,18 +64,14 @@ class LuckPermsPermissionServiceTest {
     @DisplayName("hasPermission returns true for granted node")
     void hasPermission_granted_returnsTrue() {
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
-        EntityPlayerMP mockPlayer = mock(EntityPlayerMP.class);
-        when(mockPlayer.getUniqueID()).thenReturn(uuid);
-        assertTrue(service.hasPermission(mockPlayer, "everlastingskins.command.skin"));
+        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin"));
     }
 
     @Test
     @DisplayName("hasPermission returns false for denied node")
     void hasPermission_denied_returnsFalse() {
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
-        EntityPlayerMP mockPlayer = mock(EntityPlayerMP.class);
-        when(mockPlayer.getUniqueID()).thenReturn(uuid);
-        assertFalse(service.hasPermission(mockPlayer, "other.node"));
+        assertFalse(service.hasPermission(ctx, "other.node"));
     }
 
     @Test
