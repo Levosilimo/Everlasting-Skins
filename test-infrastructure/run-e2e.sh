@@ -147,7 +147,7 @@ echo "[6/6] Running E2E test scenario: $SCENARIO (5-min fail-fast timeout)..."
 cd "$PROJECT_DIR"
 EXIT_CODE=0
 timeout --kill-after=10 300 java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
-    --command "launch forge:$MC_VERSION -specifics --game-args \"$SERVER_ARGS\"" || EXIT_CODE=$?
+    --command "launch forge:$MC_VERSION --game-args \"$SERVER_ARGS\"" || EXIT_CODE=$?
 
 if [ $EXIT_CODE -eq 124 ]; then
     echo "=== E2E TEST TIMED OUT (no progress in 5 min) ==="
