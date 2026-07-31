@@ -47,8 +47,23 @@ public class PropertyUtils {
      * @param property Profile property
      * @return textures.minecraft.net id
      * @see #getSkinTextureUrl(CustomSkinProperty)
+     * @deprecated Renamed from getSkinTextureUrlStripped; use {@link #getTextureId} instead.
      */
+    @Deprecated
     public static String getSkinTextureUrlStripped(@NotNull CustomSkinProperty property) {
+        return getTextureId(property);
+    }
+
+    /**
+     * Returns only the texture ID (hex hash) at the end of the texture URL.
+     * Useful for skull plugins like Dynmap or DiscordSRV, for example:
+     * mc-heads.net/avatar/%texture_id%/%size%.png
+     *
+     * @param property Profile property
+     * @return textures.minecraft.net id
+     * @see #getSkinTextureUrl(CustomSkinProperty)
+     */
+    public static String getTextureId(@NotNull CustomSkinProperty property) {
         return getSkinProfileData(property).textures().SKIN().getStrippedUrl();
     }
 

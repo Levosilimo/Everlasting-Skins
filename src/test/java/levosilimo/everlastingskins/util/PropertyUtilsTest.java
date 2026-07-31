@@ -34,9 +34,9 @@ class PropertyUtilsTest {
         }
 
         @Test
-        @DisplayName("getSkinTextureUrlStripped returns texture ID")
+        @DisplayName("getTextureId returns texture ID")
         void strippedUrl() {
-            String stripped = PropertyUtils.getSkinTextureUrlStripped(property);
+            String stripped = PropertyUtils.getTextureId(property);
             assertEquals(TEXTURE_ID, stripped);
         }
 
