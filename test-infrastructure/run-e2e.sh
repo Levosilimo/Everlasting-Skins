@@ -132,6 +132,7 @@ hmc.test.filename=$SCENARIO_FILE
 hmc.test.leave.after=true
 hmc.assets.dummy=true
 hmc.always.lwjgl.flag=true
+hmc.jline.enabled=false
 CONFIG
 
 # 6. Run test

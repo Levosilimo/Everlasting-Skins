@@ -238,6 +238,7 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.jline.enabled=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Pre-install Forge 51.0.24 for HeadlessMC client
         run: |
@@ -284,6 +285,7 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.jline.enabled=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario - skin-clear
         run: |
@@ -319,6 +321,7 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.jline.enabled=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario - skin-persistence
         run: |
@@ -520,6 +523,7 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.jline.enabled=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario - skin-set-mojang
         run: |
@@ -556,6 +560,7 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.jline.enabled=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario - skin-clear
         run: |
