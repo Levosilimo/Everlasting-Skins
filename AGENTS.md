@@ -19,7 +19,7 @@
 
 - Current configuration targets Minecraft `1.21`, Forge `51.0.8`, Java 21, Gradle 8.8, ForgeGradle 6, official mappings, and Mixin `0.8.5` annotation processing.
 - Build with the repository wrapper. The current `gradlew` is LF-encoded and executable. Build with `./gradlew build`.
-- CI runs on every push to `1.21` and `mc1.12.2` branches: lint (yamllint) + build + unit tests (JUnit 5) + E2E (HeadlessMC + HMCSpecifics + Forge + WireMock).
+- CI runs on every push to `1.21` and `mc1.12.2` branches: lint (yamllint) + build + unit tests (JUnit 5) + GameTest (1.21) + E2E (mc1.12.2: HeadlessMC + HMCSpecifics + Forge + WireMock).
 - `gradle.properties` contains stale metadata (`minecraft_version_range`, `curse_versions`, placeholder description, broad loader/Forge ranges). Treat executable dependency coordinates in `build.gradle` as authoritative until metadata is reconciled.
 - The local Qartez index currently points at another workspace. If Qartez returns paths such as `neodeal/` or `ik_llama.cpp`, stop and re-index this repository rather than trusting impact or dependency results.
 
