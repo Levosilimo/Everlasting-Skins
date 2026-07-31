@@ -13,6 +13,7 @@
     {"type": "WAIT", "timeout": 5},
     {"type": "CONTAINS", "message": "applied."},
     {"type": "SEND", "message": "/skin source"},
-    {"type": "CONTAINS", "message": "Notch"}
+    {"type": "CONTAINS", "message": "Notch"},
+    {"type": "SUCCESS"}
   ]
 }
