@@ -30,6 +30,9 @@
     {
       "type": "CONTAINS",
       "message": "Notch"
+    },
+    {
+      "type": "SUCCESS"
     }
   ]
 }

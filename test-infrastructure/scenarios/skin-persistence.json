@@ -16,6 +16,7 @@
     {"type": "CONTAINS", "message": "For help"},
     {"type": "SEND", "message": "/skin source"},
     {"type": "WAIT", "timeout": 3},
-    {"type": "CONTAINS", "message": "Notch"}
+    {"type": "CONTAINS", "message": "Notch"},
+    {"type": "SUCCESS"}
   ]
 }
