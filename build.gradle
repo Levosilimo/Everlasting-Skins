@@ -81,6 +81,23 @@ java {
 }
 
 
+// Game test source set: separate from unit tests because it compiles and runs
+// against the real Minecraft server (game test framework), not JUnit.
+// Declared before the runs block, which references it.
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += output + sourceSets.main.output
+    }
+}
+
+configurations {
+    gametestImplementation.extendsFrom implementation
+    gametestCompileOnly.extendsFrom compileOnly
+    gametestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+
 minecraft {
 
     mappings channel: 'official', version: "${minecraft_version}".toString()
@@ -130,6 +147,21 @@ minecraft {
                 }
             }
         }
+
+        // Forge ships a built-in gameTestServer run definition (launchTarget
+        // forge_userdev_server_gametest); ForgeGradle names the task
+        // runGameTestServer. The gametest source set must be part of the mod so
+        // its @GameTestHolder classes are scanned and its structure templates
+        // are loaded from the dev mod jar's datapack.
+        gameTestServer {
+            property 'forge.enabledGameTestNamespaces', project.findProperty('gametestNamespace') ?: 'everlastingskins'
+            mods {
+                everlastingskins {
+                    source sourceSets.main
+                    source sourceSets.gametest
+                }
+            }
+        }
     }
 }
 
@@ -165,6 +197,10 @@ dependencies {
     testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
 
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.3'
+
+    gametestImplementation sourceSets.main.output
+    gametestImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.3'
+    gametestRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.3'
 }
 
 configurations.testRuntimeClasspath {

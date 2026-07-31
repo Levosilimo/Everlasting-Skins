@@ -1,0 +1,17 @@
+modLoader = "javafml"
+loaderVersion = "[31,)"
+license = "MIT License"
+
+[[mods]]
+modId = "everlastingskins_gametest"
+version = "1.0.0"
+displayName = "Everlasting Skins GameTest"
+description = '''
+Development-only mod carrying the EverlastingSkins game test classes and structures.
+'''
+[[dependencies.everlastingskins_gametest]]
+modId = "everlastingskins"
+mandatory = true
+versionRange = "[2.0.0,)"
+ordering = "AFTER"
+side = "SERVER"

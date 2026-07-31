@@ -23,7 +23,7 @@ public class SkinRefreshHandler {
         return I18nUtils.getInstance().getLocalizedString(key, Config.LANGUAGE.get());
     }
 
-    static void task(ServerPlayer player) {
+    public static void task(ServerPlayer player) {
         double x = player.position().x;
         double y = player.position().y;
         double z = player.position().z;
