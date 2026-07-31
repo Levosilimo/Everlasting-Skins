@@ -136,9 +136,9 @@ CONFIG
 
 # 6. Run test
 if [ "$BRANCH" = "1.21" ]; then
-    SERVER_ARGS="--quickPlayMultiplayer 127.0.0.1:25565 --username TestPlayer"
+    SERVER_ARGS="--quickPlayMultiplayer 127.0.0.1:25565"
 else
-    SERVER_ARGS="--server localhost --port 25565 --username TestPlayer"
+    SERVER_ARGS="--server localhost --port 25565"
 fi
 
 echo "  Server args: $SERVER_ARGS"
