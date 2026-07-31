@@ -209,10 +209,9 @@ public class SkinVisibilityTest {
 
     /**
      * /skin clear must remove the stored skin and its JSON file. The provider
-     * is forced to fail so no Mojang restore replaces the removed skin. Note:
-     * SkinRefreshHandler.task currently NPEs on a null skin (the broadcast
-     * tail never runs), so no textures UPDATE_DISPLAY_NAME is expected after
-     * clearing — asserted defensively in case that bug is fixed.
+     * is forced to fail so no Mojang restore replaces the removed skin.
+     * SkinRefreshHandler.task must tolerate the cleared (null) skin without
+     * throwing and without broadcasting textures.
      */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:cmd_clear")
     public void skinCommand_clear_removesTexture(GameTestHelper helper) {
@@ -245,8 +244,13 @@ public class SkinVisibilityTest {
             if (Files.exists(skinFile)) {
                 throw new GameTestAssertException("waiting for /skin clear to delete " + skinFile);
             }
+            try {
+                SkinRefreshHandler.task(playerA);
+            } catch (RuntimeException e) {
+                throw new GameTestAssertException("task() must not throw on a cleared (null) skin: " + e);
+            }
             if (findTexturesFor(drain(observer), playerId) != null) {
-                helper.fail("clear must not broadcast textures; task() crashes on null skins so no UPDATE_DISPLAY_NAME is expected");
+                throw new GameTestAssertException("task() on a cleared skin must not broadcast textures");
             }
             removeQuietly(server, playerA);
             removeQuietly(server, observer);
