@@ -210,16 +210,11 @@ jobs:
             fi
             sleep 5
           done
-      - name: Download HeadlessMC launcher (raw, not wrapper)
+      - name: Download HeadlessMC launcher wrapper
         run: |
           mkdir -p "${{ env.HMC_DIR }}"
-          curl -L -o "${{ env.HMC_DIR }}/headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
-            "https://github.com/headlesshq/headlessmc/releases/download/${{ env.HMC_VERSION }}/headlessmc-launcher-${{ env.HMC_VERSION }}.jar"
-      - name: Download HMCSpecifics
-        run: |
-          curl -fL -o "${{ env.MODS_DIR }}/hmc-specifics.jar" \
-            "https://github.com/headlesshq/hmc-specifics/releases/download/1.21-latest/hmc-specifics-1.21-forge-latest.jar" \
-            || (echo "ERROR: HMCSpecifics download failed - E2E requires it"; exit 1)
+          curl -L -o "${{ env.HMC_DIR }}/headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+            "https://github.com/headlesshq/headlessmc/releases/download/${{ env.HMC_VERSION }}/headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar"
       - name: Clear HeadlessMC forge cache
         run: |
           echo "Clearing HeadlessMC forge version cache to force re-download of Forge 51.0.24..."
@@ -247,13 +242,13 @@ jobs:
       - name: Pre-install Forge 51.0.24 for HeadlessMC client
         run: |
           cd "${{ env.HMC_DIR }}"
-          java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
+          java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "forge 1.21 --uid 51.0.24" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-forge-install.log"
       - name: Run E2E scenario - skin-set-mojang
         run: |
           cd "${{ env.HMC_DIR }}"
-          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
-          xvfb-run -a java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
+          CMD="launch forge:1.21 -lwjgl -offline -specifics --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
+          xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
       - name: Assert GameProfile property via server log
         if: always()
@@ -293,8 +288,8 @@ jobs:
       - name: Run E2E scenario - skin-clear
         run: |
           cd "${{ env.HMC_DIR }}"
-          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
-          xvfb-run -a java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
+          CMD="launch forge:1.21 -lwjgl -offline -specifics --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
+          xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-clear.log"
       - name: Verify skin file cleared (after clear)
         if: always()
@@ -328,8 +323,8 @@ jobs:
       - name: Run E2E scenario - skin-persistence
         run: |
           cd "${{ env.HMC_DIR }}"
-          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
-          xvfb-run -a java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
+          CMD="launch forge:1.21 -lwjgl -offline -specifics --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
+          xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-persistence.log"
       - name: Assert GameProfile property via server log (persistence)
         if: always()
@@ -511,11 +506,6 @@ jobs:
           mkdir -p "${{ env.HMC_DIR }}"
           curl -L -o "${{ env.HMC_DIR }}/headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             "https://github.com/headlesshq/headlessmc/releases/download/${{ env.HMC_VERSION }}/headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar"
-      - name: Download HMCSpecifics
-        run: |
-          curl -L -o "${{ env.MODS_DIR }}/hmc-specifics.jar" \
-            "https://github.com/headlesshq/hmc-specifics/releases/download/2.4.0/hmc-specifics-1.12.2-2.4.0-lexforge-release.jar" \
-            || echo "WARNING: HMCSpecifics download failed, continuing"
       - name: Configure HeadlessMC (skin-set-mojang)
         run: |
           {
