@@ -4,6 +4,7 @@ import levosilimo.everlastingskins.permission.PermissionContext;
 import net.minecraftforge.server.permission.PermissionAPI;
 import net.minecraftforge.server.permission.events.PermissionGatherEvent;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -14,6 +15,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class ForgePermissionServiceTest {
+
+    /* ================================================================== */
+    /*  Basic behaviour                                                    */
+    /* ================================================================== */
 
     @Test
     @DisplayName("hasPermission returns true when PermissionAPI grants it")
@@ -85,5 +90,58 @@ class ForgePermissionServiceTest {
     @DisplayName("Priority is 10")
     void getPriority() {
         assertEquals(10, new ForgePermissionService().getPriority());
+    }
+
+    /* ================================================================== */
+    /*  Exception resilience                                               */
+    /* ================================================================== */
+
+    @Nested
+    @DisplayName("Exception resilience")
+    class ExceptionResilience {
+
+        @Test
+        @DisplayName("PermissionAPI.getOfflinePermission throws → falls back to isOp")
+        void permissionApi_throws_fallbackToOp() {
+            try (MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
+                UUID uuid = UUID.randomUUID();
+                api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.SKIN_NODE)))
+                   .thenThrow(new RuntimeException("PermissionAPI unavailable"));
+
+                ForgePermissionService service = new ForgePermissionService();
+
+                PermissionContext opCtx = PermissionContext.of(uuid, true);
+                assertTrue(service.hasPermission(opCtx, "everlastingskins.command.skin"));
+
+                PermissionContext nonOpCtx = PermissionContext.of(uuid, false);
+                assertFalse(service.hasPermission(nonOpCtx, "everlastingskins.command.skin"));
+            }
+        }
+
+        @Test
+        @DisplayName("PermissionAPI throws for .skin.other → falls back to isOp")
+        void permissionApi_throwsOnOtherNode_fallbackToOp() {
+            try (MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
+                UUID uuid = UUID.randomUUID();
+                api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.SKIN_OTHER_NODE)))
+                   .thenThrow(new RuntimeException("node not registered"));
+
+                ForgePermissionService service = new ForgePermissionService();
+
+                PermissionContext opCtx = PermissionContext.of(uuid, true);
+                assertTrue(service.hasPermission(opCtx, "everlastingskins.command.skin.other"));
+
+                PermissionContext nonOpCtx = PermissionContext.of(uuid, false);
+                assertFalse(service.hasPermission(nonOpCtx, "everlastingskins.command.skin.other"));
+            }
+        }
+
+        @Test
+        @DisplayName(".skin.source always true even if API would throw")
+        void sourceNode_alwaysTrue_regardlessOfApi() {
+            ForgePermissionService service = new ForgePermissionService();
+            PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), false);
+            assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.source"));
+        }
     }
 }
