@@ -252,7 +252,7 @@ jobs:
       - name: Run E2E scenario - skin-set-mojang
         run: |
           cd "${{ env.HMC_DIR }}"
-          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565 --username TestPlayer\" --jvm -Djava.awt.headless=true"
+          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
           xvfb-run -a java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
             --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
       - name: Assert GameProfile property via server log
@@ -293,7 +293,7 @@ jobs:
       - name: Run E2E scenario - skin-clear
         run: |
           cd "${{ env.HMC_DIR }}"
-          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565 --username TestPlayer\" --jvm -Djava.awt.headless=true"
+          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
           xvfb-run -a java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
             --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-clear.log"
       - name: Verify skin file cleared (after clear)
@@ -328,7 +328,7 @@ jobs:
       - name: Run E2E scenario - skin-persistence
         run: |
           cd "${{ env.HMC_DIR }}"
-          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565 --username TestPlayer\" --jvm -Djava.awt.headless=true"
+          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
           xvfb-run -a java -jar "headlessmc-launcher-${{ env.HMC_VERSION }}.jar" \
             --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-persistence.log"
       - name: Assert GameProfile property via server log (persistence)
@@ -534,7 +534,7 @@ jobs:
       - name: Run E2E scenario - skin-set-mojang
         run: |
           cd "${{ env.HMC_DIR }}"
-          CMD="launch forge:1.12.2 -lwjgl -offline -specifics --game-args \"--server localhost --port 25565 --username TestPlayer\" --jvm -Djava.awt.headless=true"
+          CMD="launch forge:1.12.2 -lwjgl -offline -specifics --game-args \"--server localhost --port 25565\" --jvm -Djava.awt.headless=true"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
       - name: Verify skin file exists (after set)
@@ -570,7 +570,7 @@ jobs:
       - name: Run E2E scenario - skin-clear
         run: |
           cd "${{ env.HMC_DIR }}"
-          CMD="launch forge:1.12.2 -lwjgl -offline -specifics --game-args \"--server localhost --port 25565 --username TestPlayer\" --jvm -Djava.awt.headless=true"
+          CMD="launch forge:1.12.2 -lwjgl -offline -specifics --game-args \"--server localhost --port 25565\" --jvm -Djava.awt.headless=true"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-clear.log"
       - name: Verify skin file cleared (after clear)
