@@ -135,13 +135,28 @@ hmc.always.lwjgl.flag=true
 CONFIG
 
 # 6. Run test
-echo "[6/6] Running E2E test scenario: $SCENARIO..."
-cd "$PROJECT_DIR"
-java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
-    --command launch forge:$MC_VERSION \
-    --game-args "--server localhost --port 25565 --username TestPlayer"
+if [ "$BRANCH" = "1.21" ]; then
+    SERVER_ARGS="--quickPlayMultiplayer 127.0.0.1:25565 --username TestPlayer"
+else
+    SERVER_ARGS="--server localhost --port 25565 --username TestPlayer"
+fi
 
-EXIT_CODE=$?
+echo "  Server args: $SERVER_ARGS"
+echo "[6/6] Running E2E test scenario: $SCENARIO (5-min fail-fast timeout)..."
+cd "$PROJECT_DIR"
+EXIT_CODE=0
+timeout --kill-after=10 300 java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
+    --command launch forge:$MC_VERSION \
+    --game-args "$SERVER_ARGS" || EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 124 ]; then
+    echo "=== E2E TEST TIMED OUT (no progress in 5 min) ==="
+    echo "Last 100 lines of server log:"
+    tail -100 "$SERVER_DIR/logs/latest.log" 2>/dev/null || true
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+    exit 124
+fi
 
 kill "$SERVER_PID" 2>/dev/null || true
 wait "$SERVER_PID" 2>/dev/null || true
