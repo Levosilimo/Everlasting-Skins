@@ -24,6 +24,10 @@ public class SkinRefreshHandler {
     }
 
     public static void task(ServerPlayer player) {
+        CustomSkinProperty skin = SkinRestorer.getSkinStorage().getSkin(player.getUUID());
+        if (skin == null || skin.isEmpty()) {
+            return;
+        }
         double x = player.position().x;
         double y = player.position().y;
         double z = player.position().z;
@@ -34,7 +38,7 @@ public class SkinRefreshHandler {
         PlayerList playerlist = player.server.getPlayerList();
         SkinRestorer.getSkinStorage().saveSkin(player.getUUID());
         player.getGameProfile().getProperties().removeAll("textures");
-        player.getGameProfile().getProperties().put("textures", SkinRestorer.getSkinStorage().getSkin(player.getUUID()).getOriginalProperty());
+        player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
                 player.getGameProfile().getName(),
                 player.getGameProfile().getProperties().get("textures"));
