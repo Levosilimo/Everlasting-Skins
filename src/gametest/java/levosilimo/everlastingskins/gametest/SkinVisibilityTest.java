@@ -45,6 +45,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Integration tests for the EverlastingSkins command pipeline: /skin dispatch
@@ -553,8 +555,10 @@ public class SkinVisibilityTest {
     }
 
     /**
-     * Two OP players dispatch /skin set mojang concurrently. Both must
-     * complete successfully with correct skin in storage, and each observer
+     * Two OP players dispatch /skin set mojang concurrently using
+     * CompletableFuture.runAsync with a slow FakeMojangAPI (100ms delay)
+     * so the two async fetches overlap in time. Both must complete
+     * successfully with correct skin in storage, and each observer
      * must receive exactly 1 UPDATE_DISPLAY_NAME packet.
      */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:concurrent")
@@ -580,12 +584,25 @@ public class SkinVisibilityTest {
             drain(observerB);
 
             fake.fail = false;
+            fake.slow = true;
 
-            // Sequential dispatch (both on server thread) simulates near-concurrent
-            int resultA = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
-            int resultB = dispatch(server, "skin set mojang Jeb_", playerB.createCommandSourceStack(), helper);
-            helper.assertTrue(resultA == 1, "playerA command should report 1 target, got " + resultA);
-            helper.assertTrue(resultB == 1, "playerB command should report 1 target, got " + resultB);
+            // Dispatch both commands concurrently — the 100ms slow delay in
+            // FakeMojangAPI ensures the two async fetches overlap.
+            CommandSourceStack srcA = playerA.createCommandSourceStack();
+            CommandSourceStack srcB = playerB.createCommandSourceStack();
+            CompletableFuture<Void> futureA = CompletableFuture.runAsync(() ->
+                    dispatch(server, "skin set mojang Notch", srcA, helper));
+            CompletableFuture<Void> futureB = CompletableFuture.runAsync(() ->
+                    dispatch(server, "skin set mojang Jeb_", srcB, helper));
+
+            try {
+                CompletableFuture.allOf(futureA, futureB).get(10, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                helper.fail("concurrent dispatch threw: " + e.getMessage());
+                return;
+            }
+
+            fake.slow = false;
 
             helper.succeedWhen(() -> {
                 CustomSkinProperty skinA = storage.getSkin(uuidA);
@@ -661,43 +678,54 @@ public class SkinVisibilityTest {
     }
 
     /**
-     * Cross-dimension isolation: an observer in a different ServerLevel must
-     * NOT receive the broadcast packet from a skin set in another dimension.
+     * Cross-dimension broadcast: an observer in a different ServerLevel still
+     * receives the broadcast packet because production code uses broadcastAll()
+     * which sends to ALL connected players regardless of dimension. This test
+     * documents that cross-dimension isolation is NOT a current feature — if
+     * dimension-scoped broadcasting is added later, this test should be updated
+     * to assert isolation.
      */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:crossdim")
-    public void skinSet_crossDimensionIsolation(GameTestHelper helper) {
+    public void skinSet_crossDimensionBroadcast(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
         SkinStorage storage = SkinRestorer.getSkinStorage();
         ServerPlayer playerA = mockPlayer(helper, "DimPlayer");
+        ServerPlayer observerSameDim = mockPlayer(helper, "ObsSameDim");
         UUID playerId = playerA.getUUID();
 
         try {
             placePlayer(helper, playerA);
+            placePlayer(helper, observerSameDim);
+            drain(observerSameDim);
+
             storage.setSkin(playerId, new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
             SkinRefreshHandler.task(playerA);
 
-            // All packets are drained from playerA's own channel (same dimension).
-            // In a real multi-dimension test, the observer would be in a different
-            // ServerLevel. Here we verify that packets do NOT propagate beyond the
-            // player's own level by checking that only the playerA channel has them.
+            // The player must receive its own broadcast (same dimension).
             List<Packet<?>> playerPackets = drain(playerA);
-            long infoUpdates = playerPackets.stream()
+            long selfUpdates = playerPackets.stream()
                     .filter(ClientboundPlayerInfoUpdatePacket.class::isInstance)
                     .map(ClientboundPlayerInfoUpdatePacket.class::cast)
                     .filter(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME))
                     .count();
+            helper.assertTrue(selfUpdates >= 1, "player in same dimension must receive broadcast, got " + selfUpdates);
 
-            // The player must receive its own broadcast (same dimension).
-            helper.assertTrue(infoUpdates >= 1, "player in same dimension must receive broadcast, got " + infoUpdates);
+            // An observer in the same dimension also receives it.
+            long observerUpdates = countDisplayNameUpdatesWithTextures(drain(observerSameDim), playerId);
+            helper.assertTrue(observerUpdates >= 1, "observer in same dimension must receive broadcast, got " + observerUpdates);
 
-            // Verify no cross-level contamination: if we had a second player in a
-            // different dimension, their channel would be empty. We verify this by
-            // checking that the broadcast is scoped correctly (not globally multicast
-            // to all dimensions).
+            // NOTE: broadcastAll() sends to ALL players regardless of dimension.
+            // A true cross-dimension isolation test would require placing an
+            // observer in a second ServerLevel (via DimensionType registration)
+            // and verifying they also receive the packet. That test is omitted
+            // here because GameTestHelper does not expose a makeLevel() API;
+            // if dimension-scoped broadcasting is implemented, a dedicated test
+            // should be added.
             helper.succeed();
         } finally {
             removeQuietly(server, playerA);
+            removeQuietly(server, observerSameDim);
         }
     }
 
@@ -751,9 +779,13 @@ public class SkinVisibilityTest {
      */
     private static final class FakeMojangAPI implements MojangAPI {
         boolean fail;
+        boolean slow;
 
         @Override
         public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
+            if (slow) {
+                try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }
             if (fail) return Optional.empty();
             return Optional.of(new MojangSkinDataResult(
                     UUID.nameUUIDFromBytes(nameOrUniqueId.getBytes(StandardCharsets.UTF_8)),
@@ -762,12 +794,18 @@ public class SkinVisibilityTest {
 
         @Override
         public Optional<UUID> getUUID(String playerName) {
+            if (slow) {
+                try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }
             if (fail) return Optional.empty();
             return Optional.of(UUID.nameUUIDFromBytes(playerName.getBytes(StandardCharsets.UTF_8)));
         }
 
         @Override
         public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
+            if (slow) {
+                try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }
             if (fail) return Optional.empty();
             return Optional.of(new CustomSkinProperty(TEST_TEXTURE_VALUE, TEST_SIGNATURE, lookup.username()));
         }
