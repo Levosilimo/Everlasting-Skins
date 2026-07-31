@@ -307,6 +307,28 @@ jobs:
             echo "SKIN FILE: still exists ❌"
             echo "CONTENT: $(head -c 200 $SKIN_FILE)"
           fi
+      - name: Configure HeadlessMC (skin-set-mojang for persistence test)
+        run: |
+          {
+            echo "hmc.java.versions=$JAVA_HOME/bin/java"
+            echo "hmc.gamedir=${{ github.workspace }}/headlessmc-run"
+            echo "hmc.mcdir=$HOME/.minecraft"
+            echo "hmc.offline=true"
+            echo "hmc.offline.username=TestPlayer"
+            echo "hmc.rethrow.launch.exceptions=true"
+            echo "hmc.exit.on.failed.command=true"
+            echo "hmc.test.filename=${{ github.workspace }}/test-infrastructure/scenarios/skin-set-mojang.json"
+            echo "hmc.test.leave.after=true"
+            echo "hmc.assets.dummy=true"
+            echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.jline.enabled=false"
+          } > "${{ env.HMC_DIR }}/config.properties"
+      - name: Run E2E scenario - skin-set-mojang (for persistence test)
+        run: |
+          cd "${{ env.HMC_DIR }}"
+          CMD="launch forge:1.21 -lwjgl -offline --uid 51.0.24 --game-args \"--quickPlayMultiplayer 127.0.0.1:25565\" --jvm -Djava.awt.headless=true"
+          xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+            --command "$CMD" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set-for-persistence.log"
       - name: Configure HeadlessMC (skin-persistence)
         run: |
           {
