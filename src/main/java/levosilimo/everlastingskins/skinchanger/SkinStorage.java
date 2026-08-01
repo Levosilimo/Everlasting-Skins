@@ -1,5 +1,6 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
 import javax.annotation.Nullable;
@@ -8,8 +9,16 @@ import java.io.InputStream;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class SkinStorage {
+
+    private static final ExecutorService SAVE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "EverlastingSkins-SkinIO");
+        t.setDaemon(true);
+        return t;
+    });
 
     private final CustomSkinProperty DEFAULT_SKIN;
     private static final ConcurrentHashMap<UUID, CustomSkinProperty> skinMap = new ConcurrentHashMap<>();
@@ -75,6 +84,21 @@ public class SkinStorage {
         if (skinProperty != null) {
             skinIO.saveSkin(uuid, skinProperty);
         }
+    }
+
+    /**
+     * Flushes the in-memory skin to disk on a single daemon thread so the
+     * refresh cascade never blocks the server tick on JSON I/O.
+     */
+    public void saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
+        SkinMetrics.INSTANCE.recordSaveSubmitted();
+        SAVE_EXECUTOR.execute(() -> {
+            try {
+                skinIO.saveSkin(uuid, skin);
+            } finally {
+                SkinMetrics.INSTANCE.recordSaveCompleted();
+            }
+        });
     }
 
     public CustomSkinProperty removeSkin(UUID uuid) {

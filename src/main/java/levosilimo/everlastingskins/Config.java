@@ -15,6 +15,7 @@ public final class Config {
 
     public static boolean metricsEnabled = true;
     public static int metricsDumpIntervalSeconds = 60;
+    public static boolean refreshViaEntityTracker = true;
 
     public static void load(File configFile) {
         Configuration cfg = new Configuration(configFile);
@@ -33,6 +34,8 @@ public final class Config {
                 "Enable in-process metrics");
             metricsDumpIntervalSeconds = cfg.getInt("metricsDumpIntervalSeconds", "everlastingskins",
                 metricsDumpIntervalSeconds, 0, 3600, "Metrics dump interval (seconds)");
+            refreshViaEntityTracker = cfg.getBoolean("refreshViaEntityTracker", "everlastingskins",
+                refreshViaEntityTracker, "Force EntityTracker untrack/re-track on refresh for observer entity re-render");
         } catch (Exception e) {
             EverlastingSkins.logger.error("Failed to load config", e);
         } finally {

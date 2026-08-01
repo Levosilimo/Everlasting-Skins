@@ -8,18 +8,20 @@ import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.CommandHandler;
 import net.minecraft.command.ICommandSender;
+import net.minecraft.entity.EntityTracker;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.network.play.server.SPacketPlayerAbilities;
+import net.minecraft.network.play.server.SPacketEntityEffect;
 import net.minecraft.network.play.server.SPacketPlayerListItem;
-import net.minecraft.network.play.server.SPacketPlayerPosLook;
 import net.minecraft.network.play.server.SPacketRespawn;
 import net.minecraft.network.play.server.SPacketServerDifficulty;
+import net.minecraft.potion.PotionEffect;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerList;
 import net.minecraft.util.math.BlockPos;
@@ -258,6 +260,7 @@ public class SkinCommand extends CommandBase {
             if (future.completeExceptionally(new TimeoutException("Skin fetch timeout"))) {
                 EverlastingSkins.logger.error("Skin fetch timeout");
                 for (EntityPlayerMP p : targets) {
+                    SkinMetrics.INSTANCE.recordTimedOut(p.getUniqueID());
                     p.sendMessage(new TextComponentString(PREFIX + "Skin fetch timeout"));
                 }
             }
@@ -291,7 +294,7 @@ public class SkinCommand extends CommandBase {
                     }
                 }
                 for (EntityPlayerMP p : targets) {
-                    SkinRestorer.getServer().addScheduledTask(() -> task(p));
+                    SkinRestorer.getServer().addScheduledTask(() -> task(p, null));
                 }
                 return;
             }
@@ -306,7 +309,7 @@ public class SkinCommand extends CommandBase {
                 }
             }
             for (EntityPlayerMP p : targets) {
-                SkinRestorer.getServer().addScheduledTask(() -> task(p));
+                SkinRestorer.getServer().addScheduledTask(() -> task(p, sp));
             }
             for (EntityPlayerMP p : targets) {
                 try {
@@ -318,38 +321,78 @@ public class SkinCommand extends CommandBase {
         });
     }
 
-    private void task(EntityPlayerMP player) {
-        WorldServer world = player.getServerWorld();
-        int dimension = player.dimension;
-        net.minecraft.world.EnumDifficulty difficulty = world.getDifficulty();
-        net.minecraft.world.WorldType terrainType = world.getWorldInfo().getTerrainType();
-        net.minecraft.world.GameType gameType = player.interactionManager.getGameType();
-        PlayerList playerList = SkinRestorer.getServer().getPlayerList();
+    public static void task(EntityPlayerMP target, CustomSkinProperty property) {
+        if (target == null) return;
 
-        double x = player.posX;
-        double y = player.posY;
-        double z = player.posZ;
-        float yaw = player.rotationYaw;
-        float pitch = player.rotationPitch;
+        long startNanos = System.nanoTime();
+        SkinMetrics.INSTANCE.recordRefreshStarted(target.getUniqueID());
 
-        SkinRestorer.getSkinStorage().saveSkin(player.getUniqueID());
-        CustomSkinProperty skin = SkinRestorer.getSkinStorage().getSkin(player.getUniqueID());
-
-        if (skin != null && !skin.isEmpty()) {
-            player.getGameProfile().getProperties().removeAll("textures");
-            player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
-
-            playerList.sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.REMOVE_PLAYER, player));
-            playerList.sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.ADD_PLAYER, player));
+        if (property == null || property.isEmpty()) {
+            SkinMetrics.INSTANCE.recordRefreshFailed(target.getUniqueID());
+            return;
         }
 
-        player.connection.sendPacket(new SPacketRespawn(dimension, difficulty, terrainType, gameType));
-        player.connection.sendPacket(new SPacketServerDifficulty(difficulty, world.getWorldInfo().isDifficultyLocked()));
-        player.connection.sendPacket(new SPacketPlayerPosLook(x, y, z, yaw, pitch,
-            EnumSet.noneOf(SPacketPlayerPosLook.EnumFlags.class), 0));
-        player.connection.sendPacket(new SPacketPlayerAbilities(player.capabilities));
+        MinecraftServer server = target.mcServer;
+        PlayerList playerList = server.getPlayerList();
+        WorldServer world = (WorldServer) target.world;
 
-        player.setPositionAndRotation(x, y, z, yaw, pitch);
+        // 1. Mutate the GameProfile properties on the server side.
+        target.getGameProfile().getProperties().removeAll("textures");
+        target.getGameProfile().getProperties().put("textures", property.getOriginalProperty());
+
+        // 2. Tab-list update to ALL online players (global, no dimension scoping).
+        long broadcastStartNanos = System.nanoTime();
+        playerList.sendPacketToAllPlayers(
+            new SPacketPlayerListItem(SPacketPlayerListItem.Action.REMOVE_PLAYER, target));
+        playerList.sendPacketToAllPlayers(
+            new SPacketPlayerListItem(SPacketPlayerListItem.Action.ADD_PLAYER, target));
+        long broadcastNanos = System.nanoTime() - broadcastStartNanos;
+        SkinMetrics.INSTANCE.recordBroadcastLatency(broadcastNanos);
+
+        // 3. Target's own view — respawn cascade (same dimension = no inventory wipe).
+        EntityPlayerMP self = target;
+        self.connection.sendPacket(new SPacketRespawn(
+            self.dimension, self.world.getDifficulty(),
+            self.world.getWorldInfo().getTerrainType(),
+            self.interactionManager.getGameType()));
+        self.connection.setPlayerLocation(
+            self.posX, self.posY, self.posZ, self.rotationYaw, self.rotationPitch);
+        self.connection.sendPacket(new SPacketServerDifficulty(
+            self.world.getDifficulty(),
+            self.world.getWorldInfo().isDifficultyLocked()));
+        playerList.updatePermissionLevel(self);
+        self.sendPlayerAbilities();
+
+        // 4. Replay active potion effects (vanilla transferPlayerToDimension parity).
+        for (PotionEffect effect : self.getActivePotionEffects()) {
+            self.connection.sendPacket(new SPacketEntityEffect(self.getEntityId(), effect));
+        }
+
+        // 5. Time/weather sync (join parity).
+        playerList.updateTimeAndWeatherForPlayer(self, world);
+
+        // 6. Observer re-render via per-viewer EntityTracker untrack/re-track.
+        if (Config.refreshViaEntityTracker) {
+            EntityTracker tracker = world.getEntityTracker();
+            tracker.untrack(self);
+            tracker.track(self);
+            tracker.updateVisibility(self);
+        }
+
+        // 7. Persist asynchronously (in-memory map already updated; disk flush off-tick).
+        long saveStartNanos = System.nanoTime();
+        SkinRestorer.getSkinStorage().saveSkinAsync(self.getUniqueID(), property);
+        long saveNanos = System.nanoTime() - saveStartNanos;
+
+        // 8. Metrics.
+        long durationNanos = System.nanoTime() - startNanos;
+        SkinMetrics.INSTANCE.recordTaskDuration(durationNanos);
+        if (durationNanos > 50_000_000L) {
+            EverlastingSkins.logger.warn("SkinRefresh spike: {}ms for player {}",
+                durationNanos / 1_000_000, self.getName());
+        }
+        SkinMetrics.INSTANCE.recordRefreshCompleted(
+            target.getUniqueID(), startNanos, 0L, saveNanos, broadcastNanos);
     }
 
     @Nullable
