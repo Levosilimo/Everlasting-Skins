@@ -57,13 +57,22 @@ public class SkinRefreshHandler {
         // Bug fix: UPDATE_DISPLAY_NAME does not serialize the GameProfile, so
         // observers never received the new textures. REMOVE + ADD_PLAYER forces
         // clients to drop and re-learn the full profile (with textures).
-        // Dimension-scoped: only players in the target's dimension are notified.
+        // Dimension-scoped only when DIMENSION_SCOPED_BROADCAST is enabled;
+        // the default (off) matches vanilla and 1.12.2 behavior.
         var dimension = serverLevel.dimension();
-        playerlist.broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())), dimension);
-        playerlist.broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player), dimension);
+        if (Config.DIMENSION_SCOPED_BROADCAST.get()) {
+            playerlist.broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())), dimension);
+            playerlist.broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player), dimension);
+        } else {
+            playerlist.broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
+            playerlist.broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player));
+        }
 
         // Respawn cascade for the target's OWN view: respawn is the only way
         // the client rebuilds its own player model with the new textures.
+        // KEEP_ALL_DATA == (byte) 3 in 1.21 (KEEP_ATTRIBUTE_MODIFIERS=1,
+        // KEEP_ENTITY_DATA=2, KEEP_ALL_DATA=3) — preserves the client-side
+        // inventory, the SkinsRestorer convention.
         player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), ClientboundRespawnPacket.KEEP_ALL_DATA));
         player.absMoveTo(x, y, z, yaw, pitch);
         player.connection.send(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0));

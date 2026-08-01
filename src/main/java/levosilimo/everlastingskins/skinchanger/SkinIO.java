@@ -33,12 +33,21 @@ public class SkinIO {
     /**
      * Single-thread writer so per-UUID writes are serialized; latest payload
      * per UUID wins (coalescing). Daemon thread so it never blocks shutdown.
+     * Lazily (re)created: a shutdown (e.g. ServerStoppingEvent in tests or a
+     * reload) must not permanently kill the writer for subsequent saves.
      */
-    private static final ExecutorService writer = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "EverlastingSkins-IO");
-        t.setDaemon(true);
-        return t;
-    });
+    private static ExecutorService writer;
+
+    private static synchronized ExecutorService writer() {
+        if (writer == null || writer.isShutdown()) {
+            writer = Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "EverlastingSkins-IO");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        return writer;
+    }
 
     /** Latest serialized payload per UUID awaiting the writer thread. */
     private final ConcurrentHashMap<UUID, byte[]> pendingWrites = new ConcurrentHashMap<>();
@@ -112,7 +121,7 @@ public class SkinIO {
             if (payload != null) {
                 writeSkinFile(uuid, payload);
             }
-        }, writer);
+        }, writer());
     }
 
     /**
@@ -121,21 +130,24 @@ public class SkinIO {
      */
     public void flushPending() {
         try {
-            writer.submit(() -> {
+            writer().submit(() -> {
             }).get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
             EverlastingSkins.logger.warn("SkinIO flush did not complete in time", e);
         }
     }
 
-    /** Shuts down the writer thread, awaiting in-flight writes. */
+    /** Shuts down the writer thread, awaiting in-flight writes. The writer is
+     *  recreated on demand by the next save (see {@link #writer()}). */
     public static void shutdown() {
+        if (writer == null) return;
         writer.shutdown();
         try {
             writer.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        writer = null;
     }
 
     /**

@@ -39,6 +39,7 @@ import net.minecraft.server.players.ServerOpListEntry;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.gametest.GameTestHolder;
 
 import java.lang.reflect.Field;
@@ -630,9 +631,10 @@ public class SkinVisibilityTest {
     }
 
     /**
-     * Rank 5: the REMOVE + ADD_PLAYER broadcast is dimension-scoped. An
-     * observer in the nether must not receive it when the target is in the
-     * overworld.
+     * Rank 5 + audit issue 3: the REMOVE + ADD_PLAYER broadcast is
+     * dimension-scoped ONLY when DIMENSION_SCOPED_BROADCAST is enabled.
+     * With the config OFF (default, matches vanilla/1.12.2), an observer in
+     * the nether DOES receive the broadcast for an overworld target.
      */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r4_dimension")
     public void dimensionTargetedBroadcast(GameTestHelper helper) {
@@ -657,28 +659,80 @@ public class SkinVisibilityTest {
             observerNether.setServerLevel(nether);
 
             storage.setSkin(playerA.getUUID(), new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
-            SkinRefreshHandler.task(playerA);
 
-            List<Packet<?>> packets = drain(observerNether);
-            boolean gotRemove = packets.stream().anyMatch(ClientboundPlayerInfoRemovePacket.class::isInstance);
-            boolean gotAdd = packets.stream()
+            // Config ON: cross-dimension observer must NOT receive the broadcast.
+            Config.DIMENSION_SCOPED_BROADCAST.set(true);
+            SkinRefreshHandler.task(playerA);
+            List<Packet<?>> scoped = drain(observerNether);
+            boolean scopedGotRemove = scoped.stream().anyMatch(ClientboundPlayerInfoRemovePacket.class::isInstance);
+            boolean scopedGotAdd = scoped.stream()
                     .filter(ClientboundPlayerInfoUpdatePacket.class::isInstance)
                     .map(ClientboundPlayerInfoUpdatePacket.class::cast)
                     .anyMatch(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER));
-            if (gotRemove || gotAdd) {
-                helper.fail("observer in another dimension must not receive the broadcast; got " + packets);
+            if (scopedGotRemove || scopedGotAdd) {
+                helper.fail("config ON: observer in another dimension must not receive the broadcast; got " + scoped);
                 return;
             }
+
+            // Config OFF (default): cross-dimension observer DOES receive it.
+            Config.DIMENSION_SCOPED_BROADCAST.set(false);
+            SkinRefreshHandler.task(playerA);
+            List<Packet<?>> unscoped = drain(observerNether);
+            boolean unscopedGotRemove = unscoped.stream().anyMatch(ClientboundPlayerInfoRemovePacket.class::isInstance);
+            boolean unscopedGotAdd = unscoped.stream()
+                    .filter(ClientboundPlayerInfoUpdatePacket.class::isInstance)
+                    .map(ClientboundPlayerInfoUpdatePacket.class::cast)
+                    .anyMatch(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER));
+            if (!unscopedGotRemove || !unscopedGotAdd) {
+                helper.fail("config OFF: observer in another dimension must receive the broadcast; got " + unscoped);
+                return;
+            }
+
             helper.succeed();
         } finally {
+            Config.DIMENSION_SCOPED_BROADCAST.set(false);
             removeQuietly(server, playerA);
             removeQuietly(server, observerNether);
         }
     }
 
     /**
-     * Rank 6: respawn flag must be KEEP_ALL_DATA (4), the SkinsRestorer
-     * convention that preserves the client-side inventory.
+     * Audit issue 1: SkinIO's writer must survive a ServerStoppingEvent
+     * shutdown. Fire the event twice (as a server reload would) and verify
+     * async saves still complete afterwards.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r9_ioshutdown")
+    public void ioAsyncWriterSurvivesSecondShutdown(GameTestHelper helper) {
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "IoShutdownA");
+        try {
+            placePlayer(helper, playerA);
+            drain(playerA);
+
+            MinecraftForge.EVENT_BUS.post(new ServerStoppingEvent(server));
+            MinecraftForge.EVENT_BUS.post(new ServerStoppingEvent(server));
+
+            // The lazy writer must be recreated after the shutdown; the join()
+            // would throw if the executor were permanently dead.
+            SkinRestorer.getSkinStorage().setSkin(playerA.getUUID(),
+                    new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
+            SkinRestorer.getSkinStorage().saveSkin(playerA.getUUID());
+
+            Path skinFile = server.getFile("EverlastingSkins").resolve(playerA.getUUID() + ".json");
+            helper.assertTrue(java.nio.file.Files.exists(skinFile),
+                    "skin file must exist after saveSkin post-shutdown");
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * Rank 6: respawn flag must be KEEP_ALL_DATA, the SkinsRestorer
+     * convention that preserves the client-side inventory. In 1.21
+     * KEEP_ALL_DATA == (byte) 3 (KEEP_ATTRIBUTE_MODIFIERS=1,
+     * KEEP_ENTITY_DATA=2, KEEP_ALL_DATA=3), verified via javap -constants.
      */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r5_respawnflag")
     public void respawnFlagIsKeepAllData(GameTestHelper helper) {
@@ -702,7 +756,7 @@ public class SkinVisibilityTest {
                 return;
             }
             helper.assertTrue(respawn.shouldKeep(ClientboundRespawnPacket.KEEP_ALL_DATA),
-                    "respawn packet must carry KEEP_ALL_DATA (4), got dataToKeep=" + respawn.dataToKeep());
+                    "respawn packet must carry KEEP_ALL_DATA (3), got dataToKeep=" + respawn.dataToKeep());
             helper.succeed();
         } finally {
             removeQuietly(server, playerA);

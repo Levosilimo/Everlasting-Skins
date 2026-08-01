@@ -19,6 +19,8 @@ public class Config {
     public static ForgeConfigSpec.BooleanValue RATE_LIMIT_ENABLED;
     public static ForgeConfigSpec.IntValue MAX_COMMANDS_PER_MINUTE;
 
+    public static ForgeConfigSpec.BooleanValue DIMENSION_SCOPED_BROADCAST;
+
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -40,6 +42,11 @@ public class Config {
             .define("rate_limit_enabled", true);
         MAX_COMMANDS_PER_MINUTE = builder.comment("Max /skin commands per minute (per player)")
             .defineInRange("max_commands_per_minute", 5, 1, 60);
+        builder.pop();
+        builder.push("Broadcast");
+        DIMENSION_SCOPED_BROADCAST = builder.comment("Restrict skin refresh broadcasts to the target player's dimension."
+                + " Off by default to match vanilla and 1.12.2 behavior (all players notified).")
+            .define("dimension_scoped_broadcast", false);
         builder.pop();
         COMMON_CONFIG = builder.build();
     }
