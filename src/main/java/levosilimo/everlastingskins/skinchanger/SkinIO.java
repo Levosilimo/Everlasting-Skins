@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import levosilimo.everlastingskins.EverlastingSkins;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.JsonUtils;
 
@@ -116,11 +117,15 @@ public class SkinIO {
      */
     public CompletableFuture<Void> saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
         pendingWrites.put(uuid, JsonUtils.toJson(skin).getBytes(StandardCharsets.UTF_8));
+        SkinMetrics.INSTANCE.recordSaveSubmitted();
         return CompletableFuture.runAsync(() -> {
             byte[] payload = pendingWrites.remove(uuid);
             if (payload != null) {
+                long start = System.nanoTime();
                 writeSkinFile(uuid, payload);
+                SkinMetrics.INSTANCE.recordSaveLatency(System.nanoTime() - start);
             }
+            SkinMetrics.INSTANCE.recordSaveCompleted();
         }, writer());
     }
 
@@ -171,6 +176,7 @@ public class SkinIO {
 
             Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
+            SkinMetrics.INSTANCE.recordIoFailure();
             EverlastingSkins.logger.error("Failed to save skin for player {}", uuid, e);
             if (Files.exists(temp)) {
                 try {

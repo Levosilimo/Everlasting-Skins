@@ -9,6 +9,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.MojangAPI;
 import levosilimo.everlastingskins.skinchanger.ProfileLookup;
 import levosilimo.everlastingskins.skinchanger.SkinCommand;
@@ -218,12 +219,6 @@ public class SkinVisibilityTest {
         helper.succeed();
     }
 
-    /**
-     * /skin clear must remove the stored skin and its JSON file. The provider
-     * is forced to fail so no Mojang restore replaces the removed skin.
-     * SkinRefreshHandler.task must tolerate the cleared (null) skin without
-     * throwing and without broadcasting textures.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:cmd_clear")
     public void skinCommand_clear_removesTexture(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
@@ -524,11 +519,6 @@ public class SkinVisibilityTest {
         });
     }
 
-    // ------------------------------------------------------------------
-
-    // Wire-level serialization tests
-    // ------------------------------------------------------------------
-
     /**
      * Serializes the exact packet production broadcasts (UPDATE_DISPLAY_NAME)
      * to a FriendlyByteBuf and inspects the raw bytes.
@@ -580,9 +570,6 @@ public class SkinVisibilityTest {
             removeQuietly(server, player);
         }
     }
-
-    // Rank 1-6 lib-4 improvements
-    // ------------------------------------------------------------------
 
     /**
      * Rank 3: observers must receive ClientboundPlayerInfoRemovePacket +
@@ -1034,10 +1021,110 @@ public class SkinVisibilityTest {
         }
     }
 
+    /**
+     * /skin metrics prints a human-readable snapshot including refresh
+     * counters and latency percentiles.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_metrics")
+    public void skin_metrics_command_printsHumanReadable(GameTestHelper helper) {
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "MetricsA");
+        makeOp(playerA);
+        try {
+            placePlayer(helper, playerA);
+            SkinMetrics.INSTANCE.recordRefreshStarted(playerA.getUUID());
+            SkinMetrics.INSTANCE.recordRefreshCompleted(playerA.getUUID(), System.nanoTime(), 1_000_000L, 0, 0);
 
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
+            int result = dispatch(server, "skin metrics", playerA.createCommandSourceStack(), helper);
+            if (result != 1) {
+                helper.fail("skin metrics should return 1, got " + result);
+                return;
+            }
+            String message = drain(playerA).stream()
+                    .filter(ClientboundSystemChatPacket.class::isInstance)
+                    .map(ClientboundSystemChatPacket.class::cast)
+                    .map(p -> p.content().getString())
+                    .reduce("", (a, b) -> a + b);
+            if (!message.contains("refreshes:") || !message.contains("latencies (ms)")) {
+                helper.fail("human metrics output missing expected sections; got: " + message);
+                return;
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * /skin metrics json prints a single JSON object with refresh counters.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_metrics_json")
+    public void skin_metrics_json_command_printsJson(GameTestHelper helper) {
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "MetricsJsonA");
+        makeOp(playerA);
+        try {
+            placePlayer(helper, playerA);
+
+            int result = dispatch(server, "skin metrics json", playerA.createCommandSourceStack(), helper);
+            if (result != 1) {
+                helper.fail("skin metrics json should return 1, got " + result);
+                return;
+            }
+            String message = drain(playerA).stream()
+                    .filter(ClientboundSystemChatPacket.class::isInstance)
+                    .map(ClientboundSystemChatPacket.class::cast)
+                    .map(p -> p.content().getString())
+                    .reduce("", (a, b) -> a + b);
+            if (!message.startsWith("{") || !message.contains("\"refreshes\":{\"initiated\"")) {
+                helper.fail("json metrics output is not a metrics JSON object; got: " + message);
+                return;
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * /skin metrics players lists the most active players by refresh count.
+     * A freshly-seeded UUID with several refreshes must appear.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_metrics_players")
+    public void skin_metrics_players_top10ByCount(GameTestHelper helper) {
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "MetricsPlayersA");
+        makeOp(playerA);
+        UUID seeded = UUID.randomUUID();
+        try {
+            placePlayer(helper, playerA);
+            for (int i = 0; i < 5; i++) {
+                SkinMetrics.INSTANCE.recordRefreshStarted(seeded);
+                SkinMetrics.INSTANCE.recordRefreshCompleted(seeded, System.nanoTime(), 100_000L, 0, 0);
+            }
+
+            int result = dispatch(server, "skin metrics players", playerA.createCommandSourceStack(), helper);
+            if (result != 1) {
+                helper.fail("skin metrics players should return 1, got " + result);
+                return;
+            }
+            String message = drain(playerA).stream()
+                    .filter(ClientboundSystemChatPacket.class::isInstance)
+                    .map(ClientboundSystemChatPacket.class::cast)
+                    .map(p -> p.content().getString())
+                    .reduce("", (a, b) -> a + b);
+            if (!message.contains(seeded.toString())) {
+                helper.fail("players list missing the seeded top player " + seeded + "; got: " + message);
+                return;
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+        }
+    }
 
     /**
      * Test-only Mojang provider: returns the canned test skin for any lookup

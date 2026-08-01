@@ -1,12 +1,16 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import io.netty.buffer.Unpooled;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
+import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.I18nUtils;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -40,6 +44,7 @@ public class SkinRefreshHandler {
         if (skin == null || skin.isEmpty()) {
             return;
         }
+        long tStart = System.nanoTime();
         double x = player.position().x;
         double y = player.position().y;
         double z = player.position().z;
@@ -47,7 +52,9 @@ public class SkinRefreshHandler {
         float pitch = player.getXRot();
         ServerLevel serverLevel = player.serverLevel();
         PlayerList playerlist = player.server.getPlayerList();
+        long saveStart = System.nanoTime();
         SkinRestorer.getSkinStorage().saveSkinAsync(player.getUUID());
+        SkinMetrics.INSTANCE.recordSaveLatency(System.nanoTime() - saveStart);
         player.getGameProfile().getProperties().removeAll("textures");
         player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
@@ -59,7 +66,9 @@ public class SkinRefreshHandler {
         // clients to drop and re-learn the full profile (with textures).
         // Dimension-scoped only when DIMENSION_SCOPED_BROADCAST is enabled;
         // the default (off) matches vanilla and 1.12.2 behavior.
+        NetworkMetricsHandler.getOrAttach(player.connection.getConnection());
         var dimension = serverLevel.dimension();
+        long broadcastStart = System.nanoTime();
         if (Config.DIMENSION_SCOPED_BROADCAST.get()) {
             playerlist.broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())), dimension);
             playerlist.broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player), dimension);
@@ -67,6 +76,10 @@ public class SkinRefreshHandler {
             playerlist.broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
             playerlist.broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player));
         }
+        SkinMetrics.INSTANCE.recordBroadcastLatency(System.nanoTime() - broadcastStart);
+        SkinMetrics.INSTANCE.recordBroadcast(
+                wireSize(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())))
+                        + wireSize(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player)));
 
         // Respawn cascade for the target's OWN view: respawn is the only way
         // the client rebuilds its own player model with the new textures.
@@ -82,6 +95,40 @@ public class SkinRefreshHandler {
         // 1.21 sendAllPlayerInfo does NOT include abilities — send explicitly.
         player.connection.send(new ClientboundPlayerAbilitiesPacket(player.getAbilities()));
         playerlist.sendActivePlayerEffects(player);
+
+        long totalNanos = System.nanoTime() - tStart;
+        if (totalNanos > TICK_SPIKE_THRESHOLD_NANOS) {
+            EverlastingSkins.logger.warn("SKIN_REFRESH tick spike {}ms for {}",
+                    totalNanos / 1_000_000, player.getUUID());
+        }
+        SkinMetrics.INSTANCE.recordTotalLatency(totalNanos);
+    }
+
+    private static final long TICK_SPIKE_THRESHOLD_NANOS = 50_000_000;
+
+    /** Serialized byte size of the broadcast packets, measured with their stream codecs. */
+    private static int wireSize(net.minecraft.network.protocol.Packet<?> packet) {
+        try {
+            if (packet instanceof ClientboundPlayerInfoRemovePacket remove) {
+                RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(),
+                        SkinRestorer.server.registryAccess());
+                ClientboundPlayerInfoRemovePacket.STREAM_CODEC.encode(buf, remove);
+                int size = buf.readableBytes();
+                buf.release();
+                return size;
+            }
+            if (packet instanceof ClientboundPlayerInfoUpdatePacket update) {
+                RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(),
+                        SkinRestorer.server.registryAccess());
+                ClientboundPlayerInfoUpdatePacket.STREAM_CODEC.encode(buf, update);
+                int size = buf.readableBytes();
+                buf.release();
+                return size;
+            }
+        } catch (Exception e) {
+            EverlastingSkins.logger.debug("Failed to measure packet wire size", e);
+        }
+        return 0;
     }
 
     @Nullable

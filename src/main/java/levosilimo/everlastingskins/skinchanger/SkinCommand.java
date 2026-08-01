@@ -13,6 +13,7 @@ import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.commands.CommandSourceStack;
@@ -27,6 +28,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.*;
@@ -100,8 +102,68 @@ public class SkinCommand {
         LiteralArgumentBuilder<CommandSourceStack> skinCommand = Commands.literal("skin")
                 .then(buildSetSubcommand())
                 .then(buildSourceSubcommand())
-                .then(buildClearSubcommand());
+                .then(buildClearSubcommand())
+                .then(buildMetricsSubcommand());
         dispatcher.register(skinCommand);
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> buildMetricsSubcommand() {
+        return Commands.literal("metrics")
+                .executes(context -> metricsAction(context, false))
+                .then(Commands.literal("json")
+                        .executes(context -> metricsAction(context, true)))
+                .then(Commands.literal("players")
+                        .executes(MetricsActions::players))
+                .then(Commands.literal("reset")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(MetricsActions::reset));
+    }
+
+    private static final class MetricsActions {
+        private static int players(CommandContext<CommandSourceStack> context) {
+            ServerPlayer player = context.getSource().getPlayer();
+            if (player == null || !hasMetricsPermission(context)) return 0;
+            StringBuilder sb = new StringBuilder(FEEDBACK_PREFIX + " Top players by refresh count:");
+            int rank = 0;
+            for (Map.Entry<UUID, SkinMetrics.PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
+                sb.append("\n  ").append(++rank).append(". ")
+                        .append(e.getKey()).append(" — ")
+                        .append(e.getValue().refreshCount()).append(" refreshes");
+            }
+            if (rank == 0) sb.append("\n  (no refreshes recorded)");
+            context.getSource().sendSuccess(() -> Component.literal(sb.toString()), false);
+            return 1;
+        }
+
+        private static int reset(CommandContext<CommandSourceStack> context) {
+            SkinMetrics.INSTANCE.reset();
+            context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " Metrics reset"), false);
+            return 1;
+        }
+    }
+
+    private static boolean hasMetricsPermission(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) return false;
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player.hasPermissions(2));
+        boolean allowed = PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics");
+        if (!allowed) {
+            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " Permission denied"));
+        }
+        return allowed;
+    }
+
+    private static int metricsAction(CommandContext<CommandSourceStack> context, boolean asJson) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) {
+            context.getSource().sendFailure(Component.literal("Player only command"));
+            return 0;
+        }
+        if (!hasMetricsPermission(context)) return 0;
+        SkinMetrics.Snapshot snapshot = SkinMetrics.INSTANCE.snapshot();
+        String output = asJson ? SkinMetrics.INSTANCE.formatJson(snapshot) : SkinMetrics.INSTANCE.formatHuman(snapshot);
+        context.getSource().sendSuccess(() -> Component.literal(output), false);
+        return 1;
     }
 
     private static boolean canTargetOthers(CommandSourceStack source) {
@@ -293,6 +355,10 @@ public class SkinCommand {
         boolean withCape = params.withCape();
         String customSource = params.customSource();
 
+        for (ServerPlayer target : targets) {
+            SkinMetrics.INSTANCE.recordRefreshStarted(target.getUUID());
+        }
+
         targets.forEach(player -> {
                 if(Config.TOGGLE.get()) {
                     if(player == context.getSource().getEntity()) context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("change")), false);
@@ -300,7 +366,9 @@ public class SkinCommand {
                 }
         });
 
+        long t0 = System.nanoTime();
         CompletableFuture<CustomSkinProperty> skinPropertyCompletableFuture = fetchSkinProperty(type, variant, withCape, customSource, targets);
+        long fetchStart = System.nanoTime();
 
         ScheduledFuture<?> timeoutFuture = skinCommandExecutor.schedule(() -> {
             if(skinPropertyCompletableFuture.completeExceptionally(new TimeoutException("Skin fetch timeout occurred"))) {
@@ -313,7 +381,7 @@ public class SkinCommand {
             if (timeoutFuture != null) {
                 timeoutFuture.cancel(false);
             }
-            handleSkinCompletion(skinProperty, throwable, targets, context, type, customSource);
+            handleSkinCompletion(skinProperty, throwable, targets, context, type, customSource, t0, fetchStart);
         });
 
         return targets.size();
@@ -368,18 +436,24 @@ public class SkinCommand {
 
     private static void handleSkinCompletion(CustomSkinProperty skinProperty, Throwable throwable,
                                              Collection<ServerPlayer> targets, CommandContext<CommandSourceStack> context,
-                                             SkinActionType type, String customSource) {
+                                             SkinActionType type, String customSource, long t0, long fetchStart) {
         skinCompletionsProcessed++;
         if (throwable != null) {
             EverlastingSkins.logger.error("Skin process error occurred");
-            for (ServerPlayer player : targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("error")));
+            for (ServerPlayer player : targets) {
+                SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
+                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("error")));
+            }
             return;
         }
         boolean isClear = type == SkinActionType.clear;
         if (skinProperty == null && !isClear) {
             String reason = SkinRefreshHandler.deriveReason(type, customSource);
             EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
-            for (ServerPlayer player : targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + reason));
+            for (ServerPlayer player : targets) {
+                SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
+                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + reason));
+            }
             return;
         }
         if (isClear && skinProperty == null) {
@@ -396,10 +470,12 @@ public class SkinCommand {
             return;
         }
         boolean isRestore = isClear && skinProperty != null;
+        long fetchNanos = System.nanoTime() - fetchStart;
         for (ServerPlayer player : targets) {
             UUID uuid = player.getUUID();
             if (isSkinUnchanged(uuid, skinProperty)) {
                 EverlastingSkins.logger.debug("SKIN_REFRESH skipped: identical skin for {}", uuid);
+                SkinMetrics.INSTANCE.recordRefreshSkipped(uuid);
                 continue;
             }
             SkinRestorer.getSkinStorage().setSkin(uuid, skinProperty);
@@ -417,9 +493,11 @@ public class SkinCommand {
             Long last = lastRefreshByPlayer.get(uuid);
             if (last != null && now - last < debounceMillis) {
                 EverlastingSkins.logger.debug("SKIN_REFRESH debounced for {}", uuid);
+                SkinMetrics.INSTANCE.recordRefreshDebounced(uuid);
                 continue;
             }
             lastRefreshByPlayer.put(uuid, now);
+            SkinMetrics.INSTANCE.recordRefreshCompleted(uuid, t0, fetchNanos, 0, 0);
             SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
         }
         for (ServerPlayer player : targets) {
@@ -466,6 +544,7 @@ public class SkinCommand {
         long lastCommand = lastCommandByPlayer.getOrDefault(playerUuid, 0L);
         long elapsed = now - lastCommand;
         if (lastCommand > 0 && elapsed < cooldownMs) {
+            SkinMetrics.INSTANCE.recordRateLimited(playerUuid);
             context.getSource().sendFailure(Component.literal(
                     "Please wait " + ((cooldownMs - elapsed) / 1000) + "s before using /skin again"));
             return true;
@@ -477,6 +556,7 @@ public class SkinCommand {
                 window.pollFirst();
             }
             if (window.size() >= Config.MAX_COMMANDS_PER_MINUTE.get()) {
+                SkinMetrics.INSTANCE.recordRateLimited(playerUuid);
                 context.getSource().sendFailure(Component.literal(
                         "Too many /skin commands. Try again later."));
                 return true;

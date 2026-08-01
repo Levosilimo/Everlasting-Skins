@@ -21,6 +21,9 @@ public class Config {
 
     public static ForgeConfigSpec.BooleanValue DIMENSION_SCOPED_BROADCAST;
 
+    public static ForgeConfigSpec.BooleanValue METRICS_ENABLED;
+    public static ForgeConfigSpec.IntValue METRICS_DUMP_INTERVAL_SECONDS;
+
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -47,6 +50,12 @@ public class Config {
         DIMENSION_SCOPED_BROADCAST = builder.comment("Restrict skin refresh broadcasts to the target player's dimension."
                 + " Off by default to match vanilla and 1.12.2 behavior (all players notified).")
             .define("dimension_scoped_broadcast", false);
+        builder.pop();
+        builder.push("Metrics");
+        METRICS_ENABLED = builder.comment("Enable in-process metrics collection and periodic metrics.json dump")
+            .define("metrics_enabled", true);
+        METRICS_DUMP_INTERVAL_SECONDS = builder.comment("Interval between metrics.json dumps (seconds; 0 disables the dump)")
+            .defineInRange("metrics_dump_interval_seconds", 60, 0, 3600);
         builder.pop();
         COMMON_CONFIG = builder.build();
     }
