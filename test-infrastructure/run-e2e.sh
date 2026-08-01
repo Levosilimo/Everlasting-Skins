@@ -54,7 +54,7 @@ trap 'rm -rf "$SERVER_DIR"; echo "Cleaned up temp directory"' EXIT
 mkdir -p "$SERVER_DIR/mods"
 mkdir -p "$SERVER_DIR/logs"
 
-JAR_FILE=$(ls build/libs/*.jar 2>/dev/null | head -1)
+JAR_FILE=$(ls build/libs/*.jar 2>/dev/null | grep -v -- '-sources.jar' | grep -v -- '-javadoc.jar' | head -1)
 if [ -z "$JAR_FILE" ]; then
     echo "ERROR: No mod JAR found in build/libs/"
     exit 1
@@ -117,17 +117,6 @@ if [ ! -f "$HMC_DIR/headlessmc-launcher-wrapper.jar" ]; then
         "https://github.com/headlesshq/headlessmc/releases/download/$HMC_VERSION/headlessmc-launcher-wrapper-$HMC_VERSION.jar"
 fi
 
-if [ ! -f "$SERVER_DIR/mods/hmc-specifics.jar" ]; then
-    echo "  Downloading HMCSpecifics v2.4.0..."
-    HMCS_VERSION="2.4.0"
-    if [ "$BRANCH" = "mc1.12.2" ]; then
-        HMCS_URL="https://github.com/headlesshq/hmc-specifics/releases/download/${HMCS_VERSION}/hmc-specifics-1.12.2-${HMCS_VERSION}-lexforge-release.jar"
-    else
-        HMCS_URL="https://github.com/headlesshq/hmc-specifics/releases/download/${HMCS_VERSION}/hmc-specifics-1.21-${HMCS_VERSION}-lexforge-release.jar"
-    fi
-    curl -L -o "$SERVER_DIR/mods/hmc-specifics.jar" "$HMCS_URL"
-fi
-
 # Configure HeadlessMC for test
 HMC_CONFIG_DIR="$PROJECT_DIR/$HMC_DIR_NAME"
 mkdir -p "$HMC_CONFIG_DIR"
@@ -150,7 +139,7 @@ CONFIG
 echo "[6/6] Running E2E test scenario: $SCENARIO..."
 cd "$PROJECT_DIR"
 xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
-    --command "launch forge:$MC_VERSION -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
+    --command "launch forge:$MC_VERSION -lwjgl -offline --jvm -Djava.awt.headless=true" \
     --game-args "--server localhost --port 25565 --username TestPlayer"
 
 EXIT_CODE=$?
