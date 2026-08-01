@@ -32,6 +32,14 @@ public class SkinRestorer {
         return server;
     }
 
+    /**
+     * Test-only: replaces the static server reference without a full FML
+     * lifecycle. Public because the test harness lives in a separate package.
+     */
+    public static void setServer(MinecraftServer server) {
+        SkinRestorer.server = server;
+    }
+
     public static void onServerStarting(FMLServerStartingEvent event) {
         server = event.getServer();
         Path dataDir = server.getFile("EverlastingSkins").toPath();

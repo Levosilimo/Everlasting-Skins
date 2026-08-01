@@ -122,4 +122,12 @@ public class SkinStorage {
         }
         return DEFAULT_SKIN.equals(skin) || skin.isEmpty();
     }
+
+    /**
+     * Test-only: clears the static in-memory skin cache so integration tests
+     * start isolated (player-name-derived UUIDs collide across tests).
+     */
+    public static void resetForTest() {
+        skinMap.clear();
+    }
 }
