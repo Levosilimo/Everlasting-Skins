@@ -13,6 +13,9 @@ public final class Config {
     public static boolean DISCORDSRV_ENABLED = false;
     public static String DISCORDSRV_CHANNEL_ID = "";
 
+    public static boolean metricsEnabled = true;
+    public static int metricsDumpIntervalSeconds = 60;
+
     public static void load(File configFile) {
         Configuration cfg = new Configuration(configFile);
         try {
@@ -26,6 +29,10 @@ public final class Config {
                 "Enable DiscordSRV skin change announcements");
             DISCORDSRV_CHANNEL_ID = cfg.getString("discordsrv_channel_id", "Integration", "",
                 "Discord channel ID for skin change announcements");
+            metricsEnabled = cfg.getBoolean("metricsEnabled", "everlastingskins", metricsEnabled,
+                "Enable in-process metrics");
+            metricsDumpIntervalSeconds = cfg.getInt("metricsDumpIntervalSeconds", "everlastingskins",
+                metricsDumpIntervalSeconds, 0, 3600, "Metrics dump interval (seconds)");
         } catch (Exception e) {
             EverlastingSkins.logger.error("Failed to load config", e);
         } finally {

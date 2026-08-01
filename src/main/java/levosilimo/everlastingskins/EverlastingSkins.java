@@ -1,6 +1,8 @@
 package levosilimo.everlastingskins;
 
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
+import levosilimo.everlastingskins.metrics.MetricsDumper;
+import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
@@ -11,6 +13,7 @@ import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
+import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,12 +44,18 @@ public class EverlastingSkins {
     public void serverStarting(FMLServerStartingEvent event) {
         PermissionServiceManager.init();
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
+        MinecraftForge.EVENT_BUS.register(new MetricsDumper());
         SkinRestorer.onServerStarting(event);
     }
 
     @Mod.EventHandler
     public void serverStopping(FMLServerStoppingEvent event) {
         SkinRestorer.onServerStopping();
+    }
+
+    @SubscribeEvent
+    public void onServerConnectionFromClient(FMLNetworkEvent.ServerConnectionFromClientEvent event) {
+        NetworkMetricsHandler.getOrAttach(event.getManager());
     }
 
     @SubscribeEvent
