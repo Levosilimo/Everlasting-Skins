@@ -54,7 +54,7 @@ public class SkinRefreshHandler {
         PlayerList playerlist = player.server.getPlayerList();
         long saveStart = System.nanoTime();
         SkinRestorer.getSkinStorage().saveSkinAsync(player.getUUID());
-        SkinMetrics.INSTANCE.recordSaveLatency(System.nanoTime() - saveStart);
+        SkinMetrics.INSTANCE.recordSaveEnqueueLatency(System.nanoTime() - saveStart);
         player.getGameProfile().getProperties().removeAll("textures");
         player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
@@ -66,7 +66,9 @@ public class SkinRefreshHandler {
         // clients to drop and re-learn the full profile (with textures).
         // Dimension-scoped only when DIMENSION_SCOPED_BROADCAST is enabled;
         // the default (off) matches vanilla and 1.12.2 behavior.
-        NetworkMetricsHandler.getOrAttach(player.connection.getConnection());
+        NetworkMetricsHandler netHandler = NetworkMetricsHandler.getOrAttach(player.connection.getConnection());
+        long outBefore = netHandler != null ? netHandler.outboundBytes() : 0;
+        long inBefore = netHandler != null ? netHandler.inboundBytes() : 0;
         var dimension = serverLevel.dimension();
         long broadcastStart = System.nanoTime();
         if (Config.DIMENSION_SCOPED_BROADCAST.get()) {
@@ -80,6 +82,11 @@ public class SkinRefreshHandler {
         SkinMetrics.INSTANCE.recordBroadcast(
                 wireSize(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())))
                         + wireSize(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player)));
+        if (netHandler != null) {
+            SkinMetrics.INSTANCE.recordNetworkDelta(
+                    netHandler.outboundBytes() - outBefore,
+                    netHandler.inboundBytes() - inBefore);
+        }
 
         // Respawn cascade for the target's OWN view: respawn is the only way
         // the client rebuilds its own player model with the new textures.

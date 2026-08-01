@@ -136,10 +136,22 @@ public class SkinCommand {
         }
 
         private static int reset(CommandContext<CommandSourceStack> context) {
+            if (!hasMetricsResetPermission(context)) return 0;
             SkinMetrics.INSTANCE.reset();
             context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " Metrics reset"), false);
             return 1;
         }
+    }
+
+    private static boolean hasMetricsResetPermission(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) return false;
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player.hasPermissions(2));
+        boolean allowed = PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics.reset");
+        if (!allowed) {
+            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " Permission denied"));
+        }
+        return allowed;
     }
 
     private static boolean hasMetricsPermission(CommandContext<CommandSourceStack> context) {

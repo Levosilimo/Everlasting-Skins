@@ -123,7 +123,7 @@ public class SkinIO {
             if (payload != null) {
                 long start = System.nanoTime();
                 writeSkinFile(uuid, payload);
-                SkinMetrics.INSTANCE.recordSaveLatency(System.nanoTime() - start);
+                SkinMetrics.INSTANCE.recordSaveDiskLatency(System.nanoTime() - start);
             }
             SkinMetrics.INSTANCE.recordSaveCompleted();
         }, writer());

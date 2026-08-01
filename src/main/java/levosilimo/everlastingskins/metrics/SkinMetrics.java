@@ -40,9 +40,12 @@ public final class SkinMetrics {
     private final LongAdder savesSubmitted = new LongAdder();
     private final LongAdder savesCompleted = new LongAdder();
     private final LongAdder ioFailures = new LongAdder();
+    private final LongAdder netBytesWrittenOut = new LongAdder();
+    private final LongAdder netBytesReadIn = new LongAdder();
 
     private final LongAdder[] fetchLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
-    private final LongAdder[] saveLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
+    private final LongAdder[] saveEnqueueLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
+    private final LongAdder[] saveDiskLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
     private final LongAdder[] broadcastLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
     private final LongAdder[] totalLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
 
@@ -56,7 +59,8 @@ public final class SkinMetrics {
     SkinMetrics() {
         for (int i = 0; i <= LATENCY_BUCKETS_US.length; i++) {
             fetchLatencyBuckets[i] = new LongAdder();
-            saveLatencyBuckets[i] = new LongAdder();
+            saveEnqueueLatencyBuckets[i] = new LongAdder();
+            saveDiskLatencyBuckets[i] = new LongAdder();
             broadcastLatencyBuckets[i] = new LongAdder();
             totalLatencyBuckets[i] = new LongAdder();
         }
@@ -78,7 +82,7 @@ public final class SkinMetrics {
         pm.refreshCount.increment();
         pm.lastRefreshAtMs.set(System.currentTimeMillis());
         recordLatency(fetchLatencyBuckets, fetchNanos);
-        recordLatency(saveLatencyBuckets, saveNanos);
+        recordLatency(saveEnqueueLatencyBuckets, saveNanos);
         recordLatency(broadcastLatencyBuckets, broadcastNanos);
         recordLatency(totalLatencyBuckets, System.nanoTime() - startNanos);
     }
@@ -104,12 +108,24 @@ public final class SkinMetrics {
         bytesWritten.add(bytes);
     }
 
-    public void recordSaveLatency(long nanos) {
-        recordLatency(saveLatencyBuckets, nanos);
+    /** Time between submit and the writer thread picking the write up. */
+    public void recordSaveEnqueueLatency(long nanos) {
+        recordLatency(saveEnqueueLatencyBuckets, nanos);
+    }
+
+    /** Actual disk write (write + fsync + atomic rename), measured on the writer thread. */
+    public void recordSaveDiskLatency(long nanos) {
+        recordLatency(saveDiskLatencyBuckets, nanos);
     }
 
     public void recordBroadcastLatency(long nanos) {
         recordLatency(broadcastLatencyBuckets, nanos);
+    }
+
+    /** Consumes the per-connection byte deltas measured around a refresh. */
+    public void recordNetworkDelta(long outDelta, long inDelta) {
+        if (outDelta > 0) netBytesWrittenOut.add(outDelta);
+        if (inDelta > 0) netBytesReadIn.add(inDelta);
     }
 
     /** Records the full task() duration into the total latency histogram. */
@@ -152,9 +168,12 @@ public final class SkinMetrics {
         savesSubmitted.reset();
         savesCompleted.reset();
         ioFailures.reset();
+        netBytesWrittenOut.reset();
+        netBytesReadIn.reset();
         for (int i = 0; i <= LATENCY_BUCKETS_US.length; i++) {
             fetchLatencyBuckets[i].reset();
-            saveLatencyBuckets[i].reset();
+            saveEnqueueLatencyBuckets[i].reset();
+            saveDiskLatencyBuckets[i].reset();
             broadcastLatencyBuckets[i].reset();
             totalLatencyBuckets[i].reset();
         }
@@ -223,8 +242,10 @@ public final class SkinMetrics {
                 broadcastsSent.sum(), bytesWritten.sum(), savesSubmitted.sum(), savesCompleted.sum(),
                 ioFailures.sum(), pendingAsyncWrites.get(), onlinePlayers.sum(),
                 System.currentTimeMillis() - startedAtMs.get(),
+                netBytesWrittenOut.sum(), netBytesReadIn.sum(),
                 histogramPercentiles(fetchLatencyBuckets, LATENCY_BUCKETS_US),
-                histogramPercentiles(saveLatencyBuckets, LATENCY_BUCKETS_US),
+                histogramPercentiles(saveEnqueueLatencyBuckets, LATENCY_BUCKETS_US),
+                histogramPercentiles(saveDiskLatencyBuckets, LATENCY_BUCKETS_US),
                 histogramPercentiles(broadcastLatencyBuckets, LATENCY_BUCKETS_US),
                 histogramPercentiles(totalLatencyBuckets, LATENCY_BUCKETS_US),
                 snapshotPerPlayer());
@@ -257,10 +278,13 @@ public final class SkinMetrics {
         sb.append("  saves: ").append(s.savesSubmitted()).append(" submitted, ").append(s.savesCompleted())
                 .append(" completed, ").append(s.ioFailures()).append(" failed, ")
                 .append(s.pendingAsyncWrites()).append(" pending\n");
+        sb.append("  network: ").append(formatBytes(s.netBytesWrittenOut())).append(" out, ")
+                .append(formatBytes(s.netBytesReadIn())).append(" in (per-connection)\n");
         sb.append("  online players: ").append(s.onlinePlayers()).append('\n');
         sb.append("  latencies (ms):\n");
         sb.append("    fetch:     ").append(formatPercentiles(s.fetchPercentiles())).append('\n');
-        sb.append("    save:      ").append(formatPercentiles(s.savePercentiles())).append('\n');
+        sb.append("    save enq:  ").append(formatPercentiles(s.saveEnqueuePercentiles())).append('\n');
+        sb.append("    save disk: ").append(formatPercentiles(s.saveDiskPercentiles())).append('\n');
         sb.append("    broadcast: ").append(formatPercentiles(s.broadcastPercentiles())).append('\n');
         sb.append("    total:     ").append(formatPercentiles(s.totalPercentiles()));
         return sb.toString();
@@ -282,10 +306,13 @@ public final class SkinMetrics {
                 .append(",\"completed\":").append(s.savesCompleted())
                 .append(",\"ioFailures\":").append(s.ioFailures())
                 .append(",\"pending\":").append(s.pendingAsyncWrites()).append('}');
+        sb.append(",\"networkBytes\":{\"out\":").append(s.netBytesWrittenOut())
+                .append(",\"in\":").append(s.netBytesReadIn()).append('}');
         sb.append(",\"onlinePlayers\":").append(s.onlinePlayers());
         sb.append(",\"latenciesMs\":{")
                 .append("\"fetch\":").append(jsonPercentiles(s.fetchPercentiles()))
-                .append(",\"save\":").append(jsonPercentiles(s.savePercentiles()))
+                .append(",\"saveEnqueue\":").append(jsonPercentiles(s.saveEnqueuePercentiles()))
+                .append(",\"saveDisk\":").append(jsonPercentiles(s.saveDiskPercentiles()))
                 .append(",\"broadcast\":").append(jsonPercentiles(s.broadcastPercentiles()))
                 .append(",\"total\":").append(jsonPercentiles(s.totalPercentiles())).append('}');
         sb.append(",\"players\":[");
@@ -333,8 +360,10 @@ public final class SkinMetrics {
             long refreshesDebounced, long refreshesSkipped, long refreshesRateLimited,
             long broadcastsSent, long bytesWritten, long savesSubmitted, long savesCompleted,
             long ioFailures, int pendingAsyncWrites, long onlinePlayers, long uptimeMs,
-            Map<String, Long> fetchPercentiles, Map<String, Long> savePercentiles,
-            Map<String, Long> broadcastPercentiles, Map<String, Long> totalPercentiles,
+            long netBytesWrittenOut, long netBytesReadIn,
+            Map<String, Long> fetchPercentiles, Map<String, Long> saveEnqueuePercentiles,
+            Map<String, Long> saveDiskPercentiles, Map<String, Long> broadcastPercentiles,
+            Map<String, Long> totalPercentiles,
             Map<UUID, PlayerSnapshot> perPlayer) {
     }
 

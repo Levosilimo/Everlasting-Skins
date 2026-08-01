@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -40,7 +41,7 @@ class SkinMetricsTest {
         SkinMetrics.Snapshot s = m.snapshot();
         assertEquals(1, s.refreshesCompleted());
         assertTrue(s.fetchPercentiles().get("p50") >= 1_000);
-        assertTrue(s.savePercentiles().get("p50") >= 100);
+        assertTrue(s.saveEnqueuePercentiles().get("p50") >= 100);
         assertTrue(s.broadcastPercentiles().get("p50") >= 500);
         assertTrue(s.totalPercentiles().get("p50") >= 0);
         SkinMetrics.PlayerSnapshot ps = s.perPlayer().get(uuid);
@@ -119,5 +120,51 @@ class SkinMetricsTest {
         assertEquals(1, s.refreshesRateLimited());
         assertEquals(0, s.refreshesCompleted());
         assertEquals(0, s.refreshesFailed());
+    }
+
+    @Test
+    @DisplayName("reset zeroes all counters and histograms")
+    void reset_zerosAllCountersAndHistograms() {
+        SkinMetrics m = freshMetrics();
+        UUID uuid = UUID.randomUUID();
+
+        m.recordRefreshStarted(uuid);
+        m.recordRefreshCompleted(uuid, System.nanoTime(), 1_000_000L, 200_000L, 500_000L);
+        m.recordRefreshFailed(uuid);
+        m.recordRefreshSkipped(uuid);
+        m.recordRefreshDebounced(uuid);
+        m.recordRateLimited(uuid);
+        m.recordBroadcast(1024);
+        m.recordSaveSubmitted();
+        m.recordSaveCompleted();
+        m.recordSaveEnqueueLatency(100_000L);
+        m.recordSaveDiskLatency(TimeUnit.MILLISECONDS.toNanos(50));
+        m.recordIoFailure();
+        m.recordPlayerJoined();
+        m.recordNetworkDelta(512, 128);
+
+        m.reset();
+        SkinMetrics.Snapshot s = m.snapshot();
+        assertEquals(0, s.refreshesInitiated());
+        assertEquals(0, s.refreshesCompleted());
+        assertEquals(0, s.refreshesFailed());
+        assertEquals(0, s.refreshesSkipped());
+        assertEquals(0, s.refreshesDebounced());
+        assertEquals(0, s.refreshesRateLimited());
+        assertEquals(0, s.broadcastsSent());
+        assertEquals(0, s.bytesWritten());
+        assertEquals(0, s.savesSubmitted());
+        assertEquals(0, s.savesCompleted());
+        assertEquals(0, s.ioFailures());
+        assertEquals(0, s.pendingAsyncWrites());
+        assertEquals(0, s.onlinePlayers());
+        assertEquals(0, s.netBytesWrittenOut());
+        assertEquals(0, s.netBytesReadIn());
+        assertEquals(0, s.fetchPercentiles().get("max"));
+        assertEquals(0, s.saveEnqueuePercentiles().get("max"));
+        assertEquals(0, s.saveDiskPercentiles().get("max"));
+        assertEquals(0, s.broadcastPercentiles().get("max"));
+        assertEquals(0, s.totalPercentiles().get("max"));
+        assertTrue(s.perPlayer().isEmpty());
     }
 }
