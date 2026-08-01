@@ -1,12 +1,15 @@
 package levosilimo.everlastingskins.harness;
 
+import com.mojang.authlib.GameProfile;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import net.minecraft.command.ServerCommandManager;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityTracker;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerList;
+import net.minecraft.server.management.UserListOps;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.EnumDifficulty;
@@ -65,19 +68,7 @@ public class TestServerContext implements AutoCloseable {
             return true;
         });
 
-        world = mock(WorldServer.class);
-        WorldProvider provider = mock(WorldProvider.class);
-        BlockPos spawn = new BlockPos(0, 64, 0);
-        when(provider.getRandomizedSpawnPoint()).thenReturn(spawn);
-        setProviderField(world, provider);
-        when(world.getSpawnPoint()).thenReturn(spawn);
-        WorldInfo info = mock(WorldInfo.class);
-        when(info.getTerrainType()).thenReturn(WorldType.DEFAULT);
-        when(info.isDifficultyLocked()).thenReturn(false);
-        when(world.getWorldInfo()).thenReturn(info);
-        when(world.getDifficulty()).thenReturn(EnumDifficulty.NORMAL);
-        when(world.getCollisionBoxes(any(Entity.class), any(AxisAlignedBB.class)))
-            .thenReturn(Collections.emptyList());
+        world = newWorld(0);
 
         skinRestorer = new SkinRestorer();
         setMinecraftHome(tempDir);
@@ -89,9 +80,52 @@ public class TestServerContext implements AutoCloseable {
         return TestPlayerFactory.create(server, world, name);
     }
 
+    public EntityPlayerMP newPlayer(String name, WorldServer playerWorld) {
+        return TestPlayerFactory.create(server, playerWorld, name);
+    }
+
+    /**
+     * A second world mock for cross-dimension scenarios. Mirrors the stubs of
+     * {@link #world} so EntityPlayerMP construction succeeds.
+     */
+    public WorldServer newWorld(int dimensionId) {
+        WorldServer w = mock(WorldServer.class);
+        WorldProvider provider = mock(WorldProvider.class);
+        BlockPos spawn = new BlockPos(0, 64, 0);
+        when(provider.getDimension()).thenReturn(dimensionId);
+        when(provider.getRandomizedSpawnPoint()).thenReturn(spawn);
+        setProviderField(w, provider);
+        when(w.getSpawnPoint()).thenReturn(spawn);
+        WorldInfo info = mock(WorldInfo.class);
+        when(info.getTerrainType()).thenReturn(WorldType.DEFAULT);
+        when(info.isDifficultyLocked()).thenReturn(false);
+        when(w.getWorldInfo()).thenReturn(info);
+        when(w.getDifficulty()).thenReturn(EnumDifficulty.NORMAL);
+        when(w.getCollisionBoxes(any(Entity.class), any(AxisAlignedBB.class)))
+            .thenReturn(Collections.emptyList());
+        // SkinCommand.task() untracks/re-tracks the target via the EntityTracker
+        // when Config.refreshViaEntityTracker is enabled.
+        when(w.getEntityTracker()).thenReturn(mock(EntityTracker.class));
+        return w;
+    }
+
+    /**
+     * Grants the player op level 2 so canUseCommand(2, ...) passes and the
+     * vanilla permission gate inside SkinCommand admits the command.
+     */
+    public void makeOp(EntityPlayerMP player) {
+        when(playerList.canSendCommands(any(GameProfile.class))).thenReturn(true);
+        when(playerList.getOppedPlayers()).thenReturn(mock(UserListOps.class));
+        when(server.getOpPermissionLevel()).thenReturn(2);
+    }
+
+    public Path getTempDir() {
+        return tempDir;
+    }
+
     /**
      * Restores static mod state between tests. SkinCommand's API fields are
-     * reset in Phase 4 once resetAPIs() lands.
+     * reset via SkinCommandTestAccess.resetAPIs() in each test's teardown.
      */
     public void reset() {
         SkinRestorer.setServer(null);
