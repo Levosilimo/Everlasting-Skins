@@ -578,6 +578,8 @@ public class SkinVisibilityTest {
             helper.succeed();
         } finally {
             removeQuietly(server, player);
+        }
+    }
 
     // Rank 1-6 lib-4 improvements
     // ------------------------------------------------------------------
@@ -875,7 +877,7 @@ public class SkinVisibilityTest {
         return sb.toString();
     }
 
-
+    /**
      * Rank 1: setting the same skin twice must skip the second refresh
      * entirely (no task() invocation).
      */
