@@ -230,4 +230,35 @@ class SkinIOTest {
             fail("Failed to list temp dir for corrupt file check", e);
         }
     }
+
+    @Nested
+    @DisplayName("Async drain latch")
+    class AsyncDrain {
+
+        @Test
+        @DisplayName("drain latch resets after the first drain so later async saves persist")
+        void saveSkinAsync_drainLatchResetsAfterDrain() throws Exception {
+            UUID uuid2 = UUID.randomUUID();
+            var skin1 = new CustomSkinProperty("value1", "sig1", "source1");
+            var skin2 = new CustomSkinProperty("value2", "sig2", "source2");
+
+            skinIO.saveSkinAsync(uuid, skin1);
+            awaitFile(uuid, "first async save");
+
+            // The bug case: the first drain left drainScheduled=true, so this
+            // second saveSkinAsync never scheduled a drain and the payload sat
+            // in pendingWrites until flushPending.
+            skinIO.saveSkinAsync(uuid2, skin2);
+            awaitFile(uuid2, "second async save after latch reset");
+        }
+
+        private void awaitFile(UUID playerUuid, String message) throws InterruptedException {
+            Path target = tempDir.resolve(playerUuid + ".json");
+            long deadline = System.currentTimeMillis() + 3000;
+            while (!Files.exists(target) && System.currentTimeMillis() < deadline) {
+                Thread.sleep(25);
+            }
+            assertTrue(Files.exists(target), message + ": " + target + " was never written");
+        }
+    }
 }

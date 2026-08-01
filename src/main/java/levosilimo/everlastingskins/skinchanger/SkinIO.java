@@ -164,6 +164,13 @@ public class SkinIO {
             SkinMetrics.INSTANCE.recordRealWrite();
             SkinMetrics.INSTANCE.recordSaveCompleted();
         }
+        // Reset the latch so future saveSkinAsync calls schedule again. If new
+        // writes arrived during this drain, schedule the next drain immediately
+        // (covers the race between reset and the next saveSkinAsync).
+        drainScheduled.set(false);
+        if (!pendingWrites.isEmpty()) {
+            scheduleDrain();
+        }
     }
 
     /**
