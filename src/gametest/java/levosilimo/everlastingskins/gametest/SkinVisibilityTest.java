@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
@@ -22,6 +23,8 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
@@ -522,6 +525,60 @@ public class SkinVisibilityTest {
     }
 
     // ------------------------------------------------------------------
+
+    // Wire-level serialization tests
+    // ------------------------------------------------------------------
+
+    /**
+     * Serializes the exact packet production broadcasts (UPDATE_DISPLAY_NAME)
+     * to a FriendlyByteBuf and inspects the raw bytes.
+     * <p>
+     * Assertion: the wire bytes must NOT contain the base64 textures value.
+     * This mirrors the vanilla 1.21 serialization where UPDATE_DISPLAY_NAME
+     * writes only profileId + displayName (no profile properties).
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:wire_serialize")
+    public void wireSerializeInfoUpdate_updateDisplayName_omitsProfile(GameTestHelper helper) {
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = mockPlayer(helper, "WirePlayer");
+        UUID playerId = player.getUUID();
+
+        try {
+            placePlayer(helper, player);
+            drain(player);
+
+            // Mirror production: set skin on profile then build the same packet.
+            CustomSkinProperty testSkin = new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "gametest");
+            SkinRestorer.getSkinStorage().setSkin(playerId, testSkin);
+            player.getGameProfile().getProperties().removeAll("textures");
+            player.getGameProfile().getProperties().put("textures", testSkin.getOriginalProperty());
+            SkinRefreshHandler.task(player);
+
+            ClientboundPlayerInfoUpdatePacket packet = new ClientboundPlayerInfoUpdatePacket(
+                    ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME, player);
+
+            RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), server.registryAccess());
+            ClientboundPlayerInfoUpdatePacket.STREAM_CODEC.encode(buf, packet);
+            byte[] bytes = new byte[buf.readableBytes()];
+            buf.readBytes(bytes);
+
+            String bytesAsString = new String(bytes, StandardCharsets.UTF_8);
+
+            EverlastingSkins.logger.info("WIRE UPDATE_DISPLAY_NAME: {} bytes, hex:\n{}", bytes.length, hex(bytes));
+
+            // Does the wire contain the textures property?
+            boolean hasTexture = bytesAsString.contains("textures")
+                    || bytesAsString.contains(TEST_TEXTURE_VALUE);
+            if (hasTexture) {
+                helper.fail("UPDATE_DISPLAY_NAME wire bytes unexpectedly contain textures. "
+                        + "This contradicts vanilla serialization; hex=" + hex(bytes));
+                return;
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, player);
+
     // Rank 1-6 lib-4 improvements
     // ------------------------------------------------------------------
 
@@ -760,10 +817,65 @@ public class SkinVisibilityTest {
             helper.succeed();
         } finally {
             removeQuietly(server, playerA);
+
         }
     }
 
     /**
+
+     * Contrasting test: ADD_PLAYER serializes the full GameProfile including
+     * textures properties. This proves the FakeMojangAPI texture actually CAN
+     * appear on the wire when the packet type carries profiles.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:wire_serialize")
+    public void wireSerializeInfoUpdate_addPlayer_includesProfile(GameTestHelper helper) {
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = mockPlayer(helper, "WirePlayerAdd");
+        UUID playerId = player.getUUID();
+
+        try {
+            placePlayer(helper, player);
+            drain(player);
+
+            CustomSkinProperty testSkin = new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "gametest");
+            SkinRestorer.getSkinStorage().setSkin(playerId, testSkin);
+            player.getGameProfile().getProperties().removeAll("textures");
+            player.getGameProfile().getProperties().put("textures", testSkin.getOriginalProperty());
+
+            ClientboundPlayerInfoUpdatePacket packet = new ClientboundPlayerInfoUpdatePacket(
+                    ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player);
+
+            RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), server.registryAccess());
+            ClientboundPlayerInfoUpdatePacket.STREAM_CODEC.encode(buf, packet);
+            byte[] bytes = new byte[buf.readableBytes()];
+            buf.readBytes(bytes);
+
+            String bytesAsString = new String(bytes, StandardCharsets.UTF_8);
+
+            EverlastingSkins.logger.info("WIRE ADD_PLAYER: {} bytes, hex:\n{}", bytes.length, hex(bytes));
+
+            if (!bytesAsString.contains("textures")) {
+                helper.fail("ADD_PLAYER wire bytes should contain the textures property name. "
+                        + "hex=" + hex(bytes));
+                return;
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, player);
+        }
+    }
+
+    private static String hex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < bytes.length; i++) {
+            sb.append(String.format("%02x", bytes[i]));
+            if ((i + 1) % 16 == 0) sb.append('\n');
+        }
+        return sb.toString();
+    }
+
+
      * Rank 1: setting the same skin twice must skip the second refresh
      * entirely (no task() invocation).
      */
@@ -919,6 +1031,7 @@ public class SkinVisibilityTest {
             removeQuietly(server, playerA);
         }
     }
+
 
     // ------------------------------------------------------------------
     // Helpers
