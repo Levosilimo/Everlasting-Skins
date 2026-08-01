@@ -1,5 +1,7 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.metrics.SkinMetrics.Snapshot;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -208,6 +210,67 @@ class SkinStorageTest {
             storage.setSkin(uuid, emptySkin);
 
             assertTrue(storage.hasDefaultSkin(uuid));
+        }
+    }
+
+    @Nested
+    @DisplayName("Async drain coalesce")
+    class AsyncDrain {
+
+        @BeforeEach
+        void resetMetrics() {
+            SkinMetrics.INSTANCE.reset();
+        }
+
+        @Test
+        @DisplayName("drain latch resets after the first drain so later saves persist")
+        void saveSkinAsync_drainLatchResetsAfterDrain() throws Exception {
+            // Regression test for the PR #121 latch bug (7cc66cf): the latch
+            // stuck true after the first drain, silently deferring every later
+            // save to logout/shutdown. Fails on the buggy code.
+            UUID u1 = UUID.randomUUID();
+            UUID u2 = UUID.randomUUID();
+
+            storage.saveSkinAsync(u1, new CustomSkinProperty("textures", "sig1", "src1"));
+            Thread.sleep(150); // 50ms debounce + headroom
+            assertTrue(Files.exists(tempDir.resolve(u1 + ".json")),
+                    "First async save should be persisted after the debounce window");
+
+            storage.saveSkinAsync(u2, new CustomSkinProperty("textures", "sig2", "src2"));
+            Thread.sleep(150);
+            assertTrue(Files.exists(tempDir.resolve(u2 + ".json")),
+                    "Second async save after latch reset should be persisted");
+        }
+
+        @Test
+        @DisplayName("burst saves for the same UUID coalesce into one disk write")
+        void saveSkinAsync_coalescesSameUUIDWrites() throws Exception {
+            UUID u = UUID.randomUUID();
+            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig1", "src1"));
+            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig2", "src2"));
+            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig3", "src3"));
+            storage.flushPending();
+
+            // Only the last payload should hit disk (realWrites=1, savesCoalesced=2).
+            Snapshot s = SkinMetrics.INSTANCE.snapshot();
+            assertEquals(1, s.realWrites());
+            assertEquals(2, s.savesCoalesced());
+            assertEquals(3, s.savesSubmitted());
+            assertEquals(3, s.savesCompleted());
+            assertEquals(0, s.pendingAsyncWrites());
+            assertTrue(Files.exists(tempDir.resolve(u + ".json")));
+        }
+
+        @Test
+        @DisplayName("removeSkin purges pending writes so the deferred drain cannot resurrect the file")
+        void deleteSkin_purgesPendingWrites() throws Exception {
+            UUID u = UUID.randomUUID();
+            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+            storage.removeSkin(u); // before the drain fires
+            storage.flushPending();
+
+            assertFalse(Files.exists(tempDir.resolve(u + ".json")),
+                    "Purged write must not be resurrected by the deferred drain");
         }
     }
 }

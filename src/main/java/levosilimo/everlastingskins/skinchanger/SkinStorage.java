@@ -1,24 +1,42 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.JsonUtils;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SkinStorage {
 
-    private static final ExecutorService SAVE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+    private static final ScheduledExecutorService SAVE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "EverlastingSkins-SkinIO");
         t.setDaemon(true);
         return t;
     });
+
+    /**
+     * Debounce window: burst saves for the same UUID collapse into one disk
+     * write. Port of the PR #121 A2 drain-coalesce writer.
+     */
+    private static final long DEBOUNCE_MS = 50;
+
+    /** Latest serialized payload per UUID awaiting the writer thread. */
+    private final ConcurrentHashMap<UUID, byte[]> pendingWrites = new ConcurrentHashMap<>();
+    /** Latch so only one drain is scheduled at a time. */
+    private final AtomicBoolean drainScheduled = new AtomicBoolean(false);
 
     private final CustomSkinProperty DEFAULT_SKIN;
     private static final ConcurrentHashMap<UUID, CustomSkinProperty> skinMap = new ConcurrentHashMap<>();
@@ -51,6 +69,7 @@ public class SkinStorage {
     public CustomSkinProperty loadSkin(UUID uuid) {
         CustomSkinProperty skin = skinIO.loadSkin(uuid);
         if (skin != null && skin.isEmpty()) {
+            pendingWrites.remove(uuid);
             skinIO.deleteSkin(uuid);
             return null;
         }
@@ -87,21 +106,69 @@ public class SkinStorage {
     }
 
     /**
-     * Flushes the in-memory skin to disk on a single daemon thread so the
-     * refresh cascade never blocks the server tick on JSON I/O.
+     * Coalescing async save: serializes the payload now, merges it into the
+     * pending map (later payloads for the same UUID supersede earlier ones),
+     * and schedules a single drain after a 50ms debounce window. Port of the
+     * PR #121 A2 drain-coalesce writer; superseded payloads never reach disk
+     * and count as savesCoalesced instead of realWrites.
      */
     public void saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
+        byte[] payload = JsonUtils.toJson(skin).getBytes(StandardCharsets.UTF_8);
+        boolean superseded = pendingWrites.put(uuid, payload) != null;
+        if (superseded) {
+            SkinMetrics.INSTANCE.recordSaveCoalesced();
+            SkinMetrics.INSTANCE.recordSaveCompleted();
+        }
         SkinMetrics.INSTANCE.recordSaveSubmitted();
-        SAVE_EXECUTOR.execute(() -> {
-            try {
-                skinIO.saveSkin(uuid, skin);
-            } finally {
+        scheduleDrain();
+    }
+
+    private void scheduleDrain() {
+        if (drainScheduled.compareAndSet(false, true)) {
+            SAVE_EXECUTOR.schedule(this::drainPending, DEBOUNCE_MS, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /** Writes every pending payload once; superseded payloads were dropped at merge time. */
+    private void drainPending() {
+        try {
+            for (UUID uuid : pendingWrites.keySet()) {
+                byte[] payload = pendingWrites.remove(uuid);
+                if (payload == null) continue;
+                long start = System.nanoTime();
+                skinIO.saveSkin(uuid, payload);
+                SkinMetrics.INSTANCE.recordSaveDiskLatency(System.nanoTime() - start);
+                SkinMetrics.INSTANCE.recordRealWrite();
                 SkinMetrics.INSTANCE.recordSaveCompleted();
             }
-        });
+        } finally {
+            // Race fix from PR #121 (7cc66cf): reset the latch at the END of the
+            // drain, and reschedule if new writes arrived while draining. Without
+            // this the latch sticks true and later saves silently defer to flush.
+            drainScheduled.set(false);
+            if (!pendingWrites.isEmpty()) {
+                scheduleDrain();
+            }
+        }
+    }
+
+    /**
+     * Blocks until all queued writes have been drained. Called on server
+     * shutdown so no payload is lost mid-session.
+     */
+    void flushPending() {
+        drainScheduled.set(false);
+        try {
+            SAVE_EXECUTOR.submit(this::drainPending).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException | TimeoutException e) {
+            EverlastingSkins.logger.warn("Skin flush did not complete in time", e);
+        }
     }
 
     public CustomSkinProperty removeSkin(UUID uuid) {
+        pendingWrites.remove(uuid); // purge deferred drain; it must not resurrect a deleted skin
         skinMap.remove(uuid);
         skinIO.deleteSkin(uuid);
         return null;

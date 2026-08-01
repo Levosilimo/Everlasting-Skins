@@ -102,5 +102,6 @@ public class SkinRestorer {
         for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
             skinStorage.saveSkin(player.getUniqueID());
         }
+        skinStorage.flushPending();
     }
 }
