@@ -13,6 +13,7 @@ import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.MojangAPI;
 import levosilimo.everlastingskins.skinchanger.ProfileLookup;
 import levosilimo.everlastingskins.skinchanger.SkinCommand;
+import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.SkinIO;
 import levosilimo.everlastingskins.skinchanger.SkinRefreshHandler;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
@@ -137,11 +138,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Dispatches /skin set mojang Notch through the real server dispatcher as
-     * an OP player and waits for the async provider fetch, storage write and
-     * refresh broadcast to complete.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:cmd_set")
     public void skinCommand_setMojang_fullFlow(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
@@ -177,10 +173,6 @@ public class SkinVisibilityTest {
         });
     }
 
-    /**
-     * A non-OP player must be rejected before any provider call, storage write
-     * or broadcast happens, and must receive failure feedback.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:cmd_denied")
     public void skinCommand_permissionDenied(GameTestHelper helper) {
         installFakeMojangAPI(true);
@@ -264,9 +256,6 @@ public class SkinVisibilityTest {
         });
     }
 
-    /**
-     * /skin source must report the source stored with the current skin.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:cmd_source")
     public void skinCommand_source_reportsCurrentSource(GameTestHelper helper) {
         installFakeMojangAPI(true);
@@ -296,11 +285,6 @@ public class SkinVisibilityTest {
         helper.succeed();
     }
 
-    /**
-     * Persistence round trip: PlayerLoggedOutEvent (fired by PlayerList.remove)
-     * must write the skin JSON, a fresh SkinStorage must reload it from disk,
-     * and a rejoin with the same UUID must re-apply it to the profile.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:roundtrip")
     public void skinRefresh_persistence_roundTrip(GameTestHelper helper) {
         installFakeMojangAPI(true);
@@ -346,10 +330,6 @@ public class SkinVisibilityTest {
         helper.succeed();
     }
 
-    /**
-     * One refresh must produce exactly one UPDATE_DISPLAY_NAME textures
-     * broadcast on an observer channel — not zero, not two.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:count")
     public void skinRefresh_broadcastExactCount(GameTestHelper helper) {
         installFakeMojangAPI(true);
@@ -377,10 +357,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Negative control: a player with no stored skin must not get textures on
-     * the profile at login and must not trigger a textures broadcast.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:negative")
     public void skinRefresh_negativeControl(GameTestHelper helper) {
         installFakeMojangAPI(true);
@@ -409,11 +385,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * The broadcast must carry the exact configured signature and a payload
-     * whose base64-decoded JSON contains the expected texture URL and
-     * profileName.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:signature")
     public void skinRefresh_signaturePropagation(GameTestHelper helper) {
         installFakeMojangAPI(true);
@@ -446,9 +417,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * One refresh must reach every other connected client.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:multiobserver")
     public void skinRefresh_propagatesToMultipleObservers(GameTestHelper helper) {
         installFakeMojangAPI(true);
@@ -483,11 +451,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Full dispatcher path including the requires() gate: an OP player must be
-     * able to run /skin set mojang Notch <target> with an explicit entity
-     * argument, exercising EntityArgument parsing and canTargetOthers.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:successpath")
     public void skinRefresh_runCommandSuccessPath(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
@@ -520,14 +483,6 @@ public class SkinVisibilityTest {
         });
     }
 
-    /**
-     * Serializes the exact packet production broadcasts (UPDATE_DISPLAY_NAME)
-     * to a FriendlyByteBuf and inspects the raw bytes.
-     * <p>
-     * Assertion: the wire bytes must NOT contain the base64 textures value.
-     * This mirrors the vanilla 1.21 serialization where UPDATE_DISPLAY_NAME
-     * writes only profileId + displayName (no profile properties).
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:wire_serialize")
     public void wireSerializeInfoUpdate_updateDisplayName_omitsProfile(GameTestHelper helper) {
         ensureStorage(helper);
@@ -572,11 +527,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Rank 3: observers must receive ClientboundPlayerInfoRemovePacket +
-     * ADD_PLAYER (with textures) instead of UPDATE_DISPLAY_NAME, which does
-     * not serialize the GameProfile on the wire.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r1_addplayer")
     public void refreshBroadcastUsesAddPlayer_notUpdateDisplayName(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
@@ -622,11 +572,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Rank 6: sendPlayerPermissionLevel must be sent exactly once (was twice).
-     * In 1.21 it materializes as ClientboundEntityEventPacket with event id
-     * 24+permissionLevel (24..28) on the target's own channel.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r2_permcount")
     public void duplicateSendPlayerPermissionLevelRemoved(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
@@ -651,10 +596,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Rank 6: ClientboundPlayerAbilitiesPacket must not be sent separately;
-     * sendAllPlayerInfo already includes it, so exactly one remains.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r3_abilities")
     public void redundantAbilitiesPacketRemoved(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
@@ -677,12 +618,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Rank 5 + audit issue 3: the REMOVE + ADD_PLAYER broadcast is
-     * dimension-scoped ONLY when DIMENSION_SCOPED_BROADCAST is enabled.
-     * With the config OFF (default, matches vanilla/1.12.2), an observer in
-     * the nether DOES receive the broadcast for an overworld target.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r4_dimension")
     public void dimensionTargetedBroadcast(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
@@ -743,11 +678,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Audit issue 1: SkinIO's writer must survive a ServerStoppingEvent
-     * shutdown. Fire the event twice (as a server reload would) and verify
-     * async saves still complete afterwards.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r9_ioshutdown")
     public void ioAsyncWriterSurvivesSecondShutdown(GameTestHelper helper) {
         ensureStorage(helper);
@@ -775,12 +705,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Rank 6: respawn flag must be KEEP_ALL_DATA, the SkinsRestorer
-     * convention that preserves the client-side inventory. In 1.21
-     * KEEP_ALL_DATA == (byte) 3 (KEEP_ATTRIBUTE_MODIFIERS=1,
-     * KEEP_ENTITY_DATA=2, KEEP_ALL_DATA=3), verified via javap -constants.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r5_respawnflag")
     public void respawnFlagIsKeepAllData(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
@@ -865,11 +789,6 @@ public class SkinVisibilityTest {
         return sb.toString();
     }
 
-    /**
-     * Rank 1 + A5: setting the same skin twice must skip the fetch entirely
-     * (A5 stored-source match) and schedule exactly one re-broadcast — the
-     * provider must not be called a second time.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r6_skipunchanged")
     public void skipIfUnchanged(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
@@ -881,8 +800,8 @@ public class SkinVisibilityTest {
         try {
             placePlayer(helper, playerA);
             SkinRefreshHandler.resetRefreshTaskCount();
-            SkinCommand.resetSkinCompletionsProcessed();
-            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            SkinActionCommand.resetSkinCompletionsProcessed();
+            SkinActionCommand.getLastRefreshByPlayer().remove(uuidA);
             Config.RATE_LIMIT_ENABLED.set(false);
             fake.fail = false;
 
@@ -929,15 +848,11 @@ public class SkinVisibilityTest {
         } finally {
             fake.slow = false;
             Config.RATE_LIMIT_ENABLED.set(true);
-            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            SkinActionCommand.getLastRefreshByPlayer().remove(uuidA);
             removeQuietly(server, playerA);
         }
     }
 
-    /**
-     * Rank 1: two different skins set within the debounce window must result
-     * in exactly one task() invocation.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r7_debounce")
     public void debounceAfter100ms(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
@@ -946,12 +861,12 @@ public class SkinVisibilityTest {
         ServerPlayer playerA = mockPlayer(helper, "DebounceA");
         makeOp(playerA);
         UUID uuidA = playerA.getUUID();
-        SkinCommand.debounceMillis = 60_000;
+        SkinActionCommand.debounceMillis = 60_000;
         try {
             placePlayer(helper, playerA);
             SkinRefreshHandler.resetRefreshTaskCount();
-            SkinCommand.resetSkinCompletionsProcessed();
-            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            SkinActionCommand.resetSkinCompletionsProcessed();
+            SkinActionCommand.getLastRefreshByPlayer().remove(uuidA);
             Config.RATE_LIMIT_ENABLED.set(false);
             fake.fail = false;
             fake.varyValue = true;
@@ -969,7 +884,7 @@ public class SkinVisibilityTest {
                         throw new GameTestAssertException("waiting for first task() to run, count="
                                 + SkinRefreshHandler.getRefreshTaskCount());
                     }
-                    SkinCommand.getLastRefreshByPlayer().put(uuidA, System.currentTimeMillis());
+                    SkinActionCommand.getLastRefreshByPlayer().put(uuidA, System.currentTimeMillis());
                     int second = dispatch(server, "skin set mojang Jeb_", playerA.createCommandSourceStack(), helper);
                     if (second != 1) {
                         throw new GameTestAssertException("second dispatch must be accepted, got " + second);
@@ -977,7 +892,7 @@ public class SkinVisibilityTest {
                     phase[0] = true;
                     throw new GameTestAssertException("entering second-phase wait");
                 }
-                if (SkinCommand.getSkinCompletionsProcessed() < 2) {
+                if (SkinActionCommand.getSkinCompletionsProcessed() < 2) {
                     throw new GameTestAssertException("waiting for second completion to be processed");
                 }
                 long count = SkinRefreshHandler.getRefreshTaskCount();
@@ -987,8 +902,8 @@ public class SkinVisibilityTest {
                 removeQuietly(server, playerA);
             });
         } finally {
-            SkinCommand.debounceMillis = 100;
-            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            SkinActionCommand.debounceMillis = 100;
+            SkinActionCommand.getLastRefreshByPlayer().remove(uuidA);
             Config.RATE_LIMIT_ENABLED.set(true);
             fake.slow = false;
             fake.varyValue = false;
@@ -996,10 +911,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * Rank 4: two /skin commands inside the cooldown window — the second must
-     * be rejected with return code 0.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r8_ratelimit")
     public void rateLimitAfterCooldown(GameTestHelper helper) {
         installFakeMojangAPI(true);
@@ -1010,7 +921,7 @@ public class SkinVisibilityTest {
         UUID uuidA = playerA.getUUID();
         try {
             placePlayer(helper, playerA);
-            SkinCommand.clearRateLimitState(uuidA);
+            SkinActionCommand.clearRateLimitState(uuidA);
             Config.RATE_LIMIT_ENABLED.set(true);
             Config.COOLDOWN_SECONDS.set(60);
 
@@ -1021,15 +932,11 @@ public class SkinVisibilityTest {
             helper.succeed();
         } finally {
             Config.COOLDOWN_SECONDS.set(3);
-            SkinCommand.clearRateLimitState(uuidA);
+            SkinActionCommand.clearRateLimitState(uuidA);
             removeQuietly(server, playerA);
         }
     }
 
-    /**
-     * /skin metrics prints a human-readable snapshot including refresh
-     * counters and latency percentiles.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_metrics")
     public void skin_metrics_command_printsHumanReadable(GameTestHelper helper) {
         ensureStorage(helper);
@@ -1061,9 +968,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * /skin metrics json prints a single JSON object with refresh counters.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_metrics_json")
     public void skin_metrics_json_command_printsJson(GameTestHelper helper) {
         ensureStorage(helper);
@@ -1093,10 +997,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * /skin metrics players lists the most active players by refresh count.
-     * A freshly-seeded UUID with several refreshes must appear.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_metrics_players")
     public void skin_metrics_players_top10ByCount(GameTestHelper helper) {
         ensureStorage(helper);
@@ -1131,11 +1031,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * The JSON metrics output exposes the lib-6 counters: timed out refreshes,
-     * provider status classes, cache hit/miss, tick spikes and the split
-     * command/task latency histograms.
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_metrics_json2")
     public void metrics_json_showsNewCounters(GameTestHelper helper) {
         ensureStorage(helper);
@@ -1174,10 +1069,6 @@ public class SkinVisibilityTest {
         }
     }
 
-    /**
-     * A5: requesting the same skin source twice must not hit the provider the
-     * second time (stored-source match skips the fetch).
-     */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_cache")
     public void metrics_withProviderCache_avoidsHttp(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
@@ -1188,7 +1079,7 @@ public class SkinVisibilityTest {
         UUID uuidA = playerA.getUUID();
         try {
             placePlayer(helper, playerA);
-            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            SkinActionCommand.getLastRefreshByPlayer().remove(uuidA);
             Config.RATE_LIMIT_ENABLED.set(false);
             fake.fail = false;
 
@@ -1219,7 +1110,7 @@ public class SkinVisibilityTest {
         } finally {
             fake.slow = false;
             Config.RATE_LIMIT_ENABLED.set(true);
-            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            SkinActionCommand.getLastRefreshByPlayer().remove(uuidA);
             removeQuietly(server, playerA);
         }
     }

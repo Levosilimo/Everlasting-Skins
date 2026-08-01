@@ -35,7 +35,7 @@ public class SkinRefreshHandler {
         return refreshTaskCount;
     }
 
-    static String getLocalizedString(String key) {
+    public static String getLocalizedString(String key) {
         return I18nUtils.getInstance().getLocalizedString(key, Config.LANGUAGE.get());
     }
 
@@ -46,36 +46,52 @@ public class SkinRefreshHandler {
             return;
         }
         long tStart = System.nanoTime();
-        double x = player.position().x;
-        double y = player.position().y;
-        double z = player.position().z;
-        float yaw = player.getYRot();
-        float pitch = player.getXRot();
-        ServerLevel serverLevel = player.serverLevel();
-        PlayerList playerlist = player.server.getPlayerList();
-        long saveStart = System.nanoTime();
-        SkinRestorer.getSkinStorage().saveSkinAsync(player.getUUID());
-        long saveEnqueueNanos = System.nanoTime() - saveStart;
-        SkinMetrics.INSTANCE.recordSaveEnqueueLatency(saveEnqueueNanos);
-        SkinMetrics.INSTANCE.recordSpikeSaveEnqueue(saveEnqueueNanos);
+        mutateProfile(player, skin);
+        recordSaveEnqueue(player);
+        recordObserverBroadcast(player, skin);
+        recordCascade(player);
+        long totalNanos = System.nanoTime() - tStart;
+        if (totalNanos > TICK_SPIKE_THRESHOLD_NANOS) {
+            EverlastingSkins.logger.warn("SKIN_REFRESH tick spike {}ms for {}",
+                    totalNanos / 1_000_000, player.getUUID());
+            SkinMetrics.INSTANCE.recordTickSpike(totalNanos);
+        }
+        SkinMetrics.INSTANCE.recordTaskDuration(totalNanos);
+    }
+
+    private static void mutateProfile(ServerPlayer player, CustomSkinProperty skin) {
         player.getGameProfile().getProperties().removeAll("textures");
         player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
                 player.getGameProfile().getName(),
                 player.getGameProfile().getProperties().get("textures"));
+    }
 
-        // Bug fix: UPDATE_DISPLAY_NAME does not serialize the GameProfile, so
-        // observers never received the new textures. REMOVE + ADD_PLAYER forces
-        // clients to drop and re-learn the full profile (with textures).
-        // Dimension-scoped only when DIMENSION_SCOPED_BROADCAST is enabled;
-        // the default (off) matches vanilla and 1.12.2 behavior.
+    private static void recordSaveEnqueue(ServerPlayer player) {
+        long start = System.nanoTime();
+        SkinRestorer.getSkinStorage().saveSkinAsync(player.getUUID());
+        long enqueueNanos = System.nanoTime() - start;
+        SkinMetrics.INSTANCE.recordSaveEnqueueLatency(enqueueNanos);
+        SkinMetrics.INSTANCE.recordSpikeSaveEnqueue(enqueueNanos);
+    }
+
+    /**
+     * UPDATE_DISPLAY_NAME does not serialize the GameProfile, so observers never
+     * received new textures; REMOVE + ADD_PLAYER forces clients to re-learn the
+     * profile. Dimension-scoped only when DIMENSION_SCOPED_BROADCAST is enabled.
+     */
+    private static void recordObserverBroadcast(ServerPlayer player, CustomSkinProperty skin) {
+        PlayerList playerlist = player.server.getPlayerList();
+        ServerLevel serverLevel = player.serverLevel();
+        var dimension = serverLevel.dimension();
+        Packet<ClientGamePacketListener> removePacket = new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID()));
+        Packet<ClientGamePacketListener> addPacket = new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player);
+
         NetworkMetricsHandler netHandler = NetworkMetricsHandler.getOrAttach(player.connection.getConnection());
         long outBefore = netHandler != null ? netHandler.outboundBytes() : 0;
         long inBefore = netHandler != null ? netHandler.inboundBytes() : 0;
-        var dimension = serverLevel.dimension();
-        long broadcastStart = System.nanoTime();
-        Packet<ClientGamePacketListener> removePacket = new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID()));
-        Packet<ClientGamePacketListener> addPacket = new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player);
+        long start = System.nanoTime();
+
         if (Config.BROADCAST_USE_BUNDLE.get()) {
             ClientboundBundlePacket bundle = new ClientboundBundlePacket(List.of(removePacket, addPacket));
             for (ServerPlayer online : playerlist.getPlayers()) {
@@ -91,23 +107,33 @@ public class SkinRefreshHandler {
             playerlist.broadcastAll(removePacket);
             playerlist.broadcastAll(addPacket);
         }
-        long broadcastNanos = System.nanoTime() - broadcastStart;
+
+        long broadcastNanos = System.nanoTime() - start;
         SkinMetrics.INSTANCE.recordBroadcastLatency(broadcastNanos);
         SkinMetrics.INSTANCE.recordSpikeBroadcast(broadcastNanos);
-        long broadcastBytes = wireSize(removePacket) + wireSize(addPacket);
-        SkinMetrics.INSTANCE.recordBroadcast(broadcastBytes);
+        SkinMetrics.INSTANCE.recordBroadcast(wireSize(removePacket) + wireSize(addPacket));
         if (netHandler != null) {
             SkinMetrics.INSTANCE.recordNetworkDelta(
                     netHandler.outboundBytes() - outBefore,
                     netHandler.inboundBytes() - inBefore);
         }
+    }
 
-        // Respawn cascade for the target's OWN view: respawn is the only way
-        // the client rebuilds its own player model with the new textures.
-        // KEEP_ALL_DATA == (byte) 3 in 1.21 (KEEP_ATTRIBUTE_MODIFIERS=1,
-        // KEEP_ENTITY_DATA=2, KEEP_ALL_DATA=3) — preserves the client-side
-        // inventory, the SkinsRestorer convention.
-        long cascadeStart = System.nanoTime();
+    /**
+     * Respawn cascade for the target's own view: respawn is the only way the
+     * client rebuilds its own player model with the new textures. KEEP_ALL_DATA
+     * == (byte) 3 in 1.21 (1/2/3 flags) — preserves the client-side inventory.
+     */
+    private static void recordCascade(ServerPlayer player) {
+        ServerLevel serverLevel = player.serverLevel();
+        PlayerList playerlist = player.server.getPlayerList();
+        double x = player.position().x;
+        double y = player.position().y;
+        double z = player.position().z;
+        float yaw = player.getYRot();
+        float pitch = player.getXRot();
+        long start = System.nanoTime();
+
         player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), ClientboundRespawnPacket.KEEP_ALL_DATA));
         player.absMoveTo(x, y, z, yaw, pitch);
         player.connection.send(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0));
@@ -117,21 +143,12 @@ public class SkinRefreshHandler {
         // 1.21 sendAllPlayerInfo does NOT include abilities — send explicitly.
         player.connection.send(new ClientboundPlayerAbilitiesPacket(player.getAbilities()));
         playerlist.sendActivePlayerEffects(player);
-        long cascadeNanos = System.nanoTime() - cascadeStart;
-        SkinMetrics.INSTANCE.recordSpikeCascade(cascadeNanos);
-        // Approximate the cascade packet volume the client receives.
+
+        SkinMetrics.INSTANCE.recordSpikeCascade(System.nanoTime() - start);
         SkinMetrics.INSTANCE.recordBroadcast(wireSize(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0))
                 + wireSize(new ClientboundPlayerAbilitiesPacket(player.getAbilities()))
                 + CASCADE_SEND_LEVEL_INFO_BYTES + CASCADE_SEND_PERMISSION_BYTES
                 + CASCADE_SEND_ALL_PLAYER_INFO_BYTES + CASCADE_SEND_EFFECTS_BYTES);
-
-        long totalNanos = System.nanoTime() - tStart;
-        if (totalNanos > TICK_SPIKE_THRESHOLD_NANOS) {
-            EverlastingSkins.logger.warn("SKIN_REFRESH tick spike {}ms for {}",
-                    totalNanos / 1_000_000, player.getUUID());
-            SkinMetrics.INSTANCE.recordTickSpike(totalNanos);
-        }
-        SkinMetrics.INSTANCE.recordTaskDuration(totalNanos);
     }
 
     /** Approximations for the player-list helper sends in the cascade (per call). */
@@ -177,7 +194,7 @@ public class SkinRefreshHandler {
     }
 
     @Nullable
-    static MojangRestoreResult tryRestoreFromMojang(MojangAPI mojangAPI, @Nullable String storedSource, String playerName) {
+    public static MojangRestoreResult tryRestoreFromMojang(MojangAPI mojangAPI, @Nullable String storedSource, String playerName) {
         String licensedUsername = (storedSource != null && !storedSource.trim().isEmpty())
                 ? storedSource : playerName;
         CustomSkinProperty skin = mojangAPI.getSkin(licensedUsername)
@@ -188,9 +205,9 @@ public class SkinRefreshHandler {
         return new MojangRestoreResult(skin, licensedUsername);
     }
 
-    static class MojangRestoreResult {
-        final CustomSkinProperty skin;
-        final String licensedUsername;
+    public static class MojangRestoreResult {
+        public final CustomSkinProperty skin;
+        public final String licensedUsername;
 
         MojangRestoreResult(CustomSkinProperty skin, String licensedUsername) {
             this.skin = skin;
@@ -198,7 +215,7 @@ public class SkinRefreshHandler {
         }
     }
 
-    static String deriveReason(SkinActionType type, @Nullable String customSource) {
+    public static String deriveReason(SkinActionType type, @Nullable String customSource) {
         switch (type) {
             case username:
                 return customSource != null

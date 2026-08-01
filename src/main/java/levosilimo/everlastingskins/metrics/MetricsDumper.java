@@ -40,7 +40,7 @@ public class MetricsDumper {
             if (dir == null) return;
             Files.createDirectories(dir);
             Path temp = dir.resolve(target.getFileName() + ".tmp");
-            Files.writeString(temp, SkinMetrics.INSTANCE.formatJson(SkinMetrics.INSTANCE.snapshot()),
+            Files.writeString(temp, MetricsFormat.json(SkinMetrics.INSTANCE.snapshot()),
                     StandardCharsets.UTF_8);
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException | RuntimeException e) {
