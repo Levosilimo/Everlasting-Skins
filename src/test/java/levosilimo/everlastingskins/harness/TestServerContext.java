@@ -103,7 +103,7 @@ public class TestServerContext implements AutoCloseable {
         when(w.getDifficulty()).thenReturn(EnumDifficulty.NORMAL);
         when(w.getCollisionBoxes(any(Entity.class), any(AxisAlignedBB.class)))
             .thenReturn(Collections.emptyList());
-        // SkinCommand.task() untracks/re-tracks the target via the EntityTracker
+        // SkinRefreshTask untracks/re-tracks the target via the EntityTracker
         // when Config.refreshViaEntityTracker is enabled.
         when(w.getEntityTracker()).thenReturn(mock(EntityTracker.class));
         return w;

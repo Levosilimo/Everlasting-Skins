@@ -1,7 +1,7 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.metrics.SkinMetrics;
-import levosilimo.everlastingskins.metrics.SkinMetrics.Snapshot;
+import levosilimo.everlastingskins.metrics.Snapshot;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

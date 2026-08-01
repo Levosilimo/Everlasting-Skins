@@ -8,6 +8,7 @@ import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
@@ -35,14 +36,18 @@ public class EverlastingSkins {
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
-        ForgePermissionService.registerNodes(event);
         MinecraftForge.EVENT_BUS.register(this);
         PlaceholderApiHook.tryRegister();
     }
 
     @Mod.EventHandler
-    public void serverStarting(FMLServerStartingEvent event) {
+    public void init(FMLInitializationEvent event) {
         PermissionServiceManager.init();
+        ForgePermissionService.registerNodes(event);
+    }
+
+    @Mod.EventHandler
+    public void serverStarting(FMLServerStartingEvent event) {
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
         MinecraftForge.EVENT_BUS.register(new MetricsDumper());
         SkinRestorer.onServerStarting(event);

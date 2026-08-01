@@ -12,7 +12,7 @@ public final class MetricsFormat {
     private MetricsFormat() {
     }
 
-    public static String human(SkinMetrics.Snapshot s) {
+    public static String human(Snapshot s) {
         StringBuilder sb = new StringBuilder();
         sb.append("EverlastingSkins Metrics (uptime ").append(uptime(s.uptimeMs())).append(")\n");
         sb.append("  refreshes: ").append(s.refreshesInitiated()).append(" initiated, ")
@@ -51,7 +51,7 @@ public final class MetricsFormat {
         return sb.toString();
     }
 
-    public static String json(SkinMetrics.Snapshot s) {
+    public static String json(Snapshot s) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"uptimeMs\":").append(s.uptimeMs());
         sb.append(",\"refreshes\":{\"initiated\":").append(s.refreshesInitiated())
@@ -101,7 +101,7 @@ public final class MetricsFormat {
                 .append(",\"tickSpike\":").append(percentilesJson(s.tickSpikePercentiles())).append('}');
         sb.append(",\"players\":[");
         boolean first = true;
-        for (Map.Entry<UUID, SkinMetrics.PlayerSnapshot> e : s.perPlayer().entrySet()) {
+        for (Map.Entry<UUID, PlayerSnapshot> e : s.perPlayer().entrySet()) {
             if (!first) sb.append(',');
             first = false;
             sb.append("{\"uuid\":\"").append(e.getKey()).append("\",\"refreshCount\":")

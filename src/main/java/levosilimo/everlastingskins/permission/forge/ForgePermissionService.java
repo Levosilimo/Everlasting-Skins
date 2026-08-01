@@ -3,7 +3,7 @@ package levosilimo.everlastingskins.permission.forge;
 import levosilimo.everlastingskins.permission.IPermissionService;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.server.permission.DefaultPermissionLevel;
 import net.minecraftforge.server.permission.PermissionAPI;
 
@@ -16,7 +16,8 @@ public class ForgePermissionService implements IPermissionService {
     private static final String SKIN_CLEAR_NODE = NODE_PREFIX + ".skin.clear";
     private static boolean registered = false;
 
-    public static void registerNodes(FMLPreInitializationEvent event) {
+    /** Must run during INIT — Forge's PermissionAPI rejects node registration before FMLInitializationEvent. */
+    public static void registerNodes(FMLInitializationEvent event) {
         if (registered) return;
         PermissionAPI.registerNode(SKIN_NODE, DefaultPermissionLevel.ALL, "Change own skin");
         PermissionAPI.registerNode(SKIN_OTHER_NODE, DefaultPermissionLevel.OP, "Change another player's skin");
