@@ -38,8 +38,30 @@ public class SkinCommand extends CommandBase {
         Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
     private static final String PREFIX = "§6[" + EverlastingSkins.MOD_NAME + "]§f ";
 
-    public static final MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
-    public static final MojangAPI mojangAPI = new MojangApiHttpImpl();
+    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
+    private static MojangAPI mojangAPI = new MojangApiHttpImpl();
+
+    public static MineSkinAPI getMineSkinAPI() {
+        return mineSkinAPI;
+    }
+
+    public static MojangAPI getMojangAPI() {
+        return mojangAPI;
+    }
+
+    /* Package-private for tests: inject fakes without reflection. */
+    static void setMineSkinAPI(MineSkinAPI api) {
+        mineSkinAPI = api;
+    }
+
+    static void setMojangAPI(MojangAPI api) {
+        mojangAPI = api;
+    }
+
+    static void resetAPIs() {
+        mojangAPI = new MojangApiHttpImpl();
+        mineSkinAPI = new MineSkinApiHttpImpl();
+    }
 
     @Override
     public String getName() {

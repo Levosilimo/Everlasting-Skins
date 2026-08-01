@@ -59,7 +59,7 @@ public class SkinRestorer {
         EntityPlayerMP player = (EntityPlayerMP) event.player;
 
         if (skinStorage.hasDefaultSkin(player.getUniqueID())) {
-            MojangSkinDataResult skinDataResult = SkinCommand.mojangAPI.getSkin(player.getGameProfile().getName()).orElse(null);
+            MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(player.getGameProfile().getName()).orElse(null);
             if (skinDataResult != null) {
                 skinStorage.setSkin(player.getUniqueID(), skinDataResult.skinProperty());
             }
