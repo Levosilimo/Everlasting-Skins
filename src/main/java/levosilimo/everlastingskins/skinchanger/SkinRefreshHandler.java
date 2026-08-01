@@ -11,19 +11,31 @@ import net.minecraft.network.protocol.game.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.PlayerList;
-import net.minecraft.world.level.storage.LevelData;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 public class SkinRefreshHandler {
+
+    /** Test-visible counter of task() invocations (see gametest assertions). */
+    public static volatile long refreshTaskCount = 0;
+
+    public static void resetRefreshTaskCount() {
+        refreshTaskCount = 0;
+    }
+
+    public static long getRefreshTaskCount() {
+        return refreshTaskCount;
+    }
 
     static String getLocalizedString(String key) {
         return I18nUtils.getInstance().getLocalizedString(key, Config.LANGUAGE.get());
     }
 
     public static void task(ServerPlayer player) {
+        refreshTaskCount++;
         CustomSkinProperty skin = SkinRestorer.getSkinStorage().getSkin(player.getUUID());
         if (skin == null || skin.isEmpty()) {
             return;
@@ -34,29 +46,33 @@ public class SkinRefreshHandler {
         float yaw = player.getYRot();
         float pitch = player.getXRot();
         ServerLevel serverLevel = player.serverLevel();
-        LevelData levelData = serverLevel.getLevelData();
         PlayerList playerlist = player.server.getPlayerList();
-        SkinRestorer.getSkinStorage().saveSkin(player.getUUID());
+        SkinRestorer.getSkinStorage().saveSkinAsync(player.getUUID());
         player.getGameProfile().getProperties().removeAll("textures");
         player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
                 player.getGameProfile().getName(),
                 player.getGameProfile().getProperties().get("textures"));
 
-        SkinRestorer.server.getPlayerList().broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME, player));
-        player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), (byte) 3));
+        // Bug fix: UPDATE_DISPLAY_NAME does not serialize the GameProfile, so
+        // observers never received the new textures. REMOVE + ADD_PLAYER forces
+        // clients to drop and re-learn the full profile (with textures).
+        // Dimension-scoped: only players in the target's dimension are notified.
+        var dimension = serverLevel.dimension();
+        playerlist.broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())), dimension);
+        playerlist.broadcastAll(new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player), dimension);
+
+        // Respawn cascade for the target's OWN view: respawn is the only way
+        // the client rebuilds its own player model with the new textures.
+        player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), ClientboundRespawnPacket.KEEP_ALL_DATA));
         player.absMoveTo(x, y, z, yaw, pitch);
         player.connection.send(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0));
         playerlist.sendLevelInfo(player, serverLevel);
         playerlist.sendPlayerPermissionLevel(player);
         playerlist.sendAllPlayerInfo(player);
-        playerlist.sendActivePlayerEffects(player);
+        // 1.21 sendAllPlayerInfo does NOT include abilities — send explicitly.
         player.connection.send(new ClientboundPlayerAbilitiesPacket(player.getAbilities()));
-        player.connection.send(new ClientboundChangeDifficultyPacket(levelData.getDifficulty(), levelData.isDifficultyLocked()));
-        SkinRestorer.server.getPlayerList().sendPlayerPermissionLevel(player);
-
-        serverLevel.getChunkSource().chunkMap.removeEntity(player);
-        serverLevel.getChunkSource().chunkMap.addEntity(player);
+        playerlist.sendActivePlayerEffects(player);
     }
 
     @Nullable

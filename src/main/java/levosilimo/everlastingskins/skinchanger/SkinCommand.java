@@ -24,6 +24,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.command.EnumArgument;
 
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
@@ -34,6 +35,35 @@ public class SkinCommand {
 
     private static final ScheduledExecutorService skinCommandExecutor = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors() * 2);
     private static final String FEEDBACK_PREFIX = "§6[EverlastingSkins]§f";
+
+    /** Per-UUID last refresh timestamps for the 100ms debounce (rank 1). */
+    static final ConcurrentHashMap<UUID, Long> lastRefreshByPlayer = new ConcurrentHashMap<>();
+    /** Test-tunable debounce window; package-private for gametests. */
+    public static volatile long debounceMillis = 100;
+
+    /** Per-UUID last command timestamps for the cooldown rate limit (rank 4). */
+    static final ConcurrentHashMap<UUID, Long> lastCommandByPlayer = new ConcurrentHashMap<>();
+    /** Per-UUID recent command timestamps for the per-minute window (rank 4). */
+    static final ConcurrentHashMap<UUID, ArrayDeque<Long>> commandTimestampsByPlayer = new ConcurrentHashMap<>();
+
+    /** Test-visible count of handleSkinCompletion invocations. */
+    public static volatile long skinCompletionsProcessed = 0;
+
+    public static void resetSkinCompletionsProcessed() {
+        skinCompletionsProcessed = 0;
+    }
+
+    public static long getSkinCompletionsProcessed() {
+        return skinCompletionsProcessed;
+    }
+
+    public static ConcurrentHashMap<UUID, Long> getLastRefreshByPlayer() {
+        return lastRefreshByPlayer;
+    }
+
+    public static ConcurrentHashMap<UUID, Long> getLastCommandByPlayer() {
+        return lastCommandByPlayer;
+    }
 
     private static MineSkinAPI mineSkinAPIInstance;
     private static MojangAPI mojangAPIInstance;
@@ -251,6 +281,12 @@ public class SkinCommand {
             return 0;
         }
 
+        if (Config.RATE_LIMIT_ENABLED.get()) {
+            if (isRateLimited(selfPlayer.getUUID(), context)) {
+                return 0;
+            }
+        }
+
         Collection<ServerPlayer> targets = params.targets();
         SkinActionType type = params.type();
         SkinVariant variant = params.variant();
@@ -333,6 +369,7 @@ public class SkinCommand {
     private static void handleSkinCompletion(CustomSkinProperty skinProperty, Throwable throwable,
                                              Collection<ServerPlayer> targets, CommandContext<CommandSourceStack> context,
                                              SkinActionType type, String customSource) {
+        skinCompletionsProcessed++;
         if (throwable != null) {
             EverlastingSkins.logger.error("Skin process error occurred");
             for (ServerPlayer player : targets) player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("error")));
@@ -360,7 +397,12 @@ public class SkinCommand {
         }
         boolean isRestore = isClear && skinProperty != null;
         for (ServerPlayer player : targets) {
-            SkinRestorer.getSkinStorage().setSkin(player.getUUID(), skinProperty);
+            UUID uuid = player.getUUID();
+            if (isSkinUnchanged(uuid, skinProperty)) {
+                EverlastingSkins.logger.debug("SKIN_REFRESH skipped: identical skin for {}", uuid);
+                continue;
+            }
+            SkinRestorer.getSkinStorage().setSkin(uuid, skinProperty);
             if (Config.TOGGLE.get()) {
                 String msg = isRestore
                     ? "Skin restored from " + skinProperty.getSource()
@@ -371,8 +413,13 @@ public class SkinCommand {
                     player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + msg));
                 }
             }
-        }
-        for (ServerPlayer player : targets) {
+            long now = System.currentTimeMillis();
+            Long last = lastRefreshByPlayer.get(uuid);
+            if (last != null && now - last < debounceMillis) {
+                EverlastingSkins.logger.debug("SKIN_REFRESH debounced for {}", uuid);
+                continue;
+            }
+            lastRefreshByPlayer.put(uuid, now);
             SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
         }
         for (ServerPlayer player : targets) {
@@ -384,6 +431,20 @@ public class SkinCommand {
         }
     }
 
+    /**
+     * Rank 1: returns true when the fetched skin equals the currently stored
+     * one (same texture value and same source), so the refresh can be skipped.
+     */
+    private static boolean isSkinUnchanged(UUID uuid, @Nullable CustomSkinProperty newSkin) {
+        if (newSkin == null) return false;
+        CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(uuid);
+        if (stored == null) return false;
+        if (!newSkin.getOriginalProperty().value().equals(stored.getOriginalProperty().value())) {
+            return false;
+        }
+        return Objects.equals(newSkin.getSource(), stored.getSource());
+    }
+
     private static String resolvePermissionNode(SkinActionType type, boolean targetingOthers) {
         if (targetingOthers) return "everlastingskins.command.skin.other";
         return switch (type) {
@@ -391,6 +452,46 @@ public class SkinCommand {
             case url -> "everlastingskins.command.skin.url";
             default -> "everlastingskins.command.skin";
         };
+    }
+
+    /**
+     * Rank 4 rate limiting: per-player cooldown plus a sliding per-minute
+     * window. Sends failure feedback and returns true when the command should
+     * be rejected.
+     */
+    private static boolean isRateLimited(UUID playerUuid, CommandContext<CommandSourceStack> context) {
+        long now = System.currentTimeMillis();
+
+        long cooldownMs = Config.COOLDOWN_SECONDS.get() * 1000L;
+        long lastCommand = lastCommandByPlayer.getOrDefault(playerUuid, 0L);
+        long elapsed = now - lastCommand;
+        if (lastCommand > 0 && elapsed < cooldownMs) {
+            context.getSource().sendFailure(Component.literal(
+                    "Please wait " + ((cooldownMs - elapsed) / 1000) + "s before using /skin again"));
+            return true;
+        }
+
+        ArrayDeque<Long> window = commandTimestampsByPlayer.computeIfAbsent(playerUuid, k -> new ArrayDeque<>());
+        synchronized (window) {
+            while (!window.isEmpty() && now - window.peekFirst() > 60_000) {
+                window.pollFirst();
+            }
+            if (window.size() >= Config.MAX_COMMANDS_PER_MINUTE.get()) {
+                context.getSource().sendFailure(Component.literal(
+                        "Too many /skin commands. Try again later."));
+                return true;
+            }
+            window.addLast(now);
+        }
+
+        lastCommandByPlayer.put(playerUuid, now);
+        return false;
+    }
+
+    /** Clears per-player rate-limit state (used on logout and by tests). */
+    public static void clearRateLimitState(UUID playerUuid) {
+        lastCommandByPlayer.remove(playerUuid);
+        commandTimestampsByPlayer.remove(playerUuid);
     }
 
 }

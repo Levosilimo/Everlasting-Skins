@@ -6,6 +6,7 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.netty.channel.embedded.EmbeddedChannel;
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.skinchanger.MojangAPI;
 import levosilimo.everlastingskins.skinchanger.ProfileLookup;
@@ -23,13 +24,19 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerAbilitiesPacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
+import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.players.ServerOpListEntry;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.gametest.GameTestHolder;
@@ -100,11 +107,11 @@ public class SkinVisibilityTest {
             ClientboundPlayerInfoUpdatePacket infoUpdate = observerPackets.stream()
                     .filter(ClientboundPlayerInfoUpdatePacket.class::isInstance)
                     .map(ClientboundPlayerInfoUpdatePacket.class::cast)
-                    .filter(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME))
+                    .filter(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER))
                     .findFirst()
                     .orElse(null);
             if (infoUpdate == null) {
-                helper.fail("ObserverPlayer received no ClientboundPlayerInfoUpdatePacket(UPDATE_DISPLAY_NAME); channel contents: " + observerPackets);
+                helper.fail("ObserverPlayer received no ClientboundPlayerInfoUpdatePacket(ADD_PLAYER); channel contents: " + observerPackets);
                 return;
             }
 
@@ -113,7 +120,7 @@ public class SkinVisibilityTest {
                             && e.profile().getProperties().get("textures").stream()
                                     .anyMatch(property -> TEST_TEXTURE_VALUE.equals(property.value())));
             if (!hasTexture) {
-                helper.fail("UPDATE_DISPLAY_NAME packet does not carry the expected textures property; entries: " + infoUpdate.entries());
+                helper.fail("ADD_PLAYER packet does not carry the expected textures property; entries: " + infoUpdate.entries());
                 return;
             }
 
@@ -156,7 +163,7 @@ public class SkinVisibilityTest {
             }
             Property textures = findTexturesFor(drain(observer), playerId);
             if (textures == null) {
-                throw new GameTestAssertException("waiting for observer to receive UPDATE_DISPLAY_NAME with textures");
+                throw new GameTestAssertException("waiting for observer to receive ADD_PLAYER with textures");
             }
             assertTexturePayload(textures, helper);
             removeQuietly(server, playerA);
@@ -358,9 +365,9 @@ public class SkinVisibilityTest {
             storage.setSkin(playerA.getUUID(), new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
             SkinRefreshHandler.task(playerA);
 
-            long count = countDisplayNameUpdatesWithTextures(drain(observer), playerA.getUUID());
+            long count = countAddPlayerUpdatesWithTextures(drain(observer), playerA.getUUID());
             if (count != 1) {
-                helper.fail("expected exactly 1 UPDATE_DISPLAY_NAME textures packet on the observer channel, got " + count);
+                helper.fail("expected exactly 1 ADD_PLAYER textures packet on the observer channel, got " + count);
                 return;
             }
             helper.succeed();
@@ -392,7 +399,7 @@ public class SkinVisibilityTest {
                 return;
             }
             if (findTexturesFor(drain(observer), playerA.getUUID()) != null) {
-                helper.fail("observer must not receive a textures UPDATE_DISPLAY_NAME for a skin-less player");
+                helper.fail("observer must not receive a textures ADD_PLAYER for a skin-less player");
                 return;
             }
             helper.succeed();
@@ -424,7 +431,7 @@ public class SkinVisibilityTest {
 
             Property textures = findTexturesFor(drain(observer), playerA.getUUID());
             if (textures == null) {
-                helper.fail("observer received no textures UPDATE_DISPLAY_NAME for playerA");
+                helper.fail("observer received no textures ADD_PLAYER for playerA");
                 return;
             }
             if (!TEST_SIGNATURE.equals(textures.signature())) {
@@ -461,11 +468,11 @@ public class SkinVisibilityTest {
             SkinRefreshHandler.task(playerA);
 
             if (findTexturesFor(drain(observer1), playerA.getUUID()) == null) {
-                helper.fail("observer1 received no textures UPDATE_DISPLAY_NAME for playerA");
+                helper.fail("observer1 received no textures ADD_PLAYER for playerA");
                 return;
             }
             if (findTexturesFor(drain(observer2), playerA.getUUID()) == null) {
-                helper.fail("observer2 received no textures UPDATE_DISPLAY_NAME for playerA");
+                helper.fail("observer2 received no textures ADD_PLAYER for playerA");
                 return;
             }
             helper.succeed();
@@ -506,11 +513,357 @@ public class SkinVisibilityTest {
             }
             Property textures = findTexturesFor(drain(observer), playerId);
             if (textures == null) {
-                throw new GameTestAssertException("waiting for observer to receive UPDATE_DISPLAY_NAME with textures");
+                throw new GameTestAssertException("waiting for observer to receive ADD_PLAYER with textures");
             }
             removeQuietly(server, playerA);
             removeQuietly(server, observer);
         });
+    }
+
+    // ------------------------------------------------------------------
+    // Rank 1-6 lib-4 improvements
+    // ------------------------------------------------------------------
+
+    /**
+     * Rank 3: observers must receive ClientboundPlayerInfoRemovePacket +
+     * ADD_PLAYER (with textures) instead of UPDATE_DISPLAY_NAME, which does
+     * not serialize the GameProfile on the wire.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r1_addplayer")
+    public void refreshBroadcastUsesAddPlayer_notUpdateDisplayName(GameTestHelper helper) {
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "AddPlayerA");
+        ServerPlayer observer = mockPlayer(helper, "AddObs");
+        UUID uuidA = playerA.getUUID();
+        try {
+            placePlayer(helper, playerA);
+            placePlayer(helper, observer);
+            drain(observer);
+
+            storage.setSkin(uuidA, new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
+            SkinRefreshHandler.task(playerA);
+
+            List<Packet<?>> packets = drain(observer);
+            boolean gotRemove = packets.stream().anyMatch(ClientboundPlayerInfoRemovePacket.class::isInstance);
+            boolean gotAddWithTextures = packets.stream()
+                    .filter(ClientboundPlayerInfoUpdatePacket.class::isInstance)
+                    .map(ClientboundPlayerInfoUpdatePacket.class::cast)
+                    .filter(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER))
+                    .anyMatch(p -> p.entries().stream().anyMatch(e -> e.profileId().equals(uuidA)
+                            && e.profile() != null
+                            && e.profile().getProperties().get("textures").stream()
+                                    .anyMatch(prop -> TEST_TEXTURE_VALUE.equals(prop.value()))));
+            boolean gotUpdateDisplayName = packets.stream()
+                    .filter(ClientboundPlayerInfoUpdatePacket.class::isInstance)
+                    .map(ClientboundPlayerInfoUpdatePacket.class::cast)
+                    .anyMatch(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME));
+
+            if (!gotRemove || !gotAddWithTextures) {
+                helper.fail("observer must receive REMOVE + ADD_PLAYER(with textures); got " + packets);
+                return;
+            }
+            if (gotUpdateDisplayName) {
+                helper.fail("observer must NOT receive UPDATE_DISPLAY_NAME after the fix; got " + packets);
+                return;
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+            removeQuietly(server, observer);
+        }
+    }
+
+    /**
+     * Rank 6: sendPlayerPermissionLevel must be sent exactly once (was twice).
+     * In 1.21 it materializes as ClientboundEntityEventPacket with event id
+     * 24+permissionLevel (24..28) on the target's own channel.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r2_permcount")
+    public void duplicateSendPlayerPermissionLevelRemoved(GameTestHelper helper) {
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "PermCountA");
+        try {
+            placePlayer(helper, playerA);
+            drain(playerA);
+
+            storage.setSkin(playerA.getUUID(), new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
+            SkinRefreshHandler.task(playerA);
+
+            long count = drain(playerA).stream()
+                    .filter(ClientboundEntityEventPacket.class::isInstance)
+                    .map(ClientboundEntityEventPacket.class::cast)
+                    .filter(p -> p.getEventId() >= 24 && p.getEventId() <= 28)
+                    .count();
+            helper.assertTrue(count == 1, "sendPlayerPermissionLevel must be sent exactly once, got " + count);
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * Rank 6: ClientboundPlayerAbilitiesPacket must not be sent separately;
+     * sendAllPlayerInfo already includes it, so exactly one remains.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r3_abilities")
+    public void redundantAbilitiesPacketRemoved(GameTestHelper helper) {
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "AbilCountA");
+        try {
+            placePlayer(helper, playerA);
+            drain(playerA);
+
+            storage.setSkin(playerA.getUUID(), new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
+            SkinRefreshHandler.task(playerA);
+
+            long count = drain(playerA).stream()
+                    .filter(ClientboundPlayerAbilitiesPacket.class::isInstance)
+                    .count();
+            helper.assertTrue(count == 1, "abilities packet must be sent exactly once (via sendAllPlayerInfo), got " + count);
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * Rank 5: the REMOVE + ADD_PLAYER broadcast is dimension-scoped. An
+     * observer in the nether must not receive it when the target is in the
+     * overworld.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r4_dimension")
+    public void dimensionTargetedBroadcast(GameTestHelper helper) {
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel nether = server.getLevel(Level.NETHER);
+        if (nether == null) {
+            helper.fail("nether level not available in game test server");
+            return;
+        }
+        ServerPlayer playerA = mockPlayer(helper, "DimA");
+        ServerPlayer observerNether = mockPlayer(helper, nether, "DimObsNether");
+        try {
+            placePlayer(helper, playerA);
+            placePlayer(helper, observerNether);
+            drain(observerNether);
+
+            // placeNewPlayer derives the level from the player's NBT respawn
+            // dimension (defaults to overworld), so pin the observer to the
+            // nether AFTER placement — the dimension-scoped broadcast filter
+            // reads player.level().dimension().
+            observerNether.setServerLevel(nether);
+
+            storage.setSkin(playerA.getUUID(), new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
+            SkinRefreshHandler.task(playerA);
+
+            List<Packet<?>> packets = drain(observerNether);
+            boolean gotRemove = packets.stream().anyMatch(ClientboundPlayerInfoRemovePacket.class::isInstance);
+            boolean gotAdd = packets.stream()
+                    .filter(ClientboundPlayerInfoUpdatePacket.class::isInstance)
+                    .map(ClientboundPlayerInfoUpdatePacket.class::cast)
+                    .anyMatch(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER));
+            if (gotRemove || gotAdd) {
+                helper.fail("observer in another dimension must not receive the broadcast; got " + packets);
+                return;
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+            removeQuietly(server, observerNether);
+        }
+    }
+
+    /**
+     * Rank 6: respawn flag must be KEEP_ALL_DATA (4), the SkinsRestorer
+     * convention that preserves the client-side inventory.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r5_respawnflag")
+    public void respawnFlagIsKeepAllData(GameTestHelper helper) {
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "RespawnFlagA");
+        try {
+            placePlayer(helper, playerA);
+            drain(playerA);
+
+            storage.setSkin(playerA.getUUID(), new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
+            SkinRefreshHandler.task(playerA);
+
+            ClientboundRespawnPacket respawn = drain(playerA).stream()
+                    .filter(ClientboundRespawnPacket.class::isInstance)
+                    .map(ClientboundRespawnPacket.class::cast)
+                    .findFirst()
+                    .orElse(null);
+            if (respawn == null) {
+                helper.fail("no ClientboundRespawnPacket on target channel");
+                return;
+            }
+            helper.assertTrue(respawn.shouldKeep(ClientboundRespawnPacket.KEEP_ALL_DATA),
+                    "respawn packet must carry KEEP_ALL_DATA (4), got dataToKeep=" + respawn.dataToKeep());
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * Rank 1: setting the same skin twice must skip the second refresh
+     * entirely (no task() invocation).
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r6_skipunchanged")
+    public void skipIfUnchanged(GameTestHelper helper) {
+        FakeMojangAPI fake = installFakeMojangAPI(true);
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "SkipUnchangedA");
+        makeOp(playerA);
+        UUID uuidA = playerA.getUUID();
+        try {
+            placePlayer(helper, playerA);
+            SkinRefreshHandler.resetRefreshTaskCount();
+            SkinCommand.resetSkinCompletionsProcessed();
+            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            Config.RATE_LIMIT_ENABLED.set(false);
+            fake.fail = false;
+
+            int first = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+            helper.assertTrue(first == 1, "first dispatch must be accepted, got " + first);
+
+            // Single succeedWhen with two phases: wait for the first completion
+            // (succeedWhen yields the server thread so server.execute tasks run),
+            // then dispatch the identical skin and verify no second task() runs
+            // once the second completion has been processed.
+            final boolean[] phase = {false};
+            final long[] countAfterFirst = new long[1];
+            helper.succeedWhen(() -> {
+                if (!phase[0]) {
+                    CustomSkinProperty stored = storage.getSkin(uuidA);
+                    if (stored == null || !"Notch".equals(stored.getSource())) {
+                        throw new GameTestAssertException("waiting for first dispatch to store source=Notch");
+                    }
+                    long count = SkinRefreshHandler.getRefreshTaskCount();
+                    if (count < 1) {
+                        throw new GameTestAssertException("waiting for first task() to run, count=" + count);
+                    }
+                    countAfterFirst[0] = count;
+                    int second = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+                    if (second != 1) {
+                        throw new GameTestAssertException("second dispatch must be accepted, got " + second);
+                    }
+                    phase[0] = true;
+                    throw new GameTestAssertException("entering second-phase wait");
+                }
+                if (SkinCommand.getSkinCompletionsProcessed() < 2) {
+                    throw new GameTestAssertException("waiting for second completion to be processed");
+                }
+                long count = SkinRefreshHandler.getRefreshTaskCount();
+                if (count != countAfterFirst[0]) {
+                    throw new GameTestAssertException("identical skin must not trigger task(); before="
+                            + countAfterFirst[0] + " after=" + count);
+                }
+                removeQuietly(server, playerA);
+            });
+        } finally {
+            fake.slow = false;
+            Config.RATE_LIMIT_ENABLED.set(true);
+            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * Rank 1: two different skins set within the debounce window must result
+     * in exactly one task() invocation.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r7_debounce")
+    public void debounceAfter100ms(GameTestHelper helper) {
+        FakeMojangAPI fake = installFakeMojangAPI(true);
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "DebounceA");
+        makeOp(playerA);
+        UUID uuidA = playerA.getUUID();
+        SkinCommand.debounceMillis = 60_000;
+        try {
+            placePlayer(helper, playerA);
+            SkinRefreshHandler.resetRefreshTaskCount();
+            SkinCommand.resetSkinCompletionsProcessed();
+            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            Config.RATE_LIMIT_ENABLED.set(false);
+            fake.fail = false;
+            fake.varyValue = true;
+
+            int first = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+            helper.assertTrue(first == 1, "first dispatch must be accepted, got " + first);
+
+            // Single succeedWhen with two phases: wait for the first task(),
+            // then dispatch a DIFFERENT skin inside the widened debounce window
+            // and verify no second task() runs once that completion is processed.
+            final boolean[] phase = {false};
+            helper.succeedWhen(() -> {
+                if (!phase[0]) {
+                    if (SkinRefreshHandler.getRefreshTaskCount() != 1) {
+                        throw new GameTestAssertException("waiting for first task() to run, count="
+                                + SkinRefreshHandler.getRefreshTaskCount());
+                    }
+                    SkinCommand.getLastRefreshByPlayer().put(uuidA, System.currentTimeMillis());
+                    int second = dispatch(server, "skin set mojang Jeb_", playerA.createCommandSourceStack(), helper);
+                    if (second != 1) {
+                        throw new GameTestAssertException("second dispatch must be accepted, got " + second);
+                    }
+                    phase[0] = true;
+                    throw new GameTestAssertException("entering second-phase wait");
+                }
+                if (SkinCommand.getSkinCompletionsProcessed() < 2) {
+                    throw new GameTestAssertException("waiting for second completion to be processed");
+                }
+                long count = SkinRefreshHandler.getRefreshTaskCount();
+                if (count != 1) {
+                    throw new GameTestAssertException("second dispatch inside debounce window must be skipped; count=" + count);
+                }
+                removeQuietly(server, playerA);
+            });
+        } finally {
+            SkinCommand.debounceMillis = 100;
+            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            Config.RATE_LIMIT_ENABLED.set(true);
+            fake.slow = false;
+            fake.varyValue = false;
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * Rank 4: two /skin commands inside the cooldown window — the second must
+     * be rejected with return code 0.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r8_ratelimit")
+    public void rateLimitAfterCooldown(GameTestHelper helper) {
+        installFakeMojangAPI(true);
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "RateLimitA");
+        makeOp(playerA);
+        UUID uuidA = playerA.getUUID();
+        try {
+            placePlayer(helper, playerA);
+            SkinCommand.clearRateLimitState(uuidA);
+            Config.RATE_LIMIT_ENABLED.set(true);
+            Config.COOLDOWN_SECONDS.set(60);
+
+            int first = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+            int second = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+            helper.assertTrue(first == 1, "first dispatch must be accepted, got " + first);
+            helper.assertTrue(second == 0, "second dispatch inside cooldown must be rejected, got " + second);
+            helper.succeed();
+        } finally {
+            Config.COOLDOWN_SECONDS.set(3);
+            SkinCommand.clearRateLimitState(uuidA);
+            removeQuietly(server, playerA);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -524,25 +877,46 @@ public class SkinVisibilityTest {
      */
     private static final class FakeMojangAPI implements MojangAPI {
         boolean fail;
+        /** Adds a 100ms delay to every lookup so concurrent fetches overlap. */
+        boolean slow;
+        /** Returns a distinct texture value per requested name. */
+        boolean varyValue;
+
+        private String valueFor(String name) {
+            return varyValue ? TEST_TEXTURE_VALUE + "-" + name : TEST_TEXTURE_VALUE;
+        }
+
+        private void maybeSlow() {
+            if (slow) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
 
         @Override
         public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
+            maybeSlow();
             if (fail) return Optional.empty();
             return Optional.of(new MojangSkinDataResult(
                     UUID.nameUUIDFromBytes(nameOrUniqueId.getBytes(StandardCharsets.UTF_8)),
-                    new CustomSkinProperty(TEST_TEXTURE_VALUE, TEST_SIGNATURE, nameOrUniqueId)));
+                    new CustomSkinProperty(valueFor(nameOrUniqueId), TEST_SIGNATURE, nameOrUniqueId)));
         }
 
         @Override
         public Optional<UUID> getUUID(String playerName) {
+            maybeSlow();
             if (fail) return Optional.empty();
             return Optional.of(UUID.nameUUIDFromBytes(playerName.getBytes(StandardCharsets.UTF_8)));
         }
 
         @Override
         public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
+            maybeSlow();
             if (fail) return Optional.empty();
-            return Optional.of(new CustomSkinProperty(TEST_TEXTURE_VALUE, TEST_SIGNATURE, lookup.username()));
+            return Optional.of(new CustomSkinProperty(valueFor(lookup.username()), TEST_SIGNATURE, lookup.username()));
         }
     }
 
@@ -606,6 +980,14 @@ public class SkinVisibilityTest {
                 ClientInformation.createDefault());
     }
 
+    private static ServerPlayer mockPlayer(GameTestHelper helper, ServerLevel level, String name) {
+        return new ServerPlayer(
+                helper.getLevel().getServer(),
+                level,
+                new GameProfile(UUID.randomUUID(), name),
+                ClientInformation.createDefault());
+    }
+
     /**
      * Joins a mock player with a real ServerGamePacketListenerImpl backed by
      * an EmbeddedChannel and drains the packets sent during login so the test
@@ -648,7 +1030,7 @@ public class SkinVisibilityTest {
     private static Property findTexturesFor(List<Packet<?>> packets, UUID profileId) {
         for (Packet<?> packet : packets) {
             if (!(packet instanceof ClientboundPlayerInfoUpdatePacket infoUpdate)) continue;
-            if (!infoUpdate.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME)) continue;
+            if (!infoUpdate.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER)) continue;
             for (ClientboundPlayerInfoUpdatePacket.Entry entry : infoUpdate.entries()) {
                 if (!entry.profileId().equals(profileId)) continue;
                 if (entry.profile() == null) continue;
@@ -662,11 +1044,11 @@ public class SkinVisibilityTest {
         return null;
     }
 
-    private static long countDisplayNameUpdatesWithTextures(List<Packet<?>> packets, UUID profileId) {
+    private static long countAddPlayerUpdatesWithTextures(List<Packet<?>> packets, UUID profileId) {
         return packets.stream()
                 .filter(ClientboundPlayerInfoUpdatePacket.class::isInstance)
                 .map(ClientboundPlayerInfoUpdatePacket.class::cast)
-                .filter(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME))
+                .filter(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER))
                 .filter(p -> p.entries().stream().anyMatch(e -> e.profileId().equals(profileId)
                         && e.profile() != null
                         && e.profile().getProperties().get("textures").stream()

@@ -18,12 +18,30 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class SkinIO {
 
     private static final String FILE_EXTENSION = ".json";
     private static final String TEMP_SUFFIX = ".tmp";
     private static final String CORRUPT_PREFIX = ".corrupt-";
+
+    /**
+     * Single-thread writer so per-UUID writes are serialized; latest payload
+     * per UUID wins (coalescing). Daemon thread so it never blocks shutdown.
+     */
+    private static final ExecutorService writer = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "EverlastingSkins-IO");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** Latest serialized payload per UUID awaiting the writer thread. */
+    private final ConcurrentHashMap<UUID, byte[]> pendingWrites = new ConcurrentHashMap<>();
 
     private final Path savePath;
 
@@ -72,16 +90,68 @@ public class SkinIO {
         }
     }
 
+    /**
+     * Synchronous save for back-compat: delegates to the async writer and
+     * blocks until the write has completed, so all writes are serialized
+     * through the single writer thread (no temp-file races).
+     */
     public void saveSkin(UUID uuid, CustomSkinProperty skin) {
+        saveSkinAsync(uuid, skin).join();
+    }
+
+    /**
+     * Coalescing async save: the latest payload for a UUID replaces any
+     * previous pending one, so burst updates collapse into a single write.
+     * The returned future completes once the write has been handed to the
+     * writer thread (not necessarily finished).
+     */
+    public CompletableFuture<Void> saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
+        pendingWrites.put(uuid, JsonUtils.toJson(skin).getBytes(StandardCharsets.UTF_8));
+        return CompletableFuture.runAsync(() -> {
+            byte[] payload = pendingWrites.remove(uuid);
+            if (payload != null) {
+                writeSkinFile(uuid, payload);
+            }
+        }, writer);
+    }
+
+    /**
+     * Blocks until all queued writes have been handed to the writer thread
+     * and the queue is drained. Called synchronously on logout and shutdown.
+     */
+    public void flushPending() {
+        try {
+            writer.submit(() -> {
+            }).get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            EverlastingSkins.logger.warn("SkinIO flush did not complete in time", e);
+        }
+    }
+
+    /** Shuts down the writer thread, awaiting in-flight writes. */
+    public static void shutdown() {
+        writer.shutdown();
+        try {
+            writer.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Atomic write: temp file + force + ATOMIC_MOVE, with a fallback move on
+     * failure. Preserved from the original synchronous implementation.
+     */
+    private void writeSkinFile(UUID uuid, byte[] payload) {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
         Path temp = savePath.resolve(uuid + FILE_EXTENSION + TEMP_SUFFIX);
-        String json = JsonUtils.toJson(skin);
 
         try {
             Files.createDirectories(savePath);
             Files.deleteIfExists(temp);
 
-            Files.writeString(temp, json, StandardCharsets.UTF_8);
+            Files.write(temp, payload, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
 
             try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
                 channel.force(true);

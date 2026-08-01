@@ -13,6 +13,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.UUID;
 
 public class SkinRestorer {
 
@@ -76,8 +77,12 @@ public class SkinRestorer {
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        if (skinStorage.getSkin(player.getUUID()) != null) {
-            skinStorage.saveSkin(player.getUUID());
+        UUID uuid = player.getUUID();
+        SkinCommand.getLastRefreshByPlayer().remove(uuid);
+        SkinCommand.clearRateLimitState(uuid);
+        if (skinStorage.getSkin(uuid) != null) {
+            skinStorage.saveSkin(uuid);
+            skinIO.flushPending();
         }
     }
 
@@ -90,5 +95,7 @@ public class SkinRestorer {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             skinStorage.saveSkin(player.getUUID());
         }
+        skinIO.flushPending();
+        SkinIO.shutdown();
     }
 }

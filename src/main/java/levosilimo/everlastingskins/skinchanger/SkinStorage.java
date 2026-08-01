@@ -64,10 +64,19 @@ public class SkinStorage {
         return loaded.getSource();
     }
 
+    /** Synchronous save; used where durability is required immediately. */
     public void saveSkin(UUID uuid) {
         CustomSkinProperty skinProperty = skinMap.get(uuid);
         if (skinProperty != null) {
             skinIO.saveSkin(uuid, skinProperty);
+        }
+    }
+
+    /** Coalescing async save; used on the hot refresh path. */
+    public void saveSkinAsync(UUID uuid) {
+        CustomSkinProperty skinProperty = skinMap.get(uuid);
+        if (skinProperty != null) {
+            skinIO.saveSkinAsync(uuid, skinProperty);
         }
     }
 
