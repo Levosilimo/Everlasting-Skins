@@ -29,7 +29,7 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     private final String apiKey;
 
     public MineSkinApiHttpImpl() {
-        this(new HttpsUrlConnectionHttpClient(), Config.MINESKIN_API_KEY.get());
+        this(new JavaHttpClient(), Config.MINESKIN_API_KEY.get());
     }
 
     public MineSkinApiHttpImpl(HttpClient httpClient) {

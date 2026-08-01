@@ -21,13 +21,14 @@ public class MojangApiHttpImpl implements MojangAPI {
 
     private final MojangEndpoints endpoints;
     private final HttpClient httpClient;
+    private final MojangProfileCache cache = new MojangProfileCache();
 
     public MojangApiHttpImpl() {
-        this(MojangEndpoints.DEFAULT, new HttpsUrlConnectionHttpClient());
+        this(MojangEndpoints.DEFAULT, new JavaHttpClient());
     }
 
     public MojangApiHttpImpl(MojangEndpoints endpoints) {
-        this(endpoints, new HttpsUrlConnectionHttpClient());
+        this(endpoints, new JavaHttpClient());
     }
 
     public MojangApiHttpImpl(MojangEndpoints endpoints, HttpClient httpClient) {
@@ -42,6 +43,12 @@ public class MojangApiHttpImpl implements MojangAPI {
         if (!uuidParseResult.isPresent()) {
             if (EverlastingHelpers.invalidMinecraftUsername(nameOrUniqueId)) {
                 return Optional.empty();
+            }
+            // Username path: the cached profile property avoids the 3-provider
+            // profile chain; the UUID lookup still runs (1 request instead of 6).
+            CustomSkinProperty cached = cache.get(nameOrUniqueId);
+            if (cached != null) {
+                return getUUID(nameOrUniqueId).map(uuid -> new MojangSkinDataResult(uuid, cached));
             }
         }
 
@@ -60,6 +67,9 @@ public class MojangApiHttpImpl implements MojangAPI {
         Optional<CustomSkinProperty> property = getProfile(lookup);
         if (!property.isPresent()) {
             return Optional.empty();
+        }
+        if (uuidParseResult.isEmpty()) {
+            cache.put(nameOrUniqueId, property.get());
         }
 
         return Optional.of(new MojangSkinDataResult(playerUuid, property.get()));

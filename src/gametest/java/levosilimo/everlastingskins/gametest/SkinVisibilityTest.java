@@ -50,6 +50,7 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -865,8 +866,9 @@ public class SkinVisibilityTest {
     }
 
     /**
-     * Rank 1: setting the same skin twice must skip the second refresh
-     * entirely (no task() invocation).
+     * Rank 1 + A5: setting the same skin twice must skip the fetch entirely
+     * (A5 stored-source match) and schedule exactly one re-broadcast — the
+     * provider must not be called a second time.
      */
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r6_skipunchanged")
     public void skipIfUnchanged(GameTestHelper helper) {
@@ -889,10 +891,11 @@ public class SkinVisibilityTest {
 
             // Single succeedWhen with two phases: wait for the first completion
             // (succeedWhen yields the server thread so server.execute tasks run),
-            // then dispatch the identical skin and verify no second task() runs
-            // once the second completion has been processed.
+            // then dispatch the identical skin and verify the A5 skip: no provider
+            // call, exactly one re-broadcast task().
             final boolean[] phase = {false};
             final long[] countAfterFirst = new long[1];
+            final long[] callsBeforeSecond = new long[1];
             helper.succeedWhen(() -> {
                 if (!phase[0]) {
                     CustomSkinProperty stored = storage.getSkin(uuidA);
@@ -904,6 +907,7 @@ public class SkinVisibilityTest {
                         throw new GameTestAssertException("waiting for first task() to run, count=" + count);
                     }
                     countAfterFirst[0] = count;
+                    callsBeforeSecond[0] = fake.getSkinCalls();
                     int second = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
                     if (second != 1) {
                         throw new GameTestAssertException("second dispatch must be accepted, got " + second);
@@ -911,12 +915,13 @@ public class SkinVisibilityTest {
                     phase[0] = true;
                     throw new GameTestAssertException("entering second-phase wait");
                 }
-                if (SkinCommand.getSkinCompletionsProcessed() < 2) {
-                    throw new GameTestAssertException("waiting for second completion to be processed");
+                if (fake.getSkinCalls() != callsBeforeSecond[0]) {
+                    throw new GameTestAssertException("identical request must not call the provider; before="
+                            + callsBeforeSecond[0] + " after=" + fake.getSkinCalls());
                 }
                 long count = SkinRefreshHandler.getRefreshTaskCount();
-                if (count != countAfterFirst[0]) {
-                    throw new GameTestAssertException("identical skin must not trigger task(); before="
+                if (count != countAfterFirst[0] + 1) {
+                    throw new GameTestAssertException("A5 re-broadcast must run exactly once; before="
                             + countAfterFirst[0] + " after=" + count);
                 }
                 removeQuietly(server, playerA);
@@ -1127,6 +1132,99 @@ public class SkinVisibilityTest {
     }
 
     /**
+     * The JSON metrics output exposes the lib-6 counters: timed out refreshes,
+     * provider status classes, cache hit/miss, tick spikes and the split
+     * command/task latency histograms.
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_metrics_json2")
+    public void metrics_json_showsNewCounters(GameTestHelper helper) {
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "MetricsJson2A");
+        makeOp(playerA);
+        try {
+            placePlayer(helper, playerA);
+            SkinMetrics.INSTANCE.recordTimedOut(playerA.getUUID());
+            SkinMetrics.INSTANCE.recordProviderStatus(429);
+            SkinMetrics.INSTANCE.recordCacheHit();
+            SkinMetrics.INSTANCE.recordTickSpike(TimeUnit.MILLISECONDS.toNanos(120));
+
+            int result = dispatch(server, "skin metrics json", playerA.createCommandSourceStack(), helper);
+            if (result != 1) {
+                helper.fail("skin metrics json should return 1, got " + result);
+                return;
+            }
+            String message = drain(playerA).stream()
+                    .filter(ClientboundSystemChatPacket.class::isInstance)
+                    .map(ClientboundSystemChatPacket.class::cast)
+                    .map(p -> p.content().getString())
+                    .reduce("", (a, b) -> a + b);
+            String[] expected = {"\"timedOut\":", "\"skippedStored\":", "\"provider\":", "\"http429\":",
+                    "\"cache\":", "\"hits\":", "\"tickSpikes\":", "\"commandTotal\":", "\"taskDuration\":",
+                    "\"ioFailuresByType\":", "\"coalesced\":", "\"realWrites\":"};
+            for (String field : expected) {
+                if (!message.contains(field)) {
+                    helper.fail("json metrics missing field " + field + "; got: " + message);
+                    return;
+                }
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
+     * A5: requesting the same skin source twice must not hit the provider the
+     * second time (stored-source match skips the fetch).
+     */
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:m_cache")
+    public void metrics_withProviderCache_avoidsHttp(GameTestHelper helper) {
+        FakeMojangAPI fake = installFakeMojangAPI(true);
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "CacheA");
+        makeOp(playerA);
+        UUID uuidA = playerA.getUUID();
+        try {
+            placePlayer(helper, playerA);
+            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            Config.RATE_LIMIT_ENABLED.set(false);
+            fake.fail = false;
+
+            int first = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+            helper.assertTrue(first == 1, "first dispatch must be accepted, got " + first);
+
+            final boolean[] phase = {false};
+            final long[] callsBefore = new long[1];
+            helper.succeedWhen(() -> {
+                if (!phase[0]) {
+                    if (SkinRestorer.getSkinStorage().getSkin(uuidA) == null) {
+                        throw new GameTestAssertException("waiting for first dispatch to store the skin");
+                    }
+                    callsBefore[0] = fake.getSkinCalls();
+                    int second = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+                    if (second != 1) {
+                        throw new GameTestAssertException("second dispatch must be accepted, got " + second);
+                    }
+                    phase[0] = true;
+                    throw new GameTestAssertException("entering second-phase wait");
+                }
+                if (fake.getSkinCalls() != callsBefore[0]) {
+                    throw new GameTestAssertException("stored-source match must skip the provider fetch; before="
+                            + callsBefore[0] + " after=" + fake.getSkinCalls());
+                }
+                removeQuietly(server, playerA);
+            });
+        } finally {
+            fake.slow = false;
+            Config.RATE_LIMIT_ENABLED.set(true);
+            SkinCommand.getLastRefreshByPlayer().remove(uuidA);
+            removeQuietly(server, playerA);
+        }
+    }
+
+    /**
      * Test-only Mojang provider: returns the canned test skin for any lookup
      * unless {@link #fail} is set, in which case every lookup is empty. This
      * keeps login and command fetches deterministic and offline.
@@ -1137,6 +1235,11 @@ public class SkinVisibilityTest {
         boolean slow;
         /** Returns a distinct texture value per requested name. */
         boolean varyValue;
+        private final java.util.concurrent.atomic.LongAdder skinCalls = new java.util.concurrent.atomic.LongAdder();
+
+        long getSkinCalls() {
+            return skinCalls.sum();
+        }
 
         private String valueFor(String name) {
             return varyValue ? TEST_TEXTURE_VALUE + "-" + name : TEST_TEXTURE_VALUE;
@@ -1154,6 +1257,7 @@ public class SkinVisibilityTest {
 
         @Override
         public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
+            skinCalls.increment();
             maybeSlow();
             if (fail) return Optional.empty();
             return Optional.of(new MojangSkinDataResult(

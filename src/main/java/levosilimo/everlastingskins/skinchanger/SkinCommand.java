@@ -114,6 +114,8 @@ public class SkinCommand {
                         .executes(context -> metricsAction(context, true)))
                 .then(Commands.literal("players")
                         .executes(MetricsActions::players))
+                .then(Commands.literal("cleanup")
+                        .executes(MetricsActions::cleanup))
                 .then(Commands.literal("reset")
                         .requires(source -> source.hasPermission(2))
                         .executes(MetricsActions::reset));
@@ -135,6 +137,14 @@ public class SkinCommand {
             return 1;
         }
 
+        private static int cleanup(CommandContext<CommandSourceStack> context) {
+            if (!hasMetricsResetPermission(context)) return 0;
+            int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(CLEANUP_OLDER_THAN_MS);
+            context.getSource().sendSuccess(() -> Component.literal(
+                    FEEDBACK_PREFIX + " Metrics cleanup: pruned " + removed + " stale player entries"), false);
+            return 1;
+        }
+
         private static int reset(CommandContext<CommandSourceStack> context) {
             if (!hasMetricsResetPermission(context)) return 0;
             SkinMetrics.INSTANCE.reset();
@@ -142,6 +152,8 @@ public class SkinCommand {
             return 1;
         }
     }
+
+    private static final long CLEANUP_OLDER_THAN_MS = 30L * 24 * 60 * 60 * 1000;
 
     private static boolean hasMetricsResetPermission(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = context.getSource().getPlayer();
@@ -379,6 +391,23 @@ public class SkinCommand {
         });
 
         long t0 = System.nanoTime();
+
+        // A5: skip the fetch entirely when the stored skin's source already
+        // matches the requested source — just re-broadcast the stored skin.
+        if (type == SkinActionType.username) {
+            boolean allMatch = targets.stream().allMatch(player -> {
+                CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(player.getUUID());
+                return stored != null && Objects.equals(stored.getSource(), customSource);
+            });
+            if (allMatch) {
+                for (ServerPlayer player : targets) {
+                    SkinMetrics.INSTANCE.recordRefreshSkippedStored(player.getUUID());
+                    SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
+                }
+                return targets.size();
+            }
+        }
+
         CompletableFuture<CustomSkinProperty> skinPropertyCompletableFuture = fetchSkinProperty(type, variant, withCape, customSource, targets);
         long fetchStart = System.nanoTime();
 
@@ -453,7 +482,11 @@ public class SkinCommand {
         if (throwable != null) {
             EverlastingSkins.logger.error("Skin process error occurred");
             for (ServerPlayer player : targets) {
-                SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
+                if (throwable instanceof TimeoutException) {
+                    SkinMetrics.INSTANCE.recordTimedOut(player.getUUID());
+                } else {
+                    SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
+                }
                 player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("error")));
             }
             return;
@@ -503,7 +536,8 @@ public class SkinCommand {
             }
             long now = System.currentTimeMillis();
             Long last = lastRefreshByPlayer.get(uuid);
-            if (last != null && now - last < debounceMillis) {
+            long window = debounceMillis > 0 ? debounceMillis : Config.DEBOUNCE_MILLIS.get();
+            if (last != null && now - last < window) {
                 EverlastingSkins.logger.debug("SKIN_REFRESH debounced for {}", uuid);
                 SkinMetrics.INSTANCE.recordRefreshDebounced(uuid);
                 continue;

@@ -27,27 +27,48 @@ public final class SkinMetrics {
             100_000, 250_000, 500_000, 1_000_000, 5_000_000, 10_000_000
     };
 
+    /** A task phase exceeding this threshold counts as a tick spike. */
+    private static final long TICK_SPIKE_THRESHOLD_NANOS = 50_000_000;
+
     public static final SkinMetrics INSTANCE = new SkinMetrics();
 
     private final LongAdder refreshesInitiated = new LongAdder();
     private final LongAdder refreshesCompleted = new LongAdder();
     private final LongAdder refreshesFailed = new LongAdder();
+    private final LongAdder refreshesTimedOut = new LongAdder();
     private final LongAdder refreshesDebounced = new LongAdder();
     private final LongAdder refreshesSkipped = new LongAdder();
+    private final LongAdder refreshesSkippedStored = new LongAdder();
     private final LongAdder refreshesRateLimited = new LongAdder();
     private final LongAdder broadcastsSent = new LongAdder();
     private final LongAdder bytesWritten = new LongAdder();
     private final LongAdder savesSubmitted = new LongAdder();
     private final LongAdder savesCompleted = new LongAdder();
+    private final LongAdder savesCoalesced = new LongAdder();
+    private final LongAdder realWrites = new LongAdder();
     private final LongAdder ioFailures = new LongAdder();
     private final LongAdder netBytesWrittenOut = new LongAdder();
     private final LongAdder netBytesReadIn = new LongAdder();
+    private final LongAdder tickSpikes = new LongAdder();
+    private final LongAdder tickSpikesBroadcast = new LongAdder();
+    private final LongAdder tickSpikesCascade = new LongAdder();
+    private final LongAdder tickSpikesSaveEnqueue = new LongAdder();
+    private final LongAdder providerHttp429 = new LongAdder();
+    private final LongAdder providerHttp5xx = new LongAdder();
+    private final LongAdder providerHttp4xxOther = new LongAdder();
+    private final LongAdder providerExceptions = new LongAdder();
+    private final LongAdder cacheHits = new LongAdder();
+    private final LongAdder cacheMisses = new LongAdder();
+
+    private final ConcurrentHashMap<String, LongAdder> ioFailuresByType = new ConcurrentHashMap<>();
 
     private final LongAdder[] fetchLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
     private final LongAdder[] saveEnqueueLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
     private final LongAdder[] saveDiskLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
     private final LongAdder[] broadcastLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
-    private final LongAdder[] totalLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
+    private final LongAdder[] commandTotalLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
+    private final LongAdder[] taskDurationLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
+    private final LongAdder[] tickSpikeLatencyBuckets = new LongAdder[LATENCY_BUCKETS_US.length + 1];
 
     private final AtomicInteger pendingAsyncWrites = new AtomicInteger();
     private final LongAdder onlinePlayers = new LongAdder();
@@ -62,7 +83,9 @@ public final class SkinMetrics {
             saveEnqueueLatencyBuckets[i] = new LongAdder();
             saveDiskLatencyBuckets[i] = new LongAdder();
             broadcastLatencyBuckets[i] = new LongAdder();
-            totalLatencyBuckets[i] = new LongAdder();
+            commandTotalLatencyBuckets[i] = new LongAdder();
+            taskDurationLatencyBuckets[i] = new LongAdder();
+            tickSpikeLatencyBuckets[i] = new LongAdder();
         }
     }
 
@@ -74,7 +97,8 @@ public final class SkinMetrics {
      * Records a completed refresh. fetch/save/broadcast latencies are recorded
      * into their own histograms when non-zero (the save and broadcast phases
      * run asynchronously from the command completion, so callers pass what
-     * they measured); total latency is always recorded from startNanos.
+     * they measured); the command-span latency (startNanos to now) is recorded
+     * into the commandTotal histogram.
      */
     public void recordRefreshCompleted(UUID player, long startNanos, long fetchNanos, long saveNanos, long broadcastNanos) {
         refreshesCompleted.increment();
@@ -84,11 +108,16 @@ public final class SkinMetrics {
         recordLatency(fetchLatencyBuckets, fetchNanos);
         recordLatency(saveEnqueueLatencyBuckets, saveNanos);
         recordLatency(broadcastLatencyBuckets, broadcastNanos);
-        recordLatency(totalLatencyBuckets, System.nanoTime() - startNanos);
+        recordLatency(commandTotalLatencyBuckets, System.nanoTime() - startNanos);
     }
 
     public void recordRefreshFailed(UUID player) {
         refreshesFailed.increment();
+    }
+
+    /** Fetch timed out (10s), distinct from a provider failure. */
+    public void recordTimedOut(UUID player) {
+        refreshesTimedOut.increment();
     }
 
     public void recordRefreshDebounced(UUID player) {
@@ -97,6 +126,11 @@ public final class SkinMetrics {
 
     public void recordRefreshSkipped(UUID player) {
         refreshesSkipped.increment();
+    }
+
+    /** Skipped because the stored skin's source already matches the request. */
+    public void recordRefreshSkippedStored(UUID player) {
+        refreshesSkippedStored.increment();
     }
 
     public void recordRateLimited(UUID player) {
@@ -122,15 +156,59 @@ public final class SkinMetrics {
         recordLatency(broadcastLatencyBuckets, nanos);
     }
 
+    /** Records the full task() duration into the task-duration histogram. */
+    public void recordTaskDuration(long nanos) {
+        recordLatency(taskDurationLatencyBuckets, nanos);
+    }
+
     /** Consumes the per-connection byte deltas measured around a refresh. */
     public void recordNetworkDelta(long outDelta, long inDelta) {
         if (outDelta > 0) netBytesWrittenOut.add(outDelta);
         if (inDelta > 0) netBytesReadIn.add(inDelta);
     }
 
-    /** Records the full task() duration into the total latency histogram. */
-    public void recordTotalLatency(long nanos) {
-        recordLatency(totalLatencyBuckets, nanos);
+    /** A task exceeded the 50ms spike threshold (generic count + histogram). */
+    public void recordTickSpike(long nanos) {
+        tickSpikes.increment();
+        recordLatency(tickSpikeLatencyBuckets, nanos);
+    }
+
+    /** A broadcast-phase spike (the REMOVE + ADD_PLAYER fan-out). */
+    public void recordSpikeBroadcast(long nanos) {
+        if (nanos >= TICK_SPIKE_THRESHOLD_NANOS) tickSpikesBroadcast.increment();
+    }
+
+    /** A respawn-cascade-phase spike (per-target packet sequence). */
+    public void recordSpikeCascade(long nanos) {
+        if (nanos >= TICK_SPIKE_THRESHOLD_NANOS) tickSpikesCascade.increment();
+    }
+
+    /** A save-submit-phase spike (coalescing enqueue). */
+    public void recordSpikeSaveEnqueue(long nanos) {
+        if (nanos >= TICK_SPIKE_THRESHOLD_NANOS) tickSpikesSaveEnqueue.increment();
+    }
+
+    /** Provider HTTP status code observed by the HTTP layer. */
+    public void recordProviderStatus(int statusCode) {
+        if (statusCode == 429) {
+            providerHttp429.increment();
+        } else if (statusCode >= 500) {
+            providerHttp5xx.increment();
+        } else if (statusCode >= 400) {
+            providerHttp4xxOther.increment();
+        }
+    }
+
+    public void recordProviderException() {
+        providerExceptions.increment();
+    }
+
+    public void recordCacheHit() {
+        cacheHits.increment();
+    }
+
+    public void recordCacheMiss() {
+        cacheMisses.increment();
     }
 
     public void recordSaveSubmitted() {
@@ -143,8 +221,31 @@ public final class SkinMetrics {
         pendingAsyncWrites.decrementAndGet();
     }
 
+    /** A submission was superseded by a newer payload for the same UUID. */
+    public void recordSaveCoalesced() {
+        savesCoalesced.increment();
+    }
+
+    /** An actual disk write happened (write + fsync + rename). */
+    public void recordRealWrite() {
+        realWrites.increment();
+    }
+
     public void recordIoFailure() {
         ioFailures.increment();
+    }
+
+    /** IOException with type attribution (NoSpaceLeft, AccessDenied, ...). */
+    public void recordIoFailure(Throwable t) {
+        ioFailures.increment();
+        String type = t != null ? t.getClass().getSimpleName() : "unknown";
+        ioFailuresByType.computeIfAbsent(type, k -> new LongAdder()).increment();
+    }
+
+    public Map<String, Long> ioFailuresByType() {
+        Map<String, Long> map = new LinkedHashMap<>();
+        ioFailuresByType.forEach((type, adder) -> map.put(type, adder.sum()));
+        return map;
     }
 
     public void recordPlayerJoined() {
@@ -155,27 +256,56 @@ public final class SkinMetrics {
         onlinePlayers.decrement();
     }
 
+    /** Prunes per-player entries whose last refresh is older than the cutoff. */
+    public int cleanupStalePlayers(long olderThanMs) {
+        long cutoff = System.currentTimeMillis() - olderThanMs;
+        int[] removed = {0};
+        perPlayer.forEach((uuid, pm) -> {
+            if (pm.lastRefreshAtMs.get() < cutoff) {
+                if (perPlayer.remove(uuid, pm)) removed[0]++;
+            }
+        });
+        return removed[0];
+    }
+
     /** Zeroes every counter and clears per-player state. */
     public void reset() {
         refreshesInitiated.reset();
         refreshesCompleted.reset();
         refreshesFailed.reset();
+        refreshesTimedOut.reset();
         refreshesDebounced.reset();
         refreshesSkipped.reset();
+        refreshesSkippedStored.reset();
         refreshesRateLimited.reset();
         broadcastsSent.reset();
         bytesWritten.reset();
         savesSubmitted.reset();
         savesCompleted.reset();
+        savesCoalesced.reset();
+        realWrites.reset();
         ioFailures.reset();
         netBytesWrittenOut.reset();
         netBytesReadIn.reset();
+        tickSpikes.reset();
+        tickSpikesBroadcast.reset();
+        tickSpikesCascade.reset();
+        tickSpikesSaveEnqueue.reset();
+        providerHttp429.reset();
+        providerHttp5xx.reset();
+        providerHttp4xxOther.reset();
+        providerExceptions.reset();
+        cacheHits.reset();
+        cacheMisses.reset();
+        ioFailuresByType.clear();
         for (int i = 0; i <= LATENCY_BUCKETS_US.length; i++) {
             fetchLatencyBuckets[i].reset();
             saveEnqueueLatencyBuckets[i].reset();
             saveDiskLatencyBuckets[i].reset();
             broadcastLatencyBuckets[i].reset();
-            totalLatencyBuckets[i].reset();
+            commandTotalLatencyBuckets[i].reset();
+            taskDurationLatencyBuckets[i].reset();
+            tickSpikeLatencyBuckets[i].reset();
         }
         pendingAsyncWrites.set(0);
         onlinePlayers.reset();
@@ -238,16 +368,25 @@ public final class SkinMetrics {
     public Snapshot snapshot() {
         return new Snapshot(
                 refreshesInitiated.sum(), refreshesCompleted.sum(), refreshesFailed.sum(),
-                refreshesDebounced.sum(), refreshesSkipped.sum(), refreshesRateLimited.sum(),
+                refreshesTimedOut.sum(), refreshesDebounced.sum(), refreshesSkipped.sum(),
+                refreshesSkippedStored.sum(), refreshesRateLimited.sum(),
                 broadcastsSent.sum(), bytesWritten.sum(), savesSubmitted.sum(), savesCompleted.sum(),
+                savesCoalesced.sum(), realWrites.sum(),
                 ioFailures.sum(), pendingAsyncWrites.get(), onlinePlayers.sum(),
                 System.currentTimeMillis() - startedAtMs.get(),
                 netBytesWrittenOut.sum(), netBytesReadIn.sum(),
+                tickSpikes.sum(), tickSpikesBroadcast.sum(), tickSpikesCascade.sum(),
+                tickSpikesSaveEnqueue.sum(),
+                providerHttp429.sum(), providerHttp5xx.sum(), providerHttp4xxOther.sum(),
+                providerExceptions.sum(), cacheHits.sum(), cacheMisses.sum(),
+                ioFailuresByType(),
                 histogramPercentiles(fetchLatencyBuckets, LATENCY_BUCKETS_US),
                 histogramPercentiles(saveEnqueueLatencyBuckets, LATENCY_BUCKETS_US),
                 histogramPercentiles(saveDiskLatencyBuckets, LATENCY_BUCKETS_US),
                 histogramPercentiles(broadcastLatencyBuckets, LATENCY_BUCKETS_US),
-                histogramPercentiles(totalLatencyBuckets, LATENCY_BUCKETS_US),
+                histogramPercentiles(commandTotalLatencyBuckets, LATENCY_BUCKETS_US),
+                histogramPercentiles(taskDurationLatencyBuckets, LATENCY_BUCKETS_US),
+                histogramPercentiles(tickSpikeLatencyBuckets, LATENCY_BUCKETS_US),
                 snapshotPerPlayer());
     }
 
@@ -271,22 +410,37 @@ public final class SkinMetrics {
         sb.append("EverlastingSkins Metrics (uptime ").append(formatUptime(s.uptimeMs())).append(")\n");
         sb.append("  refreshes: ").append(s.refreshesInitiated()).append(" initiated, ")
                 .append(s.refreshesCompleted()).append(" completed, ")
-                .append(s.refreshesFailed()).append(" failed\n");
-        sb.append("  skipped: ").append(s.refreshesSkipped()).append(" (identical), debounced: ")
+                .append(s.refreshesFailed()).append(" failed, ")
+                .append(s.refreshesTimedOut()).append(" timed out\n");
+        sb.append("  skipped: ").append(s.refreshesSkipped()).append(" (identical), ")
+                .append(s.refreshesSkippedStored()).append(" (stored source), debounced: ")
                 .append(s.refreshesDebounced()).append(", rate-limited: ").append(s.refreshesRateLimited()).append('\n');
         sb.append("  broadcasts: ").append(s.broadcastsSent()).append(" (").append(formatBytes(s.bytesWritten())).append(" written)\n");
         sb.append("  saves: ").append(s.savesSubmitted()).append(" submitted, ").append(s.savesCompleted())
-                .append(" completed, ").append(s.ioFailures()).append(" failed, ")
+                .append(" completed, ").append(s.savesCoalesced()).append(" coalesced, ")
+                .append(s.realWrites()).append(" real writes, ").append(s.ioFailures()).append(" failed, ")
                 .append(s.pendingAsyncWrites()).append(" pending\n");
+        sb.append("  io failures by type: ").append(formatIoFailures(s.ioFailuresByType())).append('\n');
         sb.append("  network: ").append(formatBytes(s.netBytesWrittenOut())).append(" out, ")
                 .append(formatBytes(s.netBytesReadIn())).append(" in (per-connection)\n");
+        sb.append("  provider: ").append(s.providerHttp429()).append("x429, ")
+                .append(s.providerHttp5xx()).append("x5xx, ")
+                .append(s.providerHttp4xxOther()).append("x4xx, ")
+                .append(s.providerExceptions()).append(" exceptions\n");
+        sb.append("  cache: ").append(s.cacheHits()).append(" hits, ")
+                .append(s.cacheMisses()).append(" misses\n");
+        sb.append("  tick spikes: ").append(s.tickSpikes()).append(" (broadcast ")
+                .append(s.tickSpikesBroadcast()).append(", cascade ").append(s.tickSpikesCascade())
+                .append(", save-enqueue ").append(s.tickSpikesSaveEnqueue()).append(")\n");
         sb.append("  online players: ").append(s.onlinePlayers()).append('\n');
         sb.append("  latencies (ms):\n");
-        sb.append("    fetch:     ").append(formatPercentiles(s.fetchPercentiles())).append('\n');
-        sb.append("    save enq:  ").append(formatPercentiles(s.saveEnqueuePercentiles())).append('\n');
-        sb.append("    save disk: ").append(formatPercentiles(s.saveDiskPercentiles())).append('\n');
-        sb.append("    broadcast: ").append(formatPercentiles(s.broadcastPercentiles())).append('\n');
-        sb.append("    total:     ").append(formatPercentiles(s.totalPercentiles()));
+        sb.append("    fetch:        ").append(formatPercentiles(s.fetchPercentiles())).append('\n');
+        sb.append("    save enq:     ").append(formatPercentiles(s.saveEnqueuePercentiles())).append('\n');
+        sb.append("    save disk:    ").append(formatPercentiles(s.saveDiskPercentiles())).append('\n');
+        sb.append("    broadcast:    ").append(formatPercentiles(s.broadcastPercentiles())).append('\n');
+        sb.append("    command total:").append(formatPercentiles(s.commandTotalPercentiles())).append('\n');
+        sb.append("    task duration:").append(formatPercentiles(s.taskDurationPercentiles())).append('\n');
+        sb.append("    tick spike:   ").append(formatPercentiles(s.tickSpikePercentiles()));
         return sb.toString();
     }
 
@@ -297,24 +451,48 @@ public final class SkinMetrics {
         sb.append(",\"refreshes\":{\"initiated\":").append(s.refreshesInitiated())
                 .append(",\"completed\":").append(s.refreshesCompleted())
                 .append(",\"failed\":").append(s.refreshesFailed())
+                .append(",\"timedOut\":").append(s.refreshesTimedOut())
                 .append(",\"skipped\":").append(s.refreshesSkipped())
+                .append(",\"skippedStored\":").append(s.refreshesSkippedStored())
                 .append(",\"debounced\":").append(s.refreshesDebounced())
                 .append(",\"rateLimited\":").append(s.refreshesRateLimited()).append('}');
         sb.append(",\"broadcasts\":{\"sent\":").append(s.broadcastsSent())
                 .append(",\"bytesWritten\":").append(s.bytesWritten()).append('}');
         sb.append(",\"saves\":{\"submitted\":").append(s.savesSubmitted())
                 .append(",\"completed\":").append(s.savesCompleted())
+                .append(",\"coalesced\":").append(s.savesCoalesced())
+                .append(",\"realWrites\":").append(s.realWrites())
                 .append(",\"ioFailures\":").append(s.ioFailures())
                 .append(",\"pending\":").append(s.pendingAsyncWrites()).append('}');
+        sb.append(",\"ioFailuresByType\":{");
+        boolean firstType = true;
+        for (Map.Entry<String, Long> e : s.ioFailuresByType().entrySet()) {
+            if (!firstType) sb.append(',');
+            firstType = false;
+            sb.append('"').append(e.getKey()).append("\":").append(e.getValue());
+        }
+        sb.append('}');
         sb.append(",\"networkBytes\":{\"out\":").append(s.netBytesWrittenOut())
                 .append(",\"in\":").append(s.netBytesReadIn()).append('}');
+        sb.append(",\"provider\":{\"http429\":").append(s.providerHttp429())
+                .append(",\"http5xx\":").append(s.providerHttp5xx())
+                .append(",\"http4xxOther\":").append(s.providerHttp4xxOther())
+                .append(",\"exceptions\":").append(s.providerExceptions()).append('}');
+        sb.append(",\"cache\":{\"hits\":").append(s.cacheHits())
+                .append(",\"misses\":").append(s.cacheMisses()).append('}');
+        sb.append(",\"tickSpikes\":{\"total\":").append(s.tickSpikes())
+                .append(",\"broadcast\":").append(s.tickSpikesBroadcast())
+                .append(",\"cascade\":").append(s.tickSpikesCascade())
+                .append(",\"saveEnqueue\":").append(s.tickSpikesSaveEnqueue()).append('}');
         sb.append(",\"onlinePlayers\":").append(s.onlinePlayers());
         sb.append(",\"latenciesMs\":{")
                 .append("\"fetch\":").append(jsonPercentiles(s.fetchPercentiles()))
                 .append(",\"saveEnqueue\":").append(jsonPercentiles(s.saveEnqueuePercentiles()))
                 .append(",\"saveDisk\":").append(jsonPercentiles(s.saveDiskPercentiles()))
                 .append(",\"broadcast\":").append(jsonPercentiles(s.broadcastPercentiles()))
-                .append(",\"total\":").append(jsonPercentiles(s.totalPercentiles())).append('}');
+                .append(",\"commandTotal\":").append(jsonPercentiles(s.commandTotalPercentiles()))
+                .append(",\"taskDuration\":").append(jsonPercentiles(s.taskDurationPercentiles()))
+                .append(",\"tickSpike\":").append(jsonPercentiles(s.tickSpikePercentiles())).append('}');
         sb.append(",\"players\":[");
         boolean first = true;
         for (Map.Entry<UUID, PlayerSnapshot> e : s.perPlayer().entrySet()) {
@@ -326,6 +504,13 @@ public final class SkinMetrics {
         }
         sb.append("]}");
         return sb.toString();
+    }
+
+    private static String formatIoFailures(Map<String, Long> byType) {
+        if (byType.isEmpty()) return "none";
+        StringBuilder sb = new StringBuilder();
+        byType.forEach((type, count) -> sb.append(type).append(": ").append(count).append(", "));
+        return sb.substring(0, sb.length() - 2);
     }
 
     private static String jsonPercentiles(Map<String, Long> p) {
@@ -357,13 +542,20 @@ public final class SkinMetrics {
 
     public record Snapshot(
             long refreshesInitiated, long refreshesCompleted, long refreshesFailed,
-            long refreshesDebounced, long refreshesSkipped, long refreshesRateLimited,
+            long refreshesTimedOut, long refreshesDebounced, long refreshesSkipped,
+            long refreshesSkippedStored, long refreshesRateLimited,
             long broadcastsSent, long bytesWritten, long savesSubmitted, long savesCompleted,
+            long savesCoalesced, long realWrites,
             long ioFailures, int pendingAsyncWrites, long onlinePlayers, long uptimeMs,
             long netBytesWrittenOut, long netBytesReadIn,
+            long tickSpikes, long tickSpikesBroadcast, long tickSpikesCascade, long tickSpikesSaveEnqueue,
+            long providerHttp429, long providerHttp5xx, long providerHttp4xxOther,
+            long providerExceptions, long cacheHits, long cacheMisses,
+            Map<String, Long> ioFailuresByType,
             Map<String, Long> fetchPercentiles, Map<String, Long> saveEnqueuePercentiles,
             Map<String, Long> saveDiskPercentiles, Map<String, Long> broadcastPercentiles,
-            Map<String, Long> totalPercentiles,
+            Map<String, Long> commandTotalPercentiles, Map<String, Long> taskDurationPercentiles,
+            Map<String, Long> tickSpikePercentiles,
             Map<UUID, PlayerSnapshot> perPlayer) {
     }
 

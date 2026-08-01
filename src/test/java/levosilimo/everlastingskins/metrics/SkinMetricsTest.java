@@ -43,7 +43,7 @@ class SkinMetricsTest {
         assertTrue(s.fetchPercentiles().get("p50") >= 1_000);
         assertTrue(s.saveEnqueuePercentiles().get("p50") >= 100);
         assertTrue(s.broadcastPercentiles().get("p50") >= 500);
-        assertTrue(s.totalPercentiles().get("p50") >= 0);
+        assertTrue(s.commandTotalPercentiles().get("p50") >= 0);
         SkinMetrics.PlayerSnapshot ps = s.perPlayer().get(uuid);
         assertNotNull(ps);
         assertEquals(1, ps.refreshCount());
@@ -164,7 +164,89 @@ class SkinMetricsTest {
         assertEquals(0, s.saveEnqueuePercentiles().get("max"));
         assertEquals(0, s.saveDiskPercentiles().get("max"));
         assertEquals(0, s.broadcastPercentiles().get("max"));
-        assertEquals(0, s.totalPercentiles().get("max"));
+        assertEquals(0, s.commandTotalPercentiles().get("max"));
+        assertEquals(0, s.taskDurationPercentiles().get("max"));
         assertTrue(s.perPlayer().isEmpty());
+    }
+
+    @Test
+    @DisplayName("command total and task duration latencies are separate histograms")
+    void commandTotalLatency_andTaskDuration_areSeparate() {
+        SkinMetrics m = freshMetrics();
+        UUID uuid = UUID.randomUUID();
+
+        m.recordRefreshCompleted(uuid, System.nanoTime(), 100_000L, 0, 0);  // sub-ms command span
+        m.recordTaskDuration(TimeUnit.MILLISECONDS.toNanos(200));           // 200ms task
+
+        SkinMetrics.Snapshot s = m.snapshot();
+        // Command span elapsed only microseconds; task duration landed in the 200ms band.
+        assertTrue(s.commandTotalPercentiles().get("max") < 100_000L);
+        assertEquals(250_000L, s.taskDurationPercentiles().get("max"));  // 200ms lands in the 250ms bucket
+    }
+
+    @Test
+    @DisplayName("timed-out refreshes count separately from failures")
+    void recordTimedOut_separateFromFailed() {
+        SkinMetrics m = freshMetrics();
+        UUID uuid = UUID.randomUUID();
+
+        m.recordRefreshFailed(uuid);
+        m.recordTimedOut(uuid);
+        m.recordTimedOut(uuid);
+
+        SkinMetrics.Snapshot s = m.snapshot();
+        assertEquals(1, s.refreshesFailed());
+        assertEquals(2, s.refreshesTimedOut());
+    }
+
+    @Test
+    @DisplayName("provider HTTP status classes are tracked separately")
+    void providerHttp429_4xx_5xx_separate() {
+        SkinMetrics m = freshMetrics();
+
+        m.recordProviderStatus(429);
+        m.recordProviderStatus(429);
+        m.recordProviderStatus(500);
+        m.recordProviderStatus(403);
+        m.recordProviderException();
+
+        SkinMetrics.Snapshot s = m.snapshot();
+        assertEquals(2, s.providerHttp429());
+        assertEquals(1, s.providerHttp5xx());
+        assertEquals(1, s.providerHttp4xxOther());
+        assertEquals(1, s.providerExceptions());
+    }
+
+    @Test
+    @DisplayName("cache hit/miss counters track provider cache usage")
+    void cacheHitMiss_counters() {
+        SkinMetrics m = freshMetrics();
+
+        m.recordCacheHit();
+        m.recordCacheHit();
+        m.recordCacheMiss();
+
+        SkinMetrics.Snapshot s = m.snapshot();
+        assertEquals(2, s.cacheHits());
+        assertEquals(1, s.cacheMisses());
+    }
+
+    @Test
+    @DisplayName("tick spikes record total and phase attribution")
+    void tickSpikes_withPhaseAttribution() {
+        SkinMetrics m = freshMetrics();
+
+        m.recordTickSpike(TimeUnit.MILLISECONDS.toNanos(120));
+        m.recordSpikeBroadcast(TimeUnit.MILLISECONDS.toNanos(80));
+        m.recordSpikeCascade(TimeUnit.MILLISECONDS.toNanos(60));
+        m.recordSpikeSaveEnqueue(TimeUnit.MILLISECONDS.toNanos(55));
+        m.recordSpikeBroadcast(10_000L);  // sub-threshold, must not count
+
+        SkinMetrics.Snapshot s = m.snapshot();
+        assertEquals(1, s.tickSpikes());
+        assertEquals(1, s.tickSpikesBroadcast());
+        assertEquals(1, s.tickSpikesCascade());
+        assertEquals(1, s.tickSpikesSaveEnqueue());
+        assertEquals(250_000L, s.tickSpikePercentiles().get("max"));  // 120ms lands in the 250ms bucket
     }
 }
