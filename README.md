@@ -68,10 +68,53 @@ Config file: `world/serverconfig/everlastingskins-server.toml` (auto-generated o
 | `broadcast.dimension_scoped_broadcast` | Boolean | `false` | Restrict refresh broadcasts to the target's dimension |
 | `broadcast.broadcast_use_bundle` | Boolean | `false` | Send REMOVE + ADD_PLAYER broadcast as one bundle packet |
 | `broadcast.debounce_millis` | Integer | `100` | Per-player refresh debounce window (milliseconds) |
+| `broadcast.refresh_via_entity_tracker` | Boolean | `true` | Untrack/re-track the target entity so observers re-fetch the updated profile (fixes stale skin renders on remote clients) |
 | `metrics.metrics_enabled` | Boolean | `true` | Enable in-process metrics and periodic `metrics.json` dump |
 | `metrics.metrics_dump_interval_seconds` | Integer | `60` | Interval between `metrics.json` dumps (0 disables the dump) |
 | `http.http_client_version` | String | `HTTP_2` | JDK HTTP client version (`HTTP_2` or `HTTP_1_1`) |
 | `http.http_connect_timeout_seconds` | Integer | `5` | Connection timeout for provider requests (seconds) |
+| `mojang_cache.mojang_profile_cache_enabled` | Boolean | `true` | Enable the in-process Mojang profile cache |
+| `mojang_cache.mojang_profile_cache_ttl_ms` | Long | `3600000` | Mojang profile cache entry lifetime (milliseconds; `0` disables caching) |
+| `mojang_cache.mojang_profile_cache_max_size` | Integer | `1000` | Max Mojang profile cache entries (oldest evicted first) |
+| `default_skins.enabled` | Boolean | `false` | Apply a default skin from `list` to players without a saved custom skin |
+| `default_skins.applyForPremium` | Boolean | `false` | Also apply the default skin to players WITH a saved custom skin (display-only override; their stored custom skin is preserved) |
+| `default_skins.list` | String[] | `Steve, <random>` | Default skins list: Mojang usernames or the literal `<random>` token (random Mojang username on each login) |
+| `security.urlAllowlistEnabled` | Boolean | `false` | Enable URL domain allowlist for `/skin set web` (empty list = deny all) |
+| `security.urlAllowlistDomains` | String[] | 9 default domains | Domains allowed for `/skin set web` (eTLD+1 suffix match; one entry covers all subdomains) |
+| `permissions.op_level.mojang` | Integer | `0` | Required op level for `/skin set <mojang>` |
+| `permissions.op_level.url` | Integer | `2` | Required op level for `/skin set web` |
+| `permissions.op_level.clear` | Integer | `0` | Required op level for `/skin clear` |
+| `permissions.op_level.random` | Integer | `0` | Required op level for `/skin set random` |
+| `permissions.op_level.other` | Integer | `2` | Required op level for changing another player's skin |
+| `permissions.op_level.metrics` | Integer | `2` | Required op level for `/skin metrics` |
+| `permissions.op_level.metrics_reset` | Integer | `2` | Required op level for `/skin metrics cleanup/reset` |
+
+All message strings are customizable. Defaults (keys under the `Messages` section):
+
+| Key | Default |
+|-----|---------|
+| `messages.messages_change` | `Skin change queued` |
+| `messages.messages_fulfilled` | `Skin has been applied.` |
+| `messages.messages_timeout` | `Skin fetch timed out.` |
+| `messages.messages_error` | `Skin fetch failed.` |
+| `messages.messages_restored_from` | `Skin restored from %s` |
+| `messages.messages_cleared_no_profile` | `Skin cleared (no Mojang profile found)` |
+| `messages.messages_no_source` | `No source available` |
+| `messages.messages_player_only` | `Player only command` |
+| `messages.messages_permission_denied` | `Permission denied` |
+| `messages.messages_cooldown` | `Please wait %ds before using /skin again` |
+| `messages.messages_rate_limited` | `Too many /skin commands. Try again later.` |
+| `messages.messages_no_skin_found` | `No skin found for "%s"` |
+| `messages.messages_no_skin_found_plain` | `No skin found` |
+| `messages.messages_mineskin_rejected` | `MineSkin rejected the URL` |
+| `messages.messages_no_random_username` | `No random username available` |
+| `messages.messages_provider_no_result` | `Provider returned no result` |
+| `messages.messages_metrics_top_players` | `Top players by refresh count:` |
+| `messages.messages_metrics_refreshes` | ` refreshes` |
+| `messages.messages_metrics_no_refreshes` | `(no refreshes recorded)` |
+| `messages.messages_metrics_cleanup` | `Metrics cleanup: pruned %d stale player entries` |
+| `messages.messages_metrics_reset` | `Metrics reset` |
+| `messages.messages_discord_announce` | `**%s** changed their skin to: \`%s\`` |
 
 ## 🌐 External Services
 
