@@ -3,10 +3,15 @@ package levosilimo.everlastingskins.permission.forge;
 import levosilimo.everlastingskins.permission.IPermissionService;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import net.minecraftforge.server.permission.PermissionAPI;
 import net.minecraftforge.server.permission.events.PermissionGatherEvent;
 import net.minecraftforge.server.permission.nodes.PermissionNode;
 import net.minecraftforge.server.permission.nodes.PermissionTypes;
+
+import java.util.UUID;
 
 public class ForgePermissionService implements IPermissionService {
 
@@ -67,10 +72,26 @@ public class ForgePermissionService implements IPermissionService {
         } else {
             node = SKIN_NODE;
         }
+        // Prefer the live permission of the online player (PermissionAPI consults
+        // the registered handler, so non-op grants are honored — not just ops).
+        ServerPlayer player = resolvePlayer(context.uuid());
+        if (player != null) {
+            return PermissionAPI.getPermission(player, node);
+        }
         try {
             return PermissionAPI.getOfflinePermission(context.uuid(), node);
         } catch (Exception e) {
             return context.isOp();
+        }
+    }
+
+    private ServerPlayer resolvePlayer(UUID uuid) {
+        try {
+            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+            if (server == null) return null;
+            return server.getPlayerList().getPlayer(uuid);
+        } catch (Exception e) {
+            return null;
         }
     }
 

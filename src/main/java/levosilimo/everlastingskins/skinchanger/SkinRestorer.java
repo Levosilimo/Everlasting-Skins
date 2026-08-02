@@ -16,6 +16,8 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class SkinRestorer {
 
@@ -23,6 +25,13 @@ public class SkinRestorer {
     private static volatile SkinStorage skinStorage;
     private static volatile SkinIO skinIO;
     public static volatile MinecraftServer server;
+
+    /** Off-login-thread executor for the default-skin Mojang restore fetch. */
+    private static final ExecutorService loginExecutor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "everlastingskins-login");
+        t.setDaemon(true);
+        return t;
+    });
 
     @Nullable
     public static SkinStorage getSkinStorage() {
@@ -59,10 +68,27 @@ public class SkinRestorer {
         SkinMetrics.INSTANCE.recordPlayerJoined();
 
         if (skinStorage.hasDefaultSkin(player.getUUID())) {
-            MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(player.getGameProfile().getName()).orElse(null);
-            if (skinDataResult != null) {
-                skinStorage.setSkin(player.getUUID(), skinDataResult.skinProperty());
-            }
+            // Never block the login thread on the 3-provider HTTP chain: fetch
+            // on the shared executor and apply back on the server thread.
+            MinecraftServer srv = server;
+            UUID uuid = player.getUUID();
+            String name = player.getGameProfile().getName();
+            loginExecutor.submit(() -> {
+                MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(name).orElse(null);
+                if (skinDataResult == null) return;
+                CustomSkinProperty property = skinDataResult.skinProperty();
+                srv.execute(() -> {
+                    if (skinStorage.hasDefaultSkin(uuid)) {
+                        skinStorage.setSkin(uuid, property);
+                        ServerPlayer online = srv.getPlayerList().getPlayer(uuid);
+                        if (online != null) {
+                            online.getGameProfile().getProperties().removeAll("textures");
+                            online.getGameProfile().getProperties().put("textures", property.getOriginalProperty());
+                        }
+                    }
+                });
+            });
+            return;
         }
 
         CustomSkinProperty skin = skinStorage.getSkin(player.getUUID());

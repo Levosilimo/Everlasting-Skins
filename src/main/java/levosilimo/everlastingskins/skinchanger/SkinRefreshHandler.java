@@ -46,10 +46,17 @@ public class SkinRefreshHandler {
             return;
         }
         long tStart = System.nanoTime();
-        mutateProfile(player, skin);
-        recordSaveEnqueue(player);
-        recordObserverBroadcast(player, skin);
-        recordCascade(player);
+        try {
+            mutateProfile(player, skin);
+            recordSaveEnqueue(player);
+            recordObserverBroadcast(player, skin);
+            recordCascade(player);
+        } catch (Throwable t) {
+            // Fail soft: a partial cascade (profile mutated, observers stale)
+            // must not abort scheduled-task execution or the server tick.
+            EverlastingSkins.logger.error("Skin refresh failed for {}", player.getUUID(), t);
+            SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
+        }
         long totalNanos = System.nanoTime() - tStart;
         if (totalNanos > TICK_SPIKE_THRESHOLD_NANOS) {
             EverlastingSkins.logger.warn("SKIN_REFRESH tick spike {}ms for {}",
@@ -116,6 +123,16 @@ public class SkinRefreshHandler {
             SkinMetrics.INSTANCE.recordNetworkDelta(
                     netHandler.outboundBytes() - outBefore,
                     netHandler.inboundBytes() - inBefore);
+        }
+
+        // Per-viewer entity re-render via the tracker: untrack/track forces
+        // remote clients to destroy+re-spawn the entity, so their cached
+        // playerInfo re-fetches the new profile entry. Without this step
+        // observers keep rendering the stale skin even after the tab-list
+        // REMOVE+ADD (PR #121 dropped this step; lib-13 research: regression).
+        if (Config.REFRESH_VIA_ENTITY_TRACKER.get()) {
+            ((ServerLevel) player.level()).getChunkSource().removeEntity(player);
+            ((ServerLevel) player.level()).getChunkSource().addEntity(player);
         }
     }
 

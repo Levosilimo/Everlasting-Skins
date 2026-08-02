@@ -36,6 +36,7 @@ public final class MetricsFormat {
                 .append(s.providerExceptions()).append(" exceptions\n");
         sb.append("  cache: ").append(s.cacheHits()).append(" hits, ")
                 .append(s.cacheMisses()).append(" misses\n");
+        sb.append("  mine skin rate-limit sleeps: ").append(s.mineSkinDelayTotalMs()).append(" ms\n");
         sb.append("  tick spikes: ").append(s.tickSpikes()).append(" (broadcast ")
                 .append(s.tickSpikesBroadcast()).append(", cascade ").append(s.tickSpikesCascade())
                 .append(", save-enqueue ").append(s.tickSpikesSaveEnqueue()).append(")\n");
