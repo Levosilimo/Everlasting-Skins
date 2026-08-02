@@ -26,7 +26,7 @@
 - MojangProfileCache (TTL 1h, cap 1000)
 - /skin metrics command tree (human/json/players/cleanup/reset)
 - saveSkinAsync drain-coalesce writer (50ms debounce, race-safe latch)
-- 27 integration tests (GameTest) + wire-level packet assertions
+- 30 integration tests (GameTest) + wire-level packet assertions
 
 ### Changed
 - SkinRefreshHandler refactored (split into SkinRefreshHandler + SkinActionCommand + SkinMetricsCommand)
