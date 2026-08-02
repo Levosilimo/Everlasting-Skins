@@ -18,7 +18,7 @@ EverlastingSkins uses a three-tier testing pyramid:
 
 ### 1.21: GameTest (automated)
 
-The 1.21 branch uses Minecraft's GameTest framework for automated integration testing. The `gametest-121` CI job runs 28 tests covering the /skin command pipeline via mock players + EmbeddedChannel packet assertions.
+The 1.21 branch uses Minecraft's GameTest framework for automated integration testing. The `gametest-121` CI job runs 27 tests covering the /skin command pipeline via mock players + EmbeddedChannel packet assertions.
 
 Components:
 - `src/test/java/` — GameTest methods (skin-set, skin-clear, persistence, refresh)

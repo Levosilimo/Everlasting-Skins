@@ -29,6 +29,7 @@ Each branch has its own README with version-specific installation instructions, 
 - `/skin set random` — apply a random skin
 - `/skin clear` — restore your Mojang-registered skin (or your UUID-hash default if offline)
 - `/skin source` — show which username/source your current skin is from
+- `/skin metrics` — view per-player skin metrics (admin-only)
 - Skins persist across server restarts (per-player JSON files)
 - Server-side only — no client-side install needed
 
@@ -48,6 +49,7 @@ Each branch has its own README with version-specific installation instructions, 
 | `/skin set random` | any | Apply a random skin |
 | `/skin clear` | any | Restore your Mojang skin or reset to default |
 | `/skin source` | any | Show your current skin source |
+| `/skin metrics [human\|json\|players\|cleanup\|reset]` | admin | View skin metrics (view commands need `everlastingskins.command.metrics`; `cleanup`/`reset` need `everlastingskins.command.metrics.reset`) |
 
 ## ⚙️ Configuration
 
@@ -57,8 +59,19 @@ Config file: `world/serverconfig/everlastingskins-server.toml` (auto-generated o
 |-----|------|---------|-------------|
 | `messages.localization` | String | `en` | Language for mod messages |
 | `messages.display` | Boolean | `true` | Show skin application messages in chat |
-| `mineskin.key` | String | (empty) | MineSkin API key (required for `/skin set web`) |
-| `mineskin.enabled` | Boolean | `false` | Enable MineSkin URL-based skin generation |
+| `messages.key` | String | (empty) | MineSkin API key (required for `/skin set web`) |
+| `integration.discordsrv_enabled` | Boolean | `false` | Enable DiscordSRV skin change announcements |
+| `integration.discordsrv_channel_id` | String | (empty) | Discord channel ID for announcements |
+| `ratelimit.cooldown_seconds` | Integer | `3` | Cooldown between `/skin` commands (seconds) |
+| `ratelimit.rate_limit_enabled` | Boolean | `true` | Enable `/skin` rate limiting |
+| `ratelimit.max_commands_per_minute` | Integer | `5` | Max `/skin` commands per minute (per player) |
+| `broadcast.dimension_scoped_broadcast` | Boolean | `false` | Restrict refresh broadcasts to the target's dimension |
+| `broadcast.broadcast_use_bundle` | Boolean | `false` | Send REMOVE + ADD_PLAYER broadcast as one bundle packet |
+| `broadcast.debounce_millis` | Integer | `100` | Per-player refresh debounce window (milliseconds) |
+| `metrics.metrics_enabled` | Boolean | `true` | Enable in-process metrics and periodic `metrics.json` dump |
+| `metrics.metrics_dump_interval_seconds` | Integer | `60` | Interval between `metrics.json` dumps (0 disables the dump) |
+| `http.http_client_version` | String | `HTTP_2` | JDK HTTP client version (`HTTP_2` or `HTTP_1_1`) |
+| `http.http_connect_timeout_seconds` | Integer | `5` | Connection timeout for provider requests (seconds) |
 
 ## 🌐 External Services
 
