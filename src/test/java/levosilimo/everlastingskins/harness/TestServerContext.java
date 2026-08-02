@@ -23,7 +23,9 @@ import net.minecraftforge.fml.relauncher.FMLInjectionData;
 
 import java.lang.reflect.Field;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
@@ -44,6 +46,7 @@ public class TestServerContext implements AutoCloseable {
     }
 
     private final Path tempDir;
+    private final List<EntityPlayerMP> onlinePlayers = new ArrayList<>();
 
     public MinecraftServer server;
     public ServerCommandManager commandManager;
@@ -60,6 +63,14 @@ public class TestServerContext implements AutoCloseable {
         playerList = mock(PlayerList.class);
         when(server.getCommandManager()).thenReturn(commandManager);
         when(server.getPlayerList()).thenReturn(playerList);
+        when(playerList.getPlayerByUsername(anyString())).thenAnswer(inv -> {
+            for (EntityPlayerMP online : onlinePlayers) {
+                if (online.getName().equals(inv.getArgument(0))) {
+                    return online;
+                }
+            }
+            return null;
+        });
         when(server.getFile(anyString()))
             .thenAnswer(inv -> tempDir.resolve((String) inv.getArgument(0)).toFile());
         // Run scheduled tasks inline so async skin application stays deterministic.
@@ -77,7 +88,9 @@ public class TestServerContext implements AutoCloseable {
     }
 
     public EntityPlayerMP newPlayer(String name) {
-        return TestPlayerFactory.create(server, world, name);
+        EntityPlayerMP player = TestPlayerFactory.create(server, world, name);
+        onlinePlayers.add(player);
+        return player;
     }
 
     public EntityPlayerMP newPlayer(String name, WorldServer playerWorld) {

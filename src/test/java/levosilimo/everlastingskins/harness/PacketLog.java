@@ -3,6 +3,7 @@ package levosilimo.everlastingskins.harness;
 import net.minecraft.network.NetHandlerPlayServer;
 import net.minecraft.network.Packet;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -21,31 +22,31 @@ public class PacketLog {
 
     public void attachTo(NetHandlerPlayServer handler) {
         doAnswer(inv -> {
-            packets.add(inv.getArgument(0));
+            record(inv.getArgument(0));
             return null;
         }).when(handler).sendPacket(any(Packet.class));
     }
 
-    public void record(Packet<?> p) {
+    public synchronized void record(Packet<?> p) {
         packets.add(p);
     }
 
-    public <T extends Packet<?>> List<T> ofType(Class<T> type) {
+    public synchronized <T extends Packet<?>> List<T> ofType(Class<T> type) {
         return packets.stream()
             .filter(type::isInstance)
             .map(type::cast)
             .collect(Collectors.toList());
     }
 
-    public List<Packet<?>> all() {
-        return Collections.unmodifiableList(packets);
+    public synchronized List<Packet<?>> all() {
+        return Collections.unmodifiableList(new ArrayList<>(packets));
     }
 
-    public void clear() {
+    public synchronized void clear() {
         packets.clear();
     }
 
-    public int size() {
+    public synchronized int size() {
         return packets.size();
     }
 }

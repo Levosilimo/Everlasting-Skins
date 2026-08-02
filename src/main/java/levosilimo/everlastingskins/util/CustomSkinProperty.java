@@ -32,6 +32,22 @@ public class CustomSkinProperty {
         return false;
     }
 
+    /**
+     * True when the textures value is present and decodes as base64. A corrupt
+     * or truncated value would otherwise poison the profile and client renders.
+     */
+    public boolean isValid() {
+        if (originalProperty == null) return false;
+        String value = originalProperty.getValue();
+        if (value == null || value.isEmpty()) return false;
+        try {
+            java.util.Base64.getDecoder().decode(value);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

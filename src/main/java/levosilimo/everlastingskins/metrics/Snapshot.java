@@ -38,6 +38,7 @@ public final class Snapshot {
     private final long providerExceptions;
     private final long cacheHits;
     private final long cacheMisses;
+    private final long mineSkinDelayTotalMs;
     private final Map<String, Long> ioFailuresByType;
     private final Map<String, Long> fetchPercentiles;
     private final Map<String, Long> saveEnqueuePercentiles;
@@ -57,7 +58,7 @@ public final class Snapshot {
                     long netBytesWrittenOut, long netBytesReadIn,
                     long tickSpikes, long tickSpikesBroadcast, long tickSpikesCascade, long tickSpikesSaveEnqueue,
                     long providerHttp429, long providerHttp5xx, long providerHttp4xxOther,
-                    long providerExceptions, long cacheHits, long cacheMisses,
+                    long providerExceptions, long cacheHits, long cacheMisses, long mineSkinDelayTotalMs,
                     Map<String, Long> ioFailuresByType,
                     Map<String, Long> fetchPercentiles, Map<String, Long> saveEnqueuePercentiles,
                     Map<String, Long> saveDiskPercentiles, Map<String, Long> broadcastPercentiles,
@@ -94,6 +95,7 @@ public final class Snapshot {
         this.providerExceptions = providerExceptions;
         this.cacheHits = cacheHits;
         this.cacheMisses = cacheMisses;
+        this.mineSkinDelayTotalMs = mineSkinDelayTotalMs;
         this.ioFailuresByType = ioFailuresByType;
         this.fetchPercentiles = fetchPercentiles;
         this.saveEnqueuePercentiles = saveEnqueuePercentiles;
@@ -135,6 +137,8 @@ public final class Snapshot {
     public long providerExceptions() { return providerExceptions; }
     public long cacheHits() { return cacheHits; }
     public long cacheMisses() { return cacheMisses; }
+
+    public long mineSkinDelayTotalMs() { return mineSkinDelayTotalMs; }
     public Map<String, Long> ioFailuresByType() { return ioFailuresByType; }
     public Map<String, Long> fetchPercentiles() { return fetchPercentiles; }
     public Map<String, Long> saveEnqueuePercentiles() { return saveEnqueuePercentiles; }

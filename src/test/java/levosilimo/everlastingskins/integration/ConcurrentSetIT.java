@@ -71,8 +71,25 @@ class ConcurrentSetIT {
             assertTrue("Notch".equals(source) || "Dinnerbone".equals(source),
                 "storage must hold one of the two raced skins, was " + source);
             assertEquals(1, alice.getGameProfile().getProperties().get("textures").size());
+
+            // Disk state must settle to the same winner as memory (async flush
+            // drains in waves; the last enqueued payload wins on disk too).
+            Path skinFile = tempDir.resolve("EverlastingSkins").resolve(alice.getUniqueID() + ".json");
+            assertTrue(AsyncSupport.await(5000, () -> {
+                if (!skinFile.toFile().exists()) return false;
+                try {
+                    return source.equals(readSource(skinFile));
+                } catch (Exception e) {
+                    return false;
+                }
+            }), "on-disk source must settle to the in-memory winner");
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    private static String readSource(Path skinFile) throws Exception {
+        String json = new String(java.nio.file.Files.readAllBytes(skinFile), java.nio.charset.StandardCharsets.UTF_8);
+        return new com.google.gson.JsonParser().parse(json).getAsJsonObject().get("source").getAsString();
     }
 }

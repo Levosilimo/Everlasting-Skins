@@ -41,6 +41,23 @@ final class SkinRefreshTask {
             return;
         }
 
+        try {
+            cascade(target, property, startNanos);
+            long durationNanos = System.nanoTime() - startNanos;
+            SkinMetrics.INSTANCE.recordTaskDuration(durationNanos);
+            if (durationNanos > 50_000_000L) {
+                EverlastingSkins.logger.warn("SkinRefresh spike: {}ms for player {}",
+                    durationNanos / 1_000_000, target.getName());
+            }
+        } catch (Throwable t) {
+            // Fail soft: a partial cascade (profile mutated, observers stale) must
+            // not abort the server tick or crash scheduled-task execution.
+            EverlastingSkins.logger.error("Skin refresh failed for {}", target.getName(), t);
+            SkinMetrics.INSTANCE.recordRefreshFailed(target.getUniqueID());
+        }
+    }
+
+    private static void cascade(EntityPlayerMP target, CustomSkinProperty property, long startNanos) {
         MinecraftServer server = target.mcServer;
         PlayerList playerList = server.getPlayerList();
         WorldServer world = (WorldServer) target.world;
@@ -104,12 +121,6 @@ final class SkinRefreshTask {
         SkinRestorer.getSkinStorage().saveSkinAsync(self.getUniqueID(), property);
         long saveNanos = System.nanoTime() - saveStartNanos;
 
-        long durationNanos = System.nanoTime() - startNanos;
-        SkinMetrics.INSTANCE.recordTaskDuration(durationNanos);
-        if (durationNanos > 50_000_000L) {
-            EverlastingSkins.logger.warn("SkinRefresh spike: {}ms for player {}",
-                durationNanos / 1_000_000, self.getName());
-        }
         SkinMetrics.INSTANCE.recordRefreshCompleted(
             target.getUniqueID(), startNanos, fetchNanos, saveNanos, broadcastNanos);
     }

@@ -15,6 +15,9 @@ import net.minecraft.util.text.TextComponentString;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
@@ -29,7 +32,7 @@ import java.util.concurrent.TimeoutException;
  */
 final class SkinAction {
 
-    private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
+    static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
         Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
 
     private SkinAction() {
@@ -43,23 +46,23 @@ final class SkinAction {
             }
         }
         long[] fetchNanos = {0L};
-        CompletableFuture<CustomSkinProperty> future = CompletableFuture.supplyAsync(() -> {
-            CustomSkinProperty sp = null;
+        CompletableFuture<Map<UUID, CustomSkinProperty>> future = CompletableFuture.supplyAsync(() -> {
+            Map<UUID, CustomSkinProperty> fetched = new HashMap<>();
             long fetchStartNanos = System.nanoTime();
             try {
                 switch (type) {
                     case clear:
-                        String storedSrc = null;
-                        String pName = null;
+                        // Each target restores from its OWN stored source — the
+                        // first target's Mojang skin must not leak to the others.
                         for (EntityPlayerMP t : targets) {
-                            storedSrc = SkinRestorer.getSkinStorage().getSource(t.getUniqueID());
-                            pName = t.getGameProfile().getName();
-                            break;
+                            String storedSource = SkinRestorer.getSkinStorage().getSource(t.getUniqueID());
+                            SkinCommand.MojangRestoreResult restore = SkinCommand.tryRestoreFromMojang(
+                                SkinCommand.getMojangAPI(), storedSource, t.getGameProfile().getName());
+                            fetched.put(t.getUniqueID(), restore != null ? restore.skin : null);
                         }
-                        SkinCommand.MojangRestoreResult restore = SkinCommand.tryRestoreFromMojang(SkinCommand.getMojangAPI(), storedSrc, pName);
-                        sp = restore != null ? restore.skin : null;
                         break;
                     case url: {
+                        CustomSkinProperty sp = null;
                         String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
                         if (!sanitized.equals(customSource)) {
                             sp = SkinCommand.getMojangAPI().getSkin(sanitized)
@@ -69,27 +72,34 @@ final class SkinAction {
                                 ? SkinCommand.getMineSkinAPI().genSkin(customSource, variant).property()
                                 : null;
                         }
+                        for (EntityPlayerMP t : targets) {
+                            fetched.put(t.getUniqueID(), sp);
+                        }
                         break;
                     }
                     case username:
-                        sp = SkinCommand.getMojangAPI().getSkin(customSource)
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        break;
                     case random:
-                        sp = SkinCommand.getMojangAPI().getSkin(RandomMojangSkin.randomUsername(withCape, variant))
+                    case NEW: {
+                        String fetchName = customSource;
+                        if (type == SkinActionType.random) {
+                            fetchName = RandomMojangSkin.randomUsername(withCape, variant);
+                        } else if (type == SkinActionType.NEW) {
+                            fetchName = RandomMojangSkin.newUsername(variant);
+                        }
+                        CustomSkinProperty sp = SkinCommand.getMojangAPI().getSkin(fetchName)
                             .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        for (EntityPlayerMP t : targets) {
+                            fetched.put(t.getUniqueID(), sp);
+                        }
                         break;
-                    case NEW:
-                        sp = SkinCommand.getMojangAPI().getSkin(RandomMojangSkin.newUsername(variant))
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        break;
+                    }
                 }
             } catch (Exception e) {
                 throw new CompletionException(e);
             } finally {
                 fetchNanos[0] = System.nanoTime() - fetchStartNanos;
             }
-            return sp;
+            return fetched;
         }, EXECUTOR);
 
         final ScheduledFuture<?> timeoutFuture = EXECUTOR.schedule(() -> {
@@ -102,7 +112,7 @@ final class SkinAction {
             }
         }, 10, TimeUnit.SECONDS);
 
-        future.whenComplete((sp, err) -> {
+        future.whenComplete((fetched, err) -> {
             if (timeoutFuture != null) {
                 timeoutFuture.cancel(false);
             }
@@ -113,29 +123,24 @@ final class SkinAction {
                 }
                 return;
             }
-            if (sp == null) {
-                if (type != SkinActionType.clear) {
-                    String reason = deriveReason(type, customSource);
-                    EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
-                    for (EntityPlayerMP p : targets) {
+            for (EntityPlayerMP p : targets) {
+                CustomSkinProperty sp = fetched != null ? fetched.get(p.getUniqueID()) : null;
+                if (sp == null) {
+                    if (type != SkinActionType.clear) {
+                        String reason = deriveReason(type, customSource);
+                        EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
                         p.sendMessage(new TextComponentString(SkinCommand.PREFIX + reason));
+                        continue;
                     }
-                    return;
-                }
-                EverlastingSkins.logger.info("Skin cleared for player(s) — no Mojang profile found");
-                for (EntityPlayerMP p : targets) {
+                    EverlastingSkins.logger.info("Skin cleared for player {} — no Mojang profile found", p.getName());
                     SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), null);
                     if (Config.TOGGLE) {
                         p.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Skin cleared (no Mojang profile found)"));
                     }
-                }
-                for (EntityPlayerMP p : targets) {
                     SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, null, fetchNanos[0]));
+                    continue;
                 }
-                return;
-            }
-            boolean isRestore = (type == SkinActionType.clear);
-            for (EntityPlayerMP p : targets) {
+                boolean isRestore = (type == SkinActionType.clear);
                 SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
                 if (Config.TOGGLE) {
                     String msg = isRestore
@@ -143,11 +148,7 @@ final class SkinAction {
                         : "Skin applied";
                     p.sendMessage(new TextComponentString(SkinCommand.PREFIX + msg));
                 }
-            }
-            for (EntityPlayerMP p : targets) {
                 SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, sp, fetchNanos[0]));
-            }
-            for (EntityPlayerMP p : targets) {
                 try {
                     DiscordSrvHook.announceSkinChange(p, customSource);
                 } catch (Exception e) {

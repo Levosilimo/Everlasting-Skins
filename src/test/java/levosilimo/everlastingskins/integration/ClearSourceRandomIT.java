@@ -19,8 +19,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Field;
 import java.net.URI;
-import java.nio.file.Path;
 import java.util.List;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -75,9 +75,9 @@ class ClearSourceRandomIT {
         CustomSkinProperty afterClear = ctx.storage.getSkin(alice.getUniqueID());
         assertNotNull(afterClear);
         assertEquals("Notch", afterClear.getSource());
-        List<SPacketChat> chats = log.ofType(SPacketChat.class);
-        assertTrue(chats.stream()
-            .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("Skin restored from Notch")));
+        assertTrue(AsyncSupport.await(5000, () -> log.ofType(SPacketChat.class).stream()
+                .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("Skin restored from Notch"))),
+            "clear should report the restore; chats=" + chatsText(log));
     }
 
     @Test

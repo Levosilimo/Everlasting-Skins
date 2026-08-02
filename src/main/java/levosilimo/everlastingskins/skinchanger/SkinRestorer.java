@@ -69,10 +69,24 @@ public class SkinRestorer {
         SkinMetrics.INSTANCE.recordPlayerJoined();
 
         if (skinStorage.hasDefaultSkin(player.getUniqueID())) {
-            MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(player.getGameProfile().getName()).orElse(null);
-            if (skinDataResult != null) {
-                skinStorage.setSkin(player.getUniqueID(), skinDataResult.skinProperty());
-            }
+            // Never block the login thread on the 3-provider HTTP chain: fetch
+            // on the shared executor and apply back on the server thread.
+            MinecraftServer server = player.mcServer;
+            EntityPlayerMP target = player;
+            String name = target.getGameProfile().getName();
+            SkinAction.EXECUTOR.submit(() -> {
+                MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(name).orElse(null);
+                if (skinDataResult == null) return;
+                CustomSkinProperty property = skinDataResult.skinProperty();
+                server.addScheduledTask(() -> {
+                    if (skinStorage.hasDefaultSkin(target.getUniqueID())) {
+                        skinStorage.setSkin(target.getUniqueID(), property);
+                        target.getGameProfile().getProperties().removeAll("textures");
+                        target.getGameProfile().getProperties().put("textures", property.getOriginalProperty());
+                    }
+                });
+            });
+            return;
         }
 
         CustomSkinProperty skin = skinStorage.getSkin(player.getUniqueID());

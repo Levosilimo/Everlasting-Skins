@@ -48,6 +48,7 @@ public final class SkinMetrics {
     private final LongAdder providerExceptions = new LongAdder();
     private final LongAdder cacheHits = new LongAdder();
     private final LongAdder cacheMisses = new LongAdder();
+    private final LongAdder mineSkinDelayTotalMs = new LongAdder();
 
     private final ConcurrentHashMap<String, LongAdder> ioFailuresByType = new ConcurrentHashMap<>();
 
@@ -171,6 +172,10 @@ public final class SkinMetrics {
         cacheHits.increment();
     }
 
+    public void recordMineSkinDelay(long millis) {
+        mineSkinDelayTotalMs.add(millis);
+    }
+
     public void recordCacheMiss() {
         cacheMisses.increment();
     }
@@ -257,6 +262,7 @@ public final class SkinMetrics {
         providerExceptions.reset();
         cacheHits.reset();
         cacheMisses.reset();
+        mineSkinDelayTotalMs.reset();
         ioFailuresByType.clear();
         fetchLatency.reset();
         saveEnqueueLatency.reset();
@@ -284,7 +290,7 @@ public final class SkinMetrics {
                 tickSpikes.sum(), tickSpikesBroadcast.sum(), tickSpikesCascade.sum(),
                 tickSpikesSaveEnqueue.sum(),
                 providerHttp429.sum(), providerHttp5xx.sum(), providerHttp4xxOther.sum(),
-                providerExceptions.sum(), cacheHits.sum(), cacheMisses.sum(),
+                providerExceptions.sum(), cacheHits.sum(), cacheMisses.sum(), mineSkinDelayTotalMs.sum(),
                 ioFailuresByType(),
                 fetchLatency.percentiles(), saveEnqueueLatency.percentiles(),
                 saveDiskLatency.percentiles(), broadcastLatency.percentiles(),
