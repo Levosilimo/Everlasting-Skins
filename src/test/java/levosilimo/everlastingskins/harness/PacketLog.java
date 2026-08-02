@@ -3,9 +3,9 @@ package levosilimo.everlastingskins.harness;
 import net.minecraft.network.NetHandlerPlayServer;
 import net.minecraft.network.Packet;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -17,7 +17,7 @@ import static org.mockito.Mockito.doAnswer;
  */
 public class PacketLog {
 
-    private final List<Packet<?>> packets = new ArrayList<>();
+    private final List<Packet<?>> packets = new CopyOnWriteArrayList<>();
 
     public void attachTo(NetHandlerPlayServer handler) {
         doAnswer(inv -> {
@@ -38,7 +38,7 @@ public class PacketLog {
     }
 
     public List<Packet<?>> all() {
-        return Collections.unmodifiableList(new ArrayList<>(packets));
+        return Collections.unmodifiableList(packets);
     }
 
     public void clear() {
