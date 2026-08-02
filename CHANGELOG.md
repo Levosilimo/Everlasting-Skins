@@ -25,3 +25,7 @@
 ### Removed
 - HMCLite scenarios replaced with bash server-log smoke assertions
 - Forge 14.23.5.2860 pinned (was: version drift 2847/2860)
+- Stale `IMPLEMENTATION_PLAN.md` references from AGENTS.md
+- SkinsRestorer-derived code patterns (clean-room rewrite of MojangApiHttpImpl, MineSkinApiHttpImpl, EverlastingHelpers)
+- Stale "Phase 5 viability gate" comments in Config.java
+- UPDATE_DISPLAY_NAME from refresh cascade (carried zero textures on wire; replaced with REMOVE+ADD_PLAYER)
