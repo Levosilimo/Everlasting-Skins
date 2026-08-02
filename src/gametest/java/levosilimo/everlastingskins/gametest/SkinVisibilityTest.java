@@ -193,31 +193,37 @@ public class SkinVisibilityTest {
         placePlayer(helper, observer);
         drain(observer);
 
-        int result = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
-        if (result != 0) {
-            helper.fail("non-OP dispatch must be rejected (return 0), got " + result);
-            return;
-        }
+        // /skin set web (op_level.url = 2) must be rejected for a non-OP; the
+        // mojang node is intentionally open (op_level.mojang = 0) since PR #152.
+        int result = dispatch(server, "skin set web classic \"http://example.com/skin.png\"",
+                playerA.createCommandSourceStack(), helper);
+        try {
+            if (result != 0) {
+                helper.fail("non-OP dispatch must be rejected (return 0), got " + result);
+                return;
+            }
 
-        boolean feedback = drain(playerA).stream()
-                .filter(ClientboundSystemChatPacket.class::isInstance)
-                .map(ClientboundSystemChatPacket.class::cast)
-                .anyMatch(p -> p.content().getString().contains("Permission denied"));
-        if (!feedback) {
-            helper.fail("non-OP player received no 'Permission denied' failure feedback");
-            return;
+            boolean feedback = drain(playerA).stream()
+                    .filter(ClientboundSystemChatPacket.class::isInstance)
+                    .map(ClientboundSystemChatPacket.class::cast)
+                    .anyMatch(p -> p.content().getString().contains("Permission denied"));
+            if (!feedback) {
+                helper.fail("non-OP player received no 'Permission denied' failure feedback");
+                return;
+            }
+            if (storage.getSkin(playerId) != null) {
+                helper.fail("permission-denied dispatch must not store a skin");
+                return;
+            }
+            if (findTexturesFor(drain(observer), playerId) != null) {
+                helper.fail("permission-denied dispatch must not broadcast textures");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+            removeQuietly(server, observer);
         }
-        if (storage.getSkin(playerId) != null) {
-            helper.fail("permission-denied dispatch must not store a skin");
-            return;
-        }
-        if (findTexturesFor(drain(observer), playerId) != null) {
-            helper.fail("permission-denied dispatch must not broadcast textures");
-            return;
-        }
-        removeQuietly(server, playerA);
-        removeQuietly(server, observer);
-        helper.succeed();
     }
 
     @GameTest(template = "everlastingskins:empty", timeoutTicks = 60000, batch = "everlastingskins:cmd_clear")
@@ -929,7 +935,8 @@ public class SkinVisibilityTest {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
         ServerPlayer playerA = mockPlayer(helper, "RateLimitA");
-        makeOp(playerA);
+        // Intentionally NOT op: everlastingskins.bypass.cooldown (op >= 2)
+        // would short-circuit the rate limiter.
         UUID uuidA = playerA.getUUID();
         try {
             placePlayer(helper, playerA);
@@ -941,6 +948,32 @@ public class SkinVisibilityTest {
             int second = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
             helper.assertTrue(first == 1, "first dispatch must be accepted, got " + first);
             helper.assertTrue(second == 0, "second dispatch inside cooldown must be rejected, got " + second);
+            helper.succeed();
+        } finally {
+            Config.COOLDOWN_SECONDS.set(3);
+            SkinActionCommand.clearRateLimitState(uuidA);
+            removeQuietly(server, playerA);
+        }
+    }
+
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:r8_ratelimit")
+    public void rateLimitBypassedForOps(GameTestHelper helper) {
+        installFakeMojangAPI(true);
+        ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "RateLimitBypassA");
+        makeOp(playerA); // op level 4 -> everlastingskins.bypass.cooldown applies
+        UUID uuidA = playerA.getUUID();
+        try {
+            placePlayer(helper, playerA);
+            SkinActionCommand.clearRateLimitState(uuidA);
+            Config.RATE_LIMIT_ENABLED.set(true);
+            Config.COOLDOWN_SECONDS.set(60);
+
+            int first = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+            int second = dispatch(server, "skin set mojang Dinnerbone", playerA.createCommandSourceStack(), helper);
+            helper.assertTrue(first == 1, "first dispatch must be accepted, got " + first);
+            helper.assertTrue(second == 1, "op player must bypass the cooldown, got " + second);
             helper.succeed();
         } finally {
             Config.COOLDOWN_SECONDS.set(3);
