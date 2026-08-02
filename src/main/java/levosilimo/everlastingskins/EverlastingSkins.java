@@ -26,7 +26,9 @@ import java.util.concurrent.TimeUnit;
     modid = EverlastingSkins.MOD_ID,
     name = EverlastingSkins.MOD_NAME,
     version = EverlastingSkins.VERSION,
-    acceptedMinecraftVersions = "[1.12.2]"
+    acceptedMinecraftVersions = "[1.12.2]",
+    serverSideOnly = true,
+    acceptableRemoteVersions = "*"
 )
 public class EverlastingSkins {
     public static final String MOD_ID = "everlastingskins";

@@ -49,7 +49,7 @@ fi
 # 2. Prepare server directory
 echo "[2/6] Setting up test server..."
 SERVER_DIR="$(mktemp -d)"
-trap 'rm -rf "$SERVER_DIR"; echo "Cleaned up temp directory"' EXIT
+trap 'if [ -n "${SERVER_PID:-}" ]; then kill "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$SERVER_DIR"; echo "Cleaned up temp directory"' EXIT
 
 mkdir -p "$SERVER_DIR/mods"
 mkdir -p "$SERVER_DIR/logs"
@@ -76,10 +76,20 @@ if [ ! -f "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" ]; then
 fi
 java -jar "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" --installServer "$SERVER_DIR"
 
+# HMCLite's forgecli crashes on 1.12.2 installers (NoSuchMethodError on
+# ClientInstall.run); pre-install the client Forge profile matching the
+# server so the launcher skips its own forge install.
+if [ "$BRANCH" = "mc1.12.2" ]; then
+    echo "  Pre-installing client Forge $FORGE_VERSION (bypasses forgecli)..."
+    mkdir -p "$HOME/.minecraft"
+    echo '{"profiles":{}}' > "$HOME/.minecraft/launcher_profiles.json"
+    java -jar "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" --installClient "$HOME/.minecraft"
+fi
+
 # 4. Start server
 echo "[4/6] Starting Forge server..."
 cd "$SERVER_DIR"
-SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar 2>/dev/null | head -1 || true)
+SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar forge-*.jar 2>/dev/null | grep -v -- '-installer.jar' | head -1 || true)
 if [ -z "$SERVER_JAR" ]; then
     SERVER_JAR="$(ls minecraft_server*.jar 2>/dev/null | head -1)"
 fi
@@ -132,6 +142,7 @@ hmc.test.filename=$SCENARIO_FILE
 hmc.test.leave.after=true
 hmc.assets.dummy=true
 hmc.always.lwjgl.flag=true
+hmc.auto.download.specifics=false
 hmc.crash.report.watcher=true
 CONFIG
 
@@ -139,8 +150,8 @@ CONFIG
 echo "[6/6] Running E2E test scenario: $SCENARIO..."
 cd "$PROJECT_DIR"
 xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
-    --command "launch forge:$MC_VERSION -lwjgl -offline --jvm -Djava.awt.headless=true" \
-    --game-args "--server localhost --port 25565 --username TestPlayer"
+    --command "launch forge:$MC_VERSION -lwjgl -offline --uid $FORGE_VERSION --jvm -Djava.awt.headless=true" \
+    --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" || EXIT_CODE=$?
 
 EXIT_CODE=$?
 

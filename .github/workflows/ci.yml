@@ -138,7 +138,7 @@ jobs:
         id: start-server
         run: |
           cd "${{ env.SERVER_DIR }}"
-          SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar forge-*-shim.jar 2>/dev/null | head -1 || true)
+          SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar forge-*-shim.jar forge-*.jar 2>/dev/null | grep -v -- '-installer.jar' | head -1 || true)
           if [ -z "$SERVER_JAR" ]; then
             SERVER_JAR="$(ls minecraft_server*.jar 2>/dev/null | head -1)"
           fi
@@ -191,13 +191,15 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.auto.download.specifics=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario via xvfb
         run: |
+          set -euo pipefail
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "launch forge:1.21 -lwjgl -offline --jvm -Djava.awt.headless=true" \
-            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output.log"
+            --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output.log"
       - name: Kill server
         if: always()
         run: |
@@ -330,11 +332,16 @@ jobs:
         run: |
           cd "${{ env.SERVER_DIR }}"
           java -jar forge-installer.jar --installServer "${{ env.SERVER_DIR }}"
+      - name: Install client Forge 14.23.5.2860 (bypass forgecli, incompatible with 1.12.2)
+        run: |
+          mkdir -p "$HOME/.minecraft"
+          echo '{"profiles":{}}' > "$HOME/.minecraft/launcher_profiles.json"
+          java -jar "${{ env.SERVER_DIR }}/forge-installer.jar" --installClient "$HOME/.minecraft"
       - name: Start Forge server (background)
         id: start-server
         run: |
           cd "${{ env.SERVER_DIR }}"
-          SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar forge-*-shim.jar 2>/dev/null | head -1 || true)
+          SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar forge-*-shim.jar forge-*.jar 2>/dev/null | grep -v -- '-installer.jar' | head -1 || true)
           if [ -z "$SERVER_JAR" ]; then
             SERVER_JAR="$(ls minecraft_server*.jar 2>/dev/null | head -1)"
           fi
@@ -387,13 +394,15 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.auto.download.specifics=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario - skin-set-mojang
         run: |
+          set -euo pipefail
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
-            --command "launch forge:1.12.2 -lwjgl -offline --jvm -Djava.awt.headless=true" \
-            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
+            --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2860 --jvm -Djava.awt.headless=true" \
+            --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set.log"
       - name: Assert GameProfile property via server log
         if: always()
         run: |
@@ -428,13 +437,15 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.auto.download.specifics=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario - skin-clear
         run: |
+          set -euo pipefail
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
-            --command "launch forge:1.12.2 -lwjgl -offline --jvm -Djava.awt.headless=true" \
-            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-clear.log"
+            --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2860 --jvm -Djava.awt.headless=true" \
+            --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-clear.log"
       - name: Verify skin file cleared (after clear)
         if: always()
         run: |
@@ -463,13 +474,15 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.auto.download.specifics=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario - skin-set-mojang (for persistence test)
         run: |
+          set -euo pipefail
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
-            --command "launch forge:1.12.2 -lwjgl -offline --jvm -Djava.awt.headless=true" \
-            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set-for-persistence.log"
+            --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2860 --jvm -Djava.awt.headless=true" \
+            --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-set-for-persistence.log"
       - name: Configure HeadlessMC (skin-persistence)
         run: |
           {
@@ -484,13 +497,15 @@ jobs:
             echo "hmc.test.leave.after=true"
             echo "hmc.assets.dummy=true"
             echo "hmc.always.lwjgl.flag=true"
+            echo "hmc.auto.download.specifics=false"
           } > "${{ env.HMC_DIR }}/config.properties"
       - name: Run E2E scenario - skin-persistence
         run: |
+          set -euo pipefail
           cd "${{ env.HMC_DIR }}"
           xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
-            --command "launch forge:1.12.2 -lwjgl -offline --jvm -Djava.awt.headless=true" \
-            --game-args "--server localhost --port 25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-persistence.log"
+            --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2860 --jvm -Djava.awt.headless=true" \
+            --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" 2>&1 | tee "${{ env.HMC_DIR }}/hmc-output-persistence.log"
       - name: Verify WireMock requests
         if: always()
         run: |
