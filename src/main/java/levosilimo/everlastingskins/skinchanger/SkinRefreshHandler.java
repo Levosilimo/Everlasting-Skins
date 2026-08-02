@@ -243,22 +243,22 @@ public class SkinRefreshHandler {
         switch (type) {
             case username:
                 return customSource != null
-                        ? "No skin found for \"" + customSource + "\""
-                        : "No skin found";
+                        ? I18nUtils.get("no_skin_found", customSource)
+                        : I18nUtils.get("no_skin_found_plain");
             case url: {
                 if (customSource != null) {
                     String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
                     if (!sanitized.equals(customSource)) {
-                        return "No skin found for \"" + sanitized + "\"";
+                        return I18nUtils.get("no_skin_found", sanitized);
                     }
                 }
-                return "MineSkin rejected the URL";
+                return I18nUtils.get("mineskin_rejected");
             }
             case random:
             case NEW:
-                return "No random username available";
+                return I18nUtils.get("no_random_username");
             default:
-                return "Provider returned no result";
+                return I18nUtils.get("provider_no_result");
         }
     }
 }

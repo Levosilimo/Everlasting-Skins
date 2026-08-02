@@ -7,6 +7,10 @@
 
 package levosilimo.everlastingskins.util;
 
+import levosilimo.everlastingskins.Config;
+import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
+import net.minecraftforge.common.ForgeConfigSpec;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,15 +21,24 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link I18nUtils} — locale loading and property merging logic.
+ * Tests for {@link I18nUtils} — locale loading, property merging, and the
+ * config-first message lookup.
  *
  * <p>I18nUtils uses a static initializer to populate three built-in locales
- * (en, ru, uk) with six translation keys each.  {@code ensureInitialized()}
- * is a no-op when {@code SkinRestorer.server == null} (the normal test
- * environment), so file-backed property loading is not exercised; only
- * compile-time defaults are tested here.</p>
+ * (en, ru, uk). The en locale carries the full message-key inventory; ru/uk
+ * carry the six legacy keys.  {@code ensureInitialized()} is a no-op when
+ * {@code SkinRestorer.server == null} (the normal test environment), so
+ * file-backed property loading is not exercised; only compile-time defaults
+ * are tested here.</p>
  */
 class I18nUtilsTest {
+
+    @BeforeAll
+    static void loadConfig() {
+        // Serve Config defaults so the Messages config override path is testable.
+        Config.COMMON_CONFIG.setConfig(
+                InMemoryCommentedFormat.defaultInstance().createConfig(java.util.HashMap::new));
+    }
 
     @Nested
     @DisplayName("getLocalizedString")
@@ -80,7 +93,7 @@ class I18nUtilsTest {
         @DisplayName("No source returns skin-not-set message")
         void noSourceKey() {
             I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("Skin is not set", i18n.getLocalizedString("no_source", "en"));
+            assertEquals("No source available", i18n.getLocalizedString("no_source", "en"));
             assertEquals("Скин не установлен", i18n.getLocalizedString("no_source", "ru"));
             assertEquals("Cкіна не встановлено", i18n.getLocalizedString("no_source", "uk"));
         }
@@ -157,6 +170,57 @@ class I18nUtilsTest {
                         () -> "Key '" + key + "' produced empty string in locale '" + locale + "'");
                 }
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("get (config-first message lookup)")
+    class Get {
+
+        @Test
+        @DisplayName("Existing key falls back to built-in locale text at defaults")
+        void existingKeyUsesLocaleText() {
+            assertEquals("Processing...", I18nUtils.get("change"));
+        }
+
+        @Test
+        @DisplayName("New key falls back to the config default")
+        void newKeyUsesConfigDefault() {
+            assertEquals("Permission denied", I18nUtils.get("permission_denied"));
+            assertEquals("No random username available", I18nUtils.get("no_random_username"));
+        }
+
+        @Test
+        @DisplayName("Format specifiers are applied to the resolved template")
+        void formatArgsApplied() {
+            assertEquals("No skin found for \"Steve\"", I18nUtils.get("no_skin_found", "Steve"));
+            assertEquals("Metrics cleanup: pruned 3 stale player entries", I18nUtils.get("metrics_cleanup", 3));
+            assertEquals("Please wait 2s before using /skin again", I18nUtils.get("cooldown", 2));
+        }
+
+        @Test
+        @DisplayName("Messages config override wins over locale text")
+        void configOverrideWins() {
+            ForgeConfigSpec.ConfigValue<String> cfg = Config.MESSAGES_CHANGE;
+            String original = cfg.get();
+            try {
+                cfg.set("Custom change message");
+                assertEquals("Custom change message", I18nUtils.get("change"));
+            } finally {
+                cfg.set(original);
+            }
+        }
+
+        @Test
+        @DisplayName("Null key returns null")
+        void nullKey() {
+            assertNull(I18nUtils.get(null));
+        }
+
+        @Test
+        @DisplayName("getLocalizedComponent wraps get() in a literal component")
+        void componentWrap() {
+            assertEquals("Processing...", I18nUtils.getLocalizedComponent("change").getString());
         }
     }
 

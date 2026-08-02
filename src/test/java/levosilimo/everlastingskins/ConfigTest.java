@@ -72,6 +72,16 @@ class ConfigTest {
         void defaultDiscordSrvChannelIdIsEmpty() {
             assertEquals("", Config.DISCORDSRV_CHANNEL_ID.get());
         }
+
+        @Test
+        @DisplayName("Default message keys resolve to canonical English text")
+        void defaultMessageKeys() {
+            assertEquals("Skin change queued", Config.MESSAGES_CHANGE.get());
+            assertEquals("Permission denied", Config.MESSAGES_PERMISSION_DENIED.get());
+            assertEquals("Please wait %ds before using /skin again", Config.MESSAGES_COOLDOWN.get());
+            assertEquals("No skin found for \"%s\"", Config.MESSAGES_NO_SKIN_FOUND.get());
+            assertEquals("Metrics cleanup: pruned %d stale player entries", Config.MESSAGES_METRICS_CLEANUP.get());
+        }
     }
 
     /* ================================================================== */

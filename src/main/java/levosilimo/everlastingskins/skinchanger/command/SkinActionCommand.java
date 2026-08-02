@@ -23,6 +23,7 @@ import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -95,14 +96,14 @@ public final class SkinActionCommand {
         String customSource = params.customSource();
         ServerPlayer selfPlayer = context.getSource().getPlayer();
         if (selfPlayer == null) {
-            context.getSource().sendFailure(Component.literal("Player only command"));
+            context.getSource().sendFailure(I18nUtils.getLocalizedComponent("player_only"));
             return 0;
         }
         boolean targetingOthers = targets.stream().anyMatch(t -> !t.equals(selfPlayer));
         if (!PermissionServiceManager.hasPermission(
                 PermissionContext.of(selfPlayer.getUUID(), selfPlayer.hasPermissions(2)),
                 resolvePermissionNode(type, targetingOthers))) {
-            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " Permission denied"));
+            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("permission_denied")));
             return 0;
         }
         if (Config.RATE_LIMIT_ENABLED.get() && isRateLimited(selfPlayer.getUUID(), context)) {
@@ -114,9 +115,9 @@ public final class SkinActionCommand {
         targets.forEach(player -> {
             if (Config.TOGGLE.get()) {
                 if (player == context.getSource().getEntity()) {
-                    context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("change")), false);
+                    context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("change")), false);
                 } else {
-                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("change")));
+                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("change")));
                 }
             }
         });
@@ -134,9 +135,9 @@ public final class SkinActionCommand {
         long fetchStart = System.nanoTime();
         ScheduledFuture<?> timeoutFuture = skinCommandExecutor.schedule(() -> {
             if (future.completeExceptionally(new TimeoutException("Skin fetch timeout occurred"))) {
-                EverlastingSkins.logger.error(SkinRefreshHandler.getLocalizedString("timeout"));
+                EverlastingSkins.logger.error(I18nUtils.get("timeout"));
                 for (ServerPlayer player : targets) {
-                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("timeout")));
+                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("timeout")));
                 }
             }
         }, 10000, TimeUnit.MILLISECONDS);
@@ -232,7 +233,7 @@ public final class SkinActionCommand {
                 } else {
                     SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
                 }
-                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + SkinRefreshHandler.getLocalizedString("error")));
+                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("error")));
             }
             return;
         }
@@ -252,7 +253,7 @@ public final class SkinActionCommand {
                 EverlastingSkins.logger.info("Skin cleared for player {} — no Mojang profile found", player.getGameProfile().getName());
                 SkinRestorer.getSkinStorage().setSkin(uuid, null);
                 if (Config.TOGGLE.get()) {
-                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " Skin cleared (no Mojang profile found)"));
+                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("cleared_no_profile")));
                 }
                 continue;
             }
@@ -265,8 +266,8 @@ public final class SkinActionCommand {
             SkinRestorer.getSkinStorage().setSkin(uuid, skinProperty);
             if (Config.TOGGLE.get()) {
                 String msg = isRestore
-                    ? "Skin restored from " + skinProperty.getSource()
-                    : SkinRefreshHandler.getLocalizedString("fulfilled");
+                    ? I18nUtils.get("restored_from", skinProperty.getSource())
+                    : I18nUtils.get("fulfilled");
                 if (player == context.getSource().getEntity()) {
                     context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + msg), false);
                 } else {
@@ -322,7 +323,7 @@ public final class SkinActionCommand {
         if (lastCommand > 0 && elapsed < cooldownMs) {
             SkinMetrics.INSTANCE.recordRateLimited(playerUuid);
             context.getSource().sendFailure(Component.literal(
-                    "Please wait " + ((cooldownMs - elapsed) / 1000) + "s before using /skin again"));
+                    I18nUtils.get("cooldown", (cooldownMs - elapsed) / 1000)));
             return true;
         }
         ArrayDeque<Long> window = commandTimestampsByPlayer.computeIfAbsent(playerUuid, k -> new ArrayDeque<>());
@@ -333,7 +334,7 @@ public final class SkinActionCommand {
             if (window.size() >= Config.MAX_COMMANDS_PER_MINUTE.get()) {
                 SkinMetrics.INSTANCE.recordRateLimited(playerUuid);
                 context.getSource().sendFailure(Component.literal(
-                        "Too many /skin commands. Try again later."));
+                        I18nUtils.get("rate_limited")));
                 return true;
             }
             window.addLast(now);
