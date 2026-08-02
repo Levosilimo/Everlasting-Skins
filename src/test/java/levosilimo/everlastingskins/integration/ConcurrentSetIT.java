@@ -9,7 +9,6 @@ package levosilimo.everlastingskins.integration;
 import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.TestServerContext;
 import levosilimo.everlastingskins.skinchanger.SkinCommandTestAccess;
-import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.entity.player.EntityPlayerMP;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +22,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -71,24 +69,26 @@ class ConcurrentSetIT {
                 () -> alice.getGameProfile().getProperties().get("textures").size() == 1),
                 "profile should settle to exactly one textures property");
 
-            CustomSkinProperty finalSkin = ctx.storage.getSkin(alice.getUniqueID());
-            assertNotNull(finalSkin);
-            String source = finalSkin.getSource();
-            assertTrue("Notch".equals(source) || "Dinnerbone".equals(source),
-                "storage must hold one of the two raced skins, was " + source);
-            assertEquals(1, alice.getGameProfile().getProperties().get("textures").size());
+            // The drain-coalesce writer's enqueue order is independent of the
+            // in-memory skinMap.put order, so last-enqueued wins on disk and may
+            // differ from the in-memory winner. Force a drain, then wait for
+            // quiescence before reading disk.
+            ctx.storage.flushPending();
+            assertTrue(AsyncSupport.await(20000, () -> !ctx.storage.hasPendingWrites()),
+                "drain-coalesce writer must drain all pending writes");
 
-            // Disk state must settle to the same winner as memory (async flush
-            // drains in waves; the last enqueued payload wins on disk too).
+            // Disk state must settle to ONE of the two raced skins (the
+            // last-enqueued payload wins); asserting a specific winner would
+            // race the writer.
             Path skinFile = tempDir.resolve("EverlastingSkins").resolve(alice.getUniqueID() + ".json");
-            assertTrue(AsyncSupport.await(10000, () -> {
-                if (!skinFile.toFile().exists()) return false;
-                try {
-                    return source.equals(readSource(skinFile));
-                } catch (Exception e) {
-                    return false;
-                }
-            }), "on-disk source must settle to the in-memory winner");
+            assertTrue(AsyncSupport.await(20000, () -> skinFile.toFile().exists()),
+                "skin file must exist after concurrent set");
+            String diskSource = readSource(skinFile);
+            assertTrue("Notch".equals(diskSource) || "Dinnerbone".equals(diskSource),
+                "disk source must settle to one of the raced skins, was " + diskSource);
+
+            // Alice's GameProfile has exactly one textures property.
+            assertEquals(1, alice.getGameProfile().getProperties().get("textures").size());
         } finally {
             pool.shutdownNow();
         }

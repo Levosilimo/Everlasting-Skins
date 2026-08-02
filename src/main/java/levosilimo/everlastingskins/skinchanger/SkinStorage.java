@@ -162,7 +162,7 @@ public class SkinStorage {
      * Blocks until all queued writes have been drained. Called on server
      * shutdown so no payload is lost mid-session.
      */
-    void flushPending() {
+    public void flushPending() {
         drainScheduled.set(false);
         try {
             SAVE_EXECUTOR.submit(this::drainPending).get(5, TimeUnit.SECONDS);
@@ -194,6 +194,15 @@ public class SkinStorage {
             skinMap.put(uuid, skin);
         }
         return DEFAULT_SKIN.equals(skin) || skin.isEmpty();
+    }
+
+    /**
+     * Test-only: true while payloads are still queued for the drain-coalesce
+     * writer. Lets tests wait for disk quiescence instead of racing the 50ms
+     * debounce window.
+     */
+    public boolean hasPendingWrites() {
+        return !pendingWrites.isEmpty();
     }
 
     /**
