@@ -250,7 +250,7 @@ jobs:
           CLIENT_PID=$!
           JOINED=0
           for i in $(seq 1 90); do
-            if grep -q "TestPlayer joined the game" "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null; then
+            if grep -q " joined the game" "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null; then
               JOINED=1
               break
             fi
