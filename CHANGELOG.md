@@ -8,13 +8,13 @@
 - **Default skins list** (#145): Configurable list of default skins with `<random>` token — random picks thread through `RandomMojangSkin.randomUsername()` then `MojangAPI.getSkin`. New `applyForPremium` flag controls whether defaults override premium players' saved custom skins.
 - **URL domain allowlist** (#146): `Security.urlAllowlistEnabled` + `urlAllowlistDomains` (default list of 9 common skin hosts: imgur, storage.googleapis.com, cdn.discordapp.com, textures.minecraft.net, namemc.com, crafatar, mc-heads.net, githubusercontent, minecraftskins). eTLD+1 suffix match post-`sanitizeImageURL` to handle the namemc.com rewrite.
 - **Discord announce i18n** (#150): DiscordSRV announce message routed through `I18nUtils.get("discord_announce", ...)`. New `messages_discord_announce` config key.
-- **Per-command op level config** (#152): 7 `permissions_op_level_{mojang,url,clear,random,other,metrics,metrics_reset}` keys (default mojang/clear/random=0, url/other/metrics/metrics_reset=2).
+- **Per-command op level config** (#152): 7 `op_level.{mojang,url,clear,random,other,metrics,metrics_reset}` keys (default mojang/clear/random=0, url/other/metrics/metrics_reset=2).
 - **`everlastingskins.bypass.cooldown` permission node** (#152): OP default; skips the rate-limit cooldown window for holders.
 - **`everlastingskins.command.skin.source` permission node** (#152): registered as a real node (was hardcoded `true`); retains ALL default for read-only self-source check.
 - **PermissionContext widened** (#152): from `(UUID, boolean isOp)` to `(UUID, int opLevel)` with 0-4 validation. VanillaPermissionService reads per-node op level from Config; LuckPerms/Forge paths delegate fallback to vanilla.
 
 ### Changed
-- Default permission posture: `/skin set mojang/clear/random` are now open to all players (op_level=0); `/skin set web/clear <other>/metrics` still require op-2.
+- Default permission posture: `/skin set mojang/clear/random` are now open to all players (op_level=0); `/skin set web` and `/skin set/clear <other>` still require op-2; `/skin metrics` and `/skin metrics reset` still require op-2.
 
 ### Fixed
 - Login-time 3-provider HTTP chain offloaded to executor (no more 30s server freeze per login)
@@ -27,11 +27,10 @@
 - GameTest flake on `concurrentSkinSet_twoPlayers` — wall-clock deadline (20s) instead of tick budget
 
 ### Tests added
-- `MojangProfileCacheTest` (5 cases)
+- `MojangProfileCacheTest` (8 cases)
 - `UrlAllowlistTest` (8 cases)
 - `DefaultSkinResolverTest` (11 cases)
 - `PermissionServiceManagerTest` + `VanillaPermissionServiceTest` + `LuckPermsPermissionServiceTest` (refreshed with opLevel)
-- `MetricsCommandIT` (DiscordSrvHook integration test)
 
 ## 2.1.0 (2026-08-02)
 
