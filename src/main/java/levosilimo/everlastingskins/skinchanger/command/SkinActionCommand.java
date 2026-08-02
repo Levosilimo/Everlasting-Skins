@@ -23,6 +23,8 @@ import net.minecraft.server.level.ServerPlayer;
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -121,7 +123,7 @@ public final class SkinActionCommand {
             return targets.size();
         }
 
-        CompletableFuture<CustomSkinProperty> future = fetchSkinProperty(type, variant, withCape, customSource, targets);
+        CompletableFuture<Map<UUID, CustomSkinProperty>> future = fetchSkinProperty(type, variant, withCape, customSource, targets);
         long fetchStart = System.nanoTime();
         ScheduledFuture<?> timeoutFuture = skinCommandExecutor.schedule(() -> {
             if (future.completeExceptionally(new TimeoutException("Skin fetch timeout occurred"))) {
@@ -131,9 +133,9 @@ public final class SkinActionCommand {
                 }
             }
         }, 10000, TimeUnit.MILLISECONDS);
-        future.whenComplete((skinProperty, throwable) -> {
+        future.whenComplete((fetched, throwable) -> {
             timeoutFuture.cancel(false);
-            handleCompletion(skinProperty, throwable, targets, context, type, customSource, t0, fetchStart);
+            handleCompletion(fetched, throwable, targets, context, type, customSource, t0, fetchStart);
         });
         return targets.size();
     }
@@ -146,56 +148,72 @@ public final class SkinActionCommand {
         });
     }
 
-    private static CompletableFuture<CustomSkinProperty> fetchSkinProperty(SkinActionType type, SkinVariant variant,
+    private static CompletableFuture<Map<UUID, CustomSkinProperty>> fetchSkinProperty(SkinActionType type, SkinVariant variant,
                                                                            boolean withCape, String customSource,
                                                                            Collection<ServerPlayer> targets) {
         return CompletableFuture.supplyAsync(() -> {
-            CustomSkinProperty skinProperty = null;
-            switch (type) {
-                case clear: {
-                    ServerPlayer first = targets.stream().findFirst().get();
-                    String storedSrc = SkinRestorer.getSkinStorage().getSource(first.getUUID());
-                    String pName = first.getGameProfile().getName();
-                    SkinRefreshHandler.MojangRestoreResult restore = SkinRefreshHandler.tryRestoreFromMojang(SkinCommand.getMojangAPI(), storedSrc, pName);
-                    skinProperty = restore != null ? restore.skin : null;
-                    break;
+            Map<UUID, CustomSkinProperty> fetched = new HashMap<>();
+            try {
+                switch (type) {
+                    case clear:
+                        // Each target restores from its OWN stored source — the
+                        // first target's Mojang skin must not leak to the others.
+                        for (ServerPlayer t : targets) {
+                            String storedSource = SkinRestorer.getSkinStorage().getSource(t.getUUID());
+                            SkinRefreshHandler.MojangRestoreResult restore = SkinRefreshHandler.tryRestoreFromMojang(
+                                    SkinCommand.getMojangAPI(), storedSource, t.getGameProfile().getName());
+                            fetched.put(t.getUUID(), restore != null ? restore.skin : null);
+                        }
+                        break;
+                    case url: {
+                        CustomSkinProperty skinProperty;
+                        String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
+                        if (!sanitized.equals(customSource)) {
+                            skinProperty = SkinCommand.getMojangAPI().getSkin(sanitized)
+                                    .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        } else {
+                            skinProperty = SkinCommand.getMineSkinAPI().genSkin(customSource, variant).property();
+                        }
+                        for (ServerPlayer t : targets) {
+                            fetched.put(t.getUUID(), skinProperty);
+                        }
+                        break;
+                    }
+                    case username: {
+                        CustomSkinProperty skinProperty = SkinCommand.getMojangAPI().getSkin(customSource)
+                                .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        for (ServerPlayer t : targets) {
+                            fetched.put(t.getUUID(), skinProperty);
+                        }
+                        break;
+                    }
+                    case random: {
+                        CustomSkinProperty skinProperty = SkinCommand.getMojangAPI()
+                                .getSkin(Objects.requireNonNull(RandomMojangSkin.randomUsername(withCape, variant)))
+                                .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        for (ServerPlayer t : targets) {
+                            fetched.put(t.getUUID(), skinProperty);
+                        }
+                        break;
+                    }
+                    case NEW: {
+                        CustomSkinProperty skinProperty = SkinCommand.getMojangAPI()
+                                .getSkin(Objects.requireNonNull(RandomMojangSkin.newUsername(variant)))
+                                .map(MojangSkinDataResult::skinProperty).orElse(null);
+                        for (ServerPlayer t : targets) {
+                            fetched.put(t.getUUID(), skinProperty);
+                        }
+                        break;
+                    }
                 }
-                case url: {
-                    String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
-                    if (!sanitized.equals(customSource)) {
-                        skinProperty = SkinCommand.getMojangAPI().getSkin(sanitized)
-                                .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    } else {
-                        skinProperty = SkinCommand.getMineSkinAPI().genSkin(customSource, variant).property();
-                    }
-                    break;
-                }
-                case username:
-                    skinProperty = SkinCommand.getMojangAPI().getSkin(customSource)
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    break;
-                case random:
-                    try {
-                        skinProperty = SkinCommand.getMojangAPI().getSkin(Objects.requireNonNull(RandomMojangSkin.randomUsername(withCape, variant)))
-                                .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    } catch (Exception e) {
-                        throw new java.util.concurrent.CompletionException(e);
-                    }
-                    break;
-                case NEW:
-                    try {
-                        skinProperty = SkinCommand.getMojangAPI().getSkin(Objects.requireNonNull(RandomMojangSkin.newUsername(variant)))
-                                .map(MojangSkinDataResult::skinProperty).orElse(null);
-                    } catch (Exception e) {
-                        throw new java.util.concurrent.CompletionException(e);
-                    }
-                    break;
+            } catch (Exception e) {
+                throw new java.util.concurrent.CompletionException(e);
             }
-            return skinProperty;
+            return fetched;
         }, skinCommandExecutor);
     }
 
-    private static void handleCompletion(CustomSkinProperty skinProperty, Throwable throwable,
+    private static void handleCompletion(Map<UUID, CustomSkinProperty> fetched, Throwable throwable,
                                          Collection<ServerPlayer> targets, CommandContext<CommandSourceStack> context,
                                          SkinActionType type, String customSource, long t0, long fetchStart) {
         skinCompletionsProcessed++;
@@ -212,32 +230,26 @@ public final class SkinActionCommand {
             return;
         }
         boolean isClear = type == SkinActionType.clear;
-        if (skinProperty == null && !isClear) {
-            String reason = SkinRefreshHandler.deriveReason(type, customSource);
-            EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
-            for (ServerPlayer player : targets) {
-                SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
-                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + reason));
-            }
-            return;
-        }
-        if (isClear && skinProperty == null) {
-            EverlastingSkins.logger.info("Skin cleared for player(s) — no Mojang profile found");
-            for (ServerPlayer player : targets) {
-                SkinRestorer.getSkinStorage().setSkin(player.getUUID(), null);
-                if (Config.TOGGLE.get()) {
-                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " Skin cleared (no Mojang profile found)"));
-                }
-            }
-            for (ServerPlayer player : targets) {
-                SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
-            }
-            return;
-        }
-        boolean isRestore = isClear && skinProperty != null;
         long fetchNanos = System.nanoTime() - fetchStart;
         for (ServerPlayer player : targets) {
             UUID uuid = player.getUUID();
+            CustomSkinProperty skinProperty = fetched != null ? fetched.get(uuid) : null;
+            if (skinProperty == null && !isClear) {
+                String reason = SkinRefreshHandler.deriveReason(type, customSource);
+                EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
+                SkinMetrics.INSTANCE.recordRefreshFailed(uuid);
+                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + reason));
+                continue;
+            }
+            if (isClear && skinProperty == null) {
+                EverlastingSkins.logger.info("Skin cleared for player {} — no Mojang profile found", player.getGameProfile().getName());
+                SkinRestorer.getSkinStorage().setSkin(uuid, null);
+                if (Config.TOGGLE.get()) {
+                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " Skin cleared (no Mojang profile found)"));
+                }
+                continue;
+            }
+            boolean isRestore = isClear && skinProperty != null;
             if (isSkinUnchanged(uuid, skinProperty)) {
                 EverlastingSkins.logger.debug("SKIN_REFRESH skipped: identical skin for {}", uuid);
                 SkinMetrics.INSTANCE.recordRefreshSkipped(uuid);

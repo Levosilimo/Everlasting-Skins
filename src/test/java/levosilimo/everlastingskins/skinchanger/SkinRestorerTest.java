@@ -104,7 +104,7 @@ class SkinRestorerTest {
         void loadsStoredSkin() {
             SkinIO io = new SkinIO(tempDir);
             SkinStorage storage = new SkinStorage(io);
-            var persisted = new CustomSkinProperty("login-value", "login-sig", "login-source");
+            var persisted = new CustomSkinProperty("bG9naW4tdmFsdWU=", "login-sig", "login-source");
 
             io.saveSkin(testUuid, persisted);
 
@@ -112,7 +112,7 @@ class SkinRestorerTest {
 
             assertNotNull(loaded);
             assertFalse(loaded.isEmpty());
-            assertEquals("login-value", loaded.getOriginalProperty().value());
+            assertEquals("bG9naW4tdmFsdWU=", loaded.getOriginalProperty().value());
             assertEquals("login-sig", loaded.getOriginalProperty().signature());
             assertEquals("login-source", loaded.getSource());
         }
@@ -122,7 +122,7 @@ class SkinRestorerTest {
         void skinPropertyReadyForProfile() {
             SkinIO io = new SkinIO(tempDir);
             SkinStorage storage = new SkinStorage(io);
-            io.saveSkin(testUuid, new CustomSkinProperty("profile-val", "profile-sig", "profile"));
+            io.saveSkin(testUuid, new CustomSkinProperty("cHJvZmlsZS12YWw=", "profile-sig", "profile"));
 
             CustomSkinProperty skin = storage.getSkin(testUuid);
 

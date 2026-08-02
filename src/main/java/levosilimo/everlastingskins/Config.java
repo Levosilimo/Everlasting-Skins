@@ -20,6 +20,7 @@ public class Config {
     public static ForgeConfigSpec.IntValue MAX_COMMANDS_PER_MINUTE;
 
     public static ForgeConfigSpec.BooleanValue DIMENSION_SCOPED_BROADCAST;
+    public static ForgeConfigSpec.BooleanValue REFRESH_VIA_ENTITY_TRACKER;
 
     public static ForgeConfigSpec.BooleanValue METRICS_ENABLED;
     public static ForgeConfigSpec.IntValue METRICS_DUMP_INTERVAL_SECONDS;
@@ -59,6 +60,9 @@ public class Config {
             .define("broadcast_use_bundle", false);
         DEBOUNCE_MILLIS = builder.comment("Per-player refresh debounce window (milliseconds)")
             .defineInRange("debounce_millis", 100, 0, 5000);
+        REFRESH_VIA_ENTITY_TRACKER = builder.comment("Untrack/re-track the target entity so observers re-fetch the updated profile"
+                + " (fixes stale skin renders on remote clients; the chunkMap step PR #121 dropped)")
+            .define("refresh_via_entity_tracker", true);
         builder.pop();
         builder.push("Metrics");
         METRICS_ENABLED = builder.comment("Enable in-process metrics collection and periodic metrics.json dump")

@@ -44,14 +44,13 @@ class SkinStorageTest {
         @Test
         @DisplayName("First getSkin loads from SkinIO and caches")
         void firstLoadPopulatesCache() {
-            // Pre-save a skin so SkinIO has something to load
-            var persisted = new CustomSkinProperty("persisted", "sig", "disk");
+            CustomSkinProperty persisted = new CustomSkinProperty("cGVyc2lzdGVk", "sig", "disk");
             skinIO.saveSkin(uuid, persisted);
 
             // First call should load from SkinIO
             CustomSkinProperty result = storage.getSkin(uuid);
             assertNotNull(result);
-            assertEquals("persisted", result.getOriginalProperty().value());
+            assertEquals("cGVyc2lzdGVk", result.getOriginalProperty().value());
 
             // Second call should return cached value without hitting SkinIO
             // Delete the backing file to prove cache hit
@@ -60,7 +59,7 @@ class SkinStorageTest {
 
             CustomSkinProperty cached = storage.getSkin(uuid);
             assertNotNull(cached);
-            assertEquals("persisted", cached.getOriginalProperty().value());
+            assertEquals("cGVyc2lzdGVk", cached.getOriginalProperty().value());
         }
 
         @Test
@@ -116,7 +115,7 @@ class SkinStorageTest {
         @Test
         @DisplayName("getSource returns source from cached skin")
         void sourceFromCache() {
-            var skin = new CustomSkinProperty("v", "s", "my-source");
+            CustomSkinProperty skin = new CustomSkinProperty("dg==", "s", "my-source");
             storage.setSkin(uuid, skin);
 
             assertEquals("my-source", storage.getSource(uuid));
@@ -125,7 +124,7 @@ class SkinStorageTest {
         @Test
         @DisplayName("getSource returns source from disk when not cached")
         void sourceFromDisk() {
-            var skin = new CustomSkinProperty("v", "s", "disk-source");
+            CustomSkinProperty skin = new CustomSkinProperty("ZGlzay1zb3VyY2U=", "s", "disk-source");
             skinIO.saveSkin(uuid, skin);
 
             assertEquals("disk-source", storage.getSource(uuid));

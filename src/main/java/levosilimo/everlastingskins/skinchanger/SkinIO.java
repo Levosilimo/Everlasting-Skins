@@ -84,7 +84,7 @@ public class SkinIO {
         if (skinJson == null) return null;
         try {
             CustomSkinProperty skin = JsonUtils.fromJson(skinJson, CustomSkinProperty.class);
-            if (skin == null || skin.getOriginalProperty() == null || skin.getOriginalProperty().value() == null || skin.getOriginalProperty().value().isEmpty()) {
+            if (skin == null || !skin.isValid()) {
                 return null;
             }
             return skin;

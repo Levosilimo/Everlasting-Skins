@@ -6,6 +6,7 @@ package levosilimo.everlastingskins.skinchanger;
 import com.google.gson.JsonObject;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.*;
 import levosilimo.everlastingskins.util.*;
@@ -145,11 +146,15 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
             if (delay.nextRequest() != null && delay.nextRequest() > 0) {
                 waitMs = delay.nextRequest();
             } else if (delay.delay() != null && delay.delay() > 0) {
-                waitMs = delay.delay() * 1000L > Integer.MAX_VALUE ? 0 : delay.delay() * 1000;
+                waitMs = delay.delay() * 1000;
             }
             if (waitMs > 0) {
+                // The delay is provider-controlled; cap it so a malicious or
+                // misconfigured response cannot stall the request thread.
+                long capped = Math.min(waitMs, 5000L);
+                SkinMetrics.INSTANCE.recordMineSkinDelay(capped);
                 try {
-                    Thread.sleep(waitMs);
+                    Thread.sleep(capped);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }

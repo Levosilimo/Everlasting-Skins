@@ -1,6 +1,7 @@
 package levosilimo.everlastingskins.permission.forge;
 
 import levosilimo.everlastingskins.permission.PermissionContext;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import net.minecraftforge.server.permission.PermissionAPI;
 import net.minecraftforge.server.permission.events.PermissionGatherEvent;
 import org.junit.jupiter.api.DisplayName;
@@ -10,15 +11,23 @@ import org.mockito.MockedStatic;
 
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ForgePermissionServiceTest {
 
     /* ================================================================== */
     /*  Basic behaviour                                                    */
     /* ================================================================== */
+    private static final UUID TEST_UUID = UUID.fromString("069a79f4-44e9-4726-a5be-fca90e38aaf5");
 
     @Test
     @DisplayName("hasPermission returns true when PermissionAPI grants it")
@@ -80,6 +89,48 @@ class ForgePermissionServiceTest {
             ForgePermissionService.METRICS_NODE,
             ForgePermissionService.METRICS_RESET_NODE
         );
+    }
+
+    @Test
+    @DisplayName("hasPermission falls back to context.isOp() when no server context exists")
+    void hasPermission_noServer_usesContextIsOp() {
+        try (MockedStatic<ServerLifecycleHooks> hooks = mockStatic(ServerLifecycleHooks.class)) {
+            hooks.when(ServerLifecycleHooks::getCurrentServer).thenReturn(null);
+            ForgePermissionService service = new ForgePermissionService();
+            assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, true), "everlastingskins.command.skin"));
+            assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, false), "everlastingskins.command.skin"));
+        }
+    }
+
+    @Test
+    @DisplayName("hasPermission never consults the live API without a server context")
+    void hasPermission_offline_neverCallsLiveApi() {
+        try (MockedStatic<ServerLifecycleHooks> hooks = mockStatic(ServerLifecycleHooks.class);
+             MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
+            hooks.when(ServerLifecycleHooks::getCurrentServer).thenReturn(null);
+            api.when(() -> PermissionAPI.getOfflinePermission(eq(TEST_UUID), eq(ForgePermissionService.SKIN_NODE)))
+               .thenReturn(false);
+            ForgePermissionService service = new ForgePermissionService();
+            assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, false),
+                    "everlastingskins.command.skin"));
+            api.verify(() -> PermissionAPI.getPermission(any(), any()), never());
+        }
+    }
+
+    @Test
+    @DisplayName("hasPermission falls back to context.isOp() when the PermissionAPI lookup throws")
+    void hasPermission_lookupThrows_usesContextIsOp() {
+        try (MockedStatic<ServerLifecycleHooks> hooks = mockStatic(ServerLifecycleHooks.class);
+             MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
+            hooks.when(ServerLifecycleHooks::getCurrentServer).thenReturn(null);
+            api.when(() -> PermissionAPI.getOfflinePermission(eq(TEST_UUID), eq(ForgePermissionService.SKIN_NODE)))
+               .thenThrow(new RuntimeException("api unavailable"));
+            ForgePermissionService service = new ForgePermissionService();
+            assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, true),
+                    "everlastingskins.command.skin"));
+            assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, false),
+                    "everlastingskins.command.skin"));
+        }
     }
 
     @Test
