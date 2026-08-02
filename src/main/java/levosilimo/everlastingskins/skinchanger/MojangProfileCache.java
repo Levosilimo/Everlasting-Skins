@@ -7,11 +7,11 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Small TTL + cap cache for Mojang profile lookups. Keyed by lower-case
@@ -28,7 +28,7 @@ public class MojangProfileCache {
     private final int maxEntries;
 
     public MojangProfileCache() {
-        this(TimeUnit.HOURS.toMillis(1), 1000);
+        this(Config.MOJANG_CACHE_TTL_MS.get(), Config.MOJANG_CACHE_MAX_SIZE.get());
     }
 
     public MojangProfileCache(long ttlMs, int maxEntries) {
@@ -36,8 +36,14 @@ public class MojangProfileCache {
         this.maxEntries = maxEntries;
     }
 
+    /** True when the cache is active per config; a disabled cache never stores or serves entries. */
+    public boolean isEnabled() {
+        return Config.MOJANG_CACHE_ENABLED.get();
+    }
+
     /** Returns the cached skin for the username, or null when absent/expired. */
     public CustomSkinProperty get(String username) {
+        if (!isEnabled()) return null;
         if (username == null) return null;
         String key = username.toLowerCase();
         CacheEntry entry = entries.get(key);
@@ -56,6 +62,7 @@ public class MojangProfileCache {
 
     /** Stores a fetched skin, evicting the oldest entry when over capacity. */
     public void put(String username, CustomSkinProperty property) {
+        if (!isEnabled()) return;
         if (username == null || property == null) return;
         String key = username.toLowerCase();
         if (entries.containsKey(key)) {

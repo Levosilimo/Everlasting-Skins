@@ -37,6 +37,10 @@ public class Config {
     public static ForgeConfigSpec.ConfigValue<String> HTTP_CLIENT_VERSION;
     public static ForgeConfigSpec.IntValue HTTP_CONNECT_TIMEOUT_SECONDS;
 
+    public static ForgeConfigSpec.BooleanValue MOJANG_CACHE_ENABLED;
+    public static ForgeConfigSpec.LongValue MOJANG_CACHE_TTL_MS;
+    public static ForgeConfigSpec.IntValue MOJANG_CACHE_MAX_SIZE;
+
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -82,6 +86,14 @@ public class Config {
             .define("http_client_version", "HTTP_2");
         HTTP_CONNECT_TIMEOUT_SECONDS = builder.comment("Connection timeout for provider requests (seconds)")
             .defineInRange("http_connect_timeout_seconds", 5, 1, 60);
+        builder.pop();
+        builder.push("MojangCache");
+        MOJANG_CACHE_ENABLED = builder.comment("Enable the in-process Mojang profile cache")
+            .define("mojang_profile_cache_enabled", true);
+        MOJANG_CACHE_TTL_MS = builder.comment("Mojang profile cache entry lifetime (milliseconds; 0 disables caching)")
+            .defineInRange("mojang_profile_cache_ttl_ms", 3600000L, 0L, 604800000L);
+        MOJANG_CACHE_MAX_SIZE = builder.comment("Max Mojang profile cache entries (oldest evicted first)")
+            .defineInRange("mojang_profile_cache_max_size", 1000, 0, 1000000);
         builder.pop();
         COMMON_CONFIG = builder.build();
     }
