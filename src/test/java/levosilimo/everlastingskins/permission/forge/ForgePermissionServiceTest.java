@@ -63,7 +63,7 @@ class ForgePermissionServiceTest {
     }
 
     @Test
-    @DisplayName("permissionGatherEvent registers all skin nodes")
+    @DisplayName("permissionGatherEvent registers all skin and metrics nodes")
     void permissionGatherEvent_registersNodes() {
         PermissionGatherEvent.Nodes event = mock(PermissionGatherEvent.Nodes.class);
         ForgePermissionService.onPermissionGather(event);
@@ -71,7 +71,9 @@ class ForgePermissionServiceTest {
             ForgePermissionService.SKIN_NODE,
             ForgePermissionService.SKIN_OTHER_NODE,
             ForgePermissionService.SKIN_URL_NODE,
-            ForgePermissionService.SKIN_CLEAR_NODE
+            ForgePermissionService.SKIN_CLEAR_NODE,
+            ForgePermissionService.METRICS_NODE,
+            ForgePermissionService.METRICS_RESET_NODE
         );
     }
 

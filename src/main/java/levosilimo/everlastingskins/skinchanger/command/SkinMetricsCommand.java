@@ -1,0 +1,93 @@
+package levosilimo.everlastingskins.skinchanger.command;
+
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
+import levosilimo.everlastingskins.metrics.MetricsFormat;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+
+import java.util.Map;
+import java.util.UUID;
+
+/** The /skin metrics tree: human, json, players, cleanup, reset. */
+public final class SkinMetricsCommand {
+
+    private static final String FEEDBACK_PREFIX = "§6[EverlastingSkins]§f";
+    private static final long CLEANUP_OLDER_THAN_MS = 30L * 24 * 60 * 60 * 1000;
+
+    private SkinMetricsCommand() {
+    }
+
+    public static LiteralArgumentBuilder<CommandSourceStack> build() {
+        return Commands.literal("metrics")
+                .executes(context -> metrics(context, false))
+                .then(Commands.literal("json")
+                        .executes(context -> metrics(context, true)))
+                .then(Commands.literal("players")
+                        .executes(SkinMetricsCommand::players))
+                .then(Commands.literal("cleanup")
+                        .executes(SkinMetricsCommand::cleanup))
+                .then(Commands.literal("reset")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(SkinMetricsCommand::reset));
+    }
+
+    private static int metrics(CommandContext<CommandSourceStack> context, boolean asJson) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) {
+            context.getSource().sendFailure(Component.literal("Player only command"));
+            return 0;
+        }
+        if (!hasPermission(context, "everlastingskins.command.metrics")) return 0;
+        SkinMetrics.Snapshot snapshot = SkinMetrics.INSTANCE.snapshot();
+        String output = asJson ? MetricsFormat.json(snapshot) : MetricsFormat.human(snapshot);
+        context.getSource().sendSuccess(() -> Component.literal(output), false);
+        return 1;
+    }
+
+    private static int players(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null || !hasPermission(context, "everlastingskins.command.metrics")) return 0;
+        StringBuilder sb = new StringBuilder(FEEDBACK_PREFIX + " Top players by refresh count:");
+        int rank = 0;
+        for (Map.Entry<UUID, SkinMetrics.PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
+            sb.append("\n  ").append(++rank).append(". ")
+                    .append(e.getKey()).append(" — ")
+                    .append(e.getValue().refreshCount()).append(" refreshes");
+        }
+        if (rank == 0) sb.append("\n  (no refreshes recorded)");
+        context.getSource().sendSuccess(() -> Component.literal(sb.toString()), false);
+        return 1;
+    }
+
+    private static int cleanup(CommandContext<CommandSourceStack> context) {
+        if (!hasPermission(context, "everlastingskins.command.metrics.reset")) return 0;
+        int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(CLEANUP_OLDER_THAN_MS);
+        context.getSource().sendSuccess(() -> Component.literal(
+                FEEDBACK_PREFIX + " Metrics cleanup: pruned " + removed + " stale player entries"), false);
+        return 1;
+    }
+
+    private static int reset(CommandContext<CommandSourceStack> context) {
+        if (!hasPermission(context, "everlastingskins.command.metrics.reset")) return 0;
+        SkinMetrics.INSTANCE.reset();
+        context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " Metrics reset"), false);
+        return 1;
+    }
+
+    private static boolean hasPermission(CommandContext<CommandSourceStack> context, String node) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) return false;
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player.hasPermissions(2));
+        boolean allowed = PermissionServiceManager.hasPermission(ctx, node);
+        if (!allowed) {
+            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " Permission denied"));
+        }
+        return allowed;
+    }
+}

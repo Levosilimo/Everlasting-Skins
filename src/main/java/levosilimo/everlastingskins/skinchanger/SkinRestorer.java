@@ -1,5 +1,7 @@
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.FileUtil;
@@ -13,6 +15,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.UUID;
 
 public class SkinRestorer {
 
@@ -53,6 +56,7 @@ public class SkinRestorer {
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        SkinMetrics.INSTANCE.recordPlayerJoined();
 
         if (skinStorage.hasDefaultSkin(player.getUUID())) {
             MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(player.getGameProfile().getName()).orElse(null);
@@ -76,8 +80,13 @@ public class SkinRestorer {
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        if (skinStorage.getSkin(player.getUUID()) != null) {
-            skinStorage.saveSkin(player.getUUID());
+        UUID uuid = player.getUUID();
+        SkinMetrics.INSTANCE.recordPlayerLeft();
+        SkinActionCommand.getLastRefreshByPlayer().remove(uuid);
+        SkinActionCommand.clearRateLimitState(uuid);
+        if (skinStorage.getSkin(uuid) != null) {
+            skinStorage.saveSkin(uuid);
+            skinIO.flushPending();
         }
     }
 
@@ -90,5 +99,7 @@ public class SkinRestorer {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             skinStorage.saveSkin(player.getUUID());
         }
+        skinIO.flushPending();
+        SkinIO.shutdown();
     }
 }

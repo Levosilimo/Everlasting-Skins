@@ -2,6 +2,7 @@ package levosilimo.everlastingskins.util;
 
 
 import levosilimo.everlastingskins.EverlastingSkins;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import org.apache.logging.log4j.Logger;
 
@@ -85,7 +86,11 @@ public class HttpsUrlConnectionHttpClient implements HttpClient {
                     byteData.toString(StandardCharsets.UTF_8),
                     connection.getHeaderFields()
             );
+        } catch (IOException e) {
+            SkinMetrics.INSTANCE.recordProviderException();
+            throw e;
         }
+        SkinMetrics.INSTANCE.recordProviderStatus(response.statusCode());
 
         logger.debug("Response body: " + response.body()
                 .replace("\n", "")
