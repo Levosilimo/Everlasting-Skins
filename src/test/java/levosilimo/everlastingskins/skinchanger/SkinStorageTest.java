@@ -232,13 +232,11 @@ class SkinStorageTest {
             UUID u2 = UUID.randomUUID();
 
             storage.saveSkinAsync(u1, new CustomSkinProperty("textures", "sig1", "src1"));
-            Thread.sleep(150); // 50ms debounce + headroom
-            assertTrue(Files.exists(tempDir.resolve(u1 + ".json")),
+            assertTrue(awaitFile(tempDir.resolve(u1 + ".json")),
                     "First async save should be persisted after the debounce window");
 
             storage.saveSkinAsync(u2, new CustomSkinProperty("textures", "sig2", "src2"));
-            Thread.sleep(150);
-            assertTrue(Files.exists(tempDir.resolve(u2 + ".json")),
+            assertTrue(awaitFile(tempDir.resolve(u2 + ".json")),
                     "Second async save after latch reset should be persisted");
         }
 
@@ -273,4 +271,15 @@ class SkinStorageTest {
                     "Purged write must not be resurrected by the deferred drain");
         }
     }
+    /** Polls for a file to appear (50ms debounce + load headroom, bounded 2s). */
+    private static boolean awaitFile(Path file) throws InterruptedException {
+        for (int i = 0; i < 40; i++) {
+            if (Files.exists(file)) {
+                return true;
+            }
+            Thread.sleep(50);
+        }
+        return Files.exists(file);
+    }
+
 }

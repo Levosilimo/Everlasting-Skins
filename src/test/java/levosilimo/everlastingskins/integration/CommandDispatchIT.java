@@ -57,6 +57,8 @@ class CommandDispatchIT {
         CustomSkinProperty stored = ctx.storage.getSkin(alice.getUniqueID());
         assertNotNull(stored);
         assertEquals("Notch", stored.getSource());
+        assertTrue(AsyncSupport.await(5000, () -> alice.getGameProfile().getProperties().get("textures").size() == 1),
+            "profile textures must be applied by the async pipeline");
         assertEquals(1, alice.getGameProfile().getProperties().get("textures").size());
 
         List<SPacketChat> chats = log.ofType(SPacketChat.class);

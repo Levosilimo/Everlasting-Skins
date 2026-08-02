@@ -69,6 +69,8 @@ class ObserverPacketIT {
             "skin should be stored after the async apply completes");
 
         // Tab-list update is broadcast globally to all online players.
+        assertTrue(AsyncSupport.await(5000, () -> global.size() >= 2),
+            "REMOVE+ADD tab-list broadcast must reach the global list");
         assertEquals(2, global.size());
         assertEquals(SPacketPlayerListItem.Action.REMOVE_PLAYER,
             ((SPacketPlayerListItem) global.get(0)).getAction());
