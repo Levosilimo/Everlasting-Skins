@@ -43,7 +43,7 @@ public class SkinRefreshHandler {
     }
 
     public static String getLocalizedString(String key) {
-        return I18nUtils.getInstance().getLocalizedString(key, Config.LANGUAGE.get());
+        return I18nUtils.getLocalizedString(key, Config.LANGUAGE.get());
     }
 
     public static void task(ServerPlayer player) {
