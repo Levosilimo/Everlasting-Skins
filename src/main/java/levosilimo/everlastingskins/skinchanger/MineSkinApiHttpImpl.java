@@ -60,6 +60,9 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
 
     Optional<MineSkinResponse> genSkinInternal(String url, @Nullable SkinVariant variant) {
         String processedUrl = EverlastingHelpers.sanitizeImageURL(url);
+        if (!UrlAllowlist.isAllowed(processedUrl, Config.URL_ALLOWLIST_ENABLED.get(), Config.URL_ALLOWLIST_DOMAINS.get())) {
+            return Optional.empty();
+        }
 
         try {
             JsonObject requestBody = new JsonObject();
