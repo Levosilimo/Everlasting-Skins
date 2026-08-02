@@ -57,7 +57,7 @@ public final class I18nUtils {
     }
 
     private I18nUtils() {
-        // Defer directory init to first use — SkinRestorer.server may not be set yet.
+        // Defer directory init to first use — server reference may not be set yet.
     }
 
     /** Lazily initialize the localization directory and load files. */

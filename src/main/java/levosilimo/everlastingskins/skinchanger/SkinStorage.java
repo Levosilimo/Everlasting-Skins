@@ -48,7 +48,7 @@ public class SkinStorage {
         return skin;
     }
 
-    // Access via SkinRestorer.getSkinStorage().
+    // Retrieve via SkinRestorer.getSkinStorage(); this instance is the backing store.
     public CustomSkinProperty getSkin(UUID uuid) {
         return skinMap.computeIfAbsent(uuid, k -> loadSkin(k));
     }

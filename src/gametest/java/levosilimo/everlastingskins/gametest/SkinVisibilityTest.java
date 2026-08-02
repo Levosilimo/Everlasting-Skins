@@ -51,6 +51,7 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -1114,6 +1115,153 @@ public class SkinVisibilityTest {
             removeQuietly(server, playerA);
         }
     }
+
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:stopping_save")
+    public void serverStoppingEvent_bulkSave(GameTestHelper helper) {
+        ensureStorage(helper);
+        SkinStorage storage = SkinRestorer.getSkinStorage();
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "SavePlayerA");
+        ServerPlayer playerB = mockPlayer(helper, "SavePlayerB");
+        UUID uuidA = playerA.getUUID();
+        UUID uuidB = playerB.getUUID();
+
+        try {
+            placePlayer(helper, playerA);
+            placePlayer(helper, playerB);
+
+            storage.setSkin(uuidA, new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
+            storage.setSkin(uuidB, new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Jeb_"));
+
+            MinecraftForge.EVENT_BUS.post(new ServerStoppingEvent(server));
+
+            Path fileA = server.getFile("EverlastingSkins").resolve(uuidA + ".json");
+            Path fileB = server.getFile("EverlastingSkins").resolve(uuidB + ".json");
+            helper.assertTrue(Files.exists(fileA), "Player A skin file must exist after ServerStoppingEvent");
+            helper.assertTrue(Files.exists(fileB), "Player B skin file must exist after ServerStoppingEvent");
+            helper.succeed();
+        } finally {
+            removeQuietly(server, playerA);
+            removeQuietly(server, playerB);
+        }
+    }
+
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:concurrent")
+    public void concurrentSkinSet_twoPlayers(GameTestHelper helper) {
+        FakeMojangAPI fake = installFakeMojangAPI(true);
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "ConcurrentA");
+        ServerPlayer playerB = mockPlayer(helper, "ConcurrentB");
+        ServerPlayer observerA = mockPlayer(helper, "ObsA");
+        ServerPlayer observerB = mockPlayer(helper, "ObsB");
+        makeOp(playerA);
+        makeOp(playerB);
+        UUID uuidA = playerA.getUUID();
+        UUID uuidB = playerB.getUUID();
+
+        try {
+            placePlayer(helper, playerA);
+            placePlayer(helper, playerB);
+            placePlayer(helper, observerA);
+            placePlayer(helper, observerB);
+            drain(observerA);
+            drain(observerB);
+
+            fake.fail = false;
+            fake.slow = true;
+
+            // Dispatch both commands concurrently — the 100ms slow delay in
+            // FakeMojangAPI ensures the two async fetches overlap.
+            CommandSourceStack srcA = playerA.createCommandSourceStack();
+            CommandSourceStack srcB = playerB.createCommandSourceStack();
+            CompletableFuture<Void> futureA = CompletableFuture.runAsync(() ->
+                    dispatch(server, "skin set mojang Notch", srcA, helper));
+            CompletableFuture<Void> futureB = CompletableFuture.runAsync(() ->
+                    dispatch(server, "skin set mojang Jeb_", srcB, helper));
+
+            try {
+                CompletableFuture.allOf(futureA, futureB).get(10, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                helper.fail("concurrent dispatch threw: " + e.getMessage());
+                return;
+            }
+
+            fake.slow = false;
+
+            helper.succeedWhen(() -> {
+                CustomSkinProperty skinA = storage.getSkin(uuidA);
+                CustomSkinProperty skinB = storage.getSkin(uuidB);
+                if (skinA == null || !"Notch".equals(skinA.getSource())) {
+                    throw new GameTestAssertException("waiting for playerA source=Notch (got "
+                            + (skinA == null ? "null" : skinA.getSource()) + ")");
+                }
+                if (skinB == null || !"Jeb_".equals(skinB.getSource())) {
+                    throw new GameTestAssertException("waiting for playerB source=Jeb_ (got "
+                            + (skinB == null ? "null" : skinB.getSource()) + ")");
+                }
+                long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
+                long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
+                if (obsCountA != 1) {
+                    throw new GameTestAssertException("observerA expected 1 packet, got " + obsCountA);
+                }
+                if (obsCountB != 1) {
+                    throw new GameTestAssertException("observerB expected 1 packet, got " + obsCountB);
+                }
+                removeQuietly(server, playerA);
+                removeQuietly(server, playerB);
+                removeQuietly(server, observerA);
+                removeQuietly(server, observerB);
+            });
+        } catch (RuntimeException e) {
+            removeQuietly(server, playerA);
+            removeQuietly(server, playerB);
+            removeQuietly(server, observerA);
+            removeQuietly(server, observerB);
+            throw e;
+        }
+    }
+
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:self_recv")
+    public void skinSet_selfReceivesBroadcast(GameTestHelper helper) {
+        FakeMojangAPI fake = installFakeMojangAPI(true);
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "SelfRecvPlayer");
+        makeOp(playerA);
+        UUID playerId = playerA.getUUID();
+
+        try {
+            placePlayer(helper, playerA);
+            drain(playerA);
+
+            fake.fail = false;
+            int result = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+            helper.assertTrue(result == 1, "command should report 1 target, got " + result);
+
+            helper.succeedWhen(() -> {
+                CustomSkinProperty stored = storage.getSkin(playerId);
+                if (stored == null || !"Notch".equals(stored.getSource())) {
+                    throw new GameTestAssertException("waiting for source=Notch (got "
+                            + (stored == null ? "null" : stored.getSource()) + ")");
+                }
+                long selfCount = countAddPlayerUpdatesWithTextures(drain(playerA), playerId);
+                if (selfCount < 1) {
+                    throw new GameTestAssertException("target player must receive at least 1 ADD_PLAYER (self-reception), got " + selfCount);
+                }
+                removeQuietly(server, playerA);
+            });
+        } catch (RuntimeException e) {
+            removeQuietly(server, playerA);
+            throw e;
+        }
+    }
+
+
+
+
+
+
 
     /**
      * Test-only Mojang provider: returns the canned test skin for any lookup

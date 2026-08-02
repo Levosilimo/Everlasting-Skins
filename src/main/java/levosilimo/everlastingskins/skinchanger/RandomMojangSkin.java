@@ -50,7 +50,7 @@ public class RandomMojangSkin {
                 uri,
                 null,
                 HttpClient.HttpType.JSON,
-                "SkinRestorer",
+                "EverlastingSkins/1.0",
                 HttpClient.HttpMethod.GET,
                 Collections.emptyMap(),
                 10_000
