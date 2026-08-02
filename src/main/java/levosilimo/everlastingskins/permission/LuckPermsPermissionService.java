@@ -57,12 +57,12 @@ public class LuckPermsPermissionService implements IPermissionService {
                 Method getUserMethod = userManager.getClass().getMethod("getUser", UUID.class);
                 user = getUserMethod.invoke(userManager, uuid);
             } else {
-                LOGGER.debug("LP user {} not pre-loaded, falling back to op status", uuid);
-                return context.isOp();
+                LOGGER.debug("LP user {} not pre-loaded, falling back to vanilla per-node levels", uuid);
+                return vanillaFallback(context, permissionNode);
             }
             if (user == null) {
-                LOGGER.warn("LP user {} returned null from getUser, falling back to op status", uuid);
-                return context.isOp();
+                LOGGER.warn("LP user {} returned null from getUser, falling back to vanilla per-node levels", uuid);
+                return vanillaFallback(context, permissionNode);
             }
 
             Method getCachedDataMethod = user.getClass().getMethod("getCachedData");
@@ -87,6 +87,10 @@ public class LuckPermsPermissionService implements IPermissionService {
             LOGGER.debug("LuckPerms permission check failed for node {}: {}", permissionNode, e.getMessage());
             return false;
         }
+    }
+
+    private boolean vanillaFallback(PermissionContext context, String permissionNode) {
+        return new VanillaPermissionService().hasPermission(context, permissionNode);
     }
 
     @Override

@@ -80,7 +80,7 @@ public class SkinCommand {
     private static boolean canTargetOthers(CommandSourceStack source) {
         ServerPlayer player = source.getPlayer();
         if (player == null) return false;
-        PermissionContext ctx = PermissionContext.of(player.getUUID(), player.hasPermissions(2));
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
         return PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin.other");
     }
 

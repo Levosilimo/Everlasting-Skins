@@ -8,6 +8,7 @@
 package levosilimo.everlastingskins.permission;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -19,6 +20,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class PermissionServiceManagerTest {
+
+    @BeforeAll
+    static void loadConfig() {
+        TestConfigSupport.loadDefaults();
+    }
 
     @BeforeEach
     @AfterEach
@@ -179,7 +185,7 @@ class PermissionServiceManagerTest {
     @DisplayName("hasPermission before init falls back to Vanilla")
     void hasPermission_beforeInit_returnsFallback() {
         PermissionServiceManager.reset();
-        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), true);
+        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 2);
         assertTrue(PermissionServiceManager.hasPermission(ctx, "any.node"));
     }
 
@@ -207,18 +213,18 @@ class PermissionServiceManagerTest {
     class SinglePlayer {
 
         @Test
-        @DisplayName("Non-op has no permission on non-source node")
+        @DisplayName("Non-op lacks permission on level-2 node")
         void nonOp_nonSource_denied() {
             PermissionServiceManager.init();
-            PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), false);
-            assertFalse(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin"));
+            PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 0);
+            assertFalse(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics"));
         }
 
         @Test
         @DisplayName("Op has permission on non-source node")
         void op_nonSource_granted() {
             PermissionServiceManager.init();
-            PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), true);
+            PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 2);
             assertTrue(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin"));
         }
 
@@ -226,8 +232,8 @@ class PermissionServiceManagerTest {
         @DisplayName("Source node always granted regardless of op status")
         void sourceNode_alwaysGranted() {
             PermissionServiceManager.init();
-            PermissionContext nonOp = PermissionContext.of(UUID.randomUUID(), false);
-            PermissionContext op = PermissionContext.of(UUID.randomUUID(), true);
+            PermissionContext nonOp = PermissionContext.of(UUID.randomUUID(), 0);
+            PermissionContext op = PermissionContext.of(UUID.randomUUID(), 2);
             assertTrue(PermissionServiceManager.hasPermission(nonOp, "everlastingskins.command.skin.source"));
             assertTrue(PermissionServiceManager.hasPermission(op, "everlastingskins.command.skin.source"));
         }

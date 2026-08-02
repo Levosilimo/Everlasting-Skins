@@ -10,6 +10,7 @@ package levosilimo.everlastingskins.permission.forge;
 import levosilimo.everlastingskins.permission.IPermissionService;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;
@@ -52,13 +53,23 @@ public class ForgePermissionService implements IPermissionService {
             PermissionTypes.BOOLEAN,
             (player, uuid, context) -> player != null && player.hasPermissions(2));
 
+    public static final PermissionNode<Boolean> SOURCE_NODE =
+        new PermissionNode<>("everlastingskins", "command.skin.source",
+            PermissionTypes.BOOLEAN,
+            (player, uuid, context) -> true);
+
+    public static final PermissionNode<Boolean> BYPASS_COOLDOWN_NODE =
+        new PermissionNode<>("everlastingskins", "bypass.cooldown",
+            PermissionTypes.BOOLEAN,
+            (player, uuid, context) -> player != null && player.hasPermissions(2));
+
     public static void registerNodes() {
         PermissionServiceManager.registerService(new ForgePermissionService());
     }
 
     public static void onPermissionGather(PermissionGatherEvent.Nodes event) {
         event.addNodes(SKIN_NODE, SKIN_OTHER_NODE, SKIN_URL_NODE, SKIN_CLEAR_NODE,
-                METRICS_NODE, METRICS_RESET_NODE);
+                METRICS_NODE, METRICS_RESET_NODE, SOURCE_NODE, BYPASS_COOLDOWN_NODE);
     }
 
     @Override
@@ -71,7 +82,9 @@ public class ForgePermissionService implements IPermissionService {
         } else if (permissionNode.endsWith(".skin.clear")) {
             node = SKIN_CLEAR_NODE;
         } else if (permissionNode.endsWith(".skin.source")) {
-            return true;
+            node = SOURCE_NODE;
+        } else if (permissionNode.endsWith(".bypass.cooldown")) {
+            node = BYPASS_COOLDOWN_NODE;
         } else if (permissionNode.endsWith(".metrics.reset")) {
             node = METRICS_RESET_NODE;
         } else if (permissionNode.endsWith(".metrics")) {
@@ -88,7 +101,7 @@ public class ForgePermissionService implements IPermissionService {
         try {
             return PermissionAPI.getOfflinePermission(context.uuid(), node);
         } catch (Exception e) {
-            return context.isOp();
+            return new VanillaPermissionService().hasPermission(context, permissionNode);
         }
     }
 

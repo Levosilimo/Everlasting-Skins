@@ -7,19 +7,37 @@
 
 package levosilimo.everlastingskins.permission;
 
+import levosilimo.everlastingskins.Config;
+
 public class VanillaPermissionService implements IPermissionService {
 
-    private static final int REQUIRED_OP_LEVEL = 2;
+    private static final int BYPASS_COOLDOWN_OP_LEVEL = 2;
 
     @Override
     public boolean hasPermission(PermissionContext context, String permissionNode) {
         if (permissionNode.endsWith(".source")) return true;
-        return context.isOp();
+        if (permissionNode.endsWith(".bypass.cooldown")) {
+            return context.opLevel() >= BYPASS_COOLDOWN_OP_LEVEL;
+        }
+        return context.opLevel() >= requiredOpLevel(permissionNode);
+    }
+
+    private static int requiredOpLevel(String permissionNode) {
+        return switch (permissionNode) {
+            case "everlastingskins.command.skin" -> Config.PERMISSIONS_OP_LEVEL_MOJANG.get();
+            case "everlastingskins.command.skin.url" -> Config.PERMISSIONS_OP_LEVEL_URL.get();
+            case "everlastingskins.command.skin.clear" -> Config.PERMISSIONS_OP_LEVEL_CLEAR.get();
+            case "everlastingskins.command.skin.random" -> Config.PERMISSIONS_OP_LEVEL_RANDOM.get();
+            case "everlastingskins.command.skin.other" -> Config.PERMISSIONS_OP_LEVEL_OTHER.get();
+            case "everlastingskins.command.metrics" -> Config.PERMISSIONS_OP_LEVEL_METRICS.get();
+            case "everlastingskins.command.metrics.reset" -> Config.PERMISSIONS_OP_LEVEL_METRICS_RESET.get();
+            default -> 0;
+        };
     }
 
     @Override
     public String getActiveBackendName() {
-        return "Vanilla (op level " + REQUIRED_OP_LEVEL + ")";
+        return "Vanilla (per-command op levels)";
     }
 
     @Override
