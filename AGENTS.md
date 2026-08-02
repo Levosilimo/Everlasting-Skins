@@ -11,13 +11,13 @@
 
 ## Current branch
 
-- The checked-in code is the Forge 1.21 implementation. `EverlastingSkins` registers common config and `SkinRestorer`; `SkinRestorer` initializes per-server JSON storage; `MixinPlayerManager` applies and saves skins; `MixinCommandManager` registers `/skin`.
+- The checked-in code is the Forge 1.12.2 implementation. `EverlastingSkins` (Forge `@Mod`) loads the config and initializes permission services; `SkinRestorer` initializes per-server JSON storage; `SkinCommand` registers `/skin` via `CommandHandler.registerCommand` on server start; `MetricsDumper` feeds `/skin metrics`.
 - Skin refresh is server-only and relies on profile mutation plus version-specific reconnect-style packets. Do not replace it with an unverified packet shortcut. Real client/server testing is required.
-- Prefer stable Forge/FML lifecycle events over Mixins when the target version exposes the required timing. Use narrow Mixins when events cannot preserve behavior. Access transformers and reflection do not replace hook injection; raw ASM is the last fallback.
+- This target does not use Mixin: hook via stable Forge/FML lifecycle events and `MinecraftForge.EVENT_BUS`. Access transformers and reflection do not replace hook injection; raw ASM is the last fallback.
 
 ## Build facts and traps
 
-- Current configuration targets Minecraft `1.21`, Forge `51.0.8`, Java 21, Gradle 8.8, ForgeGradle 6, official mappings, and Mixin `0.8.5` annotation processing.
+- Current configuration targets Minecraft `1.12.2`, Forge `14.23.5.2860`, Java 8 (Corretto `1.8.0_472-amzn` via SDKMAN), Gradle `4.10.3`, ForgeGradle `2.3`, MCP mappings `snapshot_20171003`.
 - Build with the repository wrapper. The current `gradlew` is LF-encoded and executable. Build with `./gradlew build`.
 - CI runs on every push to `1.21` and `mc1.12.2` branches: lint (yamllint) + build + unit tests (JUnit 5) + E2E (HeadlessMC + HMCSpecifics + Forge + WireMock).
 - `gradle.properties` contains stale metadata (`minecraft_version_range`, `curse_versions`, placeholder description, broad loader/Forge ranges). Treat executable dependency coordinates in `build.gradle` as authoritative until metadata is reconciled.
@@ -44,7 +44,6 @@
 - The hook runs `aislop scan --staged` and surfaces findings (god-files, god-functions, deeply nested branches, swallowed exceptions, narrative comments, hardcoded URLs/IDs, FizzBuzz-Enterprise-style overengineering) at commit time. Warnings do not block commits by default; treat them as review signals.
 - `aislop` is fetched on demand by `bunx` (fallback `npx`). No `package.json` or `node_modules` in the repo. If neither runner is on PATH, the hook logs and exits 0.
 - Use `aislop fix` to auto-apply mechanical fixes (unused imports, narrative comments, formatter drift). Use `aislop rules` for the full rule catalog. Use `git commit --no-verify` only when intentionally bypassing the gate.
-- See `IMPLEMENTATION_PLAN.md` for the phased refactor and 1.12.2 port plan.
 
 ## PR Verification Protocol
 

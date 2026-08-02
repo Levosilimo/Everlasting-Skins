@@ -30,6 +30,7 @@ Server-side Minecraft Forge mod for persistent custom skins. Players change thei
 | `/skin set random` | any | Apply a random skin |
 | `/skin clear` | any | Restore your Mojang skin or reset to default |
 | `/skin source` | any | Show your current skin source |
+| `/skin metrics [human\|json\|players\|cleanup\|reset]` | admin | View skin metrics (view commands need `everlastingskins.command.metrics`; `cleanup`/`reset` need `everlastingskins.command.metrics.reset`) |
 
 ## ⚙️ Configuration
 
@@ -41,6 +42,8 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 | `Messages.display` | Boolean | `true` | Show skin application messages in chat |
 | `Messages.key` | String | (empty) | MineSkin API key (required for `/skin set web`) |
 | `MineSkin.enabled` | Boolean | `false` | Enable MineSkin URL-based skin generation |
+| `Integration.discordsrv_enabled` | Boolean | `false` | Enable DiscordSRV skin change announcements (hybrid servers only) |
+| `Integration.discordsrv_channel_id` | String | (empty) | Discord channel ID for skin change announcements |
 
 ## 🌐 External Services
 
@@ -55,7 +58,7 @@ Skins are stored as one JSON file per player in `world/EverlastingSkins/<uuid>.j
 
 ## ⚠️ Compatibility
 
-- Forge 1.12.2 only. Compatible with major 1.12.2 modpacks (e.g., FTB, ATLauncher packs that use Forge 1.12.2). Tested with Forge 14.23.5.2847.
+- Forge 1.12.2 only. Compatible with major 1.12.2 modpacks (e.g., FTB, ATLauncher packs that use Forge 1.12.2). Tested with Forge 14.23.5.2860.
 - Server-side only — players do not need to install the mod.
 - Other skin mods that modify player GameProfiles are incompatible.
 - Anti-cheat plugins may need to whitelist skin-related packet sequences.

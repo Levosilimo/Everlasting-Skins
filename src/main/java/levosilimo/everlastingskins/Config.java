@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
 package levosilimo.everlastingskins;
 
 import net.minecraftforge.common.config.Configuration;
@@ -9,7 +15,7 @@ public final class Config {
     public static String LANGUAGE = "en";
     public static boolean TOGGLE = true;
     public static String MINESKIN_API_KEY = "";
-    public static boolean MINESKIN_ENABLED = false; // OFF for Phase 5 viability gate.
+    public static boolean MINESKIN_ENABLED = false; // Set to true to enable MineSkin URL-skin generation.
 
     public static boolean DISCORDSRV_ENABLED = false;
     public static String DISCORDSRV_CHANNEL_ID = "";
@@ -30,7 +36,7 @@ public final class Config {
             TOGGLE = cfg.getBoolean("display", "Messages", TOGGLE, "Display mod messages");
             MINESKIN_API_KEY = cfg.getString("key", "Messages", MINESKIN_API_KEY, "Mineskin api key");
             MINESKIN_ENABLED = cfg.getBoolean("enabled", "MineSkin", false,
-                "Enable MineSkin URL-based skin generation (off during Phase 5 viability gate)");
+                "Enable MineSkin URL-based skin generation");
             DISCORDSRV_ENABLED = cfg.getBoolean("discordsrv_enabled", "Integration", false,
                 "Enable DiscordSRV skin change announcements");
             DISCORDSRV_CHANNEL_ID = cfg.getString("discordsrv_channel_id", "Integration", "",
