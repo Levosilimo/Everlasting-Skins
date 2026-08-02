@@ -16,7 +16,7 @@ import java.util.UUID;
 public class EverlastingSkinsExpansion extends PlaceholderExpansion {
     @Override public @NotNull String getAuthor() { return "Levosilimo"; }
     @Override public @NotNull String getIdentifier() { return "everlastingskins"; }
-    @Override public @NotNull String getVersion() { return "2.0.0"; }
+    @Override public @NotNull String getVersion() { return "2.1.0"; }
     @Override public boolean persist() { return true; }
     @Override
     public String onRequest(OfflinePlayer player, @NotNull String params) {
