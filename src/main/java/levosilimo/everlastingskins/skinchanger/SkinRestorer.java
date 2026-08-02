@@ -1,7 +1,14 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -32,6 +39,14 @@ public class SkinRestorer {
         return server;
     }
 
+    /**
+     * Test-only: replaces the static server reference without a full FML
+     * lifecycle. Public because the test harness lives in a separate package.
+     */
+    public static void setServer(MinecraftServer server) {
+        SkinRestorer.server = server;
+    }
+
     public static void onServerStarting(FMLServerStartingEvent event) {
         server = event.getServer();
         Path dataDir = server.getFile("EverlastingSkins").toPath();
@@ -57,12 +72,27 @@ public class SkinRestorer {
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.player instanceof EntityPlayerMP)) return;
         EntityPlayerMP player = (EntityPlayerMP) event.player;
+        SkinMetrics.INSTANCE.recordPlayerJoined();
 
         if (skinStorage.hasDefaultSkin(player.getUniqueID())) {
-            MojangSkinDataResult skinDataResult = SkinCommand.mojangAPI.getSkin(player.getGameProfile().getName()).orElse(null);
-            if (skinDataResult != null) {
-                skinStorage.setSkin(player.getUniqueID(), skinDataResult.skinProperty());
-            }
+            // Never block the login thread on the 3-provider HTTP chain: fetch
+            // on the shared executor and apply back on the server thread.
+            MinecraftServer server = player.mcServer;
+            EntityPlayerMP target = player;
+            String name = target.getGameProfile().getName();
+            SkinAction.EXECUTOR.submit(() -> {
+                MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(name).orElse(null);
+                if (skinDataResult == null) return;
+                CustomSkinProperty property = skinDataResult.skinProperty();
+                server.addScheduledTask(() -> {
+                    if (skinStorage.hasDefaultSkin(target.getUniqueID())) {
+                        skinStorage.setSkin(target.getUniqueID(), property);
+                        target.getGameProfile().getProperties().removeAll("textures");
+                        target.getGameProfile().getProperties().put("textures", property.getOriginalProperty());
+                    }
+                });
+            });
+            return;
         }
 
         CustomSkinProperty skin = skinStorage.getSkin(player.getUniqueID());
@@ -81,6 +111,7 @@ public class SkinRestorer {
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.player instanceof EntityPlayerMP)) return;
         EntityPlayerMP player = (EntityPlayerMP) event.player;
+        SkinMetrics.INSTANCE.recordPlayerLeft();
         if (skinStorage.getSkin(player.getUniqueID()) != null) {
             skinStorage.saveSkin(player.getUniqueID());
         }
@@ -94,5 +125,6 @@ public class SkinRestorer {
         for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
             skinStorage.saveSkin(player.getUniqueID());
         }
+        skinStorage.flushPending();
     }
 }

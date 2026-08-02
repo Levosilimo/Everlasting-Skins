@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
 package levosilimo.everlastingskins.skinchanger;
 
 import com.google.gson.JsonElement;
@@ -5,6 +11,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import levosilimo.everlastingskins.EverlastingSkins;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.JsonUtils;
 
@@ -52,7 +59,7 @@ public class SkinIO {
         if (skinJson == null) return null;
         try {
             CustomSkinProperty skin = JsonUtils.fromJson(skinJson, CustomSkinProperty.class);
-            if (skin == null || skin.getOriginalProperty() == null || skin.getOriginalProperty().getValue() == null || skin.getOriginalProperty().getValue().isEmpty()) {
+            if (skin == null || !skin.isValid()) {
                 return null;
             }
             return skin;
@@ -73,15 +80,21 @@ public class SkinIO {
     }
 
     public void saveSkin(UUID uuid, CustomSkinProperty skin) {
+        saveSkin(uuid, JsonUtils.toJson(skin).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Atomic write of a pre-serialized payload from the SkinStorage async drain.
+     */
+    void saveSkin(UUID uuid, byte[] payload) {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
         Path temp = savePath.resolve(uuid + FILE_EXTENSION + TEMP_SUFFIX);
-        String json = JsonUtils.toJson(skin);
 
         try {
             Files.createDirectories(savePath);
             Files.deleteIfExists(temp);
 
-            Files.write(temp, json.getBytes(StandardCharsets.UTF_8));
+            Files.write(temp, payload);
 
             try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
                 channel.force(true);
@@ -89,6 +102,7 @@ public class SkinIO {
 
             Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
+            SkinMetrics.INSTANCE.recordIoFailure(e);
             EverlastingSkins.logger.error("Failed to save skin for player {}", uuid, e);
             if (Files.exists(temp)) {
                 try {

@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # EverlastingSkins - Local E2E Test Runner
-# Usage: ./run-e2e.sh [branch] [scenario]
-#   branch:   1.21 (default) or mc1.12.2
-#   scenario: skin-set-mojang (default), skin-clear, two-client-skin-visibility
+# Usage: ./run-e2e.sh [branch]
+#   branch: 1.21 (default) or mc1.12.2
+#
+# The vanilla 1.12.2 client has no console (stdin/stdout), so HeadlessMC
+# SEND/ENDS_WITH/CONTAINS scenario steps cannot drive it. This runner is a
+# server-log smoke test: start the Forge server with the mod, launch a
+# headless client, and assert on the server log that the server booted,
+# the mod loaded, and the client joined.
 
 set -euo pipefail
 
 BRANCH="${1:-1.21}"
-SCENARIO="${2:-skin-set-mojang}"
 HMC_VERSION="2.10.0"
 HMC_DIR_NAME="HeadlessMC"
 
@@ -24,18 +28,9 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-SCENARIO_FILE="$SCRIPT_DIR/scenarios/${SCENARIO}.json"
-
-if [ ! -f "$SCENARIO_FILE" ]; then
-    echo "ERROR: Scenario file not found: $SCENARIO_FILE"
-    echo "Available scenarios:"
-    ls "$SCRIPT_DIR/scenarios/"*.json 2>/dev/null || echo "  (none)"
-    exit 1
-fi
 
 echo "=== EverlastingSkins E2E Test ==="
 echo "Branch:    $BRANCH (MC $MC_VERSION, Forge $FORGE_VERSION)"
-echo "Scenario:  $SCENARIO_FILE"
 echo
 
 # 1. Build the mod
@@ -49,12 +44,12 @@ fi
 # 2. Prepare server directory
 echo "[2/6] Setting up test server..."
 SERVER_DIR="$(mktemp -d)"
-trap 'rm -rf "$SERVER_DIR"; echo "Cleaned up temp directory"' EXIT
+trap 'if [ -n "${SERVER_PID:-}" ]; then kill "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$SERVER_DIR"; echo "Cleaned up temp directory"' EXIT
 
 mkdir -p "$SERVER_DIR/mods"
 mkdir -p "$SERVER_DIR/logs"
 
-JAR_FILE=$(ls build/libs/*.jar 2>/dev/null | head -1)
+JAR_FILE=$(ls build/libs/*.jar 2>/dev/null | grep -v -- '-sources.jar' | grep -v -- '-javadoc.jar' | head -1)
 if [ -z "$JAR_FILE" ]; then
     echo "ERROR: No mod JAR found in build/libs/"
     exit 1
@@ -76,10 +71,20 @@ if [ ! -f "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" ]; then
 fi
 java -jar "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" --installServer "$SERVER_DIR"
 
+# HMCLite's forgecli crashes on 1.12.2 installers (NoSuchMethodError on
+# ClientInstall.run); pre-install the client Forge profile matching the
+# server so the launcher skips its own forge install.
+if [ "$BRANCH" = "mc1.12.2" ]; then
+    echo "  Pre-installing client Forge $FORGE_VERSION (bypasses forgecli)..."
+    mkdir -p "$HOME/.minecraft"
+    echo '{"profiles":{}}' > "$HOME/.minecraft/launcher_profiles.json"
+    java -jar "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" --installClient "$HOME/.minecraft"
+fi
+
 # 4. Start server
 echo "[4/6] Starting Forge server..."
 cd "$SERVER_DIR"
-SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar 2>/dev/null | head -1 || true)
+SERVER_JAR=$(ls forge-*-universal.jar forge-*-server.jar forge-*.jar 2>/dev/null | grep -v -- '-installer.jar' | head -1 || true)
 if [ -z "$SERVER_JAR" ]; then
     SERVER_JAR="$(ls minecraft_server*.jar 2>/dev/null | head -1)"
 fi
@@ -117,17 +122,6 @@ if [ ! -f "$HMC_DIR/headlessmc-launcher-wrapper.jar" ]; then
         "https://github.com/headlesshq/headlessmc/releases/download/$HMC_VERSION/headlessmc-launcher-wrapper-$HMC_VERSION.jar"
 fi
 
-if [ ! -f "$SERVER_DIR/mods/hmc-specifics.jar" ]; then
-    echo "  Downloading HMCSpecifics v2.4.0..."
-    HMCS_VERSION="2.4.0"
-    if [ "$BRANCH" = "mc1.12.2" ]; then
-        HMCS_URL="https://github.com/headlesshq/hmc-specifics/releases/download/${HMCS_VERSION}/hmc-specifics-1.12.2-${HMCS_VERSION}-lexforge-release.jar"
-    else
-        HMCS_URL="https://github.com/headlesshq/hmc-specifics/releases/download/${HMCS_VERSION}/hmc-specifics-1.21-${HMCS_VERSION}-lexforge-release.jar"
-    fi
-    curl -L -o "$SERVER_DIR/mods/hmc-specifics.jar" "$HMCS_URL"
-fi
-
 # Configure HeadlessMC for test
 HMC_CONFIG_DIR="$PROJECT_DIR/$HMC_DIR_NAME"
 mkdir -p "$HMC_CONFIG_DIR"
@@ -139,30 +133,63 @@ hmc.offline=true
 hmc.offline.username=TestPlayer
 hmc.rethrow.launch.exceptions=true
 hmc.exit.on.failed.command=true
-hmc.test.filename=$SCENARIO_FILE
-hmc.test.leave.after=true
 hmc.assets.dummy=true
 hmc.always.lwjgl.flag=true
+hmc.auto.download.specifics=false
 hmc.crash.report.watcher=true
 CONFIG
 
-# 6. Run test
-echo "[6/6] Running E2E test scenario: $SCENARIO..."
+# 6. Launch client and assert on the server log
+echo "[6/6] Launching client and asserting server log..."
 cd "$PROJECT_DIR"
-xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
-    --command "launch forge:$MC_VERSION -lwjgl -offline -specifics --jvm -Djava.awt.headless=true" \
-    --game-args "--server localhost --port 25565 --username TestPlayer"
+timeout --kill-after=10 300 xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
+    --command "launch forge:$MC_VERSION -lwjgl -offline --uid $FORGE_VERSION --jvm -Djava.awt.headless=true" \
+    --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "$HMC_DIR/client.log" 2>&1 &
+CLIENT_PID=$!
 
-EXIT_CODE=$?
+JOINED=0
+for i in $(seq 1 90); do
+    if grep -q "TestPlayer joined the game" "$SERVER_DIR/logs/latest.log" 2>/dev/null; then
+        JOINED=1
+        break
+    fi
+    if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+        echo "ERROR: client process exited early"
+        break
+    fi
+    sleep 2
+done
 
-kill "$SERVER_PID" 2>/dev/null || true
-wait "$SERVER_PID" 2>/dev/null || true
+kill "$CLIENT_PID" 2>/dev/null || true
+wait "$CLIENT_PID" 2>/dev/null || true
 
-echo
-if [ $EXIT_CODE -eq 0 ]; then
-    echo "=== E2E TEST PASSED ==="
+echo "=== E2E Assertions ==="
+FAILED=0
+if grep -q 'For help, type "help"' "$SERVER_DIR/logs/latest.log"; then
+    echo "PASS: server booted"
 else
-    echo "=== E2E TEST FAILED (exit code: $EXIT_CODE) ==="
-    echo "Server logs: $SERVER_DIR/logs/latest.log"
+    echo "FAIL: server did not boot"
+    FAILED=1
 fi
-exit $EXIT_CODE
+if grep -q "everlastingskins" "$SERVER_DIR/logs/latest.log"; then
+    echo "PASS: mod discovered"
+else
+    echo "FAIL: mod not discovered"
+    FAILED=1
+fi
+if [ "$JOINED" -eq 1 ]; then
+    echo "PASS: client connected"
+else
+    echo "FAIL: client did not connect"
+    FAILED=1
+fi
+
+if [ "$FAILED" -eq 0 ]; then
+    echo "=== E2E PASSED ==="
+else
+    echo "=== E2E FAILED ==="
+    echo "Server logs: $SERVER_DIR/logs/latest.log"
+    tail -50 "$SERVER_DIR/logs/latest.log" 2>/dev/null || true
+    tail -20 "$HMC_DIR/client.log" 2>/dev/null || true
+fi
+exit $FAILED

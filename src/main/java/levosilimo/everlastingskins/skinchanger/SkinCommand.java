@@ -1,43 +1,67 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.metrics.MetricsFormat;
+import levosilimo.everlastingskins.metrics.PlayerSnapshot;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
-import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.CommandHandler;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.network.play.server.SPacketPlayerAbilities;
-import net.minecraft.network.play.server.SPacketPlayerListItem;
-import net.minecraft.network.play.server.SPacketPlayerPosLook;
-import net.minecraft.network.play.server.SPacketRespawn;
-import net.minecraft.network.play.server.SPacketServerDifficulty;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.management.PlayerList;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentString;
-import net.minecraft.world.WorldServer;
 
 import javax.annotation.Nullable;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public class SkinCommand extends CommandBase {
-    private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
-        Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
-    private static final String PREFIX = "§6[" + EverlastingSkins.MOD_NAME + "]§f ";
+    static final String PREFIX = "§6[" + EverlastingSkins.MOD_NAME + "]§f ";
 
-    public static final MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
-    public static final MojangAPI mojangAPI = new MojangApiHttpImpl();
+    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
+    private static MojangAPI mojangAPI = new MojangApiHttpImpl();
+
+    public static MineSkinAPI getMineSkinAPI() {
+        return mineSkinAPI;
+    }
+
+    public static MojangAPI getMojangAPI() {
+        return mojangAPI;
+    }
+
+    /* Package-private for tests: inject fakes without reflection. */
+    static void setMineSkinAPI(MineSkinAPI api) {
+        mineSkinAPI = api;
+    }
+
+    static void setMojangAPI(MojangAPI api) {
+        mojangAPI = api;
+    }
+
+    static void resetAPIs() {
+        mojangAPI = new MojangApiHttpImpl();
+        mineSkinAPI = new MineSkinApiHttpImpl();
+    }
 
     @Override
     public String getName() {
@@ -46,7 +70,7 @@ public class SkinCommand extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/skin <set|clear|source> ...";
+        return "/skin <set|clear|source|metrics> ...";
     }
 
     @Override
@@ -61,9 +85,10 @@ public class SkinCommand extends CommandBase {
             return;
         }
         switch (args[0]) {
-            case "clear":  doClear(server, sender, args); break;
-            case "source": doSource(server, sender, args); break;
-            case "set":    doSet(server, sender, args); break;
+            case "clear":   doClear(server, sender, args); break;
+            case "source":  doSource(server, sender, args); break;
+            case "set":     doSet(server, sender, args); break;
+            case "metrics": doMetrics(sender, args); break;
             default:
                 sender.sendMessage(new TextComponentString(PREFIX + getUsage(sender)));
         }
@@ -77,7 +102,10 @@ public class SkinCommand extends CommandBase {
     @Override
     public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender,
             String[] args, @Nullable BlockPos targetPos) {
-        if (args.length == 1) return Arrays.asList("set", "clear", "source");
+        if (args.length == 1) return Arrays.asList("set", "clear", "source", "metrics");
+        if (args.length == 2 && "metrics".equals(args[0])) {
+            return getListOfStringsMatchingLastWord(args, "human", "json", "players", "cleanup", "reset");
+        }
         return Collections.emptyList();
     }
 
@@ -91,7 +119,7 @@ public class SkinCommand extends CommandBase {
             ? "everlastingskins.command.skin.clear"
             : "everlastingskins.command.skin.other";
         if (!checkPermission(sender, node)) return;
-        applySkinChange(targets, sender, SkinActionType.clear, SkinVariant.ALL, false, null);
+        SkinAction.apply(targets, sender, SkinActionType.clear, SkinVariant.ALL, false, null);
     }
 
     private void doSource(MinecraftServer server, ICommandSender sender, String[] args) {
@@ -132,7 +160,7 @@ public class SkinCommand extends CommandBase {
                     ? "everlastingskins.command.skin"
                     : "everlastingskins.command.skin.other";
                 if (!checkPermission(sender, node)) return;
-                applySkinChange(targets, sender, SkinActionType.username, SkinVariant.ALL, false, args[2]);
+                SkinAction.apply(targets, sender, SkinActionType.username, SkinVariant.ALL, false, args[2]);
                 break;
             }
             case "web": {
@@ -150,7 +178,7 @@ public class SkinCommand extends CommandBase {
                     ? "everlastingskins.command.skin.url"
                     : "everlastingskins.command.skin.other";
                 if (!checkPermission(sender, node)) return;
-                applySkinChange(targets, sender, SkinActionType.url, variant, false, args[3]);
+                SkinAction.apply(targets, sender, SkinActionType.url, variant, false, args[3]);
                 break;
             }
             case "random":
@@ -159,7 +187,7 @@ public class SkinCommand extends CommandBase {
                     ? "everlastingskins.command.skin"
                     : "everlastingskins.command.skin.other";
                 if (!checkPermission(sender, node)) return;
-                applySkinChange(targets, sender, SkinActionType.random, SkinVariant.ALL, false, null);
+                SkinAction.apply(targets, sender, SkinActionType.random, SkinVariant.ALL, false, null);
                 break;
             default:
                 sender.sendMessage(new TextComponentString(PREFIX + "Usage: /skin set <mojang|web|random>"));
@@ -174,6 +202,68 @@ public class SkinCommand extends CommandBase {
                 sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
                 return false;
             }
+        }
+        return true;
+    }
+
+    /**
+     * /skin metrics [human|json|players|cleanup|reset]. View commands need
+     * everlastingskins.command.metrics; cleanup/reset additionally need
+     * everlastingskins.command.metrics.reset. Console senders are allowed.
+     */
+    private void doMetrics(ICommandSender sender, String[] args) {
+        String sub = args.length < 2 ? "human" : args[1];
+        switch (sub) {
+            case "json":
+                if (!checkMetricsPermission(sender)) return;
+                sender.sendMessage(new TextComponentString(PREFIX + MetricsFormat.json(SkinMetrics.INSTANCE.snapshot())));
+                break;
+            case "players":
+                if (!checkMetricsPermission(sender)) return;
+                StringBuilder sb = new StringBuilder(PREFIX + "Top players by refresh count:");
+                int rank = 0;
+                for (Map.Entry<UUID, PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
+                    sb.append("\n  ").append(++rank).append(". ")
+                        .append(e.getKey()).append(" — ")
+                        .append(e.getValue().refreshCount()).append(" refreshes");
+                }
+                if (rank == 0) sb.append("\n  (no refreshes recorded)");
+                sender.sendMessage(new TextComponentString(sb.toString()));
+                break;
+            case "cleanup":
+                if (!checkMetricsResetPermission(sender)) return;
+                int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(30L * 24 * 60 * 60 * 1000);
+                sender.sendMessage(new TextComponentString(PREFIX + "Metrics cleanup: pruned " + removed + " stale player entries"));
+                break;
+            case "reset":
+                if (!checkMetricsResetPermission(sender)) return;
+                SkinMetrics.INSTANCE.reset();
+                sender.sendMessage(new TextComponentString(PREFIX + "Metrics reset"));
+                break;
+            default:
+                if (!checkMetricsPermission(sender)) return;
+                sender.sendMessage(new TextComponentString(PREFIX + MetricsFormat.human(SkinMetrics.INSTANCE.snapshot())));
+        }
+    }
+
+    private boolean checkMetricsPermission(ICommandSender sender) {
+        if (!(sender instanceof EntityPlayerMP)) return true; // console
+        EntityPlayerMP player = (EntityPlayerMP) sender;
+        PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player.canUseCommand(2, "everlastingskins"));
+        if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics")) {
+            sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkMetricsResetPermission(ICommandSender sender) {
+        if (!(sender instanceof EntityPlayerMP)) return true; // console
+        EntityPlayerMP player = (EntityPlayerMP) sender;
+        PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player.canUseCommand(2, "everlastingskins"));
+        if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics.reset")) {
+            sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+            return false;
         }
         return true;
     }
@@ -201,157 +291,6 @@ public class SkinCommand extends CommandBase {
         }
     }
 
-    private void applySkinChange(Collection<EntityPlayerMP> targets, ICommandSender sender,
-            SkinActionType type, SkinVariant variant, boolean withCape, @Nullable String customSource) {
-        for (EntityPlayerMP p : targets) {
-            if (Config.TOGGLE) {
-                p.sendMessage(new TextComponentString(PREFIX + "Processing..."));
-            }
-        }
-        CompletableFuture<CustomSkinProperty> future = CompletableFuture.supplyAsync(() -> {
-            CustomSkinProperty sp = null;
-            try {
-                switch (type) {
-                    case clear:
-                        String storedSrc = null;
-                        String pName = null;
-                        for (EntityPlayerMP t : targets) {
-                            storedSrc = SkinRestorer.getSkinStorage().getSource(t.getUniqueID());
-                            pName = t.getGameProfile().getName();
-                            break;
-                        }
-                        MojangRestoreResult restore = tryRestoreFromMojang(mojangAPI, storedSrc, pName);
-                        sp = restore != null ? restore.skin : null;
-                        break;
-                    case url: {
-                        String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
-                        if (!sanitized.equals(customSource)) {
-                            sp = mojangAPI.getSkin(sanitized)
-                                .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        } else {
-                            sp = MineSkinFeatureFlag.isEnabled()
-                                ? mineSkinAPI.genSkin(customSource, variant).property()
-                                : null;
-                        }
-                        break;
-                    }
-                    case username:
-                        sp = mojangAPI.getSkin(customSource)
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        break;
-                    case random:
-                        sp = mojangAPI.getSkin(RandomMojangSkin.randomUsername(withCape, variant))
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        break;
-                    case NEW:
-                        sp = mojangAPI.getSkin(RandomMojangSkin.newUsername(variant))
-                            .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        break;
-                }
-            } catch (Exception e) {
-                throw new CompletionException(e);
-            }
-            return sp;
-        }, EXECUTOR);
-
-        final ScheduledFuture<?> timeoutFuture = EXECUTOR.schedule(() -> {
-            if (future.completeExceptionally(new TimeoutException("Skin fetch timeout"))) {
-                EverlastingSkins.logger.error("Skin fetch timeout");
-                for (EntityPlayerMP p : targets) {
-                    p.sendMessage(new TextComponentString(PREFIX + "Skin fetch timeout"));
-                }
-            }
-        }, 10, TimeUnit.SECONDS);
-
-        future.whenComplete((sp, err) -> {
-            if (timeoutFuture != null) {
-                timeoutFuture.cancel(false);
-            }
-            if (err != null) {
-                EverlastingSkins.logger.error("Skin process error", err);
-                for (EntityPlayerMP p : targets) {
-                    p.sendMessage(new TextComponentString(PREFIX + "Skin process error"));
-                }
-                return;
-            }
-            if (sp == null) {
-                if (type != SkinActionType.clear) {
-                    String reason = deriveReason(type, customSource);
-                    EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
-                    for (EntityPlayerMP p : targets) {
-                        p.sendMessage(new TextComponentString(PREFIX + reason));
-                    }
-                    return;
-                }
-                EverlastingSkins.logger.info("Skin cleared for player(s) — no Mojang profile found");
-                for (EntityPlayerMP p : targets) {
-                    SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), null);
-                    if (Config.TOGGLE) {
-                        p.sendMessage(new TextComponentString(PREFIX + "Skin cleared (no Mojang profile found)"));
-                    }
-                }
-                for (EntityPlayerMP p : targets) {
-                    SkinRestorer.getServer().addScheduledTask(() -> task(p));
-                }
-                return;
-            }
-            boolean isRestore = (type == SkinActionType.clear);
-            for (EntityPlayerMP p : targets) {
-                SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
-                if (Config.TOGGLE) {
-                    String msg = isRestore
-                        ? "Skin restored from " + sp.getSource()
-                        : "Skin applied";
-                    p.sendMessage(new TextComponentString(PREFIX + msg));
-                }
-            }
-            for (EntityPlayerMP p : targets) {
-                SkinRestorer.getServer().addScheduledTask(() -> task(p));
-            }
-            for (EntityPlayerMP p : targets) {
-                try {
-                    DiscordSrvHook.announceSkinChange(p, customSource);
-                } catch (Exception e) {
-                    EverlastingSkins.logger.warn("Failed to announce skin change to DiscordSRV", e);
-                }
-            }
-        });
-    }
-
-    private void task(EntityPlayerMP player) {
-        WorldServer world = player.getServerWorld();
-        int dimension = player.dimension;
-        net.minecraft.world.EnumDifficulty difficulty = world.getDifficulty();
-        net.minecraft.world.WorldType terrainType = world.getWorldInfo().getTerrainType();
-        net.minecraft.world.GameType gameType = player.interactionManager.getGameType();
-        PlayerList playerList = SkinRestorer.getServer().getPlayerList();
-
-        double x = player.posX;
-        double y = player.posY;
-        double z = player.posZ;
-        float yaw = player.rotationYaw;
-        float pitch = player.rotationPitch;
-
-        SkinRestorer.getSkinStorage().saveSkin(player.getUniqueID());
-        CustomSkinProperty skin = SkinRestorer.getSkinStorage().getSkin(player.getUniqueID());
-
-        if (skin != null && !skin.isEmpty()) {
-            player.getGameProfile().getProperties().removeAll("textures");
-            player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
-
-            playerList.sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.REMOVE_PLAYER, player));
-            playerList.sendPacketToAllPlayers(new SPacketPlayerListItem(SPacketPlayerListItem.Action.ADD_PLAYER, player));
-        }
-
-        player.connection.sendPacket(new SPacketRespawn(dimension, difficulty, terrainType, gameType));
-        player.connection.sendPacket(new SPacketServerDifficulty(difficulty, world.getWorldInfo().isDifficultyLocked()));
-        player.connection.sendPacket(new SPacketPlayerPosLook(x, y, z, yaw, pitch,
-            EnumSet.noneOf(SPacketPlayerPosLook.EnumFlags.class), 0));
-        player.connection.sendPacket(new SPacketPlayerAbilities(player.capabilities));
-
-        player.setPositionAndRotation(x, y, z, yaw, pitch);
-    }
-
     @Nullable
     static MojangRestoreResult tryRestoreFromMojang(MojangAPI mojangAPI, @Nullable String storedSource, String playerName) {
         String licensedUsername = (storedSource != null && !storedSource.trim().isEmpty())
@@ -371,29 +310,6 @@ public class SkinCommand extends CommandBase {
         MojangRestoreResult(CustomSkinProperty skin, String licensedUsername) {
             this.skin = skin;
             this.licensedUsername = licensedUsername;
-        }
-    }
-
-    private static String deriveReason(SkinActionType type, @Nullable String customSource) {
-        switch (type) {
-            case username:
-                return customSource != null
-                    ? "No skin found for \"" + customSource + "\""
-                    : "No skin found";
-            case url: {
-                if (customSource != null) {
-                    String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
-                    if (!sanitized.equals(customSource)) {
-                        return "No skin found for \"" + sanitized + "\"";
-                    }
-                }
-                return "MineSkin rejected the URL";
-            }
-            case random:
-            case NEW:
-                return "No random username available";
-            default:
-                return "Provider returned no result";
         }
     }
 }

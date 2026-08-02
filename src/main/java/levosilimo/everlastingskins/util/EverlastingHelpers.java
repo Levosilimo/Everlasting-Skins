@@ -13,24 +13,33 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.*;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * General-purpose helpers shared across the mod: hashing, formatting, URL
+ * validation, and NameMC URL rewriting.
+ */
 public final class EverlastingHelpers {
 
     private static final String NAMEMC_IMG_URL = EndpointsConfig.getString("url.namemc.img");
+    private static final String NAMEMC_HOST = "namemc.com";
 
     private EverlastingHelpers() {
     }
 
     public static Throwable getRootCause(Throwable throwable) {
-        Throwable cause = throwable.getCause();
-        if (cause == null) {
-            return throwable;
+        Throwable cause = throwable;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
         }
-        return getRootCause(cause);
+        return cause;
     }
 
     public static long hashSha256String(String str) {
@@ -85,23 +94,21 @@ public final class EverlastingHelpers {
         return String.format(Locale.ROOT, "%.1f GB", bytes / (double) gb);
     }
 
+    /**
+     * Rename a file inside {@code parent} via a temporary name so a partial
+     * move is never observed under the final name. No-op when the old file is
+     * missing or either target name is already taken.
+     */
     public static void renameFile(Path parent, String oldName, String newName) throws IOException {
         try (Stream<Path> stream = Files.list(parent)) {
-            List<String> files = stream.map(new java.util.function.Function<Path, String>() {
-                @Override
-                public String apply(Path p) {
-                    return p.getFileName().toString();
-                }
-            }).collect(Collectors.<String>toList());
+            Set<String> files = stream
+                    .map(p -> p.getFileName().toString())
+                    .collect(Collectors.<String>toSet());
 
             String tempName = newName + "_temp";
             if (files.contains(oldName) && !files.contains(tempName) && !files.contains(newName)) {
-                Path oldPath = parent.resolve(oldName);
-                Path tempPath = parent.resolve(tempName);
-                Path newPath = parent.resolve(newName);
-
-                Files.move(oldPath, tempPath, StandardCopyOption.REPLACE_EXISTING);
-                Files.move(tempPath, newPath, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(parent.resolve(oldName), parent.resolve(tempName), StandardCopyOption.REPLACE_EXISTING);
+                Files.move(parent.resolve(tempName), parent.resolve(newName), StandardCopyOption.REPLACE_EXISTING);
             }
         }
     }
@@ -161,54 +168,44 @@ public final class EverlastingHelpers {
         }
     }
 
+    /**
+     * Rewrite a NameMC skin page URL to the direct image URL; anything else
+     * passes through unchanged.
+     */
     public static String sanitizeImageURL(String imageUrl) {
         Optional<URL> parsed = parseURL(imageUrl);
-        if (!parsed.isPresent()) {
+        if (!parsed.isPresent() || !isNameMcHost(parsed.get().getHost())) {
             return imageUrl;
         }
         URL url = parsed.get();
-        String host = url.getHost();
-        if (host == null) {
-            return imageUrl;
-        }
-        boolean isNameMc = "namemc.com".equals(host) || host.endsWith(".namemc.com");
-        if (isNameMc) {
-            String path = url.getPath();
-            if (path != null) {
-                String skinPrefix = "/skin/";
-                if (path.startsWith(skinPrefix)) {
-                    String uuidPart = path.substring(skinPrefix.length());
-                    return String.format(NAMEMC_IMG_URL, uuidPart);
-                }
-            }
+        String path = url.getPath();
+        String skinPrefix = "/skin/";
+        if (path != null && path.startsWith(skinPrefix)) {
+            String uuidPart = path.substring(skinPrefix.length());
+            return String.format(NAMEMC_IMG_URL, uuidPart);
         }
         return imageUrl;
     }
 
+    /**
+     * Extract the username from a NameMC profile page URL; anything else
+     * passes through unchanged.
+     */
     public static String sanitizeSkinInput(String skinInput) {
         Optional<URL> parsed = parseURL(skinInput);
-        if (!parsed.isPresent()) {
+        if (!parsed.isPresent() || !isNameMcHost(parsed.get().getHost())) {
             return skinInput;
         }
         URL url = parsed.get();
-        String host = url.getHost();
-        if (host == null) {
-            return skinInput;
-        }
-        boolean isNameMc = "namemc.com".equals(host) || host.endsWith(".namemc.com");
-        if (isNameMc) {
-            String path = url.getPath();
-            if (path != null) {
-                String profilePrefix = "/profile/";
-                if (path.startsWith(profilePrefix)) {
-                    String usernamePart = path.substring(profilePrefix.length());
-                    int dotIdx = usernamePart.indexOf('.');
-                    if (dotIdx != -1) {
-                        usernamePart = usernamePart.substring(0, dotIdx);
-                    }
-                    return usernamePart;
-                }
+        String path = url.getPath();
+        String profilePrefix = "/profile/";
+        if (path != null && path.startsWith(profilePrefix)) {
+            String usernamePart = path.substring(profilePrefix.length());
+            int dotIdx = usernamePart.indexOf('.');
+            if (dotIdx != -1) {
+                usernamePart = usernamePart.substring(0, dotIdx);
             }
+            return usernamePart;
         }
         return skinInput;
     }
@@ -238,5 +235,9 @@ public final class EverlastingHelpers {
         }
         String protocol = parsed.get().getProtocol();
         return "http".equals(protocol) || "https".equals(protocol);
+    }
+
+    private static boolean isNameMcHost(String host) {
+        return host != null && (NAMEMC_HOST.equals(host) || host.endsWith("." + NAMEMC_HOST));
     }
 }

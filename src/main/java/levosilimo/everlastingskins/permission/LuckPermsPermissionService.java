@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
 package levosilimo.everlastingskins.permission;
 
 import org.apache.logging.log4j.LogManager;
@@ -53,8 +59,8 @@ public class LuckPermsPermissionService implements IPermissionService {
                 Method getUserMethod = userManager.getClass().getMethod("getUser", UUID.class);
                 user = getUserMethod.invoke(userManager, uuid);
             } else {
-                LOGGER.debug("LP user {} not pre-loaded, skipping async load", uuid);
-                return false;
+                LOGGER.debug("LP user {} not pre-loaded, falling back to op status", uuid);
+                return vanillaFallback(context, permissionNode);
             }
             if (user == null) {
                 LOGGER.warn("LP user {} returned null from getUser, falling back to vanilla", uuid);

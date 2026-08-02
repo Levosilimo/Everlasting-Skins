@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
 package levosilimo.everlastingskins.util;
 
 import com.mojang.authlib.properties.Property;
@@ -30,6 +36,22 @@ public class CustomSkinProperty {
         if (value == null || value.trim().isEmpty()) return true;
         if (defaultSkinValue != null && defaultSkinValue.equals(value)) return true;
         return false;
+    }
+
+    /**
+     * True when the textures value is present and decodes as base64. A corrupt
+     * or truncated value would otherwise poison the profile and client renders.
+     */
+    public boolean isValid() {
+        if (originalProperty == null) return false;
+        String value = originalProperty.getValue();
+        if (value == null || value.isEmpty()) return false;
+        try {
+            java.util.Base64.getDecoder().decode(value);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     @Override

@@ -1,21 +1,41 @@
 # EverlastingSkins — E2E Test Infrastructure
 
-HeadlessMC-based end-to-end test scenarios for EverlastingSkins. Tests simulate Minecraft client commands and assert server responses.
+Server-log smoke test for the mc1.12.2 port. The vanilla 1.12.2 client has
+no console (stdin/stdout), so HeadlessMC `SEND`/`ENDS_WITH`/`CONTAINS`
+scenario steps cannot drive it. The runner instead starts a real Forge
+server with the mod, launches a headless client that auto-connects, and
+asserts on the server log:
+
+1. Server booted (`For help, type "help"`)
+2. Mod discovered (`everlastingskins` in the FML mod list)
+3. Client connected (`TestPlayer joined the game`)
+
+Functional coverage (command cascade, persistence, permissions, packets)
+lives in the JUnit integration tests; this E2E is a boot smoke test.
 
 ## Quick start
 
 ```bash
-# Ensure Java 8+ is on PATH
-java -version
-
-# Run a scenario
-java -jar test-infrastructure/headlessmc/headlessmc-launcher-wrapper.jar \
-  --command test-infrastructure/scenarios/skin-set-mojang.json
+# Ensure Java 8 is on PATH, then run the 1.12.2 E2E
+bash test-infrastructure/run-e2e.sh mc1.12.2
 ```
+
+`run-e2e.sh` builds the mod, installs Forge 14.23.5.2860 (server +
+pre-installed client profile), launches the server, and drives the client
+through the HeadlessMC wrapper (`-lwjgl -offline --uid 14.23.5.2860`).
+
+## Why no scenario files
+
+HeadlessMC scenario steps match against the client process's stdin/stdout.
+A vanilla 1.12.2 client has neither; HMCSpecifics (the only 1.12.2 console
+provider) crashes the client at boot (JLine `ClassNotFoundException`).
+Scenario JSON files were removed in favor of bash assertions on the server
+log, which is where all command and join activity is visible.
 
 ## Install HeadlessMC
 
-The launcher wrapper JAR is v2.10.0. Download it before running locally:
+The launcher wrapper JAR is v2.10.0. `run-e2e.sh` downloads it on demand
+into `test-infrastructure/headlessmc/`:
 
 ```bash
 mkdir -p test-infrastructure/headlessmc
@@ -23,47 +43,9 @@ curl -L -o test-infrastructure/headlessmc/headlessmc-launcher-wrapper.jar \
   "https://github.com/headlesshq/headlessmc/releases/download/2.10.0/headlessmc-launcher-wrapper-2.10.0.jar"
 ```
 
-HeadlessMC supports Forge from 1.7.10 through 1.21.5+. Use the `-lwjgl` flag for headless LWJGL mode on servers that require a GL context.
-
-## Scenario JSON format
-
-Each scenario file follows this structure:
-
-| Field | Type | Description |
-|---|---|---|
-| `name` | string | Human-readable test name |
-| `description` | string | What the scenario verifies |
-| `type` | string | Always `"RUNS"` for single-client tests |
-| `config` | object | Server connection config (accountType, username) |
-| `steps` | array | Ordered list of test steps |
-
-### Step types
-
-| Type | Behavior |
-|---|---|
-| `ENDS_WITH` | Pass if the last received line ends with the given message |
-| `CONTAINS` | Pass if any received line contains the message |
-| `SEND` | Send chat text or command to the server |
-| `WAIT` | Pause for `timeout` seconds |
-
-## Adding scenarios
-
-1. Create a new JSON file in `test-infrastructure/scenarios/`
-2. Add descriptive steps that exercise the feature
-3. Run locally to verify
-4. Add the scenario path to the CI workflow's `scenario` input
-
 ## CI integration
 
-The E2E job runs on the `headlesshq/mc-runtime-test` GitHub Action (v4.5.1):
-
-```yaml
-- uses: headlesshq/mc-runtime-test@4.5.1
-  with:
-    mc: '1.21'
-    modloader: 'forge'
-    version: '51.0.8'
-    xvfb: true
-    cache-mc: 'github'
-    scenario: 'test-infrastructure/scenarios/skin-set-mojang.json'
-```
+`.github/workflows/ci.yml` (job `e2e-test-1122`) runs the same flow:
+start the Forge server with WireMock-backed endpoints, launch the headless
+client, and assert on `$SERVER_DIR/logs/latest.log`. Client crashes are
+visible because launch steps run under `set -euo pipefail`.

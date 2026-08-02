@@ -42,3 +42,18 @@ Re-enable per the project setup note in AGENTS.md.
 EOF
   exit 1
 fi
+
+# License header check: every staged .java file must carry the SPDX MIT header.
+STAGED_JAVA=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.java$' || true)
+if [ -n "$STAGED_JAVA" ]; then
+  MISSING=$(for f in $STAGED_JAVA; do
+    if [ -f "$f" ] && ! head -10 "$f" | grep -q 'SPDX-License-Identifier: MIT'; then
+      echo "$f"
+    fi
+  done)
+  if [ -n "$MISSING" ]; then
+    echo "[license] missing SPDX-License-Identifier: MIT header:" >&2
+    echo "$MISSING" >&2
+    exit 1
+  fi
+fi

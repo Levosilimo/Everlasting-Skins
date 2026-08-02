@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -167,7 +173,7 @@ class SkinIOTest {
         @Test
         @DisplayName("getSourceFromFileStorage returns source")
         void getSource() {
-            CustomSkinProperty skin = new CustomSkinProperty("v", "s", "my-source");
+            CustomSkinProperty skin = new CustomSkinProperty("dg==", "s", "my-source");
             skinIO.saveSkin(uuid, skin);
 
             String source = skinIO.getSourceFromFileStorage(uuid);
@@ -196,7 +202,7 @@ class SkinIOTest {
         @Test
         @DisplayName("deleteSkin removes the file when it exists")
         void deleteExistingFile() throws IOException {
-            CustomSkinProperty skin = new CustomSkinProperty("v", "s", "src");
+            CustomSkinProperty skin = new CustomSkinProperty("dg==", "s", "src");
             skinIO.saveSkin(uuid, skin);
             Path target = tempDir.resolve(uuid + ".json");
             assertTrue(Files.exists(target));
