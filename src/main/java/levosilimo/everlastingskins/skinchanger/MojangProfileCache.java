@@ -6,12 +6,11 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-
 /**
  * Small TTL + cap cache for Mojang profile lookups. Keyed by lower-case
  * username; a hit avoids the (slow, rate-limited) Mojang HTTP chain entirely.
@@ -34,7 +33,7 @@ public class MojangProfileCache {
     private final int maxEntries;
 
     public MojangProfileCache() {
-        this(TimeUnit.HOURS.toMillis(1), 1000);
+        this(Config.mojangProfileCacheTtlMs, Config.mojangProfileCacheMaxSize);
     }
 
     public MojangProfileCache(long ttlMs, int maxEntries) {

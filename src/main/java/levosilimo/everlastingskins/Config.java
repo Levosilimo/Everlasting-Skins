@@ -103,6 +103,12 @@ public final class Config {
                 "Enable URL domain allowlist for /skin set web (empty list = deny all)");
             urlAllowlistDomains = cfg.getStringList("urlAllowlistDomains", "Security", urlAllowlistDomains,
                 "Domains allowed for /skin set web (eTLD+1 suffix match; one entry covers all subdomains)");
+            mojangProfileCacheEnabled = cfg.getBoolean("mojangProfileCacheEnabled", "MojangCache", true,
+                "Enable Mojang profile cache (recommended for production servers; reduces Mojang API hits)");
+            mojangProfileCacheTtlMs = cfg.getInt("mojangProfileCacheTtlMs", "MojangCache", 3600000, 0, 604800000,
+                "Mojang profile cache TTL in milliseconds (default 1h, max 7 days)");
+            mojangProfileCacheMaxSize = cfg.getInt("mojangProfileCacheMaxSize", "MojangCache", 1000, 0, 1000000,
+                "Mojang profile cache max entries (default 1000, max 1M)");
         } catch (Exception e) {
             EverlastingSkins.logger.error("Failed to load config", e);
         } finally {
