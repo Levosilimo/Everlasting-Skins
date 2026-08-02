@@ -17,7 +17,7 @@
 
 ## Build facts and traps
 
-- Current configuration targets Minecraft `1.12.2`, Forge `14.23.5.2860`, Java 8 (Corretto `1.8.0_472-amzn` via SDKMAN), Gradle `4.10.3`, ForgeGradle `2.3`, MCP mappings `snapshot_20171003`.
+- Current configuration targets Minecraft `1.12.2`, Forge `14.23.5.2860`, Java 8 (Corretto `1.8.0_472-amzn` via SDKMAN), Gradle `4.10.3`, ForgeGradle `2.3`, MCP mappings `snapshot_20171003`. No Mixin annotation processor is configured (the leftover `mixin/server/MixinCommandManager.java` stub is excluded from the jar).
 - Build with the repository wrapper. The current `gradlew` is LF-encoded and executable. Build with `./gradlew build`.
 - CI runs on every push to `1.21` and `mc1.12.2` branches: lint (yamllint) + build + unit tests (JUnit 5) + E2E (HeadlessMC + HMCSpecifics + Forge + WireMock).
 - `gradle.properties` contains stale metadata (`minecraft_version_range`, `curse_versions`, placeholder description, broad loader/Forge ranges). Treat executable dependency coordinates in `build.gradle` as authoritative until metadata is reconciled.
