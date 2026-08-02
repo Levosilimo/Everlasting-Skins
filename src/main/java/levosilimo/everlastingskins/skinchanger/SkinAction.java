@@ -17,6 +17,7 @@ import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.text.TextComponentString;
@@ -64,7 +65,7 @@ final class SkinAction {
         }
         for (EntityPlayerMP p : targets) {
             if (Config.TOGGLE) {
-                p.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Processing..."));
+                p.sendMessage(new TextComponentString(SkinCommand.PREFIX + I18nUtils.getLocalizedString("change", p)));
             }
         }
         if (type == SkinActionType.username && storedSourceMatches(targets, customSource)) {
@@ -137,7 +138,7 @@ final class SkinAction {
                 EverlastingSkins.logger.error("Skin fetch timeout");
                 for (EntityPlayerMP p : targets) {
                     SkinMetrics.INSTANCE.recordTimedOut(p.getUniqueID());
-                    p.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Skin fetch timeout"));
+                    p.sendMessage(new TextComponentString(SkinCommand.PREFIX + I18nUtils.getLocalizedString("timeout", p)));
                 }
             }
         }, 10, TimeUnit.SECONDS);
@@ -149,7 +150,7 @@ final class SkinAction {
             if (err != null) {
                 EverlastingSkins.logger.error("Skin process error", err);
                 for (EntityPlayerMP p : targets) {
-                    p.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Skin process error"));
+                    p.sendMessage(new TextComponentString(SkinCommand.PREFIX + I18nUtils.getLocalizedString("error", p)));
                 }
                 return;
             }
@@ -157,7 +158,8 @@ final class SkinAction {
                 CustomSkinProperty sp = fetched != null ? fetched.get(p.getUniqueID()) : null;
                 if (sp == null) {
                     if (type != SkinActionType.clear) {
-                        String reason = deriveReason(type, customSource);
+                        String reason = I18nUtils.formatMessage(
+                            deriveReason(type, customSource), p, reasonArg(type, customSource));
                         EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
                         p.sendMessage(new TextComponentString(SkinCommand.PREFIX + reason));
                         continue;
@@ -165,7 +167,8 @@ final class SkinAction {
                     EverlastingSkins.logger.info("Skin cleared for player {} — no Mojang profile found", p.getName());
                     SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), null);
                     if (Config.TOGGLE) {
-                        p.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Skin cleared (no Mojang profile found)"));
+                        p.sendMessage(new TextComponentString(SkinCommand.PREFIX
+                            + I18nUtils.getLocalizedString("cleared_no_profile", p)));
                     }
                     SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, null, fetchNanos[0]));
                     continue;
@@ -179,8 +182,8 @@ final class SkinAction {
                 SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
                 if (Config.TOGGLE) {
                     String msg = isRestore
-                        ? "Skin restored from " + sp.getSource()
-                        : "Skin applied";
+                        ? I18nUtils.formatMessage("restored_from", p, sp.getSource())
+                        : I18nUtils.getLocalizedString("fulfilled", p);
                     p.sendMessage(new TextComponentString(SkinCommand.PREFIX + msg));
                 }
                 long now = System.currentTimeMillis();
@@ -235,7 +238,7 @@ final class SkinAction {
         if (lastCommand > 0 && elapsed < cooldownMs) {
             SkinMetrics.INSTANCE.recordRateLimited(uuid);
             sender.sendMessage(new TextComponentString(SkinCommand.PREFIX
-                + "Please wait " + ((cooldownMs - elapsed) / 1000) + "s before using /skin again"));
+                + I18nUtils.formatMessage("cooldown", sender, (cooldownMs - elapsed) / 1000)));
             return true;
         }
         ArrayDeque<Long> window = commandTimestampsByPlayer.computeIfAbsent(uuid, k -> new ArrayDeque<>());
@@ -245,7 +248,8 @@ final class SkinAction {
             }
             if (window.size() >= Config.MAX_COMMANDS_PER_MINUTE) {
                 SkinMetrics.INSTANCE.recordRateLimited(uuid);
-                sender.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Too many /skin commands. Try again later."));
+                sender.sendMessage(new TextComponentString(SkinCommand.PREFIX
+                    + I18nUtils.getLocalizedString("rate_limited", sender)));
                 return true;
             }
             window.addLast(now);
@@ -254,26 +258,36 @@ final class SkinAction {
         return false;
     }
 
+    /** Returns the I18n key for a provider no-result reason; localized per player by the caller. */
     private static String deriveReason(SkinActionType type, @Nullable String customSource) {
         switch (type) {
             case username:
-                return customSource != null
-                    ? "No skin found for \"" + customSource + "\""
-                    : "No skin found";
+                return customSource != null ? "no_skin_found" : "no_skin_found_plain";
             case url: {
                 if (customSource != null) {
                     String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
                     if (!sanitized.equals(customSource)) {
-                        return "No skin found for \"" + sanitized + "\"";
+                        return "no_skin_found";
                     }
                 }
-                return "MineSkin rejected the URL";
+                return "mineskin_rejected";
             }
             case random:
             case NEW:
-                return "No random username available";
+                return "no_random_username";
             default:
-                return "Provider returned no result";
+                return "provider_no_result";
         }
+    }
+
+    /** Format arg for {@link #deriveReason} keys (null-safe: extra args are ignored by String.format). */
+    @Nullable
+    private static String reasonArg(SkinActionType type, @Nullable String customSource) {
+        if (type == SkinActionType.url && customSource != null) {
+            String sanitized = EverlastingHelpers.sanitizeSkinInput(customSource);
+            if (!sanitized.equals(customSource)) return sanitized;
+            return null;
+        }
+        return customSource;
     }
 }

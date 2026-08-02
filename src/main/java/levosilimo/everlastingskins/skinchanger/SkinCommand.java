@@ -17,6 +17,7 @@ import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.CommandHandler;
@@ -141,7 +142,8 @@ public class SkinCommand extends CommandBase {
             return;
         }
         String source = SkinRestorer.getSkinStorage().getSource(uuid);
-        sender.sendMessage(new TextComponentString(PREFIX + (source != null ? source : "No source available")));
+        sender.sendMessage(new TextComponentString(PREFIX
+            + (source != null ? source : I18nUtils.getLocalizedString("no_source", playerOrNull(sender)))));
     }
 
     private void doSet(MinecraftServer server, ICommandSender sender, String[] args) {
@@ -199,7 +201,8 @@ public class SkinCommand extends CommandBase {
             EntityPlayerMP player = (EntityPlayerMP) sender;
             PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
             if (!PermissionServiceManager.hasPermission(ctx, node)) {
-                sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+                sender.sendMessage(new TextComponentString(PREFIX
+                    + I18nUtils.getLocalizedString("permission_denied", player)));
                 return false;
             }
         }
@@ -220,25 +223,31 @@ public class SkinCommand extends CommandBase {
                 break;
             case "players":
                 if (!checkMetricsPermission(sender)) return;
-                StringBuilder sb = new StringBuilder(PREFIX + "Top players by refresh count:");
+                StringBuilder sb = new StringBuilder(PREFIX
+                    + I18nUtils.getLocalizedString("metrics_top_players", playerOrNull(sender)));
                 int rank = 0;
                 for (Map.Entry<UUID, PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
                     sb.append("\n  ").append(++rank).append(". ")
                         .append(e.getKey()).append(" — ")
-                        .append(e.getValue().refreshCount()).append(" refreshes");
+                        .append(e.getValue().refreshCount())
+                        .append(I18nUtils.getLocalizedString("metrics_refreshes", playerOrNull(sender)));
                 }
-                if (rank == 0) sb.append("\n  (no refreshes recorded)");
+                if (rank == 0) {
+                    sb.append("\n  ").append(I18nUtils.getLocalizedString("metrics_no_refreshes", playerOrNull(sender)));
+                }
                 sender.sendMessage(new TextComponentString(sb.toString()));
                 break;
             case "cleanup":
                 if (!checkMetricsResetPermission(sender)) return;
                 int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(30L * 24 * 60 * 60 * 1000);
-                sender.sendMessage(new TextComponentString(PREFIX + "Metrics cleanup: pruned " + removed + " stale player entries"));
+                sender.sendMessage(new TextComponentString(PREFIX
+                    + I18nUtils.formatMessage("metrics_cleanup", playerOrNull(sender), removed)));
                 break;
             case "reset":
                 if (!checkMetricsResetPermission(sender)) return;
                 SkinMetrics.INSTANCE.reset();
-                sender.sendMessage(new TextComponentString(PREFIX + "Metrics reset"));
+                sender.sendMessage(new TextComponentString(PREFIX
+                    + I18nUtils.getLocalizedString("metrics_reset", playerOrNull(sender))));
                 break;
             default:
                 if (!checkMetricsPermission(sender)) return;
@@ -251,7 +260,8 @@ public class SkinCommand extends CommandBase {
         EntityPlayerMP player = (EntityPlayerMP) sender;
         PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
         if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics")) {
-            sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+            sender.sendMessage(new TextComponentString(PREFIX
+                + I18nUtils.getLocalizedString("permission_denied", player)));
             return false;
         }
         return true;
@@ -262,10 +272,17 @@ public class SkinCommand extends CommandBase {
         EntityPlayerMP player = (EntityPlayerMP) sender;
         PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
         if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics.reset")) {
-            sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+            sender.sendMessage(new TextComponentString(PREFIX
+                + I18nUtils.getLocalizedString("permission_denied", player)));
             return false;
         }
         return true;
+    }
+
+    /** The player behind a console-safe sender, or null (fallback to Config.LANGUAGE). */
+    @Nullable
+    private static EntityPlayerMP playerOrNull(ICommandSender sender) {
+        return sender instanceof EntityPlayerMP ? (EntityPlayerMP) sender : null;
     }
 
     private Collection<EntityPlayerMP> parseTargets(MinecraftServer server, ICommandSender sender,

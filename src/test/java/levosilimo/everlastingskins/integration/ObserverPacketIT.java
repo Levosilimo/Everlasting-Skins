@@ -84,7 +84,7 @@ class ObserverPacketIT {
             ((SPacketPlayerListItem) global.get(1)).getAction());
 
         // The target's own connection gets the respawn cascade after the
-        // "Processing..." / "Skin applied" chat packets.
+        // 'change' / 'fulfilled' chat packets.
         List<Packet<?>> self = targetLog.all();
         int respawn = indexOfType(self, SPacketRespawn.class);
         int difficulty = indexOfType(self, SPacketServerDifficulty.class);

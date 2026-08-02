@@ -69,6 +69,6 @@ class CommandDispatchIT {
 
         List<SPacketChat> chats = log.ofType(SPacketChat.class);
         assertTrue(chats.stream()
-            .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("Skin applied")));
+            .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("fulfilled")));
     }
 }
