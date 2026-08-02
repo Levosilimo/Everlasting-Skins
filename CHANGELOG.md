@@ -1,5 +1,39 @@
 # Changelog
 
+## 2.1.0 (2026-08-02)
+
+### Added
+- Full production parity with 1.21 (Option B cascade, metrics layer, MojangProfileCache, saveSkinAsync drain-coalesce)
+- /skin metrics command with human/json/players/cleanup/reset subcommands
+- MojangProfileCache (TTL 1h, cap 1000) wired into MojangApiHttpImpl
+- Network metrics instrumentation via ChannelDuplexHandler
+- 9 integration tests (CommandDispatch, ObserverPacket, PersistenceRoundTrip, PermissionGate, MineSkinPath, ClearSourceRandom, CrossDimensionBroadcast, ConcurrentSet, WireLevelBytes)
+- MockServer JUnit harness (TestServerContext, TestPlayerFactory, PacketLog, WireSerializer, AsyncSupport)
+- EntityTracker untrack/re-track per-viewer refresh (deliberate improvement over 1.21)
+- All 16 lib-17 behavioral fixes (cherry-pick from audit)
+- SPDX MIT license headers on all 125 .java files
+
+### Changed
+- SkinCommand refactored to dispatch via Option B cascade
+- Config refactored with metrics + cache keys
+- Forge 14.23.5.2847 canonical across all docs (2860 doesn't work)
+
+### Fixed
+- Login-time synchronous 3-provider HTTP chain offloaded to executor (no more 30s server freeze per login)
+- Multi-target /skin clear per-target restores from Mojang
+- SkinRefreshTask wrapped in try/catch (no partial cascade on exception)
+- ForgePermissionService uses PermissionAPI.hasPermission
+- LuckPerms backend falls back to op check on pre-load
+- MineSkin 429 bounded sleep (was unbounded)
+- CustomSkinProperty base64 validation
+- ConcurrentSetIT disk-vs-memory race resolved
+
+### Removed
+- HMCLite scenarios replaced with bash server-log smoke assertions
+- Stale `IMPLEMENTATION_PLAN.md` references from AGENTS.md
+- SkinsRestorer-derived code patterns (clean-room rewrite)
+- Stale "Phase 5 viability gate" comments in Config.java
+
 ## 2.0.0 (2026-08-02)
 
 ### Added
