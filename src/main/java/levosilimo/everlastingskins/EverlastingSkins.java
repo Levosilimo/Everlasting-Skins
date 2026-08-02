@@ -12,6 +12,7 @@ import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -59,6 +60,7 @@ public class EverlastingSkins {
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
         MinecraftForge.EVENT_BUS.register(new MetricsDumper());
         SkinRestorer.onServerStarting(event);
+        I18nUtils.loadAll();
     }
 
     @Mod.EventHandler
