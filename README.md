@@ -36,7 +36,7 @@ Each branch has its own README with version-specific installation instructions, 
 ## 📦 Installation
 
 1. Install [Forge for Minecraft 1.12.2](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.12.2.html) (14.23.5.2847 or later 1.12.2 build).
-2. Download `everlastingskins-1.12.2-2.0.0.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
+2. Download `everlastingskins-1.12.2-2.1.0.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
 3. Place the JAR in your server's `mods/` folder.
 4. Restart the server.
 
@@ -115,7 +115,7 @@ cd Everlasting-Skins
 ./gradlew build
 ```
 
-Output: `build/libs/everlastingskins-1.12.2-2.0.0.jar`
+Output: `build/libs/everlastingskins-1.12.2-2.1.0.jar`
 
 ## ❓ FAQ
 
