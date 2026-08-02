@@ -1153,7 +1153,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:concurrent")
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 400, batch = "everlastingskins:concurrent")
     public void concurrentSkinSet_twoPlayers(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1179,7 +1179,9 @@ public class SkinVisibilityTest {
             fake.slow = true;
 
             // Dispatch both commands concurrently — the 100ms slow delay in
-            // FakeMojangAPI ensures the two async fetches overlap.
+            // FakeMojangAPI ensures the two async fetches overlap. slow stays
+            // enabled for the whole test so the overlap is guaranteed no
+            // matter when the test body reaches the assertion phase.
             CommandSourceStack srcA = playerA.createCommandSourceStack();
             CommandSourceStack srcB = playerB.createCommandSourceStack();
             CompletableFuture<Void> futureA = CompletableFuture.runAsync(() ->
@@ -1187,16 +1189,18 @@ public class SkinVisibilityTest {
             CompletableFuture<Void> futureB = CompletableFuture.runAsync(() ->
                     dispatch(server, "skin set mojang Jeb_", srcB, helper));
 
-            try {
-                CompletableFuture.allOf(futureA, futureB).get(10, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                helper.fail("concurrent dispatch threw: " + e.getMessage());
-                return;
-            }
-
-            fake.slow = false;
-
+            // Do NOT block the server thread on future.get(): GameTest runs on
+            // the server thread, so a blocking wait freezes tick processing.
+            // Queued refresh-task broadcasts and succeedWhen polls then cannot
+            // run — "observerA expected 1 packet, got 0" on loaded CI runners
+            // even though storage was already updated — and sibling tests in
+            // the batch stall behind the same blocked tick. Poll the dispatch
+            // futures inside succeedWhen instead: the server keeps ticking, so
+            // queued broadcasts land and drain() observes them.
             helper.succeedWhen(() -> {
+                if (!futureA.isDone() || !futureB.isDone()) {
+                    throw new GameTestAssertException("waiting for concurrent dispatches to complete");
+                }
                 CustomSkinProperty skinA = storage.getSkin(uuidA);
                 CustomSkinProperty skinB = storage.getSkin(uuidB);
                 if (skinA == null || !"Notch".equals(skinA.getSource())) {
