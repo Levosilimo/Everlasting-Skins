@@ -3,6 +3,7 @@
  */
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangProfileResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
@@ -21,6 +22,7 @@ public class MojangApiHttpImpl implements MojangAPI {
 
     private final MojangEndpoints endpoints;
     private final HttpClient httpClient;
+    private final MojangProfileCache cache = new MojangProfileCache();
 
     public MojangApiHttpImpl() {
         this(MojangEndpoints.DEFAULT, new HttpsUrlConnectionHttpClient());
@@ -43,6 +45,14 @@ public class MojangApiHttpImpl implements MojangAPI {
             if (EverlastingHelpers.invalidMinecraftUsername(nameOrUniqueId)) {
                 return Optional.empty();
             }
+            // Username path: the cached profile property avoids the 3-provider
+            // profile chain; the UUID lookup still runs (1 request instead of 6).
+            if (Config.mojangProfileCacheEnabled) {
+                CustomSkinProperty cached = cache.get(nameOrUniqueId);
+                if (cached != null) {
+                    return getUUID(nameOrUniqueId).map(uuid -> new MojangSkinDataResult(uuid, cached));
+                }
+            }
         }
 
         UUID playerUuid;
@@ -60,6 +70,10 @@ public class MojangApiHttpImpl implements MojangAPI {
         Optional<CustomSkinProperty> property = getProfile(lookup);
         if (!property.isPresent()) {
             return Optional.empty();
+        }
+
+        if (!uuidParseResult.isPresent() && Config.mojangProfileCacheEnabled) {
+            cache.put(nameOrUniqueId, property.get());
         }
 
         return Optional.of(new MojangSkinDataResult(playerUuid, property.get()));

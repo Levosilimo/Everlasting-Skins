@@ -3,6 +3,7 @@ package levosilimo.everlastingskins;
 import net.minecraftforge.common.config.Configuration;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 
 public final class Config {
     public static String LANGUAGE = "en";
@@ -16,6 +17,10 @@ public final class Config {
     public static boolean metricsEnabled = true;
     public static int metricsDumpIntervalSeconds = 60;
     public static boolean refreshViaEntityTracker = true;
+
+    public static boolean mojangProfileCacheEnabled = true;
+    public static long mojangProfileCacheTtlMs = TimeUnit.HOURS.toMillis(1);
+    public static int mojangProfileCacheMaxSize = 1000;
 
     public static void load(File configFile) {
         Configuration cfg = new Configuration(configFile);

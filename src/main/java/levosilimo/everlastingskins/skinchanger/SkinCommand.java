@@ -4,6 +4,9 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.metrics.MetricsFormat;
+import levosilimo.everlastingskins.metrics.PlayerSnapshot;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
@@ -23,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class SkinCommand extends CommandBase {
@@ -60,7 +64,7 @@ public class SkinCommand extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/skin <set|clear|source> ...";
+        return "/skin <set|clear|source|metrics> ...";
     }
 
     @Override
@@ -75,9 +79,10 @@ public class SkinCommand extends CommandBase {
             return;
         }
         switch (args[0]) {
-            case "clear":  doClear(server, sender, args); break;
-            case "source": doSource(server, sender, args); break;
-            case "set":    doSet(server, sender, args); break;
+            case "clear":   doClear(server, sender, args); break;
+            case "source":  doSource(server, sender, args); break;
+            case "set":     doSet(server, sender, args); break;
+            case "metrics": doMetrics(sender, args); break;
             default:
                 sender.sendMessage(new TextComponentString(PREFIX + getUsage(sender)));
         }
@@ -91,7 +96,10 @@ public class SkinCommand extends CommandBase {
     @Override
     public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender,
             String[] args, @Nullable BlockPos targetPos) {
-        if (args.length == 1) return Arrays.asList("set", "clear", "source");
+        if (args.length == 1) return Arrays.asList("set", "clear", "source", "metrics");
+        if (args.length == 2 && "metrics".equals(args[0])) {
+            return getListOfStringsMatchingLastWord(args, "human", "json", "players", "cleanup", "reset");
+        }
         return Collections.emptyList();
     }
 
@@ -188,6 +196,68 @@ public class SkinCommand extends CommandBase {
                 sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
                 return false;
             }
+        }
+        return true;
+    }
+
+    /**
+     * /skin metrics [human|json|players|cleanup|reset]. View commands need
+     * everlastingskins.command.metrics; cleanup/reset additionally need
+     * everlastingskins.command.metrics.reset. Console senders are allowed.
+     */
+    private void doMetrics(ICommandSender sender, String[] args) {
+        String sub = args.length < 2 ? "human" : args[1];
+        switch (sub) {
+            case "json":
+                if (!checkMetricsPermission(sender)) return;
+                sender.sendMessage(new TextComponentString(PREFIX + MetricsFormat.json(SkinMetrics.INSTANCE.snapshot())));
+                break;
+            case "players":
+                if (!checkMetricsPermission(sender)) return;
+                StringBuilder sb = new StringBuilder(PREFIX + "Top players by refresh count:");
+                int rank = 0;
+                for (Map.Entry<UUID, PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
+                    sb.append("\n  ").append(++rank).append(". ")
+                        .append(e.getKey()).append(" — ")
+                        .append(e.getValue().refreshCount()).append(" refreshes");
+                }
+                if (rank == 0) sb.append("\n  (no refreshes recorded)");
+                sender.sendMessage(new TextComponentString(sb.toString()));
+                break;
+            case "cleanup":
+                if (!checkMetricsResetPermission(sender)) return;
+                int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(30L * 24 * 60 * 60 * 1000);
+                sender.sendMessage(new TextComponentString(PREFIX + "Metrics cleanup: pruned " + removed + " stale player entries"));
+                break;
+            case "reset":
+                if (!checkMetricsResetPermission(sender)) return;
+                SkinMetrics.INSTANCE.reset();
+                sender.sendMessage(new TextComponentString(PREFIX + "Metrics reset"));
+                break;
+            default:
+                if (!checkMetricsPermission(sender)) return;
+                sender.sendMessage(new TextComponentString(PREFIX + MetricsFormat.human(SkinMetrics.INSTANCE.snapshot())));
+        }
+    }
+
+    private boolean checkMetricsPermission(ICommandSender sender) {
+        if (!(sender instanceof EntityPlayerMP)) return true; // console
+        EntityPlayerMP player = (EntityPlayerMP) sender;
+        PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player.canUseCommand(2, "everlastingskins"));
+        if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics")) {
+            sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkMetricsResetPermission(ICommandSender sender) {
+        if (!(sender instanceof EntityPlayerMP)) return true; // console
+        EntityPlayerMP player = (EntityPlayerMP) sender;
+        PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player.canUseCommand(2, "everlastingskins"));
+        if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics.reset")) {
+            sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
+            return false;
         }
         return true;
     }
