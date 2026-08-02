@@ -78,16 +78,16 @@ class I18nUtilsTest {
         @DisplayName("Known key with valid locale returns translation")
         void knownKeyWithValidLocale() {
             assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "en"));
-            assertEquals("Обрабатываем...", I18nUtils.getLocalizedString("change", "ru"));
-            assertEquals("Опрацьовуємо...", I18nUtils.getLocalizedString("change", "uk"));
+            assertEquals("Запрос на смену скина отправлен", I18nUtils.getLocalizedString("change", "ru"));
+            assertEquals("Запит на зміну скіна надіслано", I18nUtils.getLocalizedString("change", "uk"));
         }
 
         @Test
         @DisplayName("Client-style codes resolve through defaultLocaleFor")
         void clientStyleCodesResolve() {
             assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "en_us"));
-            assertEquals("Обрабатываем...", I18nUtils.getLocalizedString("change", "ru_ru"));
-            assertEquals("Скін застосовано.", I18nUtils.getLocalizedString("fulfilled", "uk_ua"));
+            assertEquals("Запрос на смену скина отправлен", I18nUtils.getLocalizedString("change", "ru_ru"));
+            assertEquals("Скін успішно застосовано.", I18nUtils.getLocalizedString("fulfilled", "uk_ua"));
         }
 
         @Test
@@ -99,18 +99,20 @@ class I18nUtilsTest {
         }
 
         @Test
-        @DisplayName("Partial locale falls back to English for missing keys")
-        void partialLocaleFallsBackToEnglish() {
-            // ru carries only the legacy keys; the metrics keys are English-only.
-            assertEquals("Metrics reset", I18nUtils.getLocalizedString("metrics_reset", "ru"));
-            assertEquals("Skin cleared (no Mojang profile found)", I18nUtils.getLocalizedString("cleared_no_profile", "ru"));
+        @DisplayName("ru/uk now carry the full key set, not just legacy keys")
+        void ruUkFullCoverage() {
+            assertEquals("Метрики сброшены", I18nUtils.getLocalizedString("metrics_reset", "ru"));
+            assertEquals("Недостаточно прав", I18nUtils.getLocalizedString("permission_denied", "ru"));
+            assertEquals("Метрики скинуто", I18nUtils.getLocalizedString("metrics_reset", "uk"));
+            assertEquals("Скін не знайдено", I18nUtils.getLocalizedString("no_skin_found_plain", "uk"));
         }
 
         @Test
-        @DisplayName("Empty placeholder locale falls back to English")
-        void emptyPlaceholderFallsBackToEnglish() {
-            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "zh_cn"));
-            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "es_es"));
+        @DisplayName("Placeholder locales now carry natural translations")
+        void placeholderLocalesTranslated() {
+            assertEquals("皮肤更换已请求", I18nUtils.getLocalizedString("change", "zh_cn"));
+            assertEquals("Cambio de aspecto solicitado", I18nUtils.getLocalizedString("change", "es_es"));
+            assertEquals("Скин не найден", I18nUtils.getLocalizedString("no_skin_found_plain", "ru"));
         }
 
         @Test

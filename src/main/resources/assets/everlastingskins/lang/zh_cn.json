@@ -1,1 +1,25 @@
-{}
+{
+  "change": "皮肤更换已请求",
+  "fulfilled": "皮肤已应用。",
+  "fulfilled_force": "管理员已更改您的皮肤。",
+  "timeout": "皮肤获取超时。",
+  "error": "皮肤获取失败。",
+  "restored_from": "皮肤已从 %s 恢复",
+  "cleared_no_profile": "皮肤已清除（未找到 Mojang 账户）",
+  "no_source": "暂无皮肤来源",
+  "player_only": "该指令仅限玩家使用",
+  "permission_denied": "权限不足",
+  "cooldown": "请等待 %d 秒后再使用 /skin",
+  "rate_limited": "操作过于频繁，请稍后再试。",
+  "no_skin_found": "未找到玩家 \"%s\" 的皮肤",
+  "no_skin_found_plain": "未找到皮肤",
+  "mineskin_rejected": "MineSkin 拒绝了该 URL",
+  "no_random_username": "暂无可用随机用户名",
+  "provider_no_result": "皮肤源未返回结果",
+  "metrics_top_players": "皮肤更换次数最多的玩家：",
+  "metrics_refreshes": " 次",
+  "metrics_no_refreshes": "（暂无记录）",
+  "metrics_cleanup": "指标清理：已移除 %d 条过期玩家记录",
+  "metrics_reset": "指标已重置",
+  "discord_announce": "**%s** 将皮肤更改为：`%s`"
+}
