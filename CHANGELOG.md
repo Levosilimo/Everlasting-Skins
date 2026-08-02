@@ -7,7 +7,7 @@
 - **URL domain allowlist** (#148): Same as 1.21 — 9 default domains, eTLD+1 suffix match.
 - **Per-player locale via Access Transformer** (#149): Forge AT exposes `EntityPlayerMP.field_71148_cg # language` (no Mixin, no extra runtime deps). New `I18nUtils.getLocalizedString(key, EntityPlayerMP)` overload with `Config.LANGUAGE` fallback. AT file `everlastingskins_at.cfg` + `FMLAT` manifest attribute.
 - **Discord announce i18n** (#151): Routed through `I18nUtils.getLocalizedString("discord_announce", Config.LANGUAGE)` with `assets/everlastingskins/lang/{en,ru,uk}.properties` resource files.
-- **Per-command op level config** (#153): 7 `permissions_op_level_*` keys (same defaults as 1.21).
+- **Per-command op level config** (#153): 7 `op_level.*` keys (same defaults as 1.21).
 - **`everlastingskins.bypass.cooldown` permission node** (#153): `DefaultPermissionLevel.OP`. 8 total nodes registered (added `.source` + `bypass.cooldown`).
 - **PermissionContext widened** (#153): Java 8-compatible class with opLevel 0-4 validation.
 - **Resource lang files**: `src/main/resources/assets/everlastingskins/lang/{en,ru,uk}.properties` shipped with the mod (not just runtime-writeable config dir).
