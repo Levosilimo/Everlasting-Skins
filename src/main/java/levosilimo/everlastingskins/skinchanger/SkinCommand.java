@@ -108,7 +108,6 @@ public class SkinCommand {
 
     private static LiteralArgumentBuilder<CommandSourceStack> buildSetSubcommand() {
         return Commands.literal("set")
-                // /skin set mojang
                 .then(Commands.literal("mojang")
                         .then(Commands.argument("skin_name", StringArgumentType.word())
                                 .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
@@ -125,7 +124,6 @@ public class SkinCommand {
                                 )
                         )
                 )
-                // /skin set web
                 .then(Commands.literal("web")
                         .then(Commands.literal("classic")
                                 .then(Commands.argument("url", StringArgumentType.string())
@@ -161,7 +159,6 @@ public class SkinCommand {
 
                         )
                 )
-                // /skin set random
                 .then(Commands.literal("random")
                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
                                 Collections.singleton(context.getSource().getPlayer()),

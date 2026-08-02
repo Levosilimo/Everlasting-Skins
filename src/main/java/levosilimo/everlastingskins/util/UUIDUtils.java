@@ -15,7 +15,6 @@ public class UUIDUtils {
         try {
             return Optional.of(UUID.fromString(str));
         } catch (IllegalArgumentException ignored) {
-            // If we have a non-dashed UUID, we can try to convert it to dashed.
             if (str.length() == 32) {
                 try {
                     return Optional.of(convertToDashed(str));
