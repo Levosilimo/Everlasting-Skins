@@ -96,17 +96,17 @@ public final class SkinActionCommand {
         String customSource = params.customSource();
         ServerPlayer selfPlayer = context.getSource().getPlayer();
         if (selfPlayer == null) {
-            context.getSource().sendFailure(I18nUtils.getLocalizedComponent("player_only"));
+            context.getSource().sendFailure(I18nUtils.getLocalizedComponent("player_only", selfPlayer));
             return 0;
         }
         boolean targetingOthers = targets.stream().anyMatch(t -> !t.equals(selfPlayer));
         if (!PermissionServiceManager.hasPermission(
                 PermissionContext.of(selfPlayer.getUUID(), selfPlayer),
                 resolvePermissionNode(type, targetingOthers))) {
-            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("permission_denied")));
+            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", selfPlayer)));
             return 0;
         }
-        if (Config.RATE_LIMIT_ENABLED.get() && isRateLimited(selfPlayer.getUUID(), context)) {
+        if (Config.RATE_LIMIT_ENABLED.get() && isRateLimited(selfPlayer, context)) {
             return 0;
         }
         for (ServerPlayer target : targets) {
@@ -115,9 +115,9 @@ public final class SkinActionCommand {
         targets.forEach(player -> {
             if (Config.TOGGLE.get()) {
                 if (player == context.getSource().getEntity()) {
-                    context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("change")), false);
+                    context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("change", player)), false);
                 } else {
-                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("change")));
+                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("change", player)));
                 }
             }
         });
@@ -233,7 +233,7 @@ public final class SkinActionCommand {
                 } else {
                     SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
                 }
-                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("error")));
+                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("error", player)));
             }
             return;
         }
@@ -253,7 +253,7 @@ public final class SkinActionCommand {
                 EverlastingSkins.logger.info("Skin cleared for player {} — no Mojang profile found", player.getGameProfile().getName());
                 SkinRestorer.getSkinStorage().setSkin(uuid, null);
                 if (Config.TOGGLE.get()) {
-                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("cleared_no_profile")));
+                    player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("cleared_no_profile", player)));
                 }
                 continue;
             }
@@ -266,8 +266,8 @@ public final class SkinActionCommand {
             SkinRestorer.getSkinStorage().setSkin(uuid, skinProperty);
             if (Config.TOGGLE.get()) {
                 String msg = isRestore
-                    ? I18nUtils.get("restored_from", skinProperty.getSource())
-                    : I18nUtils.get("fulfilled");
+                    ? I18nUtils.formatMessage("restored_from", player, skinProperty.getSource())
+                    : I18nUtils.formatMessage("fulfilled", player);
                 if (player == context.getSource().getEntity()) {
                     context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + msg), false);
                 } else {
@@ -315,8 +315,8 @@ public final class SkinActionCommand {
     }
 
     /** Per-player cooldown plus a sliding per-minute window. */
-    private static boolean isRateLimited(UUID playerUuid, CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = context.getSource().getPlayer();
+    private static boolean isRateLimited(ServerPlayer player, CommandContext<CommandSourceStack> context) {
+        UUID playerUuid = player.getUUID();
         if (player != null && PermissionServiceManager.hasPermission(
                 PermissionContext.of(player.getUUID(), player),
                 "everlastingskins.bypass.cooldown")) {
@@ -329,7 +329,7 @@ public final class SkinActionCommand {
         if (lastCommand > 0 && elapsed < cooldownMs) {
             SkinMetrics.INSTANCE.recordRateLimited(playerUuid);
             context.getSource().sendFailure(Component.literal(
-                    I18nUtils.get("cooldown", (cooldownMs - elapsed) / 1000)));
+                    I18nUtils.formatMessage("cooldown", player, (cooldownMs - elapsed) / 1000)));
             return true;
         }
         ArrayDeque<Long> window = commandTimestampsByPlayer.computeIfAbsent(playerUuid, k -> new ArrayDeque<>());
@@ -340,7 +340,7 @@ public final class SkinActionCommand {
             if (window.size() >= Config.MAX_COMMANDS_PER_MINUTE.get()) {
                 SkinMetrics.INSTANCE.recordRateLimited(playerUuid);
                 context.getSource().sendFailure(Component.literal(
-                        I18nUtils.get("rate_limited")));
+                        I18nUtils.formatMessage("rate_limited", player)));
                 return true;
             }
             window.addLast(now);
