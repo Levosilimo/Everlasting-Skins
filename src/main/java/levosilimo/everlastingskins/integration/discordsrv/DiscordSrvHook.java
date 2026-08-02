@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.integration.discordsrv;
 
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,8 +51,7 @@ public final class DiscordSrvHook {
             }
 
             String label = skinSource != null ? skinSource : "default";
-            String message = String.format("**%s** changed their skin to: `%s`",
-                player.getScoreboardName(), label);
+            String message = I18nUtils.get("discord_announce", player.getScoreboardName(), label);
 
             Object messageAction = textChannelClass.getMethod("sendMessage", CharSequence.class)
                 .invoke(textChannel, message);

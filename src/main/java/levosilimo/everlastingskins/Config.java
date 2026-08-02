@@ -68,6 +68,7 @@ public class Config {
     public static ForgeConfigSpec.ConfigValue<List<? extends String>> DEFAULT_SKINS_LIST;
     public static ForgeConfigSpec.BooleanValue URL_ALLOWLIST_ENABLED;
     public static ForgeConfigSpec.ConfigValue<List<? extends String>> URL_ALLOWLIST_DOMAINS;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_DISCORD_ANNOUNCE;
 
     public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_MOJANG;
     public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_URL;
@@ -104,6 +105,7 @@ public class Config {
         MESSAGES_METRICS_NO_REFRESHES = builder.define("messages_metrics_no_refreshes", "(no refreshes recorded)");
         MESSAGES_METRICS_CLEANUP = builder.define("messages_metrics_cleanup", "Metrics cleanup: pruned %d stale player entries");
         MESSAGES_METRICS_RESET = builder.define("messages_metrics_reset", "Metrics reset");
+        MESSAGES_DISCORD_ANNOUNCE = builder.define("messages_discord_announce", "**%s** changed their skin to: `%s`");
         builder.pop();
         builder.push("Integration");
         DISCORDSRV_ENABLED = builder.comment("Enable DiscordSRV skin change announcements")
