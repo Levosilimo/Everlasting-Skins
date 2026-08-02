@@ -14,6 +14,7 @@ import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.network.Connection;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -69,6 +70,7 @@ public class EverlastingSkins {
     public static class EverlastingSkinsEventHandlers {
         @SubscribeEvent
         public static void onServerAboutToStart(ServerAboutToStartEvent event) {
+            I18nUtils.loadAll();
             PermissionServiceManager.init();
         }
 

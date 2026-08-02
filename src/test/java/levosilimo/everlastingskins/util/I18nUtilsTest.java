@@ -9,35 +9,65 @@ package levosilimo.everlastingskins.util;
 
 import levosilimo.everlastingskins.Config;
 import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
-import net.minecraftforge.common.ForgeConfigSpec;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link I18nUtils} — locale loading, property merging, and the
- * config-first message lookup.
+ * Tests for {@link I18nUtils} — JSON locale loading, locale-code
+ * normalization, per-player lookup, and format-arg filling.
  *
- * <p>I18nUtils uses a static initializer to populate three built-in locales
- * (en, ru, uk). The en locale carries the full message-key inventory; ru/uk
- * carry the six legacy keys.  {@code ensureInitialized()} is a no-op when
- * {@code SkinRestorer.server == null} (the normal test environment), so
- * file-backed property loading is not exercised; only compile-time defaults
- * are tested here.</p>
+ * <p>Locales are loaded from the classpath resources
+ * {@code /assets/everlastingskins/lang/<locale>.json} via
+ * {@link I18nUtils#loadAll()}. The English file is complete; ru/uk carry a
+ * partial legacy key set and fall back to English for the rest; the other
+ * eight locale files are empty placeholders (fall back to English).</p>
  */
 class I18nUtilsTest {
 
     @BeforeAll
-    static void loadConfig() {
-        // Serve Config defaults so the Messages config override path is testable.
+    static void loadConfigAndLocales() {
+        // Serve Config defaults so Config.LANGUAGE is readable.
         Config.COMMON_CONFIG.setConfig(
                 InMemoryCommentedFormat.defaultInstance().createConfig(java.util.HashMap::new));
+        I18nUtils.loadAll();
+    }
+
+    @Nested
+    @DisplayName("defaultLocaleFor")
+    class DefaultLocaleFor {
+
+        @ParameterizedTest
+        @CsvSource({
+            "en_us, en",
+            "zh_cn, zh_cn",
+            "en_ud, en",
+            "EN_GB, en",
+            "ru_ru, ru",
+            "uk_ua, uk"
+        })
+        @DisplayName("Normalizes Minecraft locale codes against loaded files")
+        void normalization(String raw, String expected) {
+            assertEquals(expected, I18nUtils.defaultLocaleFor(raw));
+        }
+
+        @Test
+        @DisplayName("Null locale falls back to the default constant")
+        void nullFallsBackToDefault() {
+            assertEquals("en_us", I18nUtils.defaultLocaleFor(null));
+        }
+
+        @Test
+        @DisplayName("Unknown locale falls back to the default constant")
+        void unknownFallsBackToDefault() {
+            assertEquals("en_us", I18nUtils.defaultLocaleFor("xx_xx"));
+            assertEquals("en_us", I18nUtils.defaultLocaleFor("pl"));
+        }
     }
 
     @Nested
@@ -47,147 +77,102 @@ class I18nUtilsTest {
         @Test
         @DisplayName("Known key with valid locale returns translation")
         void knownKeyWithValidLocale() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("Processing...", i18n.getLocalizedString("change", "en"));
-            assertEquals("Обрабатываем...", i18n.getLocalizedString("change", "ru"));
-            assertEquals("Опрацьовуємо...", i18n.getLocalizedString("change", "uk"));
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "en"));
+            assertEquals("Обрабатываем...", I18nUtils.getLocalizedString("change", "ru"));
+            assertEquals("Опрацьовуємо...", I18nUtils.getLocalizedString("change", "uk"));
+        }
+
+        @Test
+        @DisplayName("Client-style codes resolve through defaultLocaleFor")
+        void clientStyleCodesResolve() {
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "en_us"));
+            assertEquals("Обрабатываем...", I18nUtils.getLocalizedString("change", "ru_ru"));
+            assertEquals("Скін застосовано.", I18nUtils.getLocalizedString("fulfilled", "uk_ua"));
         }
 
         @Test
         @DisplayName("Fulfilled force returns operator-changed message")
         void fulfilledForce() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("Operator changed your skin.", i18n.getLocalizedString("fulfilled_force", "en"));
-            assertEquals("Оператор изменил ваш скин.", i18n.getLocalizedString("fulfilled_force", "ru"));
-            assertEquals("Оператор змінив ваш скін.", i18n.getLocalizedString("fulfilled_force", "uk"));
+            assertEquals("Operator changed your skin.", I18nUtils.getLocalizedString("fulfilled_force", "en"));
+            assertEquals("Оператор изменил ваш скин.", I18nUtils.getLocalizedString("fulfilled_force", "ru"));
+            assertEquals("Оператор змінив ваш скін.", I18nUtils.getLocalizedString("fulfilled_force", "uk"));
         }
 
         @Test
-        @DisplayName("Fulfilled returns skin-applied message")
-        void fulfilled() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("Skin has been applied.", i18n.getLocalizedString("fulfilled", "en"));
-            assertEquals("Скин применён.", i18n.getLocalizedString("fulfilled", "ru"));
-            assertEquals("Скін застосовано.", i18n.getLocalizedString("fulfilled", "uk"));
+        @DisplayName("Partial locale falls back to English for missing keys")
+        void partialLocaleFallsBackToEnglish() {
+            // ru carries only the legacy keys; the metrics keys are English-only.
+            assertEquals("Metrics reset", I18nUtils.getLocalizedString("metrics_reset", "ru"));
+            assertEquals("Skin cleared (no Mojang profile found)", I18nUtils.getLocalizedString("cleared_no_profile", "ru"));
         }
 
         @Test
-        @DisplayName("Error returns skin-error message")
-        void errorKey() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("Skin process error occurred.", i18n.getLocalizedString("error", "en"));
-            assertEquals("Возникла ошибка при обработке скина.", i18n.getLocalizedString("error", "ru"));
-            assertEquals("Сталася помилка при обробці скіна.", i18n.getLocalizedString("error", "uk"));
-        }
-
-        @Test
-        @DisplayName("Timeout returns timeout message")
-        void timeoutKey() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("Skin fetch timeout occurred.", i18n.getLocalizedString("timeout", "en"));
-            assertEquals("Тайм-аут получения скина.", i18n.getLocalizedString("timeout", "ru"));
-            assertEquals("Тайм-аут отримання скіна.", i18n.getLocalizedString("timeout", "uk"));
-        }
-
-        @Test
-        @DisplayName("No source returns skin-not-set message")
-        void noSourceKey() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("No source available", i18n.getLocalizedString("no_source", "en"));
-            assertEquals("Скин не установлен", i18n.getLocalizedString("no_source", "ru"));
-            assertEquals("Cкіна не встановлено", i18n.getLocalizedString("no_source", "uk"));
+        @DisplayName("Empty placeholder locale falls back to English")
+        void emptyPlaceholderFallsBackToEnglish() {
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "zh_cn"));
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "es_es"));
         }
 
         @Test
         @DisplayName("Unknown key returns key itself as fallback")
         void unknownKeyReturnsKey() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("nonexistent_key_xyz", i18n.getLocalizedString("nonexistent_key_xyz", "en"));
-            assertEquals("nonexistent_key_xyz", i18n.getLocalizedString("nonexistent_key_xyz", "ru"));
-            assertEquals("nonexistent_key_xyz", i18n.getLocalizedString("nonexistent_key_xyz", "uk"));
+            assertEquals("nonexistent_key_xyz", I18nUtils.getLocalizedString("nonexistent_key_xyz", "en"));
+            assertEquals("nonexistent_key_xyz", I18nUtils.getLocalizedString("nonexistent_key_xyz", "ru"));
         }
 
         @Test
-        @DisplayName("Unknown locale returns key itself")
-        void unknownLocaleReturnsKey() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("change", i18n.getLocalizedString("change", "de"));
-            assertEquals("change", i18n.getLocalizedString("change", "fr"));
-            assertEquals("change", i18n.getLocalizedString("change", "es"));
-            assertEquals("change", i18n.getLocalizedString("change", "pl"));
+        @DisplayName("Unknown locale falls back to English text, not the raw key")
+        void unknownLocaleReturnsEnglish() {
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "de"));
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "fr"));
         }
 
         @Test
-        @DisplayName("Null key with valid locale returns null")
-        void nullKeyWithValidLocale() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertNull(i18n.getLocalizedString(null, "en"));
-            assertNull(i18n.getLocalizedString(null, "ru"));
-            assertNull(i18n.getLocalizedString(null, "uk"));
+        @DisplayName("Null key returns null")
+        void nullKey() {
+            assertNull(I18nUtils.getLocalizedString(null, "en"));
+            assertNull(I18nUtils.getLocalizedString(null, "ru"));
         }
 
         @Test
-        @DisplayName("Null locale returns key itself")
-        void nullLocaleReturnsKey() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals("change", i18n.getLocalizedString("change", null));
-            assertEquals("error", i18n.getLocalizedString("error", null));
+        @DisplayName("Null locale resolves through the default constant")
+        void nullLocaleResolvesEnglish() {
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", (String) null));
         }
 
         @Test
         @DisplayName("Null key and null locale returns null")
         void nullKeyAndNullLocale() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertNull(i18n.getLocalizedString(null, null));
-        }
-
-        @ParameterizedTest
-        @CsvSource({
-            "en, Processing...",
-            "ru, Обрабатываем...",
-            "uk, Опрацьовуємо..."
-        })
-        @DisplayName("Parametrized: known key 'change' per locale")
-        void parametrizedChangeKey(String locale, String expected) {
-            I18nUtils i18n = I18nUtils.getInstance();
-            assertEquals(expected, i18n.getLocalizedString("change", locale));
+            assertNull(I18nUtils.getLocalizedString(null, (String) null));
         }
 
         @Test
-        @DisplayName("All known keys have translations in all built-in locales")
-        void allKeysHaveTranslations() {
-            I18nUtils i18n = I18nUtils.getInstance();
-            String[] locales = {"en", "ru", "uk"};
-            String[] keys = {"change", "fulfilled_force", "fulfilled", "error", "timeout", "no_source"};
-            for (String locale : locales) {
-                for (String key : keys) {
-                    String result = i18n.getLocalizedString(key, locale);
-                    assertNotNull(result,
-                        () -> "Key '" + key + "' produced null in locale '" + locale + "'");
-                    assertNotEquals(key, result,
-                        () -> "Key '" + key + "' not translated in locale '" + locale + "'");
-                    assertFalse(result.isEmpty(),
-                        () -> "Key '" + key + "' produced empty string in locale '" + locale + "'");
-                }
+        @DisplayName("All keys in en.json resolve to non-empty text")
+        void allEnglishKeysResolve() {
+            String[] keys = {"change", "fulfilled", "fulfilled_force", "timeout", "error",
+                "restored_from", "cleared_no_profile", "no_source", "player_only",
+                "permission_denied", "cooldown", "rate_limited", "no_skin_found",
+                "no_skin_found_plain", "mineskin_rejected", "no_random_username",
+                "provider_no_result", "metrics_top_players", "metrics_refreshes",
+                "metrics_no_refreshes", "metrics_cleanup", "metrics_reset",
+                "discord_announce"};
+            for (String key : keys) {
+                String result = I18nUtils.getLocalizedString(key, "en");
+                assertNotNull(result, () -> "Key '" + key + "' produced null");
+                assertNotEquals(key, result, () -> "Key '" + key + "' not translated");
+                assertFalse(result.isEmpty(), () -> "Key '" + key + "' produced empty string");
             }
         }
     }
 
     @Nested
-    @DisplayName("get (config-first message lookup)")
+    @DisplayName("get / getLocalizedComponent")
     class Get {
 
         @Test
-        @DisplayName("Existing key falls back to built-in locale text at defaults")
+        @DisplayName("Existing key uses global locale text (Config.LANGUAGE)")
         void existingKeyUsesLocaleText() {
-            assertEquals("Processing...", I18nUtils.get("change"));
-        }
-
-        @Test
-        @DisplayName("New key falls back to the config default")
-        void newKeyUsesConfigDefault() {
-            assertEquals("Permission denied", I18nUtils.get("permission_denied"));
-            assertEquals("No random username available", I18nUtils.get("no_random_username"));
+            assertEquals("Skin change queued", I18nUtils.get("change"));
         }
 
         @Test
@@ -199,16 +184,9 @@ class I18nUtilsTest {
         }
 
         @Test
-        @DisplayName("Messages config override wins over locale text")
-        void configOverrideWins() {
-            ForgeConfigSpec.ConfigValue<String> cfg = Config.MESSAGES_CHANGE;
-            String original = cfg.get();
-            try {
-                cfg.set("Custom change message");
-                assertEquals("Custom change message", I18nUtils.get("change"));
-            } finally {
-                cfg.set(original);
-            }
+        @DisplayName("Malformed template returns the raw template")
+        void malformedTemplateReturnsRaw() {
+            assertEquals("Skin restored from %s", I18nUtils.get("restored_from"));
         }
 
         @Test
@@ -220,19 +198,34 @@ class I18nUtilsTest {
         @Test
         @DisplayName("getLocalizedComponent wraps get() in a literal component")
         void componentWrap() {
-            assertEquals("Processing...", I18nUtils.getLocalizedComponent("change").getString());
+            assertEquals("Skin change queued", I18nUtils.getLocalizedComponent("change").getString());
         }
     }
 
     @Nested
-    @DisplayName("getInstance (singleton)")
-    class GetInstance {
+    @DisplayName("Per-player lookup")
+    class PerPlayer {
 
         @Test
-        @DisplayName("Returns same instance on repeated calls")
-        void singletonReturnsSameInstance() {
-            assertSame(I18nUtils.getInstance(), I18nUtils.getInstance());
-            assertSame(I18nUtils.getInstance(), I18nUtils.getInstance());
+        @DisplayName("Null player falls back to Config.LANGUAGE")
+        void nullPlayerFallsBackToGlobal() {
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", (net.minecraft.server.level.ServerPlayer) null));
+        }
+
+        @Test
+        @DisplayName("formatMessage fills args with null player")
+        void formatMessageWithNullPlayer() {
+            assertEquals("No skin found for \"Steve\"",
+                    I18nUtils.formatMessage("no_skin_found", null, "Steve"));
+            assertEquals("Metrics cleanup: pruned 5 stale player entries",
+                    I18nUtils.formatMessage("metrics_cleanup", null, 5));
+        }
+
+        @Test
+        @DisplayName("getLocalizedComponent per-player overload wraps formatMessage")
+        void componentOverload() {
+            assertEquals("Skin change queued",
+                    I18nUtils.getLocalizedComponent("change", (net.minecraft.server.level.ServerPlayer) null).getString());
         }
     }
 }

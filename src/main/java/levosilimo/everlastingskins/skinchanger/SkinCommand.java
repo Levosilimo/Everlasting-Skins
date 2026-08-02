@@ -231,7 +231,7 @@ public class SkinCommand {
         String source = SkinRestorer.getSkinStorage().getSource(uuid);
         MutableComponent message = source != null
             ? Component.literal(FEEDBACK_PREFIX + " " + source)
-            : Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("no_source"));
+            : Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("no_source", target));
         context.getSource().sendSuccess(() -> message, false);
         return 1;
     }
