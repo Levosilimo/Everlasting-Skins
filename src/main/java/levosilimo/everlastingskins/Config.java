@@ -40,7 +40,27 @@ public class Config {
     public static ForgeConfigSpec.BooleanValue MOJANG_CACHE_ENABLED;
     public static ForgeConfigSpec.LongValue MOJANG_CACHE_TTL_MS;
     public static ForgeConfigSpec.IntValue MOJANG_CACHE_MAX_SIZE;
-
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_CHANGE;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_FULFILLED;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_TIMEOUT;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_ERROR;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_RESTORED_FROM;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_CLEARED_NO_PROFILE;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_NO_SOURCE;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_PLAYER_ONLY;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_PERMISSION_DENIED;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_COOLDOWN;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_RATE_LIMITED;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_NO_SKIN_FOUND;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_NO_SKIN_FOUND_PLAIN;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_MINESKIN_REJECTED;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_NO_RANDOM_USERNAME;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_PROVIDER_NO_RESULT;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_METRICS_TOP_PLAYERS;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_METRICS_REFRESHES;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_METRICS_NO_REFRESHES;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_METRICS_CLEANUP;
+    public static ForgeConfigSpec.ConfigValue<String> MESSAGES_METRICS_RESET;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -48,6 +68,27 @@ public class Config {
         LANGUAGE = builder.comment("Language of mod messages").define("localization","en");
         TOGGLE = builder.comment("Display mod messages").define("display",true);
         MINESKIN_API_KEY = builder.comment("Mineskin api key").define("key","");
+        MESSAGES_CHANGE = builder.define("messages_change", "Skin change queued");
+        MESSAGES_FULFILLED = builder.define("messages_fulfilled", "Skin has been applied.");
+        MESSAGES_TIMEOUT = builder.define("messages_timeout", "Skin fetch timed out.");
+        MESSAGES_ERROR = builder.define("messages_error", "Skin fetch failed.");
+        MESSAGES_RESTORED_FROM = builder.define("messages_restored_from", "Skin restored from %s");
+        MESSAGES_CLEARED_NO_PROFILE = builder.define("messages_cleared_no_profile", "Skin cleared (no Mojang profile found)");
+        MESSAGES_NO_SOURCE = builder.define("messages_no_source", "No source available");
+        MESSAGES_PLAYER_ONLY = builder.define("messages_player_only", "Player only command");
+        MESSAGES_PERMISSION_DENIED = builder.define("messages_permission_denied", "Permission denied");
+        MESSAGES_COOLDOWN = builder.define("messages_cooldown", "Please wait %ds before using /skin again");
+        MESSAGES_RATE_LIMITED = builder.define("messages_rate_limited", "Too many /skin commands. Try again later.");
+        MESSAGES_NO_SKIN_FOUND = builder.define("messages_no_skin_found", "No skin found for \"%s\"");
+        MESSAGES_NO_SKIN_FOUND_PLAIN = builder.define("messages_no_skin_found_plain", "No skin found");
+        MESSAGES_MINESKIN_REJECTED = builder.define("messages_mineskin_rejected", "MineSkin rejected the URL");
+        MESSAGES_NO_RANDOM_USERNAME = builder.define("messages_no_random_username", "No random username available");
+        MESSAGES_PROVIDER_NO_RESULT = builder.define("messages_provider_no_result", "Provider returned no result");
+        MESSAGES_METRICS_TOP_PLAYERS = builder.define("messages_metrics_top_players", "Top players by refresh count:");
+        MESSAGES_METRICS_REFRESHES = builder.define("messages_metrics_refreshes", " refreshes");
+        MESSAGES_METRICS_NO_REFRESHES = builder.define("messages_metrics_no_refreshes", "(no refreshes recorded)");
+        MESSAGES_METRICS_CLEANUP = builder.define("messages_metrics_cleanup", "Metrics cleanup: pruned %d stale player entries");
+        MESSAGES_METRICS_RESET = builder.define("messages_metrics_reset", "Metrics reset");
         builder.pop();
         builder.push("Integration");
         DISCORDSRV_ENABLED = builder.comment("Enable DiscordSRV skin change announcements")

@@ -13,6 +13,7 @@ import levosilimo.everlastingskins.metrics.MetricsFormat;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -47,7 +48,7 @@ public final class SkinMetricsCommand {
     private static int metrics(CommandContext<CommandSourceStack> context, boolean asJson) {
         ServerPlayer player = context.getSource().getPlayer();
         if (player == null) {
-            context.getSource().sendFailure(Component.literal("Player only command"));
+            context.getSource().sendFailure(I18nUtils.getLocalizedComponent("player_only"));
             return 0;
         }
         if (!hasPermission(context, "everlastingskins.command.metrics")) return 0;
@@ -60,14 +61,14 @@ public final class SkinMetricsCommand {
     private static int players(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = context.getSource().getPlayer();
         if (player == null || !hasPermission(context, "everlastingskins.command.metrics")) return 0;
-        StringBuilder sb = new StringBuilder(FEEDBACK_PREFIX + " Top players by refresh count:");
+        StringBuilder sb = new StringBuilder(FEEDBACK_PREFIX + " " + I18nUtils.get("metrics_top_players"));
         int rank = 0;
         for (Map.Entry<UUID, SkinMetrics.PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
             sb.append("\n  ").append(++rank).append(". ")
                     .append(e.getKey()).append(" — ")
-                    .append(e.getValue().refreshCount()).append(" refreshes");
+                    .append(e.getValue().refreshCount()).append(I18nUtils.get("metrics_refreshes"));
         }
-        if (rank == 0) sb.append("\n  (no refreshes recorded)");
+        if (rank == 0) sb.append("\n  ").append(I18nUtils.get("metrics_no_refreshes"));
         context.getSource().sendSuccess(() -> Component.literal(sb.toString()), false);
         return 1;
     }
@@ -76,14 +77,14 @@ public final class SkinMetricsCommand {
         if (!hasPermission(context, "everlastingskins.command.metrics.reset")) return 0;
         int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(CLEANUP_OLDER_THAN_MS);
         context.getSource().sendSuccess(() -> Component.literal(
-                FEEDBACK_PREFIX + " Metrics cleanup: pruned " + removed + " stale player entries"), false);
+                FEEDBACK_PREFIX + " " + I18nUtils.get("metrics_cleanup", removed)), false);
         return 1;
     }
 
     private static int reset(CommandContext<CommandSourceStack> context) {
         if (!hasPermission(context, "everlastingskins.command.metrics.reset")) return 0;
         SkinMetrics.INSTANCE.reset();
-        context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " Metrics reset"), false);
+        context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("metrics_reset")), false);
         return 1;
     }
 
@@ -93,7 +94,7 @@ public final class SkinMetricsCommand {
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player.hasPermissions(2));
         boolean allowed = PermissionServiceManager.hasPermission(ctx, node);
         if (!allowed) {
-            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " Permission denied"));
+            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("permission_denied")));
         }
         return allowed;
     }

@@ -18,6 +18,7 @@ import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.command.SkinMetricsCommand;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -230,7 +231,7 @@ public class SkinCommand {
         String source = SkinRestorer.getSkinStorage().getSource(uuid);
         MutableComponent message = source != null
             ? Component.literal(FEEDBACK_PREFIX + " " + source)
-            : Component.literal(FEEDBACK_PREFIX + " No source available");
+            : Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("no_source"));
         context.getSource().sendSuccess(() -> message, false);
         return 1;
     }
