@@ -10,6 +10,8 @@ package levosilimo.everlastingskins;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.List;
+
 @Mod.EventBusSubscriber
 public class Config {
     public static ForgeConfigSpec COMMON_CONFIG;
@@ -61,6 +63,9 @@ public class Config {
     public static ForgeConfigSpec.ConfigValue<String> MESSAGES_METRICS_NO_REFRESHES;
     public static ForgeConfigSpec.ConfigValue<String> MESSAGES_METRICS_CLEANUP;
     public static ForgeConfigSpec.ConfigValue<String> MESSAGES_METRICS_RESET;
+    public static ForgeConfigSpec.BooleanValue DEFAULT_SKINS_ENABLED;
+    public static ForgeConfigSpec.BooleanValue DEFAULT_SKINS_APPLY_FOR_PREMIUM;
+    public static ForgeConfigSpec.ConfigValue<List<? extends String>> DEFAULT_SKINS_LIST;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -135,6 +140,16 @@ public class Config {
             .defineInRange("mojang_profile_cache_ttl_ms", 3600000L, 0L, 604800000L);
         MOJANG_CACHE_MAX_SIZE = builder.comment("Max Mojang profile cache entries (oldest evicted first)")
             .defineInRange("mojang_profile_cache_max_size", 1000, 0, 1000000);
+        builder.pop();
+        builder.push("DefaultSkins");
+        DEFAULT_SKINS_ENABLED = builder.comment("Apply a default skin from 'list' to players without a saved custom skin")
+            .define("enabled", false);
+        DEFAULT_SKINS_APPLY_FOR_PREMIUM = builder.comment("Also apply the default skin to players WITH a saved custom skin"
+                + " (display-only override; their stored custom skin is preserved)")
+            .define("applyForPremium", false);
+        DEFAULT_SKINS_LIST = builder.comment("Default skins list: Mojang usernames or the literal '<random>' token"
+                + " (random Mojang username on each login)")
+            .defineList("list", List.of("Steve", "<random>"), o -> o instanceof String);
         builder.pop();
         COMMON_CONFIG = builder.build();
     }
