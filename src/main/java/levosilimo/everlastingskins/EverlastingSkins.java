@@ -43,6 +43,7 @@ public class EverlastingSkins {
     public static final List<String> languages = Lists.newArrayList();
 
     public EverlastingSkins() {
+        I18nUtils.loadAll();
         PermissionServiceManager.init();
         ForgePermissionService.registerNodes();
         MinecraftForge.EVENT_BUS.addListener(ForgePermissionService::onPermissionGather);
