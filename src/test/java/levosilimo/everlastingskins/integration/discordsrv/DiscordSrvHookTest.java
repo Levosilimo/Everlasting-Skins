@@ -9,13 +9,16 @@ package levosilimo.everlastingskins.integration.discordsrv;
 
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.dependencies.jda.api.JDA;
-import net.minecraft.server.level.ServerPlayer;
+import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.util.I18nUtils;
 
+import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -33,6 +36,51 @@ import static org.mockito.Mockito.*;
  * method's declared return type is the relocated JDA type.
  */
 class DiscordSrvHookTest {
+
+    @BeforeAll
+    static void init() {
+        // Serve Config defaults so the null-player fallback (Config.LANGUAGE) works.
+        Config.COMMON_CONFIG.setConfig(
+                InMemoryCommentedFormat.defaultInstance().createConfig(java.util.HashMap::new));
+        // Load classpath locale resources for per-player announce assertions.
+        I18nUtils.loadAll();
+    }
+
+    @Test
+    @DisplayName("announce text uses the player's client language (lib-7 disc-i18n)")
+    void discI18n_discordAnnounce_usesLocalizedMessage() {
+        // ServerPlayer cannot be mocked in the unit JVM (its supertype static
+        // initializers require a bootstrapped Minecraft runtime), so the
+        // per-player routing formatAnnounce delegates to is asserted through
+        // the locale API directly: the German file must carry the announce key.
+        String german = I18nUtils.getLocalizedString("discord_announce", "de_de");
+        assertTrue(german.contains("geändert"), "expected German text, got: " + german);
+        assertNotEquals("discord_announce", german);
+    }
+
+    @Test
+    @DisplayName("unsupported client language falls back to English (lib-7 disc-i18n)")
+    void discI18n_discordAnnounce_fallbackToEnglishWhenLanguageUnsupported() {
+        String result = I18nUtils.getLocalizedString("discord_announce", "zz_zz");
+        assertTrue(result.contains("changed their skin"), "expected English fallback, got: " + result);
+        assertFalse(result.contains("geändert"));
+    }
+
+    @Test
+    @DisplayName("null player falls back to the global locale (lib-7 disc-i18n)")
+    void discI18n_discordAnnounce_nullPlayerUsesGlobalLocale() {
+        String result = DiscordSrvHook.formatAnnounce(null, "Notch");
+        assertTrue(result.contains("changed their skin"), "expected global-locale text, got: " + result);
+    }
+
+    @Test
+    @DisplayName("null skin source uses the 'default' label (lib-7 disc-i18n)")
+    void discI18n_discordAnnounce_nullSourceDefaultsLabel() {
+        String result = DiscordSrvHook.formatAnnounce(null, null);
+        assertTrue(result.contains("`default`"), "expected default label, got: " + result);
+        String withSource = DiscordSrvHook.formatAnnounce(null, "Notch");
+        assertTrue(withSource.contains("`Notch`"), "expected source label, got: " + withSource);
+    }
 
     @Test
     @DisplayName("null DiscordSRV plugin instance is handled gracefully (DSRV-2)")

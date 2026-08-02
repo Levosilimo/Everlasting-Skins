@@ -50,8 +50,7 @@ public final class DiscordSrvHook {
                 return;
             }
 
-            String label = skinSource != null ? skinSource : "default";
-            String message = I18nUtils.get("discord_announce", player.getScoreboardName(), label);
+            String message = formatAnnounce(player, skinSource);
 
             Object messageAction = textChannelClass.getMethod("sendMessage", CharSequence.class)
                 .invoke(textChannel, message);
@@ -63,5 +62,17 @@ public final class DiscordSrvHook {
         } catch (NoSuchMethodException | IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
             LOGGER.warn("DiscordSRV reflection chain failed: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Builds the localized announcement text for a player. Routes through the
+     * per-player locale (client language) so non-English players get their own
+     * language in the Discord channel; falls back to Config.LANGUAGE for a
+     * null player. Package-private for direct unit testing.
+     */
+    static String formatAnnounce(ServerPlayer player, String skinSource) {
+        String label = skinSource != null ? skinSource : "default";
+        String name = player != null ? player.getScoreboardName() : "";
+        return I18nUtils.formatMessage("discord_announce", player, name, label);
     }
 }

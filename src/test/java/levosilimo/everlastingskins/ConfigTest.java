@@ -181,4 +181,59 @@ class ConfigTest {
             }
         }
     }
+
+    /* ================================================================== */
+    /*  Mojang cache config (lib-7 gap: #143 keys untested)                */
+    /* ================================================================== */
+
+    @Nested
+    @DisplayName("Mojang cache config")
+    class MojangCacheConfig {
+
+        @Test
+        @DisplayName("MOJANG_CACHE_ENABLED defaults to true")
+        void mojangCacheEnabledDefault() {
+            assertTrue(Config.MOJANG_CACHE_ENABLED.get());
+        }
+
+        @Test
+        @DisplayName("MOJANG_CACHE_TTL_MS defaults to 1 hour")
+        void mojangCacheTtlDefault() {
+            assertEquals(3600000L, Config.MOJANG_CACHE_TTL_MS.get());
+        }
+
+        @Test
+        @DisplayName("MOJANG_CACHE_MAX_SIZE defaults to 1000")
+        void mojangCacheMaxSizeDefault() {
+            assertEquals(1000, Config.MOJANG_CACHE_MAX_SIZE.get());
+        }
+
+        @Test
+        @DisplayName("TTL can be set to 0 to disable caching")
+        void mojangCacheTtlZeroDisablesCaching() {
+            long orig = Config.MOJANG_CACHE_TTL_MS.get();
+            try {
+                Config.MOJANG_CACHE_TTL_MS.set(0L);
+                assertEquals(0L, Config.MOJANG_CACHE_TTL_MS.get());
+            } finally {
+                Config.MOJANG_CACHE_TTL_MS.set(orig);
+            }
+        }
+
+        @Test
+        @DisplayName("cache keys can be toggled off and read back")
+        void mojangCacheToggledOff() {
+            boolean origEnabled = Config.MOJANG_CACHE_ENABLED.get();
+            long origTtl = Config.MOJANG_CACHE_TTL_MS.get();
+            try {
+                Config.MOJANG_CACHE_ENABLED.set(false);
+                Config.MOJANG_CACHE_TTL_MS.set(0L);
+                assertFalse(Config.MOJANG_CACHE_ENABLED.get());
+                assertEquals(0L, Config.MOJANG_CACHE_TTL_MS.get());
+            } finally {
+                Config.MOJANG_CACHE_ENABLED.set(origEnabled);
+                Config.MOJANG_CACHE_TTL_MS.set(origTtl);
+            }
+        }
+    }
 }
