@@ -13,6 +13,8 @@ import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -64,19 +66,41 @@ public final class I18nUtils {
     private static void loadLocale(String locale, Path configDir) {
         Path override = configDir.resolve("lang_" + locale + ".properties");
         java.net.URL resourceUrl = I18nUtils.class.getResource("/assets/everlastingskins/lang/" + locale + ".properties");
+        // Fresh Properties per locale — no cross-file key leak.
         Properties merged = new Properties();
         if (resourceUrl != null) {
             try (InputStream is = resourceUrl.openStream()) {
-                merged.load(is);
+                merged.load(new InputStreamReader(is, StandardCharsets.UTF_8));
             } catch (IOException ignored) {}
         }
         if (Files.exists(override)) {
-            try (InputStream is = Files.newInputStream(override)) { merged.load(is); }
-            catch (IOException ignored) {}
+            try (InputStream is = Files.newInputStream(override)) {
+                merged.load(new InputStreamReader(is, StandardCharsets.UTF_8));
+            } catch (IOException ignored) {}
         }
         Map<String, String> map = new HashMap<>();
         for (String k : merged.stringPropertyNames()) map.put(k, merged.getProperty(k));
         localizedStrings.put(locale, map);
+    }
+
+    /** Formats a localized template (String.format semantics; safe fallback to the raw template). */
+    public static String formatMessage(String key, String locale, Object... args) {
+        String template = getLocalizedString(key, locale);
+        try {
+            return String.format(template, args);
+        } catch (Exception e) {
+            return template;
+        }
+    }
+
+    /** Per-player variant of {@link #formatMessage(String, String, Object...)}. */
+    public static String formatMessage(String key, EntityPlayerMP player, Object... args) {
+        String template = getLocalizedString(key, player);
+        try {
+            return String.format(template, args);
+        } catch (Exception e) {
+            return template;
+        }
     }
 
     public static String defaultLocaleFor(String language) {

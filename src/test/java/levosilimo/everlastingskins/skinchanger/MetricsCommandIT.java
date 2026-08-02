@@ -79,14 +79,14 @@ class MetricsCommandIT {
 
         sender.output.setLength(0);
         assertEquals(1, commandManager.executeCommand(sender, "/skin metrics players"));
-        assertTrue(sender.output.toString().contains("Top players by refresh count"));
+        assertTrue(sender.output.toString().contains("metrics_top_players"));
 
         sender.output.setLength(0);
         assertEquals(1, commandManager.executeCommand(sender, "/skin metrics cleanup"));
-        assertTrue(sender.output.toString().contains("pruned"));
+        assertTrue(sender.output.toString().contains("metrics_cleanup"));
 
         sender.output.setLength(0);
         assertEquals(1, commandManager.executeCommand(sender, "/skin metrics reset"));
-        assertTrue(sender.output.toString().contains("Metrics reset"));
+        assertTrue(sender.output.toString().contains("metrics_reset"));
     }
 }

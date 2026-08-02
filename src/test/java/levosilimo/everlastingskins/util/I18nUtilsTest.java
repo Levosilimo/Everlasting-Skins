@@ -6,6 +6,7 @@
 
 package levosilimo.everlastingskins.util;
 
+import net.minecraft.entity.player.EntityPlayerMP;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.Properties;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link I18nUtils} — 1.12.2 locale resolution and fallback logic.
@@ -25,6 +33,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * testable without server infrastructure.</p>
  */
 class I18nUtilsTest {
+
+    private static final String[] EXPECTED_KEYS = {
+        "change", "fulfilled", "timeout", "error", "restored_from", "cleared_no_profile",
+        "no_source", "player_only", "permission_denied", "cooldown", "rate_limited",
+        "no_skin_found", "no_skin_found_plain", "mineskin_rejected", "no_random_username",
+        "provider_no_result", "metrics_top_players", "metrics_refreshes",
+        "metrics_no_refreshes", "metrics_cleanup", "metrics_reset", "discord_announce"
+    };
 
     @Nested
     @DisplayName("getLocalizedString (empty map fallback)")
@@ -133,6 +149,91 @@ class I18nUtilsTest {
         @DisplayName("Known locale returns itself (value source)")
         void knownLocalesReturnThemselves(String locale) {
             assertEquals(locale, I18nUtils.defaultLocaleFor(locale));
+        }
+    }
+
+    @Nested
+    @DisplayName("getLocalizedString (per-player overload)")
+    class GetLocalizedStringPerPlayer {
+
+        @Test
+        @DisplayName("null player falls back through Config.LANGUAGE to the empty map -> key itself")
+        void nullPlayerFallsBackToKey() {
+            assertEquals("fulfilled", I18nUtils.getLocalizedString("fulfilled", (EntityPlayerMP) null));
+        }
+
+        @Test
+        @DisplayName("mocked player with any client language still resolves through the empty map -> key itself")
+        void mockedPlayerResolvesLocale() {
+            EntityPlayerMP player = mock(EntityPlayerMP.class);
+            player.language = "ru_ru";
+            assertEquals("timeout", I18nUtils.getLocalizedString("timeout", player));
+        }
+    }
+
+    @Nested
+    @DisplayName("formatMessage")
+    class FormatMessage {
+
+        @Test
+        @DisplayName("template without placeholders ignores extra args")
+        void noPlaceholdersIgnoresArgs() {
+            assertEquals("fulfilled", I18nUtils.formatMessage("fulfilled", "en", "bogus"));
+        }
+
+        @Test
+        @DisplayName("unknown key returns key itself")
+        void unknownKeyReturnsKey() {
+            assertEquals("nonexistent", I18nUtils.formatMessage("nonexistent", "en", 1));
+        }
+
+        @Test
+        @DisplayName("per-player overload resolves a player's locale (empty map -> key itself)")
+        void perPlayerOverload() {
+            EntityPlayerMP player = mock(EntityPlayerMP.class);
+            player.language = "uk_ua";
+            assertEquals("cooldown", I18nUtils.formatMessage("cooldown", player, 5));
+        }
+    }
+
+    @Nested
+    @DisplayName("shipped locale resources")
+    class ShippedLocales {
+
+        @ParameterizedTest
+        @ValueSource(strings = {"en", "ru", "uk"})
+        @DisplayName("locale file ships all 22 keys (UTF-8 readable)")
+        void localeFileHasAll22Keys(String locale) throws IOException {
+            String path = "/assets/everlastingskins/lang/" + locale + ".properties";
+            Properties props = new Properties();
+            try (InputStream is = I18nUtilsTest.class.getResourceAsStream(path)) {
+                assertNotNull(is, "missing resource " + path);
+                props.load(new InputStreamReader(is, StandardCharsets.UTF_8));
+            }
+            for (String key : EXPECTED_KEYS) {
+                assertTrue(props.containsKey(key), "missing key '" + key + "' in " + path);
+                assertFalse(props.getProperty(key).trim().isEmpty(), "empty value for '" + key + "' in " + path);
+            }
+        }
+
+        @Test
+        @DisplayName("no stray format specifiers in translations without args")
+        void noStrayPercentInPlainKeys() throws IOException {
+            Properties props = new Properties();
+            try (InputStream is = I18nUtilsTest.class.getResourceAsStream(
+                    "/assets/everlastingskins/lang/en.properties")) {
+                props.load(new InputStreamReader(is, StandardCharsets.UTF_8));
+            }
+            for (String key : EXPECTED_KEYS) {
+                String value = props.getProperty(key);
+                boolean expectsArg = "restored_from".equals(key) || "cooldown".equals(key)
+                    || "no_skin_found".equals(key) || "metrics_cleanup".equals(key)
+                    || "discord_announce".equals(key);
+                if (!expectsArg) {
+                    assertFalse(value.contains("%"),
+                        "plain key '" + key + "' must not contain '%': " + value);
+                }
+            }
         }
     }
 }

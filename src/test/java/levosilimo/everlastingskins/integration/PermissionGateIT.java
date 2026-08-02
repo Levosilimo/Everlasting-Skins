@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Op gate contract: EntityPlayerMP.canUseCommand(2, ...) drives the vanilla
  * permission check inside SkinCommand; non-op senders are rejected with
- * "Permission denied" before any provider call.
+ * 'permission_denied' key (falls back to itself under the empty-map harness) before any provider call.
  */
 class PermissionGateIT {
 
@@ -61,7 +61,7 @@ class PermissionGateIT {
         assertEquals(1, result);
         List<SPacketChat> chats = log.ofType(SPacketChat.class);
         assertTrue(chats.stream()
-            .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("Permission denied")));
+            .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("permission_denied")));
         assertNull(ctx.storage.getSkin(bob.getUniqueID()));
     }
 

@@ -99,11 +99,12 @@ class ClearSourceRandomIT {
         ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
         assertTrue(AsyncSupport.await(5000, () -> ctx.storage.getSkin(alice.getUniqueID()) != null),
             "skin should be stored after the async apply completes");
-        // The apply pipeline sends "Skin applied" as its last step; await it so
-        // it cannot land after log.clear() and inflate the /skin source count.
+        // The apply pipeline sends the 'fulfilled' message as its last step; await
+        // it so it cannot land after log.clear() and inflate the /skin source count.
+        // (I18nUtils map is empty under the MockServer harness, so the key falls back to itself.)
         assertTrue(AsyncSupport.await(5000, () -> log.ofType(SPacketChat.class).stream()
-                .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("Skin applied"))),
-            "apply pipeline must finish with the 'Skin applied' chat before clear");
+                .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("fulfilled"))),
+            "apply pipeline must finish with the 'fulfilled' chat before clear");
         log.clear();
 
         ctx.commandManager.executeCommand(alice, "/skin source");
