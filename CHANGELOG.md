@@ -16,3 +16,25 @@
 ### Changed
 - Multi-target /skin clear now per-target restores from Mojang
 - SkinRefreshHandler.task() wrapped in try/catch (was: partial cascade on exception)
+
+## 2.0.0 (2026-08-02)
+
+### Added
+- REMOVE+ADD_PLAYER observer fix (replaces UPDATE_DISPLAY_NAME that carried zero textures)
+- 6 ranks of improvements (skip-if-unchanged, async IO coalesce, dimension-scoped broadcast, rate limit, debounce, redundancy removal)
+- Network metrics instrumentation via ChannelDuplexHandler
+- MojangProfileCache (TTL 1h, cap 1000)
+- /skin metrics command tree (human/json/players/cleanup/reset)
+- saveSkinAsync drain-coalesce writer (50ms debounce, race-safe latch)
+- 28 integration tests (GameTest) + wire-level packet assertions
+
+### Changed
+- SkinRefreshHandler refactored (split into SkinRefreshHandler + SkinActionCommand + SkinMetricsCommand)
+- Permission semantics: 4 permission backends (Vanilla, Forge, LuckPerms, auto-detection)
+- Config refactored: Config.java split + ForgeConfigSpec
+
+### Fixed
+- Observer-cache bug: REMOVE+ADD_PLAYER ensures observers see skin updates
+
+### Removed
+- UPDATE_DISPLAY_NAME from refresh cascade
