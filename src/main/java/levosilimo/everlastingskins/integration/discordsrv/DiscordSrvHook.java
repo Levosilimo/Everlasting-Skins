@@ -6,6 +6,8 @@
 
 package levosilimo.everlastingskins.integration.discordsrv;
 
+import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.entity.player.EntityPlayerMP;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,7 +51,8 @@ public final class DiscordSrvHook {
             }
 
             String label = skinSource != null ? skinSource : "default";
-            String message = String.format("**%s** changed their skin to: `%s`",
+            String message = String.format(
+                I18nUtils.getLocalizedString("discord_announce", Config.LANGUAGE),
                 player.getDisplayNameString(), label);
 
             Object messageAction = textChannelClass.getMethod("sendMessage", CharSequence.class)
