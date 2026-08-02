@@ -20,7 +20,7 @@ jacoco {
 
 apply plugin: 'net.minecraftforge.gradle.forge'
 
-version = '2.0.0'
+version = "${mod_version}"
 group = 'levosilimo.everlastingskins'
 archivesBaseName = 'everlastingskins-1.12.2'
 
