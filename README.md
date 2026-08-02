@@ -51,6 +51,8 @@ Each branch has its own README with version-specific installation instructions, 
 | `/skin source` | any | Show your current skin source |
 | `/skin metrics [human\|json\|players\|cleanup\|reset]` | admin | View skin metrics (view commands need `everlastingskins.command.metrics`; `cleanup`/`reset` need `everlastingskins.command.metrics.reset`) |
 
+Permission nodes: `everlastingskins.command.skin`, `everlastingskins.command.skin.url`, `everlastingskins.command.skin.clear`, `everlastingskins.command.skin.random`, `everlastingskins.command.skin.other`, `everlastingskins.command.metrics`, `everlastingskins.command.metrics.reset`, and `everlastingskins.bypass.cooldown` (skips the `/skin` cooldown).
+
 ## ⚙️ Configuration
 
 Config file: `config/everlastingskins.cfg` (auto-generated on first run).
@@ -66,6 +68,25 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 | `everlastingskins.metricsEnabled` | Boolean | `true` | Enable in-process skin metrics |
 | `everlastingskins.metricsDumpIntervalSeconds` | Integer | `60` | Metrics dump interval (seconds) |
 | `everlastingskins.refreshViaEntityTracker` | Boolean | `true` | Force EntityTracker untrack/re-track on refresh for observer entity re-render |
+| `everlastingskins.rate_limit_enabled` | Boolean | `true` | Enable `/skin` rate limiting |
+| `everlastingskins.cooldown_seconds` | Integer | `3` | Cooldown between `/skin` commands (seconds) |
+| `everlastingskins.max_commands_per_minute` | Integer | `5` | Max `/skin` commands per minute (per player) |
+| `everlastingskins.debounce_millis` | Integer | `100` | Per-player refresh debounce window (milliseconds) |
+| `everlastingskins.mojangProfileCacheEnabled` | Boolean | `true` | Enable the in-process Mojang profile cache |
+| `everlastingskins.mojangProfileCacheTtlMs` | Long | `3600000` | Mojang profile cache entry lifetime (milliseconds; `0` disables caching) |
+| `everlastingskins.mojangProfileCacheMaxSize` | Integer | `1000` | Max Mojang profile cache entries (oldest evicted first) |
+| `DefaultSkins.enabled` | Boolean | `false` | Apply a default skin from `list` to players without a saved custom skin |
+| `DefaultSkins.applyForPremium` | Boolean | `false` | Also apply the default skin to players WITH a saved custom skin (display-only override) |
+| `DefaultSkins.list` | String[] | `Steve, <random>` | Default skins list: Mojang usernames or the literal `<random>` token |
+| `Security.urlAllowlistEnabled` | Boolean | `false` | Enable URL domain allowlist for `/skin set web` (empty list = deny all) |
+| `Security.urlAllowlistDomains` | String[] | 9 default domains | Domains allowed for `/skin set web` (eTLD+1 suffix match; one entry covers all subdomains) |
+| `Permissions.op_level.mojang` | Integer | `0` | Required op level for `/skin set <mojang>` |
+| `Permissions.op_level.url` | Integer | `2` | Required op level for `/skin set web` |
+| `Permissions.op_level.clear` | Integer | `0` | Required op level for `/skin clear` |
+| `Permissions.op_level.random` | Integer | `0` | Required op level for `/skin set random` |
+| `Permissions.op_level.other` | Integer | `2` | Required op level for changing another player's skin |
+| `Permissions.op_level.metrics` | Integer | `2` | Required op level for `/skin metrics` |
+| `Permissions.op_level.metrics_reset` | Integer | `2` | Required op level for `/skin metrics cleanup/reset` |
 
 ## 🌐 External Services
 
@@ -78,7 +99,7 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 
 Skins are stored as one JSON file per player in `world/EverlastingSkins/<uuid>.json`. Writes are atomic (drain-coalesce async writer with a 50ms debounce). Files with corrupt JSON are quarantined as `.corrupt-<timestamp>` and a fresh entry is created on next save.
 
-Mojang profile lookups are cached in-memory (MojangProfileCache, TTL 1h, cap 1000) to avoid rate limits; the cache is not persisted and needs no configuration.
+Mojang profile lookups are cached in-memory (MojangProfileCache, TTL 1h, cap 1000) to avoid rate limits; the cache is not persisted. Its behavior is controlled by the `everlastingskins.mojangProfileCache*` keys (see Configuration above) — on this branch those defaults are compiled in and not yet read from the config file.
 
 ## ⚠️ Compatibility
 
