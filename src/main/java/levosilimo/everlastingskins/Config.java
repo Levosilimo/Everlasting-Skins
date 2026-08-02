@@ -28,9 +28,20 @@ public final class Config {
     public static int MAX_COMMANDS_PER_MINUTE = 5;
     public static int DEBOUNCE_MILLIS = 100;
 
+    public static boolean urlAllowlistEnabled = false;
+    public static String[] urlAllowlistDomains = new String[]{
+        "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
+        "textures.minecraft.net", "namemc.com", "crafatar.com",
+        "mc-heads.net", "githubusercontent.com", "minecraftskins.com"
+    };
+
     public static boolean mojangProfileCacheEnabled = true;
     public static long mojangProfileCacheTtlMs = TimeUnit.HOURS.toMillis(1);
     public static int mojangProfileCacheMaxSize = 1000;
+
+    public static boolean DEFAULT_SKINS_ENABLED = false;
+    public static boolean DEFAULT_SKINS_APPLY_FOR_PREMIUM = false;
+    public static String[] DEFAULT_SKINS_LIST = {"Steve", "<random>"};
 
     public static void load(File configFile) {
         Configuration cfg = new Configuration(configFile);
@@ -59,6 +70,17 @@ public final class Config {
                 MAX_COMMANDS_PER_MINUTE, 1, 60, "Max /skin commands per minute (per player)");
             DEBOUNCE_MILLIS = cfg.getInt("debounce_millis", "everlastingskins",
                 DEBOUNCE_MILLIS, 0, 5000, "Per-player refresh debounce window (milliseconds)");
+            DEFAULT_SKINS_ENABLED = cfg.getBoolean("enabled", "DefaultSkins", DEFAULT_SKINS_ENABLED,
+                "Apply a default skin from 'list' to players without a saved custom skin");
+            DEFAULT_SKINS_APPLY_FOR_PREMIUM = cfg.getBoolean("applyForPremium", "DefaultSkins",
+                DEFAULT_SKINS_APPLY_FOR_PREMIUM,
+                "Also apply the default skin to players WITH a saved custom skin (display-only override)");
+            DEFAULT_SKINS_LIST = cfg.getStringList("list", "DefaultSkins", DEFAULT_SKINS_LIST,
+                "Default skins list: Mojang usernames or the literal '<random>' token");
+            urlAllowlistEnabled = cfg.getBoolean("urlAllowlistEnabled", "Security", urlAllowlistEnabled,
+                "Enable URL domain allowlist for /skin set web (empty list = deny all)");
+            urlAllowlistDomains = cfg.getStringList("urlAllowlistDomains", "Security", urlAllowlistDomains,
+                "Domains allowed for /skin set web (eTLD+1 suffix match; one entry covers all subdomains)");
         } catch (Exception e) {
             EverlastingSkins.logger.error("Failed to load config", e);
         } finally {
