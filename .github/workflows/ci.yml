@@ -162,13 +162,13 @@ jobs:
           cp "${{ steps.find-jar.outputs.jar_path }}" "${{ env.MODS_DIR }}/"
           cp "${{ github.workspace }}/test-infrastructure/server/server.properties" "${{ env.SERVER_DIR }}/"
           echo "eula=true" > "${{ env.SERVER_DIR }}/eula.txt"
-      - name: Cache Forge installer
+      - name: Cache Forge server installer
         id: cache-forge
         uses: actions/cache@v4
         with:
           path: ${{ env.SERVER_DIR }}/forge-installer.jar
           key: forge-1.12.2-14.23.5.2847-installer
-      - name: Download Forge installer
+      - name: Download Forge server installer
         if: steps.cache-forge.outputs.cache-hit != 'true'
         run: |
           curl -L -o "${{ env.SERVER_DIR }}/forge-installer.jar" \
@@ -177,11 +177,15 @@ jobs:
         run: |
           cd "${{ env.SERVER_DIR }}"
           java -jar forge-installer.jar --installServer "${{ env.SERVER_DIR }}"
-      - name: Install client Forge 14.23.5.2847 (bypass forgecli, incompatible with 1.12.2)
+      - name: Download client Forge installer 14.23.5.2860
+        run: |
+          curl -L -o "${{ env.SERVER_DIR }}/forge-client-installer.jar" \
+            "https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar"
+      - name: Install client Forge 14.23.5.2860 (bypass forgecli, incompatible with 1.12.2; 2847 installer has no --installClient)
         run: |
           mkdir -p "$HOME/.minecraft"
           echo '{"profiles":{}}' > "$HOME/.minecraft/launcher_profiles.json"
-          java -jar "${{ env.SERVER_DIR }}/forge-installer.jar" --installClient "$HOME/.minecraft"
+          java -jar "${{ env.SERVER_DIR }}/forge-client-installer.jar" --installClient "$HOME/.minecraft"
       - name: Start Forge server (background)
         id: start-server
         run: |
@@ -245,7 +249,7 @@ jobs:
           set -euo pipefail
           cd "${{ env.HMC_DIR }}"
           timeout --kill-after=10 300 xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
-            --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2847 --jvm -Djava.awt.headless=true" \
+            --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2860 --jvm -Djava.awt.headless=true" \
             --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "${{ env.HMC_DIR }}/hmc-output.log" 2>&1 &
           CLIENT_PID=$!
           JOINED=0

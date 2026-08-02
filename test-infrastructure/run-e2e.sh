@@ -69,16 +69,30 @@ if [ ! -f "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" ]; then
     echo "  Downloading $FORGE_URL..."
     curl -L -o "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" "$FORGE_URL"
 fi
-java -jar "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" --installServer "$SERVER_DIR"
+# The 2847 installer ignores a --installServer target arg and installs
+# into the current directory, so cd into the server dir first.
+(
+    cd "$SERVER_DIR"
+    java -jar "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" --installServer
+)
 
 # HMCLite's forgecli crashes on 1.12.2 installers (NoSuchMethodError on
 # ClientInstall.run); pre-install the client Forge profile matching the
 # server so the launcher skips its own forge install.
+# The 14.23.5.2847 installer has no --installClient CLI; the 14.23.5.2860
+# rebuild does, so the client profile is installed with it (server stays
+# 2847, the canonical build version).
 if [ "$BRANCH" = "mc1.12.2" ]; then
-    echo "  Pre-installing client Forge $FORGE_VERSION (bypasses forgecli)..."
+    echo "  Pre-installing client Forge 14.23.5.2860 (bypasses forgecli)..."
+    CLIENT_INSTALLER="forge-1.12.2-14.23.5.2860-installer.jar"
+    if [ ! -f "$HOME/.cache/everlastingskins/$CLIENT_INSTALLER" ]; then
+        mkdir -p "$HOME/.cache/everlastingskins"
+        curl -L -o "$HOME/.cache/everlastingskins/$CLIENT_INSTALLER" \
+            "https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar"
+    fi
     mkdir -p "$HOME/.minecraft"
     echo '{"profiles":{}}' > "$HOME/.minecraft/launcher_profiles.json"
-    java -jar "$HOME/.cache/everlastingskins/$FORGE_INSTALLER" --installClient "$HOME/.minecraft"
+    java -jar "$HOME/.cache/everlastingskins/$CLIENT_INSTALLER" --installClient "$HOME/.minecraft"
 fi
 
 # 4. Start server
@@ -142,8 +156,11 @@ CONFIG
 # 6. Launch client and assert on the server log
 echo "[6/6] Launching client and asserting server log..."
 cd "$PROJECT_DIR"
+# Client profile was installed with the 2860 installer, so the uid must
+# match that profile even though the server runs the canonical 2847 build.
+CLIENT_UID="14.23.5.2860"
 timeout --kill-after=10 300 xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
-    --command "launch forge:$MC_VERSION -lwjgl -offline --uid $FORGE_VERSION --jvm -Djava.awt.headless=true" \
+    --command "launch forge:$MC_VERSION -lwjgl -offline --uid $CLIENT_UID --jvm -Djava.awt.headless=true" \
     --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "$HMC_DIR/client.log" 2>&1 &
 CLIENT_PID=$!
 
