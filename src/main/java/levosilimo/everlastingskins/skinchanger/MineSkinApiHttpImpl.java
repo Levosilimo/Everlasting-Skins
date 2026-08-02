@@ -18,10 +18,12 @@ import levosilimo.everlastingskins.util.EverlastingHelpers;
 import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.JsonUtils;
+import levosilimo.everlastingskins.util.UrlAllowlist;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -76,6 +78,9 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
 
     Optional<MineSkinResponse> genSkinInternal(String url, @Nullable SkinVariant variant) {
         String processedUrl = EverlastingHelpers.sanitizeImageURL(url);
+        if (!UrlAllowlist.isAllowed(processedUrl, Config.urlAllowlistEnabled, Arrays.asList(Config.urlAllowlistDomains))) {
+            return Optional.empty();
+        }
 
         try {
             HttpResponse response = httpClient.execute(
