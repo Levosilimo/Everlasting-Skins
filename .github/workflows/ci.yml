@@ -320,12 +320,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SERVER_DIR }}/forge-installer.jar
-          key: forge-1.12.2-14.23.5.2860-installer
+          key: forge-1.12.2-14.23.5.2847-installer
       - name: Download Forge installer
         if: steps.cache-forge.outputs.cache-hit != 'true'
         run: |
           curl -L -o "${{ env.SERVER_DIR }}/forge-installer.jar" \
-            "https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar"
+            "https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2847/forge-1.12.2-14.23.5.2847-installer.jar"
       - name: Install Forge server
         run: |
           cd "${{ env.SERVER_DIR }}"

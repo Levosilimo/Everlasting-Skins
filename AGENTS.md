@@ -45,3 +45,13 @@
 - `aislop` is fetched on demand by `bunx` (fallback `npx`). No `package.json` or `node_modules` in the repo. If neither runner is on PATH, the hook logs and exits 0.
 - Use `aislop fix` to auto-apply mechanical fixes (unused imports, narrative comments, formatter drift). Use `aislop rules` for the full rule catalog. Use `git commit --no-verify` only when intentionally bypassing the gate.
 - See `IMPLEMENTATION_PLAN.md` for the phased refactor and 1.12.2 port plan.
+
+## PR Verification Protocol
+
+- Never merge an implementation PR solely on the fixer's own completion report. A fixer's "merged" claim must be independently verified before it is trusted (a fixer once reported a test PR merged when it was only opened, and the tests verified framework mechanics instead of the real mod flow).
+- After a fixer reports a PR merged, verify independently:
+  1. `gh pr view <PR> --json state,merged` — confirm `state == "MERGED"`, not merely `closed`.
+  2. `git log origin/<branch> --oneline | head -5` — confirm the PR's commit SHA is actually on the protected branch.
+  3. Dispatch a separate librarian or oracle session to audit the implementation: what production code is actually exercised (vs bypassed), whether assertions verify behavior rather than framework mechanics, whether coverage matches stated intent, whether edge cases and error paths are covered, and whether claimed features (commands, integrations, scenarios) are real rather than stubs.
+- Only after the independent auditor finds no major gaps may the PR be merged.
+- Specifically for test PRs: tests must exercise the real mod flow (command dispatch, permission gating, async provider calls, persistence round-trip) — not just framework mechanics such as mock player creation, channel drain, and packet shape assertions.
