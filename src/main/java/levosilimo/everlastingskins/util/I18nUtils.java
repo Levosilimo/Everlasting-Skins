@@ -48,7 +48,8 @@ public final class I18nUtils {
             Map.entry("metrics_refreshes", " refreshes"),
             Map.entry("metrics_no_refreshes", "(no refreshes recorded)"),
             Map.entry("metrics_cleanup", "Metrics cleanup: pruned %d stale player entries"),
-            Map.entry("metrics_reset", "Metrics reset")
+            Map.entry("metrics_reset", "Metrics reset"),
+            Map.entry("discord_announce", "**%s** changed their skin to: `%s`")
     );
 
     private static final Map<String, Map<String, String>> localizedStrings = new HashMap<>();
@@ -60,6 +61,7 @@ public final class I18nUtils {
         russianStrings.put("error", "Возникла ошибка при обработке скина.");
         russianStrings.put("timeout","Тайм-аут получения скина.");
         russianStrings.put("no_source", "Скин не установлен");
+        russianStrings.put("discord_announce", "**%s** изменил свой скин на: `%s`");
         localizedStrings.put("ru", russianStrings);
 
         Map<String, String> ukrainianStrings = new HashMap<>();
@@ -69,6 +71,7 @@ public final class I18nUtils {
         ukrainianStrings.put("error", "Сталася помилка при обробці скіна.");
         ukrainianStrings.put("timeout","Тайм-аут отримання скіна.");
         ukrainianStrings.put("no_source", "Cкіна не встановлено");
+        ukrainianStrings.put("discord_announce", "**%s** змінив свій скін на: `%s`");
         localizedStrings.put("uk", ukrainianStrings);
 
         Map<String, String> englishStrings = new HashMap<>();
@@ -231,6 +234,7 @@ public final class I18nUtils {
             case "metrics_no_refreshes" -> Config.MESSAGES_METRICS_NO_REFRESHES;
             case "metrics_cleanup" -> Config.MESSAGES_METRICS_CLEANUP;
             case "metrics_reset" -> Config.MESSAGES_METRICS_RESET;
+            case "discord_announce" -> Config.MESSAGES_DISCORD_ANNOUNCE;
             default -> null;
         };
         if (config == null) return null;
