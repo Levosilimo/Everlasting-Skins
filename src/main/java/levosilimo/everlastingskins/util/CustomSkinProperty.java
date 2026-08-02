@@ -38,7 +38,7 @@ public class CustomSkinProperty {
      */
     public boolean isValid() {
         if (originalProperty == null) return false;
-        String value = originalProperty.getValue();
+        String value = originalProperty.value();
         if (value == null || value.isEmpty()) return false;
         try {
             java.util.Base64.getDecoder().decode(value);

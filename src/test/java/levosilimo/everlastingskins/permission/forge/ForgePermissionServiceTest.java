@@ -1,9 +1,6 @@
 package levosilimo.everlastingskins.permission.forge;
 
 import levosilimo.everlastingskins.permission.PermissionContext;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.players.PlayerList;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import net.minecraftforge.server.permission.PermissionAPI;
 import net.minecraftforge.server.permission.events.PermissionGatherEvent;
@@ -17,9 +14,11 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -104,25 +103,33 @@ class ForgePermissionServiceTest {
     }
 
     @Test
-    @DisplayName("hasPermission queries the live PermissionAPI when the player is online")
-    void hasPermission_usesLivePermissionApi_whenPlayerOnline() {
-        MinecraftServer server = mock(MinecraftServer.class);
-        PlayerList list = mock(PlayerList.class);
-        when(server.getPlayerList()).thenReturn(list);
-        ServerPlayer player = mock(ServerPlayer.class);
-        when(list.getPlayer(TEST_UUID)).thenReturn(player);
-
+    @DisplayName("hasPermission never consults the live API without a server context")
+    void hasPermission_offline_neverCallsLiveApi() {
         try (MockedStatic<ServerLifecycleHooks> hooks = mockStatic(ServerLifecycleHooks.class);
              MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
-            hooks.when(ServerLifecycleHooks::getCurrentServer).thenReturn(server);
-            // A non-op player granted the node via the registered handler:
-            // the live check must honor it instead of the op-only fallback.
-            api.when(() -> PermissionAPI.getPermission(player, ForgePermissionService.SKIN_NODE))
-               .thenReturn(true);
+            hooks.when(ServerLifecycleHooks::getCurrentServer).thenReturn(null);
+            api.when(() -> PermissionAPI.getOfflinePermission(eq(TEST_UUID), eq(ForgePermissionService.SKIN_NODE)))
+               .thenReturn(false);
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, false),
-                    "everlastingskins.command.skin"),
-                "a non-op granted the node via the live PermissionAPI must be allowed");
+            assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, false),
+                    "everlastingskins.command.skin"));
+            api.verify(() -> PermissionAPI.getPermission(any(), any()), never());
+        }
+    }
+
+    @Test
+    @DisplayName("hasPermission falls back to context.isOp() when the PermissionAPI lookup throws")
+    void hasPermission_lookupThrows_usesContextIsOp() {
+        try (MockedStatic<ServerLifecycleHooks> hooks = mockStatic(ServerLifecycleHooks.class);
+             MockedStatic<PermissionAPI> api = mockStatic(PermissionAPI.class)) {
+            hooks.when(ServerLifecycleHooks::getCurrentServer).thenReturn(null);
+            api.when(() -> PermissionAPI.getOfflinePermission(eq(TEST_UUID), eq(ForgePermissionService.SKIN_NODE)))
+               .thenThrow(new RuntimeException("api unavailable"));
+            ForgePermissionService service = new ForgePermissionService();
+            assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, true),
+                    "everlastingskins.command.skin"));
+            assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, false),
+                    "everlastingskins.command.skin"));
         }
     }
 

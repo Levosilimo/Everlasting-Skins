@@ -51,7 +51,7 @@ public class LuckPermsPermissionService implements IPermissionService {
                 user = getUserMethod.invoke(userManager, uuid);
             } else {
                 LOGGER.debug("LP user {} not pre-loaded, falling back to op status", uuid);
-                return vanillaFallback(context, permissionNode);
+                return context.isOp();
             }
             if (user == null) {
                 LOGGER.warn("LP user {} returned null from getUser, falling back to op status", uuid);

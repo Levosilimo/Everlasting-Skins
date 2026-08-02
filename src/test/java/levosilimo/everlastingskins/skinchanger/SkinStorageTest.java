@@ -50,7 +50,7 @@ class SkinStorageTest {
             // First call should load from SkinIO
             CustomSkinProperty result = storage.getSkin(uuid);
             assertNotNull(result);
-            assertEquals("cGVyc2lzdGVk", result.getOriginalProperty().getValue());
+            assertEquals("cGVyc2lzdGVk", result.getOriginalProperty().value());
 
             // Second call should return cached value without hitting SkinIO
             // Delete the backing file to prove cache hit
@@ -59,7 +59,7 @@ class SkinStorageTest {
 
             CustomSkinProperty cached = storage.getSkin(uuid);
             assertNotNull(cached);
-            assertEquals("cGVyc2lzdGVk", cached.getOriginalProperty().getValue());
+            assertEquals("cGVyc2lzdGVk", cached.getOriginalProperty().value());
         }
 
         @Test

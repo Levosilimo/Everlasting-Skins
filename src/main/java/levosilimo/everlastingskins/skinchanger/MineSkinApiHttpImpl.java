@@ -163,6 +163,14 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         return Optional.empty();
     }
 
+    private Map<String, String> buildHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.put("Authorization", "Bearer " + apiKey);
+        }
+        return headers;
+    }
+
     private static SkinVariant resolveVariant(String variantStr) {
         if (variantStr == null) {
             return SkinVariant.CLASSIC;
