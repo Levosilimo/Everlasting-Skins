@@ -20,12 +20,15 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.text.TextComponentString;
 
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -41,15 +44,34 @@ final class SkinAction {
     static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
         Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
 
+    /** Per-UUID last refresh timestamps for the debounce window. */
+    private static final ConcurrentHashMap<UUID, Long> lastRefreshByPlayer = new ConcurrentHashMap<>();
+    /** Per-UUID last command timestamps for the cooldown rate limit. */
+    private static final ConcurrentHashMap<UUID, Long> lastCommandByPlayer = new ConcurrentHashMap<>();
+    /** Per-UUID recent command timestamps for the per-minute window. */
+    private static final ConcurrentHashMap<UUID, ArrayDeque<Long>> commandTimestampsByPlayer = new ConcurrentHashMap<>();
+
     private SkinAction() {
     }
 
     static void apply(Collection<EntityPlayerMP> targets, ICommandSender sender,
             SkinActionType type, SkinVariant variant, boolean withCape, @Nullable String customSource) {
+        if (sender instanceof EntityPlayerMP && Config.RATE_LIMIT_ENABLED
+                && isRateLimited((EntityPlayerMP) sender)) {
+            return;
+        }
         for (EntityPlayerMP p : targets) {
             if (Config.TOGGLE) {
                 p.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Processing..."));
             }
+        }
+        if (type == SkinActionType.username && storedSourceMatches(targets, customSource)) {
+            for (EntityPlayerMP p : targets) {
+                SkinMetrics.INSTANCE.recordRefreshSkippedStored(p.getUniqueID());
+                CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
+                SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, stored, 0L));
+            }
+            return;
         }
         long[] fetchNanos = {0L};
         CompletableFuture<Map<UUID, CustomSkinProperty>> future = CompletableFuture.supplyAsync(() -> {
@@ -147,6 +169,11 @@ final class SkinAction {
                     continue;
                 }
                 boolean isRestore = (type == SkinActionType.clear);
+                if (isSkinUnchanged(p.getUniqueID(), sp)) {
+                    EverlastingSkins.logger.debug("SKIN_REFRESH skipped: identical skin for {}", p.getUniqueID());
+                    SkinMetrics.INSTANCE.recordRefreshSkipped(p.getUniqueID());
+                    continue;
+                }
                 SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
                 if (Config.TOGGLE) {
                     String msg = isRestore
@@ -154,6 +181,14 @@ final class SkinAction {
                         : "Skin applied";
                     p.sendMessage(new TextComponentString(SkinCommand.PREFIX + msg));
                 }
+                long now = System.currentTimeMillis();
+                Long last = lastRefreshByPlayer.get(p.getUniqueID());
+                if (last != null && now - last < Config.DEBOUNCE_MILLIS) {
+                    EverlastingSkins.logger.debug("SKIN_REFRESH debounced for {}", p.getUniqueID());
+                    SkinMetrics.INSTANCE.recordRefreshDebounced(p.getUniqueID());
+                    continue;
+                }
+                lastRefreshByPlayer.put(p.getUniqueID(), now);
                 SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, sp, fetchNanos[0]));
                 try {
                     DiscordSrvHook.announceSkinChange(p, customSource);
@@ -162,6 +197,54 @@ final class SkinAction {
                 }
             }
         });
+    }
+
+    /** A5: stored skin's source already matches the request, skip the fetch. */
+    private static boolean storedSourceMatches(Collection<EntityPlayerMP> targets, @Nullable String customSource) {
+        return targets.stream().allMatch(p -> {
+            CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
+            return stored != null && Objects.equals(stored.getSource(), customSource);
+        });
+    }
+
+    /** True when the fetched skin is byte-identical to what the player already has. */
+    private static boolean isSkinUnchanged(UUID uuid, @Nullable CustomSkinProperty newSkin) {
+        if (newSkin == null) return false;
+        CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(uuid);
+        if (stored == null) return false;
+        if (!newSkin.getOriginalProperty().getValue().equals(stored.getOriginalProperty().getValue())) {
+            return false;
+        }
+        return Objects.equals(newSkin.getSource(), stored.getSource());
+    }
+
+    /** Per-player cooldown plus a sliding per-minute window. */
+    private static boolean isRateLimited(EntityPlayerMP sender) {
+        UUID uuid = sender.getUniqueID();
+        long now = System.currentTimeMillis();
+        long cooldownMs = Config.COOLDOWN_SECONDS * 1000L;
+        long lastCommand = lastCommandByPlayer.getOrDefault(uuid, 0L);
+        long elapsed = now - lastCommand;
+        if (lastCommand > 0 && elapsed < cooldownMs) {
+            SkinMetrics.INSTANCE.recordRateLimited(uuid);
+            sender.sendMessage(new TextComponentString(SkinCommand.PREFIX
+                + "Please wait " + ((cooldownMs - elapsed) / 1000) + "s before using /skin again"));
+            return true;
+        }
+        ArrayDeque<Long> window = commandTimestampsByPlayer.computeIfAbsent(uuid, k -> new ArrayDeque<>());
+        synchronized (window) {
+            while (!window.isEmpty() && now - window.peekFirst() > 60_000) {
+                window.pollFirst();
+            }
+            if (window.size() >= Config.MAX_COMMANDS_PER_MINUTE) {
+                SkinMetrics.INSTANCE.recordRateLimited(uuid);
+                sender.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Too many /skin commands. Try again later."));
+                return true;
+            }
+            window.addLast(now);
+        }
+        lastCommandByPlayer.put(uuid, now);
+        return false;
     }
 
     private static String deriveReason(SkinActionType type, @Nullable String customSource) {

@@ -7,6 +7,7 @@
 package levosilimo.everlastingskins.harness;
 
 import com.mojang.authlib.GameProfile;
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import net.minecraft.command.ServerCommandManager;
@@ -91,6 +92,10 @@ public class TestServerContext implements AutoCloseable {
         setMinecraftHome(tempDir);
         SkinRestorer.onServerStarting(new FMLServerStartingEvent(server));
         storage = SkinRestorer.getSkinStorage();
+        // Existing tests issue rapid repeated /skin commands from one player;
+        // the production cooldown and debounce would reject or skip them.
+        Config.RATE_LIMIT_ENABLED = false;
+        Config.DEBOUNCE_MILLIS = 0;
     }
 
     public EntityPlayerMP newPlayer(String name) {

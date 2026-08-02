@@ -10,6 +10,7 @@ import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.PacketLog;
 import levosilimo.everlastingskins.harness.TestServerContext;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.RandomMojangSkin;
 import levosilimo.everlastingskins.skinchanger.SkinCommandTestAccess;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -81,9 +82,10 @@ class ClearSourceRandomIT {
         CustomSkinProperty afterClear = ctx.storage.getSkin(alice.getUniqueID());
         assertNotNull(afterClear);
         assertEquals("Notch", afterClear.getSource());
-        assertTrue(AsyncSupport.await(5000, () -> log.ofType(SPacketChat.class).stream()
-                .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("Skin restored from Notch"))),
-            "clear should report the restore; chats=" + chatsText(log));
+        // The restored Mojang skin is byte-identical to the stored one, so the
+        // refresh is skipped and recorded on the refreshSkipped counter.
+        assertTrue(AsyncSupport.await(5000, () -> SkinMetrics.INSTANCE.snapshot().refreshesSkipped() >= 1),
+            "identical restore should be skipped and counted; chats=" + chatsText(log));
     }
 
     @Test

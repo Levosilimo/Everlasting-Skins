@@ -23,6 +23,10 @@ public final class Config {
     public static boolean metricsEnabled = true;
     public static int metricsDumpIntervalSeconds = 60;
     public static boolean refreshViaEntityTracker = true;
+    public static int COOLDOWN_SECONDS = 3;
+    public static boolean RATE_LIMIT_ENABLED = true;
+    public static int MAX_COMMANDS_PER_MINUTE = 5;
+    public static int DEBOUNCE_MILLIS = 100;
 
     public static boolean mojangProfileCacheEnabled = true;
     public static long mojangProfileCacheTtlMs = TimeUnit.HOURS.toMillis(1);
@@ -47,6 +51,14 @@ public final class Config {
                 metricsDumpIntervalSeconds, 0, 3600, "Metrics dump interval (seconds)");
             refreshViaEntityTracker = cfg.getBoolean("refreshViaEntityTracker", "everlastingskins",
                 refreshViaEntityTracker, "Force EntityTracker untrack/re-track on refresh for observer entity re-render");
+            RATE_LIMIT_ENABLED = cfg.getBoolean("rate_limit_enabled", "everlastingskins",
+                RATE_LIMIT_ENABLED, "Enable /skin rate limiting");
+            COOLDOWN_SECONDS = cfg.getInt("cooldown_seconds", "everlastingskins",
+                COOLDOWN_SECONDS, 0, 60, "Cooldown between /skin commands (seconds)");
+            MAX_COMMANDS_PER_MINUTE = cfg.getInt("max_commands_per_minute", "everlastingskins",
+                MAX_COMMANDS_PER_MINUTE, 1, 60, "Max /skin commands per minute (per player)");
+            DEBOUNCE_MILLIS = cfg.getInt("debounce_millis", "everlastingskins",
+                DEBOUNCE_MILLIS, 0, 5000, "Per-player refresh debounce window (milliseconds)");
         } catch (Exception e) {
             EverlastingSkins.logger.error("Failed to load config", e);
         } finally {
