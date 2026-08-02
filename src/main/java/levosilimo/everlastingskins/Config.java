@@ -28,6 +28,13 @@ public final class Config {
     public static int MAX_COMMANDS_PER_MINUTE = 5;
     public static int DEBOUNCE_MILLIS = 100;
 
+    public static boolean urlAllowlistEnabled = false;
+    public static String[] urlAllowlistDomains = new String[]{
+        "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
+        "textures.minecraft.net", "namemc.com", "crafatar.com",
+        "mc-heads.net", "githubusercontent.com", "minecraftskins.com"
+    };
+
     public static boolean mojangProfileCacheEnabled = true;
     public static long mojangProfileCacheTtlMs = TimeUnit.HOURS.toMillis(1);
     public static int mojangProfileCacheMaxSize = 1000;
@@ -70,6 +77,10 @@ public final class Config {
                 "Also apply the default skin to players WITH a saved custom skin (display-only override)");
             DEFAULT_SKINS_LIST = cfg.getStringList("list", "DefaultSkins", DEFAULT_SKINS_LIST,
                 "Default skins list: Mojang usernames or the literal '<random>' token");
+            urlAllowlistEnabled = cfg.getBoolean("urlAllowlistEnabled", "Security", urlAllowlistEnabled,
+                "Enable URL domain allowlist for /skin set web (empty list = deny all)");
+            urlAllowlistDomains = cfg.getStringList("urlAllowlistDomains", "Security", urlAllowlistDomains,
+                "Domains allowed for /skin set web (eTLD+1 suffix match; one entry covers all subdomains)");
         } catch (Exception e) {
             EverlastingSkins.logger.error("Failed to load config", e);
         } finally {
