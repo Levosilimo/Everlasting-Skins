@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.1 (2026-08-02)
+## 2.1.0 (2026-08-02)
 
 ### Added
 - Behavioral fixes from lib-17 audit (cherry-picked from mc1.12.2 port)
@@ -12,10 +12,18 @@
 - ForgePermissionService uses PermissionAPI.hasPermission (not just op-check)
 - LuckPerms pre-load fallback to op check
 - MineSkin 429 bounded sleep (was unbounded)
+- /skin metrics command (PR #126)
+- SPDX MIT license headers on all 108 .java files
 
 ### Changed
 - Multi-target /skin clear now per-target restores from Mojang
 - SkinRefreshHandler.task() wrapped in try/catch (was: partial cascade on exception)
+
+### Fixed
+- GameTest --add-opens JVM flags for JDK 21/Netty reflective access
+
+### Removed
+- UPDATE_DISPLAY_NAME from refresh cascade (carried zero textures on wire)
 
 ## 2.0.0 (2026-08-02)
 
