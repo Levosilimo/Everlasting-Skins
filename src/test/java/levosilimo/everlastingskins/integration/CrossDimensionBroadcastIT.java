@@ -74,6 +74,8 @@ class CrossDimensionBroadcastIT {
             "skin should be stored after the async apply completes");
 
         // Global contract: exactly one REMOVE + one ADD broadcast to all players.
+        assertTrue(AsyncSupport.await(5000, () -> global.size() >= 2),
+            "REMOVE+ADD tab-list broadcast must reach the global list");
         verify(ctx.playerList, times(2)).sendPacketToAllPlayers(any(Packet.class));
         assertEquals(2, global.size());
         assertTrue(global.stream().allMatch(p -> p instanceof SPacketPlayerListItem));

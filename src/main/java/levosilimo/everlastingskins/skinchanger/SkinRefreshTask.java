@@ -48,7 +48,7 @@ final class SkinRefreshTask {
         }
 
         try {
-            cascade(target, property, startNanos);
+            cascade(target, property, startNanos, fetchNanos);
             long durationNanos = System.nanoTime() - startNanos;
             SkinMetrics.INSTANCE.recordTaskDuration(durationNanos);
             if (durationNanos > 50_000_000L) {
@@ -63,7 +63,8 @@ final class SkinRefreshTask {
         }
     }
 
-    private static void cascade(EntityPlayerMP target, CustomSkinProperty property, long startNanos) {
+    private static void cascade(EntityPlayerMP target, CustomSkinProperty property, long startNanos,
+            long fetchNanos) {
         MinecraftServer server = target.mcServer;
         PlayerList playerList = server.getPlayerList();
         WorldServer world = (WorldServer) target.world;

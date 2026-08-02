@@ -1,3 +1,9 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -117,7 +123,7 @@ class SkinRestorerTest {
         void loadsStoredSkin() {
             SkinIO io = new SkinIO(tempDir);
             SkinStorage storage = new SkinStorage(io);
-            CustomSkinProperty persisted = new CustomSkinProperty("login-value", "login-sig", "login-source");
+            CustomSkinProperty persisted = new CustomSkinProperty("bG9naW4tdmFsdWU=", "bG9naW4tc2ln", "login-source");
 
             io.saveSkin(testUuid, persisted);
 
@@ -126,8 +132,8 @@ class SkinRestorerTest {
 
             assertNotNull(loaded);
             assertFalse(loaded.isEmpty());
-            assertEquals("login-value", loaded.getOriginalProperty().getValue());
-            assertEquals("login-sig", loaded.getOriginalProperty().getSignature());
+            assertEquals("bG9naW4tdmFsdWU=", loaded.getOriginalProperty().getValue());
+            assertEquals("bG9naW4tc2ln", loaded.getOriginalProperty().getSignature());
             assertEquals("login-source", loaded.getSource());
         }
 
@@ -136,7 +142,7 @@ class SkinRestorerTest {
         void skinPropertyReadyForProfile() {
             SkinIO io = new SkinIO(tempDir);
             SkinStorage storage = new SkinStorage(io);
-            io.saveSkin(testUuid, new CustomSkinProperty("profile-val", "profile-sig", "profile"));
+            io.saveSkin(testUuid, new CustomSkinProperty("cHJvZmlsZS12YWw=", "cHJvZmlsZS1zaWc=", "profile"));
 
             CustomSkinProperty skin = storage.getSkin(testUuid);
 

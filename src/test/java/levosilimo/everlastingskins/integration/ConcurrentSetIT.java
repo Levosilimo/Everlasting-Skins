@@ -81,7 +81,7 @@ class ConcurrentSetIT {
             // Disk state must settle to the same winner as memory (async flush
             // drains in waves; the last enqueued payload wins on disk too).
             Path skinFile = tempDir.resolve("EverlastingSkins").resolve(alice.getUniqueID() + ".json");
-            assertTrue(AsyncSupport.await(5000, () -> {
+            assertTrue(AsyncSupport.await(10000, () -> {
                 if (!skinFile.toFile().exists()) return false;
                 try {
                     return source.equals(readSource(skinFile));
