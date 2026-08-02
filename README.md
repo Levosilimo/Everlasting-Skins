@@ -1,8 +1,26 @@
 # EverlastingSkins
 
-<!-- Badges: shield.io patterns. Live status unknown until CI runs first time; use static placeholder for now. -->
+Persistent player skin management for Minecraft Forge 1.12.2 servers.
 
-Server-side Minecraft Forge mod for persistent custom skins. Players change their skin with `/skin` — no client mod required. Skins survive server restarts.
+[![CI (1.21)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml/badge.svg?branch=1.21)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml?query=branch%3A1.21)
+[![CI (mc1.12.2)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml/badge.svg?branch=mc1.12.2)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml?query=branch%3Amc1.12.2)
+[![Release](https://img.shields.io/github/v/release/Levosilimo/Everlasting-Skins?include_prereleases&label=latest)](https://github.com/Levosilimo/Everlasting-Skins/releases)
+[![License](https://img.shields.io/github/license/Levosilimo/Everlasting-Skins)](LICENSE)
+[![CurseForge](https://cf.way2muchnoise.eu/versions/538149.svg)](https://www.curseforge.com/minecraft/mc-mods/everlasting-skins)
+[![Modrinth](https://img.shields.io/modrinth/dt/everlasting-skins?label=Modrinth)](https://modrinth.com/mod/everlasting-skins)
+[![Java](https://img.shields.io/badge/java-8-blue)](https://adoptium.net/)
+
+This repository uses **git branches** to target different Minecraft versions.
+Each branch is isolated with its own toolchain, Forge version, and Java runtime.
+
+## Branches
+
+| Branch | Minecraft | Forge | Java | Status |
+|--------|-----------|-------|------|--------|
+| [1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/1.21) | 1.21 | 51.0.24 | 21 | Active |
+| [mc1.12.2](https://github.com/Levosilimo/Everlasting-Skins/tree/mc1.12.2) | 1.12.2 | 14.23.5.2860 | 8 | Active |
+
+Each branch has its own README with version-specific installation instructions, config paths, and command documentation.
 
 ## ✨ Features
 
@@ -11,12 +29,13 @@ Server-side Minecraft Forge mod for persistent custom skins. Players change thei
 - `/skin set random` — apply a random skin
 - `/skin clear` — restore your Mojang-registered skin (or your UUID-hash default if offline)
 - `/skin source` — show which username/source your current skin is from
+- `/skin metrics` — view per-player skin metrics (admin-only, config-gated)
 - Skins persist across server restarts (per-player JSON files)
 - Server-side only — no client-side install needed
 
 ## 📦 Installation
 
-1. Install [Forge for Minecraft 1.12.2](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.12.2.html).
+1. Install [Forge for Minecraft 1.12.2](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.12.2.html) (14.23.5.2860 or later 1.12.2 build).
 2. Download `everlastingskins-1.12.2-2.0.0.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
 3. Place the JAR in your server's `mods/` folder.
 4. Restart the server.
@@ -44,6 +63,9 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 | `MineSkin.enabled` | Boolean | `false` | Enable MineSkin URL-based skin generation |
 | `Integration.discordsrv_enabled` | Boolean | `false` | Enable DiscordSRV skin change announcements (hybrid servers only) |
 | `Integration.discordsrv_channel_id` | String | (empty) | Discord channel ID for skin change announcements |
+| `everlastingskins.metricsEnabled` | Boolean | `true` | Enable in-process skin metrics |
+| `everlastingskins.metricsDumpIntervalSeconds` | Integer | `60` | Metrics dump interval (seconds) |
+| `everlastingskins.refreshViaEntityTracker` | Boolean | `true` | Force EntityTracker untrack/re-track on refresh for observer entity re-render |
 
 ## 🌐 External Services
 
@@ -54,11 +76,13 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 
 ## 💾 Storage
 
-Skins are stored as one JSON file per player in `world/EverlastingSkins/<uuid>.json`. Writes are atomic. Files with corrupt JSON are quarantined as `.corrupt-<timestamp>` and a fresh entry is created on next save.
+Skins are stored as one JSON file per player in `world/EverlastingSkins/<uuid>.json`. Writes are atomic (drain-coalesce async writer with a 50ms debounce). Files with corrupt JSON are quarantined as `.corrupt-<timestamp>` and a fresh entry is created on next save.
+
+Mojang profile lookups are cached in-memory (MojangProfileCache, TTL 1h, cap 1000) to avoid rate limits; the cache is not persisted and needs no configuration.
 
 ## ⚠️ Compatibility
 
-- Forge 1.12.2 only. Compatible with major 1.12.2 modpacks (e.g., FTB, ATLauncher packs that use Forge 1.12.2). Tested with Forge 14.23.5.2860.
+- Forge 1.12.2 only. Compatible with major 1.12.2 modpacks (e.g., FTB, ATLauncher packs that use Forge 1.12.2). Tested with Forge 14.23.5.2860. Not compatible with NeoForge or Fabric.
 - Server-side only — players do not need to install the mod.
 - Other skin mods that modify player GameProfiles are incompatible.
 - Anti-cheat plugins may need to whitelist skin-related packet sequences.
