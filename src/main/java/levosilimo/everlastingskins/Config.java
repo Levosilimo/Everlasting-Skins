@@ -66,6 +66,8 @@ public class Config {
     public static ForgeConfigSpec.BooleanValue DEFAULT_SKINS_ENABLED;
     public static ForgeConfigSpec.BooleanValue DEFAULT_SKINS_APPLY_FOR_PREMIUM;
     public static ForgeConfigSpec.ConfigValue<List<? extends String>> DEFAULT_SKINS_LIST;
+    public static ForgeConfigSpec.BooleanValue URL_ALLOWLIST_ENABLED;
+    public static ForgeConfigSpec.ConfigValue<List<? extends String>> URL_ALLOWLIST_DOMAINS;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -150,6 +152,16 @@ public class Config {
         DEFAULT_SKINS_LIST = builder.comment("Default skins list: Mojang usernames or the literal '<random>' token"
                 + " (random Mojang username on each login)")
             .defineList("list", List.of("Steve", "<random>"), o -> o instanceof String);
+        builder.pop();
+        builder.push("Security");
+        URL_ALLOWLIST_ENABLED = builder.comment("Enable URL domain allowlist for /skin set web (empty list = deny all)")
+            .define("urlAllowlistEnabled", false);
+        URL_ALLOWLIST_DOMAINS = builder.comment("Domains allowed for /skin set web (eTLD+1 suffix match; one entry covers all subdomains)")
+            .defineList("urlAllowlistDomains", List.of(
+                "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
+                "textures.minecraft.net", "namemc.com", "crafatar.com",
+                "mc-heads.net", "githubusercontent.com", "minecraftskins.com"
+            ), o -> o instanceof String);
         builder.pop();
         COMMON_CONFIG = builder.build();
     }
