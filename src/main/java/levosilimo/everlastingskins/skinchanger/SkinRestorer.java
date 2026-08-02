@@ -7,6 +7,8 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import com.mojang.authlib.properties.Property;
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
@@ -74,13 +76,36 @@ public class SkinRestorer {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         SkinMetrics.INSTANCE.recordPlayerJoined();
 
-        if (skinStorage.hasDefaultSkin(player.getUUID())) {
+        UUID uuid = player.getUUID();
+        boolean hasCustomSkin = !skinStorage.hasDefaultSkin(uuid);
+        // applyForPremium=false (default): the default skin only applies when the
+        // player has no saved custom skin. true: it also overrides players WITH a
+        // saved custom skin — display-only; the stored custom skin is preserved.
+        boolean applyDefault = Config.DEFAULT_SKINS_APPLY_FOR_PREMIUM.get() || !hasCustomSkin;
+
+        if (applyDefault) {
             // Never block the login thread on the 3-provider HTTP chain: fetch
             // on the shared executor and apply back on the server thread.
             MinecraftServer srv = server;
-            UUID uuid = player.getUUID();
             String name = player.getGameProfile().getName();
             loginExecutor.submit(() -> {
+                // Config list takes precedence; the static default-skin.properties
+                // restore is the fallback when the list is disabled or empty.
+                if (Config.DEFAULT_SKINS_ENABLED.get() && !Config.DEFAULT_SKINS_LIST.get().isEmpty()) {
+                    Property defaultProp = DefaultSkinResolver.resolveDefault(
+                            Config.DEFAULT_SKINS_LIST.get(), SkinCommand.getMojangAPI());
+                    if (defaultProp == null) return;
+                    srv.execute(() -> {
+                        // Re-check: skip unless the player still qualifies — unless
+                        // applyForPremium explicitly allows overriding a saved custom skin.
+                        if (!Config.DEFAULT_SKINS_APPLY_FOR_PREMIUM.get() && !skinStorage.hasDefaultSkin(uuid)) return;
+                        ServerPlayer online = srv.getPlayerList().getPlayer(uuid);
+                        if (online == null) return;
+                        online.getGameProfile().getProperties().removeAll("textures");
+                        online.getGameProfile().getProperties().put("textures", defaultProp);
+                    });
+                    return;
+                }
                 MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(name).orElse(null);
                 if (skinDataResult == null) return;
                 CustomSkinProperty property = skinDataResult.skinProperty();
