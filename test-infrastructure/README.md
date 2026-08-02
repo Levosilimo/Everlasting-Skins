@@ -20,9 +20,9 @@ lives in the JUnit integration tests; this E2E is a boot smoke test.
 bash test-infrastructure/run-e2e.sh mc1.12.2
 ```
 
-`run-e2e.sh` builds the mod, installs Forge 14.23.5.2860 (server +
+`run-e2e.sh` builds the mod, installs Forge 14.23.5.2847 (server +
 pre-installed client profile), launches the server, and drives the client
-through the HeadlessMC wrapper (`-lwjgl -offline --uid 14.23.5.2860`).
+through the HeadlessMC wrapper (`-lwjgl -offline --uid 14.23.5.2847`).
 
 ## Why no scenario files
 

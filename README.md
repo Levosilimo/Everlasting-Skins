@@ -18,7 +18,7 @@ Each branch is isolated with its own toolchain, Forge version, and Java runtime.
 | Branch | Minecraft | Forge | Java | Status |
 |--------|-----------|-------|------|--------|
 | [1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/1.21) | 1.21 | 51.0.24 | 21 | Active |
-| [mc1.12.2](https://github.com/Levosilimo/Everlasting-Skins/tree/mc1.12.2) | 1.12.2 | 14.23.5.2860 | 8 | Active |
+| [mc1.12.2](https://github.com/Levosilimo/Everlasting-Skins/tree/mc1.12.2) | 1.12.2 | 14.23.5.2847 | 8 | Active |
 
 Each branch has its own README with version-specific installation instructions, config paths, and command documentation.
 
@@ -35,7 +35,7 @@ Each branch has its own README with version-specific installation instructions, 
 
 ## 📦 Installation
 
-1. Install [Forge for Minecraft 1.12.2](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.12.2.html) (14.23.5.2860 or later 1.12.2 build).
+1. Install [Forge for Minecraft 1.12.2](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.12.2.html) (14.23.5.2847 or later 1.12.2 build).
 2. Download `everlastingskins-1.12.2-2.0.0.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
 3. Place the JAR in your server's `mods/` folder.
 4. Restart the server.
@@ -82,7 +82,7 @@ Mojang profile lookups are cached in-memory (MojangProfileCache, TTL 1h, cap 100
 
 ## ⚠️ Compatibility
 
-- Forge 1.12.2 only. Compatible with major 1.12.2 modpacks (e.g., FTB, ATLauncher packs that use Forge 1.12.2). Tested with Forge 14.23.5.2860. Not compatible with NeoForge or Fabric.
+- Forge 1.12.2 only. Compatible with major 1.12.2 modpacks (e.g., FTB, ATLauncher packs that use Forge 1.12.2). Tested with Forge 14.23.5.2847. Not compatible with NeoForge or Fabric.
 - Server-side only — players do not need to install the mod.
 - Other skin mods that modify player GameProfiles are incompatible.
 - Anti-cheat plugins may need to whitelist skin-related packet sequences.

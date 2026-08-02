@@ -24,7 +24,7 @@
 
 ### Removed
 - HMCLite scenarios replaced with bash server-log smoke assertions
-- Forge 14.23.5.2860 pinned (was: version drift 2847/2860)
+- Forge 14.23.5.2860 pin reverted to canonical 14.23.5.2847 (2860 does not work in CI env)
 - Stale `IMPLEMENTATION_PLAN.md` references from AGENTS.md
 - SkinsRestorer-derived code patterns (clean-room rewrite of MojangApiHttpImpl, MineSkinApiHttpImpl, EverlastingHelpers)
 - Stale "Phase 5 viability gate" comments in Config.java
