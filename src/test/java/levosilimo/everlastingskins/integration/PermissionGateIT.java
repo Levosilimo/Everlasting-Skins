@@ -49,19 +49,20 @@ class PermissionGateIT {
     }
 
     @Test
-    void nonOp_cannotSetSkin() {
+    void nonOp_cannotSetSkinForOthers() {
         SkinCommandTestAccess.setMojangAPI(new FakeMojangAPI(TestProperties.NOTCH));
         EntityPlayerMP alice = ctx.newPlayer("Alice"); // not op
+        EntityPlayerMP bob = ctx.newPlayer("Bob");
         PacketLog log = new PacketLog();
         log.attachTo(alice.connection);
 
-        int result = ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
+        int result = ctx.commandManager.executeCommand(alice, "/skin clear Alice Bob");
 
         assertEquals(1, result);
         List<SPacketChat> chats = log.ofType(SPacketChat.class);
         assertTrue(chats.stream()
             .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("Permission denied")));
-        assertNull(ctx.storage.getSkin(alice.getUniqueID()));
+        assertNull(ctx.storage.getSkin(bob.getUniqueID()));
     }
 
     @Test

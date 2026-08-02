@@ -35,17 +35,17 @@ class ForgePermissionServiceTest {
     @Test
     @DisplayName("hasPermission returns true for .source nodes")
     void hasPermission_sourceNode_returnsTrue() {
-        PermissionContext ctx = PermissionContext.of(TEST_UUID, false);
+        PermissionContext ctx = PermissionContext.of(TEST_UUID, 0);
         ForgePermissionService service = new ForgePermissionService();
         assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.source"));
     }
 
     @Test
-    @DisplayName("hasPermission falls back to context.isOp() when no server context exists")
+    @DisplayName("hasPermission falls back to per-node op levels when no server context exists")
     void hasPermission_noServer_usesContextIsOp() {
         ForgePermissionService service = new ForgePermissionService();
-        assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, true), "everlastingskins.command.skin"));
-        assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, false), "everlastingskins.command.skin"));
+        assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, 2), "everlastingskins.command.metrics"));
+        assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, 0), "everlastingskins.command.metrics"));
     }
 
     @Test
@@ -83,7 +83,7 @@ class ForgePermissionServiceTest {
         try {
             setServerInstance(server);
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, false),
+            assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, 0),
                     "everlastingskins.command.skin"),
                 "a non-op granted the node via the Forge PermissionAPI must be allowed");
         } finally {

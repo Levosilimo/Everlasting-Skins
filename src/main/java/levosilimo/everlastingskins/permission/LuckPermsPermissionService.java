@@ -92,7 +92,7 @@ public class LuckPermsPermissionService implements IPermissionService {
     }
 
     private boolean vanillaFallback(PermissionContext context, String permissionNode) {
-        return context.isOp();
+        return new VanillaPermissionService().hasPermission(context, permissionNode);
     }
 
     @Override

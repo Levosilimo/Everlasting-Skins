@@ -12,6 +12,8 @@ import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
@@ -220,6 +222,11 @@ final class SkinAction {
 
     /** Per-player cooldown plus a sliding per-minute window. */
     private static boolean isRateLimited(EntityPlayerMP sender) {
+        if (PermissionServiceManager.hasPermission(
+                PermissionContext.of(sender.getUniqueID(), sender),
+                "everlastingskins.bypass.cooldown")) {
+            return false;
+        }
         UUID uuid = sender.getUniqueID();
         long now = System.currentTimeMillis();
         long cooldownMs = Config.COOLDOWN_SECONDS * 1000L;

@@ -9,6 +9,7 @@ package levosilimo.everlastingskins.permission.forge;
 import levosilimo.everlastingskins.permission.IPermissionService;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.fml.common.FMLCommonHandler;
@@ -25,6 +26,8 @@ public class ForgePermissionService implements IPermissionService {
     private static final String SKIN_OTHER_NODE = NODE_PREFIX + ".skin.other";
     private static final String SKIN_URL_NODE = NODE_PREFIX + ".skin.url";
     private static final String SKIN_CLEAR_NODE = NODE_PREFIX + ".skin.clear";
+    private static final String SKIN_SOURCE_NODE = NODE_PREFIX + ".skin.source";
+    private static final String BYPASS_COOLDOWN_NODE = "everlastingskins.bypass.cooldown";
     private static final String METRICS_NODE = NODE_PREFIX + ".metrics";
     private static final String METRICS_RESET_NODE = NODE_PREFIX + ".metrics.reset";
     private static boolean registered = false;
@@ -36,6 +39,8 @@ public class ForgePermissionService implements IPermissionService {
         PermissionAPI.registerNode(SKIN_OTHER_NODE, DefaultPermissionLevel.OP, "Change another player's skin");
         PermissionAPI.registerNode(SKIN_URL_NODE, DefaultPermissionLevel.ALL, "Set own skin from URL");
         PermissionAPI.registerNode(SKIN_CLEAR_NODE, DefaultPermissionLevel.ALL, "Clear own skin");
+        PermissionAPI.registerNode(SKIN_SOURCE_NODE, DefaultPermissionLevel.ALL, "Query a skin source");
+        PermissionAPI.registerNode(BYPASS_COOLDOWN_NODE, DefaultPermissionLevel.OP, "Bypass the /skin cooldown and per-minute rate limit");
         PermissionAPI.registerNode(METRICS_NODE, DefaultPermissionLevel.OP, "View skin metrics");
         PermissionAPI.registerNode(METRICS_RESET_NODE, DefaultPermissionLevel.OP, "Reset or clean up skin metrics");
         registered = true;
@@ -48,8 +53,8 @@ public class ForgePermissionService implements IPermissionService {
         EntityPlayerMP player = resolvePlayer(context.uuid());
         if (player == null) {
             // No server/player context (e.g. unit tests, pre-boot): keep the
-            // vanilla op semantics instead of failing closed.
-            return context.isOp();
+            // vanilla per-node op levels instead of failing closed.
+            return new VanillaPermissionService().hasPermission(context, permissionNode);
         }
         return PermissionAPI.hasPermission(player, permissionNode);
     }
