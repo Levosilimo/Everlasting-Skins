@@ -70,6 +70,14 @@ public class Config {
     public static ForgeConfigSpec.ConfigValue<List<? extends String>> URL_ALLOWLIST_DOMAINS;
     public static ForgeConfigSpec.ConfigValue<String> MESSAGES_DISCORD_ANNOUNCE;
 
+    public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_MOJANG;
+    public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_URL;
+    public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_CLEAR;
+    public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_RANDOM;
+    public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_OTHER;
+    public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_METRICS;
+    public static ForgeConfigSpec.IntValue PERMISSIONS_OP_LEVEL_METRICS_RESET;
+
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
         builder.push("Messages");
@@ -164,6 +172,22 @@ public class Config {
                 "textures.minecraft.net", "namemc.com", "crafatar.com",
                 "mc-heads.net", "githubusercontent.com", "minecraftskins.com"
             ), o -> o instanceof String);
+        builder.pop();
+        builder.push("Permissions");
+        PERMISSIONS_OP_LEVEL_MOJANG = builder.comment("Required op level for /skin set <mojang>")
+            .defineInRange("op_level.mojang", 0, 0, 4);
+        PERMISSIONS_OP_LEVEL_URL = builder.comment("Required op level for /skin set web")
+            .defineInRange("op_level.url", 2, 0, 4);
+        PERMISSIONS_OP_LEVEL_CLEAR = builder.comment("Required op level for /skin clear")
+            .defineInRange("op_level.clear", 0, 0, 4);
+        PERMISSIONS_OP_LEVEL_RANDOM = builder.comment("Required op level for /skin set random")
+            .defineInRange("op_level.random", 0, 0, 4);
+        PERMISSIONS_OP_LEVEL_OTHER = builder.comment("Required op level for changing another player's skin")
+            .defineInRange("op_level.other", 2, 0, 4);
+        PERMISSIONS_OP_LEVEL_METRICS = builder.comment("Required op level for /skin metrics")
+            .defineInRange("op_level.metrics", 2, 0, 4);
+        PERMISSIONS_OP_LEVEL_METRICS_RESET = builder.comment("Required op level for /skin metrics cleanup/reset")
+            .defineInRange("op_level.metrics_reset", 2, 0, 4);
         builder.pop();
         COMMON_CONFIG = builder.build();
     }

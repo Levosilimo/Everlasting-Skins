@@ -91,7 +91,7 @@ public final class SkinMetricsCommand {
     private static boolean hasPermission(CommandContext<CommandSourceStack> context, String node) {
         ServerPlayer player = context.getSource().getPlayer();
         if (player == null) return false;
-        PermissionContext ctx = PermissionContext.of(player.getUUID(), player.hasPermissions(2));
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
         boolean allowed = PermissionServiceManager.hasPermission(ctx, node);
         if (!allowed) {
             context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("permission_denied")));
