@@ -17,6 +17,7 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerList;
 import net.minecraft.server.management.UserListOps;
+import net.minecraft.server.management.UserListOpsEntry;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.EnumDifficulty;
@@ -139,7 +140,10 @@ public class TestServerContext implements AutoCloseable {
      */
     public void makeOp(EntityPlayerMP player) {
         when(playerList.canSendCommands(any(GameProfile.class))).thenReturn(true);
-        when(playerList.getOppedPlayers()).thenReturn(mock(UserListOps.class));
+        UserListOps ops = mock(UserListOps.class);
+        when(ops.getEntry(any(GameProfile.class)))
+            .thenReturn(new UserListOpsEntry(player.getGameProfile(), 2, false));
+        when(playerList.getOppedPlayers()).thenReturn(ops);
         when(server.getOpPermissionLevel()).thenReturn(2);
     }
 

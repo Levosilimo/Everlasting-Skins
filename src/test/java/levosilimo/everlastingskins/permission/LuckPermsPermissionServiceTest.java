@@ -35,7 +35,7 @@ class LuckPermsPermissionServiceTest {
     @BeforeEach
     void setUp() {
         uuid = UUID.randomUUID();
-        ctx = PermissionContext.of(uuid, true);
+        ctx = PermissionContext.of(uuid, 2);
         LuckPerms fakeLP = mock(LuckPerms.class);
         UserManager fakeUM = mock(UserManager.class);
         fakeUser = mock(User.class);

@@ -28,6 +28,14 @@ public final class Config {
     public static int MAX_COMMANDS_PER_MINUTE = 5;
     public static int DEBOUNCE_MILLIS = 100;
 
+    public static int permissionsOpLevelMojang = 0;
+    public static int permissionsOpLevelUrl = 2;
+    public static int permissionsOpLevelClear = 0;
+    public static int permissionsOpLevelRandom = 0;
+    public static int permissionsOpLevelOther = 2;
+    public static int permissionsOpLevelMetrics = 2;
+    public static int permissionsOpLevelMetricsReset = 2;
+
     public static boolean urlAllowlistEnabled = false;
     public static String[] urlAllowlistDomains = new String[]{
         "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
@@ -70,6 +78,20 @@ public final class Config {
                 MAX_COMMANDS_PER_MINUTE, 1, 60, "Max /skin commands per minute (per player)");
             DEBOUNCE_MILLIS = cfg.getInt("debounce_millis", "everlastingskins",
                 DEBOUNCE_MILLIS, 0, 5000, "Per-player refresh debounce window (milliseconds)");
+            permissionsOpLevelMojang = cfg.getInt("op_level.mojang", "Permissions",
+                permissionsOpLevelMojang, 0, 4, "Required op level for /skin set <mojang>");
+            permissionsOpLevelUrl = cfg.getInt("op_level.url", "Permissions",
+                permissionsOpLevelUrl, 0, 4, "Required op level for /skin set web");
+            permissionsOpLevelClear = cfg.getInt("op_level.clear", "Permissions",
+                permissionsOpLevelClear, 0, 4, "Required op level for /skin clear");
+            permissionsOpLevelRandom = cfg.getInt("op_level.random", "Permissions",
+                permissionsOpLevelRandom, 0, 4, "Required op level for /skin set random");
+            permissionsOpLevelOther = cfg.getInt("op_level.other", "Permissions",
+                permissionsOpLevelOther, 0, 4, "Required op level for changing another player's skin");
+            permissionsOpLevelMetrics = cfg.getInt("op_level.metrics", "Permissions",
+                permissionsOpLevelMetrics, 0, 4, "Required op level for /skin metrics");
+            permissionsOpLevelMetricsReset = cfg.getInt("op_level.metrics_reset", "Permissions",
+                permissionsOpLevelMetricsReset, 0, 4, "Required op level for /skin metrics cleanup/reset");
             DEFAULT_SKINS_ENABLED = cfg.getBoolean("enabled", "DefaultSkins", DEFAULT_SKINS_ENABLED,
                 "Apply a default skin from 'list' to players without a saved custom skin");
             DEFAULT_SKINS_APPLY_FOR_PREMIUM = cfg.getBoolean("applyForPremium", "DefaultSkins",

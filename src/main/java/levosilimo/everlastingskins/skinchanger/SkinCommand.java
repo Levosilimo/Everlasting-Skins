@@ -197,7 +197,7 @@ public class SkinCommand extends CommandBase {
     private boolean checkPermission(ICommandSender sender, String node) {
         if (sender instanceof EntityPlayerMP) {
             EntityPlayerMP player = (EntityPlayerMP) sender;
-            PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player.canUseCommand(2, "everlastingskins"));
+            PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
             if (!PermissionServiceManager.hasPermission(ctx, node)) {
                 sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
                 return false;
@@ -249,7 +249,7 @@ public class SkinCommand extends CommandBase {
     private boolean checkMetricsPermission(ICommandSender sender) {
         if (!(sender instanceof EntityPlayerMP)) return true; // console
         EntityPlayerMP player = (EntityPlayerMP) sender;
-        PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player.canUseCommand(2, "everlastingskins"));
+        PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
         if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics")) {
             sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
             return false;
@@ -260,7 +260,7 @@ public class SkinCommand extends CommandBase {
     private boolean checkMetricsResetPermission(ICommandSender sender) {
         if (!(sender instanceof EntityPlayerMP)) return true; // console
         EntityPlayerMP player = (EntityPlayerMP) sender;
-        PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player.canUseCommand(2, "everlastingskins"));
+        PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
         if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics.reset")) {
             sender.sendMessage(new TextComponentString(PREFIX + "Permission denied"));
             return false;

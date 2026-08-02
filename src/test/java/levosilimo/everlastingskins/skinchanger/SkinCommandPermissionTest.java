@@ -47,14 +47,14 @@ class SkinCommandPermissionTest {
     @Test
     @DisplayName("hasPermission delegates to PermissionServiceManager for op players")
     void permissionCheck_delegatesToManager() {
-        PermissionContext ctx = PermissionContext.of(TEST_UUID, true);
+        PermissionContext ctx = PermissionContext.of(TEST_UUID, 2);
         assertTrue(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin"));
     }
 
     @Test
-    @DisplayName("non-op player lacks permission")
+    @DisplayName("non-op player lacks level-2 permission")
     void nonOp_lacksPermission() {
-        PermissionContext ctx = PermissionContext.of(TEST_UUID, false);
-        assertFalse(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin"));
+        PermissionContext ctx = PermissionContext.of(TEST_UUID, 0);
+        assertFalse(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics"));
     }
 }

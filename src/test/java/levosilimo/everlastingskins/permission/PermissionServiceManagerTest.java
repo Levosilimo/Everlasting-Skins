@@ -67,7 +67,7 @@ class PermissionServiceManagerTest {
     @DisplayName("hasPermission before init falls back to Vanilla")
     void hasPermission_beforeInit_returnsFallback() {
         PermissionServiceManager.reset();
-        PermissionContext ctx = PermissionContext.of(TEST_UUID, true);
+        PermissionContext ctx = PermissionContext.of(TEST_UUID, 2);
         assertTrue(PermissionServiceManager.hasPermission(ctx, "any.node"));
     }
 

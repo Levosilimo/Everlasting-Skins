@@ -6,23 +6,45 @@
 
 package levosilimo.everlastingskins.permission;
 
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.server.management.PlayerList;
+import net.minecraft.server.management.UserListOps;
+import net.minecraft.server.management.UserListOpsEntry;
+
 import java.util.Objects;
 import java.util.UUID;
 
 public final class PermissionContext {
     private final UUID uuid;
-    private final boolean isOp;
+    private final int opLevel;
 
-    public PermissionContext(UUID uuid, boolean isOp) {
+    public PermissionContext(UUID uuid, int opLevel) {
         this.uuid = Objects.requireNonNull(uuid);
-        this.isOp = isOp;
+        if (opLevel < 0 || opLevel > 4) {
+            throw new IllegalArgumentException("opLevel must be 0-4, got " + opLevel);
+        }
+        this.opLevel = opLevel;
     }
 
     public UUID uuid() { return uuid; }
-    public boolean isOp() { return isOp; }
+    public int opLevel() { return opLevel; }
 
-    public static PermissionContext of(UUID uuid, boolean isOp) {
-        return new PermissionContext(uuid, isOp);
+    public static PermissionContext of(UUID uuid, int opLevel) {
+        return new PermissionContext(uuid, opLevel);
+    }
+
+    public static PermissionContext of(UUID uuid, EntityPlayerMP player) {
+        return new PermissionContext(uuid, effectiveOpLevel(player));
+    }
+
+    private static int effectiveOpLevel(EntityPlayerMP player) {
+        if (player == null || player.mcServer == null) return 0;
+        PlayerList playerList = player.mcServer.getPlayerList();
+        if (playerList == null) return 0;
+        UserListOps ops = playerList.getOppedPlayers();
+        if (ops == null) return 0;
+        UserListOpsEntry entry = ops.getEntry(player.getGameProfile());
+        return entry != null ? entry.getPermissionLevel() : 0;
     }
 
     @Override
@@ -30,16 +52,16 @@ public final class PermissionContext {
         if (this == o) return true;
         if (!(o instanceof PermissionContext)) return false;
         PermissionContext that = (PermissionContext) o;
-        return isOp == that.isOp && uuid.equals(that.uuid);
+        return opLevel == that.opLevel && uuid.equals(that.uuid);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uuid, isOp);
+        return Objects.hash(uuid, opLevel);
     }
 
     @Override
     public String toString() {
-        return "PermissionContext{uuid=" + uuid + ", isOp=" + isOp + "}";
+        return "PermissionContext{uuid=" + uuid + ", opLevel=" + opLevel + "}";
     }
 }
