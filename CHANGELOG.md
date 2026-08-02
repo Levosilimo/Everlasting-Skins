@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.1.0-rc.1 (2026-08-02)
+
+### Added
+- **MojangProfileCache config** (#143): `mojang_profile_cache_enabled/ttl_ms/max_size` — admins can tune cache lifetime and size to protect against Mojang rate limits (default 1h / 1000).
+- **Custom messages tree** (#144): 22 new message keys (e.g., `messages_change`, `messages_fulfilled`, `messages_timeout`, `messages_no_skin_found`, `messages_mineskin_rejected`) with per-server config defaults and per-locale overrides via existing I18nUtils.
+- **Default skins list** (#145): Configurable list of default skins with `<random>` token — random picks thread through `RandomMojangSkin.randomUsername()` then `MojangAPI.getSkin`. New `applyForPremium` flag controls whether defaults override premium players' saved custom skins.
+- **URL domain allowlist** (#146): `Security.urlAllowlistEnabled` + `urlAllowlistDomains` (default list of 9 common skin hosts: imgur, storage.googleapis.com, cdn.discordapp.com, textures.minecraft.net, namemc.com, crafatar, mc-heads.net, githubusercontent, minecraftskins). eTLD+1 suffix match post-`sanitizeImageURL` to handle the namemc.com rewrite.
+- **Discord announce i18n** (#150): DiscordSRV announce message routed through `I18nUtils.get("discord_announce", ...)`. New `messages_discord_announce` config key.
+- **Per-command op level config** (#152): 7 `op_level.{mojang,url,clear,random,other,metrics,metrics_reset}` keys (default mojang/clear/random=0, url/other/metrics/metrics_reset=2).
+- **`everlastingskins.bypass.cooldown` permission node** (#152): OP default; skips the rate-limit cooldown window for holders.
+- **`everlastingskins.command.skin.source` permission node** (#152): registered as a real node (was hardcoded `true`); retains ALL default for read-only self-source check.
+- **PermissionContext widened** (#152): from `(UUID, boolean isOp)` to `(UUID, int opLevel)` with 0-4 validation. VanillaPermissionService reads per-node op level from Config; LuckPerms/Forge paths delegate fallback to vanilla.
+
+### Changed
+- Default permission posture: `/skin set mojang/clear/random` are now open to all players (op_level=0); `/skin set web` and `/skin set/clear <other>` still require op-2; `/skin metrics` and `/skin metrics reset` still require op-2.
+
+### Fixed
+- Login-time 3-provider HTTP chain offloaded to executor (no more 30s server freeze per login)
+- Multi-target `/skin clear` per-target restores from Mojang
+- `SkinRefreshHandler.task()` wrapped in try/catch (no partial cascade on exception)
+- `ForgePermissionService` properly registers all 8 permission nodes (was 6; added `.source` + `.bypass.cooldown`)
+- LuckPerms backend falls back to op check on pre-load (was: unconditional deny)
+- MineSkin 429 bounded sleep (was: unbounded provider-controlled delay)
+- CustomSkinProperty base64 validation
+- GameTest flake on `concurrentSkinSet_twoPlayers` — wall-clock deadline (20s) instead of tick budget
+
+### Tests added
+- `MojangProfileCacheTest` (8 cases)
+- `UrlAllowlistTest` (8 cases)
+- `DefaultSkinResolverTest` (11 cases)
+- `PermissionServiceManagerTest` + `VanillaPermissionServiceTest` + `LuckPermsPermissionServiceTest` (refreshed with opLevel)
+
 ## 2.1.0 (2026-08-02)
 
 ### Added
