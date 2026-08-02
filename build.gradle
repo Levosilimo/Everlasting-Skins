@@ -118,7 +118,8 @@ jar {
             'Specification-Version': project.version,
             'Implementation-Title': project.name,
             'Implementation-Version': project.version,
-            'Implementation-Vendor': 'Levosilimo'
+            'Implementation-Vendor': 'Levosilimo',
+            'FMLAT': 'everlastingskins_at.cfg'
         ])
     }
 }

@@ -53,13 +53,13 @@ class I18nUtilsTest {
         @Test
         @DisplayName("Null locale returns key")
         void nullLocaleReturnsKey() {
-            assertEquals("change", I18nUtils.getLocalizedString("change", null));
+            assertEquals("change", I18nUtils.getLocalizedString("change", (String) null));
         }
 
         @Test
         @DisplayName("Null key and null locale returns null")
         void nullKeyAndNullLocale() {
-            assertNull(I18nUtils.getLocalizedString(null, null));
+            assertNull(I18nUtils.getLocalizedString((String) null, (String) null));
         }
 
         @Test

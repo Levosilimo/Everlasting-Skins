@@ -6,6 +6,8 @@
 
 package levosilimo.everlastingskins.util;
 
+import levosilimo.everlastingskins.Config;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 
@@ -33,6 +35,17 @@ public final class I18nUtils {
         if (map == null) return key;
         String value = map.get(key);
         return value != null ? value : key;
+    }
+
+    /**
+     * Per-player locale variant: resolves the player's client language via
+     * PlayerLanguage (AT-exposed EntityPlayerMP.language) and falls back to
+     * Config.LANGUAGE when the player is null or has no language set.
+     */
+    public static String getLocalizedString(String key, EntityPlayerMP player) {
+        String locale = PlayerLanguage.get(player);
+        if (locale == null || locale.isEmpty()) locale = Config.LANGUAGE;
+        return getLocalizedString(key, defaultLocaleFor(locale));
     }
 
     public static void loadAll() {
