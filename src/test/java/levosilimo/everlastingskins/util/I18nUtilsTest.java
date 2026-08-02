@@ -102,6 +102,14 @@ class I18nUtilsTest {
             assertEquals("en", I18nUtils.defaultLocaleFor("en"));
             assertEquals("ru", I18nUtils.defaultLocaleFor("ru"));
             assertEquals("uk", I18nUtils.defaultLocaleFor("uk"));
+            assertEquals("zh_cn", I18nUtils.defaultLocaleFor("zh_cn"));
+            assertEquals("es_es", I18nUtils.defaultLocaleFor("es_es"));
+            assertEquals("pt_br", I18nUtils.defaultLocaleFor("pt_br"));
+            assertEquals("de_de", I18nUtils.defaultLocaleFor("de_de"));
+            assertEquals("fr_fr", I18nUtils.defaultLocaleFor("fr_fr"));
+            assertEquals("ja_jp", I18nUtils.defaultLocaleFor("ja_jp"));
+            assertEquals("ko_kr", I18nUtils.defaultLocaleFor("ko_kr"));
+            assertEquals("it_it", I18nUtils.defaultLocaleFor("it_it"));
         }
 
         @ParameterizedTest
@@ -110,6 +118,14 @@ class I18nUtilsTest {
             "en_GB, en",
             "ru_RU, ru",
             "uk_UA, uk",
+            "ZH_CN, zh_cn",
+            "ES_ES, es_es",
+            "PT_BR, pt_br",
+            "DE_DE, de_de",
+            "FR_FR, fr_fr",
+            "JA_JP, ja_jp",
+            "KO_KR, ko_kr",
+            "IT_IT, it_it",
             "EN,    en",
             "RU,    ru",
             "UK,    uk"
@@ -121,11 +137,12 @@ class I18nUtilsTest {
 
         @ParameterizedTest
         @CsvSource({
-            "fr, en",
-            "de, en",
-            "es, en",
-            "zh, en",
-            "ja, en"
+            "pl_pl, en",
+            "tr_tr, en",
+            "nl_nl, en",
+            "vi_vn, en",
+            "th_th, en",
+            "zh_tw, en"
         })
         @DisplayName("Unsupported languages fall back to English")
         void unsupportedLanguagesFallback(String language, String expected) {
@@ -145,7 +162,7 @@ class I18nUtilsTest {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"en", "ru", "uk"})
+        @ValueSource(strings = {"en", "ru", "uk", "zh_cn", "es_es", "pt_br", "de_de", "fr_fr", "ja_jp", "ko_kr", "it_it"})
         @DisplayName("Known locale returns itself (value source)")
         void knownLocalesReturnThemselves(String locale) {
             assertEquals(locale, I18nUtils.defaultLocaleFor(locale));
@@ -201,7 +218,7 @@ class I18nUtilsTest {
     class ShippedLocales {
 
         @ParameterizedTest
-        @ValueSource(strings = {"en", "ru", "uk"})
+        @ValueSource(strings = {"en", "ru", "uk", "zh_cn", "es_es", "pt_br", "de_de", "fr_fr", "ja_jp", "ko_kr", "it_it"})
         @DisplayName("locale file ships all 22 keys (UTF-8 readable)")
         void localeFileHasAll22Keys(String locale) throws IOException {
             String path = "/assets/everlastingskins/lang/" + locale + ".properties";
@@ -219,19 +236,21 @@ class I18nUtilsTest {
         @Test
         @DisplayName("no stray format specifiers in translations without args")
         void noStrayPercentInPlainKeys() throws IOException {
-            Properties props = new Properties();
-            try (InputStream is = I18nUtilsTest.class.getResourceAsStream(
-                    "/assets/everlastingskins/lang/en.properties")) {
-                props.load(new InputStreamReader(is, StandardCharsets.UTF_8));
-            }
-            for (String key : EXPECTED_KEYS) {
-                String value = props.getProperty(key);
-                boolean expectsArg = "restored_from".equals(key) || "cooldown".equals(key)
-                    || "no_skin_found".equals(key) || "metrics_cleanup".equals(key)
-                    || "discord_announce".equals(key);
-                if (!expectsArg) {
-                    assertFalse(value.contains("%"),
-                        "plain key '" + key + "' must not contain '%': " + value);
+            for (String locale : new String[]{"en", "ru", "uk", "zh_cn", "es_es", "pt_br", "de_de", "fr_fr", "ja_jp", "ko_kr", "it_it"}) {
+                Properties props = new Properties();
+                try (InputStream is = I18nUtilsTest.class.getResourceAsStream(
+                        "/assets/everlastingskins/lang/" + locale + ".properties")) {
+                    props.load(new InputStreamReader(is, StandardCharsets.UTF_8));
+                }
+                for (String key : EXPECTED_KEYS) {
+                    String value = props.getProperty(key);
+                    boolean expectsArg = "restored_from".equals(key) || "cooldown".equals(key)
+                        || "no_skin_found".equals(key) || "metrics_cleanup".equals(key)
+                        || "discord_announce".equals(key);
+                    if (!expectsArg) {
+                        assertFalse(value.contains("%"),
+                            "plain key '" + key + "' in " + locale + " must not contain '%': " + value);
+                    }
                 }
             }
         }

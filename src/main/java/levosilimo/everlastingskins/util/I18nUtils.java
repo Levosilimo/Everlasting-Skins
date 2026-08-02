@@ -29,7 +29,7 @@ import java.util.Properties;
  */
 public final class I18nUtils {
     private static final Map<String, Map<String, String>> localizedStrings = new HashMap<>();
-    private static final String[] LOCALES = { "en", "ru", "uk" };
+    private static final String[] LOCALES = { "en", "ru", "uk", "zh_cn", "es_es", "pt_br", "de_de", "fr_fr", "ja_jp", "ko_kr", "it_it" };
 
     public static String getLocalizedString(String key, String locale) {
         if (key == null || locale == null) return key;
