@@ -81,7 +81,6 @@ public class RandomMojangSkin {
         return rand.nextInt(24) + ((year % 10) * 5) + 1;
     }
 
-
     private static List<String> extractUsernames(String html) {
         List<String> usernames = new ArrayList<>();
         int currentIndex = 0;

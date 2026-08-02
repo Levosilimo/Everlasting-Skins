@@ -6,7 +6,6 @@
 
 package levosilimo.everlastingskins.util;
 
-
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import org.apache.logging.log4j.LogManager;

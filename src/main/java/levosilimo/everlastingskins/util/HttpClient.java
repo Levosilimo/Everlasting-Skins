@@ -6,7 +6,6 @@
 
 package levosilimo.everlastingskins.util;
 
-
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 
 import java.io.IOException;
