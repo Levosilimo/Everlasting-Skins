@@ -44,7 +44,6 @@ public class EndpointsConfig {
         if (sysProp != null && !sysProp.isEmpty()) {
             return sysProp;
         }
-        // Existing resource-based lookup
         String value = props.getProperty(key);
         if (value == null || value.isEmpty()) {
             EverlastingSkins.logger.warn("Missing endpoint property: {}, returning empty fallback", key);
