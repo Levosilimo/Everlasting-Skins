@@ -22,6 +22,7 @@ public class FakeHttpClient implements HttpClient {
     private URI timeoutUri = null;
     private URI errorUri = null;
     private IOException errorException = null;
+    private Map<String, String> lastCapturedHeaders = null;
 
     /**
      * Register a canned response for the given URI.
@@ -62,10 +63,15 @@ public class FakeHttpClient implements HttpClient {
         if (uri.equals(errorUri) && errorException != null) {
             throw errorException;
         }
+        this.lastCapturedHeaders = headers;
         HttpResponse response = responses.get(uri);
         if (response == null) {
             throw new IOException("Unexpected URI in test: " + uri);
         }
         return response;
+    }
+
+    public Map<String, String> getLastCapturedHeaders() {
+        return lastCapturedHeaders;
     }
 }
