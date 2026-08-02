@@ -11,7 +11,7 @@
 
 ## Current branch
 
-- The checked-in code is the Forge 1.21 implementation. `EverlastingSkins` registers common config and `SkinRestorer`; `SkinRestorer` initializes per-server JSON storage; `MixinPlayerManager` applies and saves skins; `MixinCommandManager` registers `/skin`.
+- The checked-in code is the Forge 1.21 implementation. `EverlastingSkins` registers common config and `SkinRestorer`; `SkinRestorer` initializes per-server JSON storage; `SkinRefreshHandler` applies and saves skins; `CommandRegistrationHandler` registers `/skin` via `RegisterCommandsEvent`. There is no `MixinPlayerManager`; `mixin/server/MixinCommandManager.java` exists but is intentionally unused (command registration moved to events).
 - Skin refresh is server-only and relies on profile mutation plus version-specific reconnect-style packets. Do not replace it with an unverified packet shortcut. Real client/server testing is required.
 - Prefer stable Forge/FML lifecycle events over Mixins when the target version exposes the required timing. Use narrow Mixins when events cannot preserve behavior. Access transformers and reflection do not replace hook injection; raw ASM is the last fallback.
 
