@@ -2,6 +2,7 @@ package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -65,6 +66,7 @@ public class SkinRestorer {
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.player instanceof EntityPlayerMP)) return;
         EntityPlayerMP player = (EntityPlayerMP) event.player;
+        SkinMetrics.INSTANCE.recordPlayerJoined();
 
         if (skinStorage.hasDefaultSkin(player.getUniqueID())) {
             MojangSkinDataResult skinDataResult = SkinCommand.getMojangAPI().getSkin(player.getGameProfile().getName()).orElse(null);
@@ -89,6 +91,7 @@ public class SkinRestorer {
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!(event.player instanceof EntityPlayerMP)) return;
         EntityPlayerMP player = (EntityPlayerMP) event.player;
+        SkinMetrics.INSTANCE.recordPlayerLeft();
         if (skinStorage.getSkin(player.getUniqueID()) != null) {
             skinStorage.saveSkin(player.getUniqueID());
         }

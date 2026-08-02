@@ -42,8 +42,10 @@ final class SkinAction {
                 p.sendMessage(new TextComponentString(SkinCommand.PREFIX + "Processing..."));
             }
         }
+        long[] fetchNanos = {0L};
         CompletableFuture<CustomSkinProperty> future = CompletableFuture.supplyAsync(() -> {
             CustomSkinProperty sp = null;
+            long fetchStartNanos = System.nanoTime();
             try {
                 switch (type) {
                     case clear:
@@ -84,6 +86,8 @@ final class SkinAction {
                 }
             } catch (Exception e) {
                 throw new CompletionException(e);
+            } finally {
+                fetchNanos[0] = System.nanoTime() - fetchStartNanos;
             }
             return sp;
         }, EXECUTOR);
@@ -126,7 +130,7 @@ final class SkinAction {
                     }
                 }
                 for (EntityPlayerMP p : targets) {
-                    SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, null));
+                    SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, null, fetchNanos[0]));
                 }
                 return;
             }
@@ -141,7 +145,7 @@ final class SkinAction {
                 }
             }
             for (EntityPlayerMP p : targets) {
-                SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, sp));
+                SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, sp, fetchNanos[0]));
             }
             for (EntityPlayerMP p : targets) {
                 try {
