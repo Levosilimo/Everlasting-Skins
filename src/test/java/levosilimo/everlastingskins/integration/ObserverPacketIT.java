@@ -84,12 +84,21 @@ class ObserverPacketIT {
             ((SPacketPlayerListItem) global.get(1)).getAction());
 
         // The target's own connection gets the respawn cascade after the
-        // 'change' / 'fulfilled' chat packets.
+        // 'change' / 'fulfilled' chat packets. Wait for all three packets to
+        // arrive before snapshotting, otherwise the ordering assertion below
+        // races with the cascade being recorded on another thread.
+        assertTrue(AsyncSupport.await(5000, () -> {
+            List<Packet<?>> s = targetLog.all();
+            return indexOfType(s, SPacketRespawn.class) >= 0
+                && indexOfType(s, SPacketServerDifficulty.class) >= 0
+                && indexOfType(s, SPacketPlayerAbilities.class) >= 0;
+        }), "respawn/difficulty/abilities cascade packets must arrive within 5s");
+
         List<Packet<?>> self = targetLog.all();
         int respawn = indexOfType(self, SPacketRespawn.class);
         int difficulty = indexOfType(self, SPacketServerDifficulty.class);
         int abilities = indexOfType(self, SPacketPlayerAbilities.class);
-        assertTrue(respawn >= 0 && respawn < difficulty && difficulty < abilities,
+        assertTrue(respawn < difficulty && difficulty < abilities,
             "respawn must precede difficulty, which must precede abilities");
 
         // Observers have no direct per-viewer packets on 1.12.2; they receive
