@@ -255,6 +255,11 @@ public final class SkinActionCommand {
                 if (Config.TOGGLE.get()) {
                     player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("cleared_no_profile", player)));
                 }
+                // Clear the applied GameProfile too, not just storage: the
+                // refresh task drops the textures property and re-broadcasts, so
+                // stored (null) and applied stay consistent. Mirrors the legacy
+                // mc1.12.2 scheduling; 1.21's task() actually performs the clear.
+                SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
                 continue;
             }
             boolean isRestore = isClear && skinProperty != null;
@@ -263,6 +268,18 @@ public final class SkinActionCommand {
                 SkinMetrics.INSTANCE.recordRefreshSkipped(uuid);
                 continue;
             }
+            // The debounce gates persistence as well as the profile refresh:
+            // storing a skin whose refresh was skipped would leave the stored
+            // source/skin different from the applied GameProfile.
+            long now = System.currentTimeMillis();
+            Long last = lastRefreshByPlayer.get(uuid);
+            long window = debounceMillis > 0 ? debounceMillis : Config.DEBOUNCE_MILLIS.get();
+            if (last != null && now - last < window) {
+                EverlastingSkins.logger.debug("SKIN_REFRESH debounced for {}", uuid);
+                SkinMetrics.INSTANCE.recordRefreshDebounced(uuid);
+                continue;
+            }
+            lastRefreshByPlayer.put(uuid, now);
             SkinRestorer.getSkinStorage().setSkin(uuid, skinProperty);
             if (Config.TOGGLE.get()) {
                 String msg = isRestore
@@ -274,19 +291,8 @@ public final class SkinActionCommand {
                     player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + msg));
                 }
             }
-            long now = System.currentTimeMillis();
-            Long last = lastRefreshByPlayer.get(uuid);
-            long window = debounceMillis > 0 ? debounceMillis : Config.DEBOUNCE_MILLIS.get();
-            if (last != null && now - last < window) {
-                EverlastingSkins.logger.debug("SKIN_REFRESH debounced for {}", uuid);
-                SkinMetrics.INSTANCE.recordRefreshDebounced(uuid);
-                continue;
-            }
-            lastRefreshByPlayer.put(uuid, now);
             SkinMetrics.INSTANCE.recordRefreshCompleted(uuid, t0, fetchNanos, 0, 0);
             SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
-        }
-        for (ServerPlayer player : targets) {
             try {
                 DiscordSrvHook.announceSkinChange(player, customSource);
             } catch (Exception e) {

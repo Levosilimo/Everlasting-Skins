@@ -50,6 +50,14 @@ public class SkinRefreshHandler {
         refreshTaskCount++;
         CustomSkinProperty skin = SkinRestorer.getSkinStorage().getSkin(player.getUUID());
         if (skin == null || skin.isEmpty()) {
+            // Stored skin is cleared (or never set): drop the applied textures
+            // property so the applied GameProfile matches storage, then let
+            // observers re-learn the profile and rebuild the target's own view.
+            // Without this, /skin clear with no Mojang profile left the applied
+            // profile showing the old texture while storage said "cleared".
+            mutateProfileCleared(player);
+            recordObserverBroadcast(player, null);
+            recordCascade(player);
             return;
         }
         long tStart = System.nanoTime();
@@ -77,6 +85,13 @@ public class SkinRefreshHandler {
         player.getGameProfile().getProperties().removeAll("textures");
         player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
+                player.getGameProfile().getName(),
+                player.getGameProfile().getProperties().get("textures"));
+    }
+
+    private static void mutateProfileCleared(ServerPlayer player) {
+        player.getGameProfile().getProperties().removeAll("textures");
+        EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={} (cleared)",
                 player.getGameProfile().getName(),
                 player.getGameProfile().getProperties().get("textures"));
     }
