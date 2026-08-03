@@ -54,3 +54,15 @@
   3. Dispatch a separate librarian or oracle session to audit the implementation: what production code is actually exercised (vs bypassed), whether assertions verify behavior rather than framework mechanics, whether coverage matches stated intent, whether edge cases and error paths are covered, and whether claimed features (commands, integrations, scenarios) are real rather than stubs.
 - Only after the independent auditor finds no major gaps may the PR be merged.
 - Specifically for test PRs: tests must exercise the real mod flow (command dispatch, permission gating, async provider calls, persistence round-trip) — not just framework mechanics such as mock player creation, channel drain, and packet shape assertions.
+
+## Iterative fix-audit-refix-reaudit workflow
+
+Use this cycle for multi-version PR sets that land as one batch:
+
+- Plan implementation in non-overlapping lanes before writing code. Each lane opens its own PR from an isolated worktree; do not share files across lanes.
+- Assign one fixer per lane. Commit frequently in logical units and keep a clear file ownership contract so lanes never edit the same path.
+- After implementation, dispatch independent read-only librarian audits on each PR while the fixers are still reusable. Reconcile findings into the same PR; do not open new PRs for audit findings.
+- Run every finding through: identify -> fix in the owning lane (no cross-lane file edits) -> commit -> re-audit the same scope. Only declare a scope CLEAN when the second audit is explicitly clean.
+- Do not start the merge lane until CI is green on every PR in the set.
+- Merge with GitHub merge commits in dependency order. Use `gh pr update-branch` for BEHIND branches under strict branch protection. Never use `--admin` bypass, never delete branches, never force push. Stop and report on any blocker instead of working around it.
+- After the merge set lands, run one final read-only audit across all branches.
