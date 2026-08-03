@@ -241,6 +241,13 @@ public class TestServerContext implements AutoCloseable {
 
     @Override
     public void close() {
+        // Drain any deferred save before the next test starts: the drain fires
+        // 50ms after the last saveSkinAsync, so without this a context's final
+        // write lands mid-way through the next test class and pollutes its
+        // global SkinMetrics counters (realWrites/savesCompleted) or races its
+        // tempDir cleanup. Draining here is a no-op when the test already
+        // flushed (stop paths, ConcurrentSetIT) or purged the write (clears).
+        storage.flushPending();
         reset();
     }
 
