@@ -6,7 +6,8 @@ EverlastingSkins uses a three-tier testing pyramid:
 - 336 unit tests + 32 GameTest = 368 total on 1.21 branch
 - 325 tests on mc1.12.2 branch
 - Coverage: provider fallback, HTTP outcomes, persistence atomicity, corruption handling, cache behavior, permission system, command dispatch, integration hooks
-- New in 2.1.0-rc.1: `MojangProfileCacheTest`, `UrlAllowlistTest`, `DefaultSkinResolverTest`, `PermissionServiceManagerTest`, `VanillaPermissionServiceTest`, `LuckPermsPermissionServiceTest`
+- New in 2.1.0-rc.1: `MojangProfileCacheTest`, `UrlAllowlistTest`, `DefaultSkinResolverTest`; `PermissionServiceManagerTest`, `VanillaPermissionServiceTest`, `LuckPermsPermissionServiceTest` refreshed with `opLevel` (were pre-existing)
+- **Test gaps closed (#169)**: 11 new tests covering Discord i18n routing, MojangProfileCache config, per-player locale behavior
 - Run: `./gradlew test`
 
 ## Tier 2: Forge server integration (manual smoke test)
