@@ -61,7 +61,7 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 |-----|------|---------|-------------|
 | `Messages.localization` | String | `en` | Language for mod messages |
 | `Messages.display` | Boolean | `true` | Show skin application messages in chat |
-| `Messages.key` | String | (empty) | MineSkin API key (required for `/skin set web`) |
+| `Messages.key` | String | (empty) | MineSkin API key (optional; raises rate limits for `/skin set web`) |
 | `MineSkin.enabled` | Boolean | `false` | Enable MineSkin URL-based skin generation |
 | `Integration.discordsrv_enabled` | Boolean | `false` | Enable DiscordSRV skin change announcements (hybrid servers only) |
 | `Integration.discordsrv_channel_id` | String | (empty) | Discord channel ID for skin change announcements |
