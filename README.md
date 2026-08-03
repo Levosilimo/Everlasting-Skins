@@ -45,7 +45,7 @@ Each branch has its own README with version-specific installation instructions, 
 | Command | Permission | Description |
 |---------|-----------|-------------|
 | `/skin set mojang <name>` | any | Apply a Mojang-registered skin by username |
-| `/skin set web <classic\|slim> <url>` | any | Apply a skin from an image URL (MineSkin, requires config) |
+| `/skin set web <classic\|slim> <url>` | op 2 | Apply a skin from an image URL (MineSkin, requires config) |
 | `/skin set random` | any | Apply a random skin |
 | `/skin clear` | any | Restore your Mojang skin or reset to default |
 | `/skin source` | any | Show your current skin source |
@@ -136,6 +136,12 @@ Built-in locales (11 total) — set `messages.localization` to one of:
 | `pt_br` | Portuguese (Brazil) |
 | `zh_cn` | Chinese (Simplified) |
 
+### Per-Player Locale
+
+Each player sees mod messages in their own Minecraft client language (e.g., a player with French `fr_fr` sees French translations). The locale is read automatically from `clientInformation().language()` and normalized (`en_us` -> `en`); locales not among the 11 built-ins fall back to `messages.localization` (default `en`).
+
+Configurable in `world/serverconfig/everlastingskins-server.toml` under the `Messages` section.
+
 ## 🌐 External Services
 
 | Service | Required | Used For |
@@ -168,8 +174,8 @@ To enable PlaceholderAPI on a hybrid server:
 
 To enable DiscordSRV announcements:
 1. Install DiscordSRV on the Bukkit side
-2. Configure the channel ID in the mod config: `discordsrv_channel_id = "123456789"`
-3. Set `discordsrv_enabled = true` in the mod config
+2. Configure the channel ID in the mod config: `integration.discordsrv_channel_id = "123456789"`
+3. Set `integration.discordsrv_enabled = true` in the mod config
 4. Skin changes will be announced to the configured Discord channel
 
 ## 🔨 Building from Source
