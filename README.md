@@ -51,7 +51,7 @@ Each branch has its own README with version-specific installation instructions, 
 | `/skin source` | any | Show your current skin source |
 | `/skin metrics [human\|json\|players\|cleanup\|reset]` | admin | View skin metrics (view commands need `everlastingskins.command.metrics`; `cleanup`/`reset` need `everlastingskins.command.metrics.reset`) |
 
-Permission nodes: `everlastingskins.command.skin`, `everlastingskins.command.skin.url`, `everlastingskins.command.skin.clear`, `everlastingskins.command.skin.random`, `everlastingskins.command.skin.other`, `everlastingskins.command.metrics`, `everlastingskins.command.metrics.reset`, and `everlastingskins.bypass.cooldown` (skips the `/skin` cooldown).
+Permission nodes: `everlastingskins.command.skin`, `everlastingskins.command.skin.url`, `everlastingskins.command.skin.clear`, `everlastingskins.command.skin.source`, `everlastingskins.command.skin.other`, `everlastingskins.command.metrics`, `everlastingskins.command.metrics.reset`, and `everlastingskins.bypass.cooldown` (skips the `/skin` cooldown).
 
 ## ⚙️ Configuration
 
@@ -88,7 +88,20 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 | `Permissions.op_level.metrics` | Integer | `2` | Required op level for `/skin metrics` |
 | `Permissions.op_level.metrics_reset` | Integer | `2` | Required op level for `/skin metrics cleanup/reset` |
 
-> **Per-player locale**: when a message has no custom default, the mod resolves the player's client language (`en_us`, etc.) via `PlayerLanguage` (AT-exposed `EntityPlayerMP.language` field, `META-INF/everlastingskins_at.cfg`) and falls back to `Messages.localization` if the field is unavailable. The 1.21 branch provides the same behavior via `ServerPlayer.clientInformation().language()`.
+### Per-Player Locale
+
+EverlastingSkins reads each player's client language from
+`EntityPlayerMP.field_71148_cg` (MCP `language`), exposed via the
+Access Transformer (`META-INF/everlastingskins_at.cfg`). The client
+sends the language during the handshake via the Serverbound Client
+Information packet, and it is used to render command responses (e.g.,
+`/skin set mojang Notch` returns "Skin applied" in the player's
+preferred language).
+
+If the client does not send a language (older clients or mods that
+strip the field), `Config.LANGUAGE` is used as a server-wide fallback.
+The 1.21 branch provides the same behavior via
+`ServerPlayer.clientInformation().language()`.
 
 ## 🌐 Languages
 
