@@ -17,8 +17,8 @@ Each branch is isolated with its own toolchain, Forge version, and Java runtime.
 
 | Branch | Minecraft | Forge | Java | Status |
 |--------|-----------|-------|------|--------|
-| [1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/1.21) | 1.21 | 51.0.24 | 21 | Active |
-| [mc1.12.2](https://github.com/Levosilimo/Everlasting-Skins/tree/mc1.12.2) | 1.12.2 | 14.23.5.2860 | 8 | Active |
+| [1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/1.21) | 1.21 | 51.0.8 | 21 | Active |
+| [mc1.12.2](https://github.com/Levosilimo/Everlasting-Skins/tree/mc1.12.2) | 1.12.2 | 14.23.5.2847 | 8 | Active |
 
 Each branch has its own README with version-specific installation instructions, config paths, and command documentation.
 
@@ -115,6 +115,26 @@ All message strings are customizable. Defaults (keys under the `Messages` sectio
 | `messages.messages_metrics_cleanup` | `Metrics cleanup: pruned %d stale player entries` |
 | `messages.messages_metrics_reset` | `Metrics reset` |
 | `messages.messages_discord_announce` | `**%s** changed their skin to: \`%s\`` |
+
+Message keys are configurable per-locale via I18nUtils. The Custom messages tree (#144) added 22 keys with per-server config defaults — see [CHANGELOG.md](CHANGELOG.md) for the full list.
+
+## 🌐 Languages
+
+Built-in locales (11 total) — set `messages.localization` to one of:
+
+| Locale | Language |
+|--------|----------|
+| `en` | English |
+| `ru` | Russian |
+| `uk` | Ukrainian |
+| `de_de` | German |
+| `es_es` | Spanish |
+| `fr_fr` | French |
+| `it_it` | Italian |
+| `ja_jp` | Japanese |
+| `ko_kr` | Korean |
+| `pt_br` | Portuguese (Brazil) |
+| `zh_cn` | Chinese (Simplified) |
 
 ## 🌐 External Services
 
