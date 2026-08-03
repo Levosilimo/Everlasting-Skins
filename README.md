@@ -118,6 +118,19 @@ All message strings are customizable. Defaults (keys under the `Messages` sectio
 
 Message keys are configurable per-locale via I18nUtils. The Custom messages tree (#144) added 22 keys with per-server config defaults — see [CHANGELOG.md](CHANGELOG.md) for the full list.
 
+### Permissions
+
+The 8 registered permission nodes:
+
+- `everlastingskins.command.skin` (default ALL)
+- `everlastingskins.command.skin.other` (default OP)
+- `everlastingskins.command.skin.url` (default ALL)
+- `everlastingskins.command.skin.clear` (default ALL)
+- `everlastingskins.command.skin.source` (default ALL)
+- `everlastingskins.command.metrics` (default OP)
+- `everlastingskins.command.metrics.reset` (default OP)
+- `everlastingskins.bypass.cooldown` (default OP)
+
 ## 🌐 Languages
 
 Built-in locales (11 total) — set `messages.localization` to one of:
