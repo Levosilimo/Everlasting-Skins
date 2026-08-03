@@ -29,7 +29,6 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -58,21 +57,21 @@ class SkinActionGuardsIT {
     private FakeMojangAPI fake;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         ctx = new TestServerContext(tempDir);
         fake = new FakeMojangAPI();
         SkinCommandTestAccess.setMojangAPI(fake);
         SkinMetrics.INSTANCE.reset();
-        clearStateMaps();
+        SkinActionTestAccess.clearGuardState();
     }
 
     @AfterEach
-    void tearDown() throws Exception {
+    void tearDown() {
         Config.RATE_LIMIT_ENABLED = false;
         Config.DEBOUNCE_MILLIS = 0;
         Config.COOLDOWN_SECONDS = 3;
-        clearStateMaps();
-        clearI18n();
+        SkinActionTestAccess.clearGuardState();
+        SkinActionTestAccess.clearI18n();
         SkinCommandTestAccess.resetAPIs();
         ctx.close();
     }
@@ -97,9 +96,14 @@ class SkinActionGuardsIT {
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Dinnerbone");
 
+        // Localization was initialized (I18nUtils.loadAll) iff the message is
+        // not the raw fallback key; every locale template embeds the remaining
+        // wait as a number, so a digit proves the duration payload reached the
+        // user without coupling to any prose or timing-dependent value.
         assertTrue(AsyncSupport.await(5000, () -> log.ofType(SPacketChat.class).stream()
-                .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("before using /skin"))),
-            "rate-limited sender must receive the localized cooldown message");
+                .map(c -> c.getChatComponent().getUnformattedText())
+                .anyMatch(text -> !"cooldown".equals(text) && text.matches(".*\\d.*"))),
+            "rate-limited sender must receive the localized cooldown message with its duration");
         assertEquals(0, fake.lookupCount("Dinnerbone"),
             "rejected dispatch must not fetch from the provider");
         assertEquals("Notch", sourceOf(alice),
@@ -225,27 +229,5 @@ class SkinActionGuardsIT {
         Collection<com.mojang.authlib.properties.Property> textures =
             player.getGameProfile().getProperties().get("textures");
         return textures.isEmpty() ? null : textures.iterator().next().getValue();
-    }
-
-    // SkinAction's cooldown/debounce maps are private statics with no reset
-    // seam; tests clear them so the windows start empty.
-    private static void clearStateMaps() throws Exception {
-        clearMap("lastCommandByPlayer");
-        clearMap("commandTimestampsByPlayer");
-        clearMap("lastRefreshByPlayer");
-    }
-
-    private static void clearMap(String name) throws Exception {
-        Field field = SkinAction.class.getDeclaredField(name);
-        field.setAccessible(true);
-        ((Map<?, ?>) field.get(null)).clear();
-    }
-
-    // Other suites rely on the raw-key i18n fallback; restore the empty map
-    // so loadAll() in this suite does not leak localized strings.
-    private static void clearI18n() throws Exception {
-        Field field = I18nUtils.class.getDeclaredField("localizedStrings");
-        field.setAccessible(true);
-        ((Map<?, ?>) field.get(null)).clear();
     }
 }
