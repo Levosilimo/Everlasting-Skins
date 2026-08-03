@@ -120,11 +120,13 @@ Message keys are configurable per-locale via I18nUtils. The Custom messages tree
 
 ### Permissions
 
-The 8 registered permission nodes:
+The 8 registered permission nodes. Permission nodes use Forge's
+PermissionAPI; players without a node (e.g., vanilla clients) fall
+back to the per-command `op_level.*` config values.
 
 - `everlastingskins.command.skin` (default ALL)
 - `everlastingskins.command.skin.other` (default OP)
-- `everlastingskins.command.skin.url` (default ALL)
+- `everlastingskins.command.skin.url` (default ALL, op 2 via vanilla fallback)
 - `everlastingskins.command.skin.clear` (default ALL)
 - `everlastingskins.command.skin.source` (default ALL)
 - `everlastingskins.command.metrics` (default OP)
