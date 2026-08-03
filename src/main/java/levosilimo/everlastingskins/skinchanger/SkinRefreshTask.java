@@ -44,7 +44,8 @@ final class SkinRefreshTask {
 
         if (property == null || property.isEmpty()) {
             // /skin clear with no Mojang profile: storage is already null, so
-            // drop the applied textures property and re-broadcast + cascade.
+            // drop the applied textures property; stale applied textures are
+            // re-broadcast + cascaded, a textureless profile is a silent no-op.
             try {
                 clearCascade(target);
             } catch (Throwable t) {
@@ -100,13 +101,20 @@ final class SkinRefreshTask {
     }
 
     /**
-     * Clear half of the cascade: drop the applied textures property, re-broadcast
-     * REMOVE+ADD so observers re-learn the profile and run the respawn cascade so
-     * the target's own view reverts to the default skin. Storage was already
-     * cleared by the caller, so nothing is persisted here.
+     * Clear half of the cascade: drop the applied textures property and, only
+     * when stale textures actually existed, re-broadcast REMOVE+ADD so
+     * observers re-learn the profile and run the respawn cascade so the
+     * target's own view reverts to the default skin. A textureless profile has
+     * nothing to revert or re-learn: the clear is a silent no-op with no
+     * broadcast, no cascade and no failure metric. Storage was already cleared
+     * by the caller, so nothing is persisted here.
      */
     private static void clearCascade(EntityPlayerMP target) {
+        boolean hadAppliedTextures = !target.getGameProfile().getProperties().get("textures").isEmpty();
         clearAppliedProfile(target);
+        if (!hadAppliedTextures) {
+            return;
+        }
         broadcastProfileChange(target);
         respawnSelf(target);
     }
