@@ -10,7 +10,6 @@ import com.mojang.authlib.GameProfile;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
-import com.mojang.authlib.GameProfile;
 import net.minecraft.command.ServerCommandManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityTracker;
