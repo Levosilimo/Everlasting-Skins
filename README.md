@@ -45,7 +45,7 @@ Each branch has its own README with version-specific installation instructions, 
 | Command | Permission | Description |
 |---------|-----------|-------------|
 | `/skin set mojang <name>` | any | Apply a Mojang-registered skin by username |
-| `/skin set web <classic\|slim> <url>` | any | Apply a skin from an image URL (MineSkin, requires config) |
+| `/skin set web <classic\|slim> <url>` | op 2 | Apply a skin from an image URL (MineSkin, requires config) |
 | `/skin set random` | any | Apply a random skin |
 | `/skin clear` | any | Restore your Mojang skin or reset to default |
 | `/skin source` | any | Show your current skin source |
@@ -119,7 +119,7 @@ Built-in locales (11 total) — set `Messages.localization` to one of:
 
 Skins are stored as one JSON file per player in `world/EverlastingSkins/<uuid>.json`. Writes are atomic (drain-coalesce async writer with a 50ms debounce). Files with corrupt JSON are quarantined as `.corrupt-<timestamp>` and a fresh entry is created on next save.
 
-Mojang profile lookups are cached in-memory (MojangProfileCache, TTL 1h, cap 1000) to avoid rate limits; the cache is not persisted. Its behavior is controlled by the `everlastingskins.mojangProfileCache*` keys (see Configuration above) — on this branch those defaults are compiled in and not yet read from the config file.
+Mojang profile lookups are cached in-memory (MojangProfileCache, TTL 1h, cap 1000) to avoid rate limits; the cache is not persisted. Its behavior is controlled by the `everlastingskins.mojangProfileCache*` keys (see Configuration above), which are read from `Config.load()` since #160.
 
 ## ⚠️ Compatibility
 
@@ -142,8 +142,8 @@ To enable PlaceholderAPI on a hybrid server:
 
 To enable DiscordSRV announcements:
 1. Install DiscordSRV on the Bukkit side
-2. Configure the channel ID in the mod config: `discordsrv_channel_id = "123456789"`
-3. Set `discordsrv_enabled = true` in the mod config
+2. Configure the channel ID in the mod config: `Integration.discordsrv_channel_id = "123456789"`
+3. Set `Integration.discordsrv_enabled = true` in the mod config
 4. Skin changes will be announced to the configured Discord channel
 
 ## 🔨 Building from Source
