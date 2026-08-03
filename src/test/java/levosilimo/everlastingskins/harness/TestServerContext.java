@@ -14,6 +14,8 @@ import net.minecraft.command.ServerCommandManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityTracker;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.Packet;
+import net.minecraft.network.play.server.SPacketEntityStatus;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerList;
 import net.minecraft.server.management.UserListOps;
@@ -29,6 +31,7 @@ import net.minecraft.world.storage.WorldInfo;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.relauncher.FMLInjectionData;
 
+import com.google.common.util.concurrent.Futures;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -37,6 +40,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +59,32 @@ public class TestServerContext implements AutoCloseable {
 
     private final Path tempDir;
     private final List<EntityPlayerMP> onlinePlayers = new ArrayList<>();
+
+    // Profile attached to the ops entry created by attachPermissionLevelSeam;
+    // PermissionContext.effectiveOpLevel only reads entry.getPermissionLevel(),
+    // so the profile identity is irrelevant to the stubbed behavior.
+    private static final GameProfile SEAM_PROFILE =
+        new GameProfile(java.util.UUID.randomUUID(), "op-seam");
+
+    // ONE ops-list mock shared by makeOp() and attachPermissionLevelSeam().
+    // Each helper stubs both getEntry (read by PermissionContext.effectiveOpLevel)
+    // and getPermissionLevel (read by the packet seam) on it, so whichever runs
+    // last leaves the op level coherent across both consumers instead of
+    // clobbering the other helper's stub with an incomplete mock.
+    private UserListOps opEntries;
+
+    private UserListOps opEntries() {
+        if (opEntries == null) {
+            opEntries = mock(UserListOps.class);
+            when(playerList.getOppedPlayers()).thenReturn(opEntries);
+        }
+        return opEntries;
+    }
+
+    // Production runs refresh tasks on the single server thread; the inline
+    // harness execution must serialize them the same way, or concurrent
+    // dispatches interleave removeAll+put on the same GameProfile.
+    private static final Object SCHEDULED_TASK_LOCK = new Object();
 
     public MinecraftServer server;
     public ServerCommandManager commandManager;
@@ -83,8 +113,11 @@ public class TestServerContext implements AutoCloseable {
             .thenAnswer(inv -> tempDir.resolve((String) inv.getArgument(0)).toFile());
         // Run scheduled tasks inline so async skin application stays deterministic.
         when(server.addScheduledTask(any(Runnable.class))).thenAnswer(inv -> {
-            ((Runnable) inv.getArgument(0)).run();
-            return true;
+            Runnable runnable = (Runnable) inv.getArgument(0);
+            synchronized (SCHEDULED_TASK_LOCK) {
+                runnable.run();
+            }
+            return Futures.immediateFuture(null);
         });
 
         world = newWorld(0);
@@ -103,6 +136,49 @@ public class TestServerContext implements AutoCloseable {
         EntityPlayerMP player = TestPlayerFactory.create(server, world, name);
         onlinePlayers.add(player);
         return player;
+    }
+
+    /**
+     * Faithful seam for the vanilla permission-level packet: PlayerList
+     * computes the op level from the ops list and sends SPacketEntityStatus
+     * with byte 24+level (24 for level 0, 28 for level >= 4) on every
+     * updatePermissionLevel. Configures the shared ops list (see
+     * {@link #opEntries()}) with BOTH the getEntry stub that
+     * PermissionContext.effectiveOpLevel reads and the getPermissionLevel
+     * stub that fixes the packet byte, so the permission context and the
+     * packet stay coherent no matter whether makeOp() ran before or after.
+     */
+    public void attachPermissionLevelSeam(int opLevel) {
+        when(playerList.canSendCommands(any(GameProfile.class))).thenReturn(true);
+        UserListOps ops = opEntries();
+        when(ops.getPermissionLevel(any(GameProfile.class))).thenReturn(opLevel);
+        when(ops.getEntry(any(GameProfile.class)))
+            .thenReturn(new UserListOpsEntry(SEAM_PROFILE, opLevel, false));
+        doAnswer(inv -> {
+            EntityPlayerMP player = (EntityPlayerMP) inv.getArgument(0);
+            int level = playerList.canSendCommands(player.getGameProfile())
+                ? playerList.getOppedPlayers().getPermissionLevel(player.getGameProfile()) : 0;
+            byte status = level <= 0 ? 24 : level >= 4 ? 28 : (byte) (24 + level);
+            player.connection.sendPacket(new SPacketEntityStatus(player, status));
+            return null;
+        }).when(playerList).updatePermissionLevel(any(EntityPlayerMP.class));
+    }
+
+    /**
+     * Faithful seam for PlayerList.sendPacketToAllPlayers: records the packet
+     * and delivers it to every online player's connection, mirroring the
+     * vanilla loop over the player list. Needed by tests that assert the
+     * broadcast reaches a specific player (e.g. self-reception).
+     */
+    public void recordAndDeliverBroadcast(List<Packet<?>> sink) {
+        doAnswer(inv -> {
+            Packet<?> packet = (Packet<?>) inv.getArgument(0);
+            sink.add(packet);
+            for (EntityPlayerMP online : onlinePlayers) {
+                online.connection.sendPacket(packet);
+            }
+            return null;
+        }).when(playerList).sendPacketToAllPlayers(any(Packet.class));
     }
 
     public EntityPlayerMP newPlayer(String name, WorldServer playerWorld) {
@@ -135,15 +211,18 @@ public class TestServerContext implements AutoCloseable {
     }
 
     /**
-     * Grants the player op level 2 so canUseCommand(2, ...) passes and the
-     * vanilla permission gate inside SkinCommand admits the command.
+     * Grants the player op level 2 so canUseCommand(2, ...) passes, the
+     * vanilla permission gate inside SkinCommand admits the command, and
+     * PermissionContext.of(uuid, player) reports op level 2. Uses the shared
+     * ops list, stubbing getEntry AND getPermissionLevel so the packet seam
+     * stays coherent when attachPermissionLevelSeam() runs after this.
      */
     public void makeOp(EntityPlayerMP player) {
         when(playerList.canSendCommands(any(GameProfile.class))).thenReturn(true);
-        UserListOps ops = mock(UserListOps.class);
+        UserListOps ops = opEntries();
         when(ops.getEntry(any(GameProfile.class)))
             .thenReturn(new UserListOpsEntry(player.getGameProfile(), 2, false));
-        when(playerList.getOppedPlayers()).thenReturn(ops);
+        when(ops.getPermissionLevel(any(GameProfile.class))).thenReturn(2);
         when(server.getOpPermissionLevel()).thenReturn(2);
     }
 
