@@ -88,7 +88,7 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 | `Permissions.op_level.metrics` | Integer | `2` | Required op level for `/skin metrics` |
 | `Permissions.op_level.metrics_reset` | Integer | `2` | Required op level for `/skin metrics cleanup/reset` |
 
-> **Per-player locale** (1.12.2 only): when a message has no custom default, the mod resolves the player's client language (`en_us`, etc.) via `PlayerLanguage` (AT-exposed `EntityPlayerMP.language` field, `META-INF/everlastingskins_at.cfg`) and falls back to `Messages.localization` if the field is unavailable.
+> **Per-player locale**: when a message has no custom default, the mod resolves the player's client language (`en_us`, etc.) via `PlayerLanguage` (AT-exposed `EntityPlayerMP.language` field, `META-INF/everlastingskins_at.cfg`) and falls back to `Messages.localization` if the field is unavailable. The 1.21 branch provides the same behavior via `ServerPlayer.clientInformation().language()`.
 
 ## 🌐 Languages
 
