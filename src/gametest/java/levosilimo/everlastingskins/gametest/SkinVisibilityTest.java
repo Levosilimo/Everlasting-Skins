@@ -1060,6 +1060,11 @@ public class SkinVisibilityTest {
                                 + SkinRefreshHandler.getRefreshTaskCount());
                     }
                     SkinActionCommand.getLastRefreshByPlayer().put(uuidA, System.currentTimeMillis() - 10_000);
+                    // GameTestRunner executes batches strictly sequentially (the
+                    // runtime log shows one "Running test batch" at a time and
+                    // this batch holds a single test), so no other test touches
+                    // the global metric counters between this snapshot and the
+                    // phase-2 read: the debounced delta must be exactly 0.
                     debouncedBefore[0] = SkinMetrics.INSTANCE.snapshot().refreshesDebounced();
                     completedBefore[0] = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
                     int second = dispatch(server, "skin set mojang Jeb_", playerA.createCommandSourceStack(), helper);
@@ -1102,6 +1107,77 @@ public class SkinVisibilityTest {
             fake.slow = false;
             fake.varyValue = false;
             removeQuietly(server, playerA);
+        }
+    }
+
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200, batch = "everlastingskins:clear_no_profile")
+    public void skinClear_noProfile_clearsAppliedProfile(GameTestHelper helper) {
+        FakeMojangAPI fake = installFakeMojangAPI(true);
+        SkinStorage storage = ensureStorage(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer playerA = mockPlayer(helper, "ClearConsistA");
+        ServerPlayer observer = mockPlayer(helper, "ClearObsA");
+        makeOp(playerA);
+        UUID uuidA = playerA.getUUID();
+        try {
+            placePlayer(helper, playerA);
+            placePlayer(helper, observer);
+            drain(observer);
+            fake.fail = false;
+
+            int first = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
+            helper.assertTrue(first == 1, "first dispatch must be accepted, got " + first);
+
+            // Two phases inside succeedWhen (the method finally runs first): wait
+            // for the skin to be stored AND applied, then clear with a failing
+            // provider (no Mojang profile to restore). The clear must remove the
+            // stored skin AND drop the applied textures property so stored
+            // (null) stays equal to the applied GameProfile.
+            final boolean[] phase = {false};
+            final String[] appliedValue = new String[1];
+            helper.succeedWhen(() -> {
+                if (!phase[0]) {
+                    Config.RATE_LIMIT_ENABLED.set(false);
+                    CustomSkinProperty stored = storage.getSkin(uuidA);
+                    if (stored == null || !"Notch".equals(stored.getSource())) {
+                        throw new GameTestAssertException("waiting for first dispatch to store source=Notch");
+                    }
+                    appliedValue[0] = stored.getOriginalProperty().value();
+                    boolean applied = playerA.getGameProfile().getProperties().get("textures").stream()
+                            .anyMatch(p -> appliedValue[0].equals(p.value()));
+                    if (!applied) {
+                        throw new GameTestAssertException("waiting for the first skin to be applied to the GameProfile");
+                    }
+                    drain(observer);
+                    SkinActionCommand.resetSkinCompletionsProcessed();
+                    fake.fail = true;
+                    int second = dispatch(server, "skin clear", playerA.createCommandSourceStack(), helper);
+                    if (second != 1) {
+                        throw new GameTestAssertException("clear dispatch must be accepted, got " + second);
+                    }
+                    phase[0] = true;
+                    throw new GameTestAssertException("entering second-phase wait");
+                }
+                if (SkinActionCommand.getSkinCompletionsProcessed() < 1) {
+                    throw new GameTestAssertException("waiting for clear completion to be processed");
+                }
+                if (storage.getSkin(uuidA) != null) {
+                    throw new GameTestAssertException("waiting for /skin clear to remove the stored skin");
+                }
+                if (!playerA.getGameProfile().getProperties().get("textures").isEmpty()) {
+                    throw new GameTestAssertException("clear with no Mojang profile must drop the applied textures property");
+                }
+                if (findTexturesFor(drain(observer), uuidA) != null) {
+                    throw new GameTestAssertException("clear must not broadcast stale textures to observers");
+                }
+                removeQuietly(server, playerA);
+                removeQuietly(server, observer);
+            });
+        } finally {
+            fake.slow = false;
+            Config.RATE_LIMIT_ENABLED.set(true);
+            removeQuietly(server, playerA);
+            removeQuietly(server, observer);
         }
     }
 
