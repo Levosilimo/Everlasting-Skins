@@ -72,9 +72,9 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 | `everlastingskins.cooldown_seconds` | Integer | `3` | Cooldown between `/skin` commands (seconds) |
 | `everlastingskins.max_commands_per_minute` | Integer | `5` | Max `/skin` commands per minute (per player) |
 | `everlastingskins.debounce_millis` | Integer | `100` | Per-player refresh debounce window (milliseconds) |
-| `everlastingskins.mojangProfileCacheEnabled` | Boolean | `true` | Enable the in-process Mojang profile cache |
-| `everlastingskins.mojangProfileCacheTtlMs` | Long | `3600000` | Mojang profile cache entry lifetime (milliseconds; `0` disables caching) |
-| `everlastingskins.mojangProfileCacheMaxSize` | Integer | `1000` | Max Mojang profile cache entries (oldest evicted first) |
+| `MojangCache.mojangProfileCacheEnabled` | Boolean | `true` | Enable the in-process Mojang profile cache |
+| `MojangCache.mojangProfileCacheTtlMs` | Long | `3600000` | Mojang profile cache entry lifetime (milliseconds; `0` disables caching) |
+| `MojangCache.mojangProfileCacheMaxSize` | Integer | `1000` | Max Mojang profile cache entries (oldest evicted first) |
 | `DefaultSkins.enabled` | Boolean | `false` | Apply a default skin from `list` to players without a saved custom skin |
 | `DefaultSkins.applyForPremium` | Boolean | `false` | Also apply the default skin to players WITH a saved custom skin (display-only override) |
 | `DefaultSkins.list` | String[] | `Steve, <random>` | Default skins list: Mojang usernames or the literal `<random>` token |
@@ -132,7 +132,7 @@ Built-in locales (11 total) — set `Messages.localization` to one of:
 
 Skins are stored as one JSON file per player in `world/EverlastingSkins/<uuid>.json`. Writes are atomic (drain-coalesce async writer with a 50ms debounce). Files with corrupt JSON are quarantined as `.corrupt-<timestamp>` and a fresh entry is created on next save.
 
-Mojang profile lookups are cached in-memory (MojangProfileCache, TTL 1h, cap 1000) to avoid rate limits; the cache is not persisted. Its behavior is controlled by the `everlastingskins.mojangProfileCache*` keys (see Configuration above), which are read from `Config.load()` since #160.
+Mojang profile lookups are cached in-memory (MojangProfileCache, TTL 1h, cap 1000) to avoid rate limits; the cache is not persisted. Its behavior is controlled by the `MojangCache.mojangProfileCache*` keys (see Configuration above), which are read from `Config.load()` since #160.
 
 ## ⚠️ Compatibility
 
