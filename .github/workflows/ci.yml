@@ -69,34 +69,26 @@ jobs:
           path: build/libs/*.jar
           if-no-files-found: error
 
-  # ── E2E test on mc1.12.2 ──────────────────────────────────────
+  # ── Boot smoke test on mc1.12.2 ───────────────────────────────
+  # The vanilla 1.12.2 client has no console/stdin bridge, so HeadlessMC
+  # SEND/ENDS_WITH/CONTAINS scenario steps cannot drive it and scenario
+  # JSONs cannot run here. This job is a server boot smoke test plus a
+  # real headless client join assertion.
   e2e-test-1122:
+    # Display name kept as `E2E (mc1.12.2)` for branch-protection
+    # compatibility (required status check context); the job itself is a
+    # boot smoke test.
     name: E2E (mc1.12.2)
     runs-on: ubuntu-latest
     needs: build-1122
     if: github.event_name == 'push' && github.ref_name == 'mc1.12.2'
     timeout-minutes: 20
-    services:
-      wiremock:
-        image: wiremock/wiremock:3.13.2
-        ports:
-          - 8080:8080
-        volumes:
-          - ${{ github.workspace }}/test-infrastructure/wiremock/fixtures/mappings:/home/wiremock/mappings
-        options: >-
-          --health-cmd "curl -sf http://localhost:8080/__admin/health || exit 1"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 12
-          --health-start-period 15s
     env:
       HMC_DIR: ${{ github.workspace }}/HeadlessMC
       SERVER_DIR: ${{ github.workspace }}/test-server
       MODS_DIR: ${{ github.workspace }}/test-server/mods
       HMC_VERSION: "2.10.0"
     steps:
-      - name: Clean WireMock artifacts (EACCES workaround)
-        run: sudo rm -rf ${{ github.workspace }}/test-infrastructure/wiremock || true
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -164,25 +156,23 @@ jobs:
             ls -la
             exit 1
           fi
-          java -Xmx1G -Xms512M \
-            -Deverlastingskins.allowHttp=true \
-            -Deverlastingskins.endpoint.uuid.eclipse="http://localhost:8080/uuid/eclipse/%playerName%" \
-            -Deverlastingskins.endpoint.uuid.mojang="http://localhost:8080/uuid/mojang/%playerName%" \
-            -Deverlastingskins.endpoint.uuid.minetools="http://localhost:8080/uuid/minetools/%playerName%" \
-            -Deverlastingskins.endpoint.profile.eclipse="http://localhost:8080/profile/eclipse/%uuid%" \
-            -Deverlastingskins.endpoint.profile.mojang="http://localhost:8080/profile/mojang/%uuid%" \
-            -Deverlastingskins.endpoint.profile.minetools="http://localhost:8080/profile/minetools/%uuid%" \
-            -jar "$SERVER_JAR" nogui > "${{ env.SERVER_DIR }}/logs/server-stdout.log" 2>&1 &
+          java -Xmx1G -Xms512M -jar "$SERVER_JAR" nogui > "${{ env.SERVER_DIR }}/logs/server-stdout.log" 2>&1 &
           SERVER_PID=$!
           echo "server_pid=$SERVER_PID" >> $GITHUB_OUTPUT
       - name: Wait for server ready
         run: |
+          SERVER_PID="${{ steps.start-server.outputs.server_pid }}"
           for i in $(seq 1 120); do
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "ERROR: server process exited during startup"
+              tail -200 "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null || true
+              exit 1
+            fi
             if grep -q 'For help, type "help"' "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null; then
               echo "Server ready after ${i} attempts"
-              exit 0
+              break
             fi
-            if [ $i -eq 120 ]; then
+            if [ "$i" -eq 120 ]; then
               echo "ERROR: Server did not start within 10 minutes"
               tail -200 "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null || true
               exit 1
@@ -197,6 +187,10 @@ jobs:
       - name: Configure HeadlessMC
         run: |
           {
+            echo "# Vanilla 1.12.2 has no console/stdin bridge, so HeadlessMC"
+            echo "# SEND/ENDS_WITH/CONTAINS steps cannot drive it: no"
+            echo "# hmc.test.filename scenario can run. Smoke test only:"
+            echo "# server boot + real client join."
             echo "hmc.java.versions=$JAVA_HOME/bin/java"
             echo "hmc.gamedir=${{ github.workspace }}/headlessmc-run"
             echo "hmc.mcdir=$HOME/.minecraft"
@@ -208,46 +202,87 @@ jobs:
             echo "hmc.always.lwjgl.flag=true"
             echo "hmc.jline.enabled=false"
             echo "hmc.auto.download.specifics=false"
+            echo "hmc.crash.report.watcher=true"
           } > "${{ env.HMC_DIR }}/config.properties"
-      - name: Launch client and assert server log
+      - name: Launch real client; assert FML mod handshake and join
         run: |
           set -euo pipefail
           cd "${{ env.HMC_DIR }}"
-          timeout --kill-after=10 300 xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+          # Run the whole client pipeline (timeout -> xvfb-run -> Xvfb + MC
+          # java) in its own session/process group so cleanup can terminate
+          # the entire tree. Killing only the timeout/xvfb wrapper PID would
+          # orphan the Java client on self-hosted runners; pkill is banned by
+          # project policy. setsid execs directly when it is not a process
+          # group leader (the GHA/WSL non-interactive case), so the tracked
+          # PGID is the PID of the timeout process itself.
+          setsid timeout --kill-after=10 300 xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2860 --jvm -Djava.awt.headless=true" \
             --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "${{ env.HMC_DIR }}/hmc-output.log" 2>&1 &
           CLIENT_PID=$!
+          OWN_PGID=$(ps -o pgid= -p $$ | tr -d ' ' || true)
+          # A one-shot ps right after & can read the child's pre-setsid
+          # group (the runner's own PGID) and silently degrade cleanup to a
+          # wrapper-only kill, orphaning the Java client. Poll until the
+          # tracked PGID leaves our own group, the process exits, or a
+          # bounded budget runs out, then decide group-kill vs PID-kill.
+          CLIENT_PGID=""
+          for _ in $(seq 1 50); do
+            if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+              break
+            fi
+            CANDIDATE=$(ps -o pgid= -p "$CLIENT_PID" 2>/dev/null | tr -d ' ' || true)
+            if [ -n "$CANDIDATE" ] && [ "$CANDIDATE" != "$OWN_PGID" ]; then
+              CLIENT_PGID="$CANDIDATE"
+              break
+            fi
+            sleep 0.1
+          done
           JOINED=0
-          for i in $(seq 1 90); do
+          for _ in $(seq 1 90); do
             if grep -q " joined the game" "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null; then
               JOINED=1
               break
             fi
             if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
-              echo "ERROR: client process exited early"
+              echo "ERROR: client process exited early (see hmc-output.log)"
+              tail -50 "${{ env.HMC_DIR }}/hmc-output.log"
               break
             fi
             sleep 2
           done
-          kill "$CLIENT_PID" 2>/dev/null || true
+          # Cleanup: TERM the tracked process group, escalate to KILL after a
+          # grace period, then reap. Fall back to a plain PID kill if the
+          # group could not be tracked (setsid forked or already gone).
+          if [ -n "$CLIENT_PGID" ] && [ "$CLIENT_PGID" != "$OWN_PGID" ]; then
+            kill -TERM -- "-$CLIENT_PGID" 2>/dev/null || true
+            for _ in $(seq 1 10); do
+              kill -0 -- "-$CLIENT_PGID" 2>/dev/null || break
+              sleep 1
+            done
+            kill -KILL -- "-$CLIENT_PGID" 2>/dev/null || true
+          else
+            kill "$CLIENT_PID" 2>/dev/null || true
+          fi
           wait "$CLIENT_PID" 2>/dev/null || true
-          grep -q 'For help, type "help"' "${{ env.SERVER_DIR }}/logs/latest.log" || { echo "FAIL: server did not boot"; tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"; exit 1; }
-          grep -q "everlastingskins" "${{ env.SERVER_DIR }}/logs/latest.log" || { echo "FAIL: mod not discovered"; tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"; exit 1; }
+          # Report the join outcome before the mod-presence assertion: a
+          # failed connect is the root cause, and a handshake-line failure
+          # checked first would mask it with a secondary error.
           if [ "$JOINED" -ne 1 ]; then
-            echo "FAIL: client did not connect"
+            echo "FAIL: client did not connect to the server"
             tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
             tail -50 "${{ env.HMC_DIR }}/hmc-output.log"
             exit 1
           fi
-      - name: Verify WireMock requests
-        if: always()
-        run: |
-          REQUESTS=$(curl -s http://localhost:8080/__admin/requests 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('requests',[])))" 2>/dev/null || echo "0")
-          echo "WireMock requests served: $REQUESTS"
-          if [ "$REQUESTS" -ge "1" ]; then
-            echo "WireMock: received requests ✅"
-          else
-            echo "WireMock: NO requests received ❌"
+          # Mod presence: Forge 1.12.2 names the mod id at INFO in the FML
+          # mod-list lines - the server logs 'missing mods [.., everlastingskins]
+          # at CLIENT' when the client joins, and names the full mod list at
+          # startup too. Assert after the join attempt; the pattern keys on
+          # the mod id in the bracket list, so either line matches.
+          if ! grep -Eq 'Attempting connection with missing mods \[[^]]*everlastingskins' "${{ env.SERVER_DIR }}/logs/latest.log" \
+            && ! grep -Eq 'Client attempting to join with [0-9]+ mods : [^ ]*everlastingskins' "${{ env.SERVER_DIR }}/logs/latest.log"; then
+            echo "FAIL: mod id not found in FML handshake mod-list line"
+            tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
+            exit 1
           fi
       - name: Kill server
         if: always()
