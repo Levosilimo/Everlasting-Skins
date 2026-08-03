@@ -3,8 +3,8 @@
 EverlastingSkins uses a three-tier testing pyramid:
 
 ## Tier 1: Pure Java unit tests (JUnit 5)
-- 289 unit tests + 31 GameTest = 320 total on 1.21 branch
-- 253 tests on mc1.12.2 branch
+- 324 unit tests + 31 GameTest = 355 total on 1.21 branch
+- 314 tests on mc1.12.2 branch
 - Coverage: provider fallback, HTTP outcomes, persistence atomicity, corruption handling, cache behavior, permission system, command dispatch, integration hooks
 - New in 2.1.0-rc.1: `MojangProfileCacheTest`, `UrlAllowlistTest`, `DefaultSkinResolverTest`, `PermissionServiceManagerTest`, `VanillaPermissionServiceTest`, `LuckPermsPermissionServiceTest`
 - Run: `./gradlew test`
@@ -30,27 +30,21 @@ Run locally:
 ./gradlew runGameTestServer --no-daemon --console=plain
 ```
 
-### mc1.12.2: HeadlessMC E2E (automated)
+### mc1.12.2: Server-log smoke test (automated)
 
-The mc1.12.2 branch uses HeadlessMC 2.10.0 + HMC-Specifics to drive a real Minecraft client against a real Forge server.
+The vanilla 1.12.2 client has no console (stdin/stdout), so HeadlessMC `SEND`/`ENDS_WITH`/`CONTAINS` scenario steps cannot drive it. The mc1.12.2 E2E is a boot smoke test: start a real Forge 14.23.5.2847 server with the mod, launch a headless client through the HeadlessMC wrapper, and assert on the server log (server booted, mod discovered, `TestPlayer joined the game`). Mojang endpoints are stubbed with WireMock in CI.
 
 Components:
-- `test-infrastructure/scenarios/*.json` — HeadlessMC JSON test definitions
+- `test-infrastructure/run-e2e.sh` — local runner + log assertions
+- `test-infrastructure/assert-skin-property.sh` — asserts the `SKIN_REFRESH` log line
 - `test-infrastructure/server/` — server.properties + eula.txt templates
-- `test-infrastructure/wiremock/` — WireMock mappings for Mojang API stubs
 - `.github/workflows/ci.yml` — `e2e-test-1122` job
 
-Scenarios:
-- `skin-set-mojang.json` — sets skin to Mojang username "Notch", verifies success
-- `skin-clear.json` — sets skin, then clears it, verifies cleared state
-
-Run locally:
+Run locally (Java 8+ on PATH):
 ```bash
-# Prerequisites: Java 8+, network access to Forge Maven
-./test-infrastructure/run-e2e.sh mc1.12.2 skin-set-mojang
-./test-infrastructure/run-e2e.sh mc1.12.2 skin-clear
+bash test-infrastructure/run-e2e.sh mc1.12.2
 ```
 
 ## Skipping E2E for local commits
 
-E2E runs only on pushes to `1.21` and `mc1.12.2` branches. Feature branches don't trigger E2E.
+E2E runs only on pushes to the `mc1.12.2` branch (GameTest on `1.21` runs via CI's `gametest-121` job). Feature branches don't trigger E2E.
