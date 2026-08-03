@@ -7,8 +7,8 @@ server with the mod, launches a headless client that auto-connects, and
 asserts on the server log:
 
 1. Server booted (`For help, type "help"`)
-2. Mod discovered (`everlastingskins` in the FML mod list)
-3. Client connected (`TestPlayer joined the game`)
+2. Client connected (the TestPlayer client joins)
+3. Mod presence from the FML handshake mod-list line (`everlastingskins` in the mod-list line Forge writes when the client joins — asserted after the join attempt, since Forge 1.12.2 names the mod id only at that handshake)
 
 Functional coverage (command cascade, persistence, permissions, packets)
 lives in the JUnit integration tests; this E2E is a boot smoke test.
@@ -55,9 +55,9 @@ curl -L -o test-infrastructure/headlessmc/headlessmc-launcher-wrapper.jar \
 
 `.github/workflows/ci.yml` (job `e2e-test-1122`, "Boot Smoke (mc1.12.2)")
 inlines the same flow instead of calling `run-e2e.sh`: start the Forge
-server, assert boot and mod discovery, launch the headless client, and
-assert `TestPlayer joined the game` on `$SERVER_DIR/logs/latest.log`. No
-`/skin` command can be sent without a console bridge, so the skin API
-endpoints are never exercised: the job uses no WireMock service and no
-endpoint overrides. Client crashes are visible because launch steps run
-under `set -euo pipefail`.
+server, launch the headless client (TestPlayer), assert the client joined
+on `$SERVER_DIR/logs/latest.log`, then assert mod presence from the FML
+handshake mod-list line. No `/skin` command can be sent without a console
+bridge, so the skin API endpoints are never exercised: the job uses no
+WireMock service and no endpoint overrides. Client crashes are visible
+because launch steps run under `set -euo pipefail`.
