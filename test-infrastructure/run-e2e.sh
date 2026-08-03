@@ -229,19 +229,21 @@ else
     echo "FAIL: server did not boot"
     FAILED=1
 fi
-# Forge 1.12.2 names the mod id at INFO only in the FML mod-list handshake
-# lines written when the client joins; assert on that signal after the join.
+if [ "$JOINED" -eq 1 ]; then
+    echo "PASS: client connected"
+else
+    echo "FAIL: client did not connect"
+    FAILED=1
+fi
+# Forge 1.12.2 names the mod id at INFO in the FML mod-list lines: the
+# server logs 'missing mods [... at CLIENT]' at join and names the full
+# mod list at startup too. Report the connect outcome first so a failed
+# join is not masked by this secondary assertion.
 if grep -Eq 'Attempting connection with missing mods \[[^]]*everlastingskins' "$SERVER_DIR/logs/latest.log" \
     || grep -Eq 'Client attempting to join with [0-9]+ mods : [^ ]*everlastingskins' "$SERVER_DIR/logs/latest.log"; then
     echo "PASS: mod discovered (FML handshake mod-list line)"
 else
     echo "FAIL: mod id not found in FML handshake mod-list line"
-    FAILED=1
-fi
-if [ "$JOINED" -eq 1 ]; then
-    echo "PASS: client connected"
-else
-    echo "FAIL: client did not connect"
     FAILED=1
 fi
 

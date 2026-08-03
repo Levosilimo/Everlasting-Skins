@@ -261,22 +261,24 @@ jobs:
             kill "$CLIENT_PID" 2>/dev/null || true
           fi
           wait "$CLIENT_PID" 2>/dev/null || true
-          # Mod presence: Forge 1.12.2 names the mod id at INFO only in the
-          # FML mod-list handshake lines written when the client joins (the
-          # headless client carries no mods, so the server reports its mod
-          # list as 'missing mods [..., everlastingskins]'). Assert on that
-          # handshake signal after the join attempt - never at server-ready,
-          # before any client exists.
-          if ! grep -Eq 'Attempting connection with missing mods \[[^]]*everlastingskins' "${{ env.SERVER_DIR }}/logs/latest.log" \
-            && ! grep -Eq 'Client attempting to join with [0-9]+ mods : [^ ]*everlastingskins' "${{ env.SERVER_DIR }}/logs/latest.log"; then
-            echo "FAIL: mod id not found in FML handshake mod-list line"
-            tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
-            exit 1
-          fi
+          # Report the join outcome before the mod-presence assertion: a
+          # failed connect is the root cause, and a handshake-line failure
+          # checked first would mask it with a secondary error.
           if [ "$JOINED" -ne 1 ]; then
             echo "FAIL: client did not connect to the server"
             tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
             tail -50 "${{ env.HMC_DIR }}/hmc-output.log"
+            exit 1
+          fi
+          # Mod presence: Forge 1.12.2 names the mod id at INFO in the FML
+          # mod-list lines - the server logs 'missing mods [.., everlastingskins]
+          # at CLIENT' when the client joins, and names the full mod list at
+          # startup too. Assert after the join attempt; the pattern keys on
+          # the mod id in the bracket list, so either line matches.
+          if ! grep -Eq 'Attempting connection with missing mods \[[^]]*everlastingskins' "${{ env.SERVER_DIR }}/logs/latest.log" \
+            && ! grep -Eq 'Client attempting to join with [0-9]+ mods : [^ ]*everlastingskins' "${{ env.SERVER_DIR }}/logs/latest.log"; then
+            echo "FAIL: mod id not found in FML handshake mod-list line"
+            tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
             exit 1
           fi
       - name: Kill server
