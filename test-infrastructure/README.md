@@ -29,10 +29,10 @@ the client through the HeadlessMC wrapper (`-lwjgl -offline
 ## Why no scenario files
 
 HeadlessMC scenario steps match against the client process's stdin/stdout.
-A vanilla 1.12.2 client has neither; HMCSpecifics (the only 1.12.2 console
-provider) crashes the client at boot (JLine `ClassNotFoundException`).
-Scenario JSON files were removed in favor of bash assertions on the server
-log, which is where all command and join activity is visible.
+A vanilla 1.12.2 client has neither, so `SEND`/`ENDS_WITH`/`CONTAINS` steps
+cannot drive it. Scenario JSON files were removed in favor of bash
+assertions on the server log, which is where all command and join activity
+is visible.
 
 ## Install HeadlessMC
 
