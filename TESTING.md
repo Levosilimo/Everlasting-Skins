@@ -3,7 +3,7 @@
 EverlastingSkins uses a three-tier testing pyramid:
 
 ## Tier 1: Pure Java unit tests (JUnit 5)
-- 335 unit tests + 31 GameTest = 366 total on 1.21 branch
+- 336 unit tests + 31 GameTest = 367 total on 1.21 branch
 - 325 tests on mc1.12.2 branch
 - Coverage: provider fallback, HTTP outcomes, persistence atomicity, corruption handling, cache behavior, permission system, command dispatch, integration hooks
 - New in 2.1.0-rc.1: `MojangProfileCacheTest`, `UrlAllowlistTest`, `DefaultSkinResolverTest`, `PermissionServiceManagerTest`, `VanillaPermissionServiceTest`, `LuckPermsPermissionServiceTest`

@@ -27,6 +27,7 @@
 - CustomSkinProperty base64 validation
 - GameTest flake on `concurrentSkinSet_twoPlayers` — wall-clock deadline (20s) instead of tick budget
 - **i18n regression** (#168): restored `Messages` config override in I18nUtils (locale files no longer shadow per-server overrides) + locale code normalization for `defaultLocaleFor()`
+- Dead lang key `fulfilled_force` removed from all 11 JSON locale files (#176)
 
 ### Tests added
 - `MojangProfileCacheTest` (8 cases)
