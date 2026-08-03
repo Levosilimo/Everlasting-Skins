@@ -17,7 +17,7 @@ Each branch is isolated with its own toolchain, Forge version, and Java runtime.
 
 | Branch | Minecraft | Forge | Java | Status |
 |--------|-----------|-------|------|--------|
-| [1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/1.21) | 1.21 | 51.0.24 | 21 | Active |
+| [1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/1.21) | 1.21 | 51.0.8 | 21 | Active |
 | [mc1.12.2](https://github.com/Levosilimo/Everlasting-Skins/tree/mc1.12.2) | 1.12.2 | 14.23.5.2847 | 8 | Active |
 
 Each branch has its own README with version-specific installation instructions, config paths, and command documentation.
@@ -87,6 +87,26 @@ Config file: `config/everlastingskins.cfg` (auto-generated on first run).
 | `Permissions.op_level.other` | Integer | `2` | Required op level for changing another player's skin |
 | `Permissions.op_level.metrics` | Integer | `2` | Required op level for `/skin metrics` |
 | `Permissions.op_level.metrics_reset` | Integer | `2` | Required op level for `/skin metrics cleanup/reset` |
+
+> **Per-player locale** (1.12.2 only): when a message has no custom default, the mod resolves the player's client language (`en_us`, etc.) via `PlayerLanguage` (AT-exposed `EntityPlayerMP.language` field, `META-INF/everlastingskins_at.cfg`) and falls back to `Messages.localization` if the field is unavailable.
+
+## 🌐 Languages
+
+Built-in locales (11 total) — set `Messages.localization` to one of:
+
+| Locale | Language |
+|--------|----------|
+| `en` | English |
+| `ru` | Russian |
+| `uk` | Ukrainian |
+| `de_de` | German |
+| `es_es` | Spanish |
+| `fr_fr` | French |
+| `it_it` | Italian |
+| `ja_jp` | Japanese |
+| `ko_kr` | Korean |
+| `pt_br` | Portuguese (Brazil) |
+| `zh_cn` | Chinese (Simplified) |
 
 ## 🌐 External Services
 
