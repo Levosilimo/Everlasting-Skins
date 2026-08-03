@@ -255,6 +255,11 @@ public final class SkinActionCommand {
                 if (Config.TOGGLE.get()) {
                     player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("cleared_no_profile", player)));
                 }
+                // Clear the applied GameProfile too, not just storage: the
+                // refresh task drops the textures property and re-broadcasts, so
+                // stored (null) and applied stay consistent. Mirrors the legacy
+                // mc1.12.2 scheduling; 1.21's task() actually performs the clear.
+                SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
                 continue;
             }
             boolean isRestore = isClear && skinProperty != null;
