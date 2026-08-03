@@ -19,47 +19,12 @@ jobs:
     name: YAML Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Run yamllint
         uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3
         with:
           config_file: .yamllint.yml
           strict: true
-
-  # ── Build & test on 1.21 (Java 21) ────────────────────────────
-  build-121:
-    name: Build (1.21)
-    runs-on: ubuntu-latest
-    needs: lint-yaml
-    if: |
-      (github.event_name == 'push' && github.ref_name == '1.21') ||
-      (github.event_name == 'pull_request' && github.base_ref == '1.21')
-    steps:
-      - uses: actions/checkout@v5
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
-        with:
-          java-version: 21
-          distribution: temurin
-      - name: Cache Gradle wrapper and caches
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-1.21-${{ hashFiles('**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-1.21-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-      - name: Build and test
-        run: ./gradlew build test --no-daemon --stacktrace
-      - name: Upload built jar
-        uses: actions/upload-artifact@v5
-        with:
-          name: mod-121
-          path: build/libs/*.jar
-          if-no-files-found: error
 
   # ── Build & test on mc1.12.2 (Java 8) ─────────────────────────
   build-1122:
@@ -70,14 +35,14 @@ jobs:
       (github.event_name == 'push' && github.ref_name == 'mc1.12.2') ||
       (github.event_name == 'pull_request' && github.base_ref == 'mc1.12.2')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Set up JDK 8
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
           java-version: 8
           distribution: temurin
       - name: Cache Gradle wrapper and caches
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -89,12 +54,6 @@ jobs:
         run: chmod +x gradlew
       - name: Build and test
         run: ./gradlew build test --no-daemon --stacktrace
-      - name: Upload built jar
-        uses: actions/upload-artifact@v5
-        with:
-          name: mod-1122
-          path: build/libs/*.jar
-          if-no-files-found: error
       - name: Verify test count meets minimum
         run: |
           COUNT=$(grep -r "@Test" src/test/java/ | wc -l)
@@ -103,6 +62,12 @@ jobs:
             echo "ERROR: Test count dropped below 110 (got $COUNT)"
             exit 1
           fi
+      - name: Upload built jar
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        with:
+          name: mod-1122
+          path: build/libs/*.jar
+          if-no-files-found: error
 
   # ── E2E test on mc1.12.2 ──────────────────────────────────────
   e2e-test-1122:
@@ -132,16 +97,16 @@ jobs:
     steps:
       - name: Clean WireMock artifacts (EACCES workaround)
         run: sudo rm -rf ${{ github.workspace }}/test-infrastructure/wiremock || true
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Set up JDK 8
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
           java-version: 8
           distribution: temurin
       - name: Install xvfb
         run: sudo apt-get install -y xvfb
       - name: Download mod JAR
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5
         with:
           name: mod-1122
           path: ${{ github.workspace }}
@@ -164,7 +129,7 @@ jobs:
           echo "eula=true" > "${{ env.SERVER_DIR }}/eula.txt"
       - name: Cache Forge server installer
         id: cache-forge
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
         with:
           path: ${{ env.SERVER_DIR }}/forge-installer.jar
           key: forge-1.12.2-14.23.5.2847-installer
@@ -274,7 +239,6 @@ jobs:
             tail -50 "${{ env.HMC_DIR }}/hmc-output.log"
             exit 1
           fi
-            echo "hmc.jline.enabled=false"
       - name: Verify WireMock requests
         if: always()
         run: |
@@ -293,7 +257,7 @@ jobs:
           fi
       - name: Upload test logs
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
         with:
           name: e2e-logs-1122-${{ github.sha }}
           path: |
