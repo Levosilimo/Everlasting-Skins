@@ -18,6 +18,7 @@ import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.SPacketChat;
+import net.minecraft.network.play.server.SPacketRespawn;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -150,6 +151,10 @@ class SkinActionGuardsIT {
             "first dispatch must apply textures to the profile");
         assertEquals(TestProperties.NOTCH.getOriginalProperty().getValue(), texturesValue(alice));
 
+        // Attach the chat log only after the first fulfilment, so the
+        // no-fulfil assertion below cannot be satisfied by the first request.
+        PacketLog log = new PacketLog();
+        log.attachTo(alice.connection);
         ctx.commandManager.executeCommand(alice, "/skin set mojang Jeb_");
         // The debounce record is the last effect of the second fetch's
         // completion callback, so awaiting it guarantees the pipeline finished.
@@ -157,16 +162,17 @@ class SkinActionGuardsIT {
                 () -> SkinMetrics.INSTANCE.snapshot().refreshesDebounced() >= 1),
             "second dispatch inside the debounce window must be skipped");
 
-        // The fetch callback stores the fetched skin before the debounce gate,
-        // so storage reflects the new source while the refresh TASK is skipped
-        // and the profile keeps the first skin. This stored/applied divergence
-        // is tracked in the separate production debounce lane; this test only
-        // guards the skip itself.
-        assertEquals("Jeb_", sourceOf(alice),
-            "fetch callback must store the fetched skin (pre-debounce mutation)");
+        // The debounce gates persistence as well as the refresh: a debounced
+        // request leaves storage and the applied GameProfile untouched and
+        // never claims fulfilment, so stored and applied stay consistent.
+        assertEquals("Notch", sourceOf(alice),
+            "debounced dispatch must not overwrite the stored source");
         assertEquals(TestProperties.NOTCH.getOriginalProperty().getValue(), texturesValue(alice),
             "refresh task must be skipped inside the debounce window (profile untouched)");
         assertEquals(1, SkinMetrics.INSTANCE.snapshot().refreshesDebounced());
+        assertTrue(log.ofType(SPacketChat.class).stream()
+                .noneMatch(c -> c.getChatComponent().getUnformattedText().contains("fulfilled")),
+            "debounced dispatch must not claim fulfilment");
     }
 
     @Test
@@ -204,19 +210,38 @@ class SkinActionGuardsIT {
             global.add(inv.getArgument(0));
             return null;
         }).when(ctx.playerList).sendPacketToAllPlayers(any(Packet.class));
+        PacketLog log = new PacketLog();
+        log.attachTo(alice.connection);
         long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
 
-        // Direct baseline analog of the 1.21 negativeControl: the refresh task
-        // with a null or empty property must fail soft — no tab-list broadcast,
-        // no profile mutation, exactly one recorded failure per call.
+        // Direct baseline analog of the 1.21 negativeControl: on an already
+        // textureless profile the refresh task with a null or empty property is
+        // a successful no-op — no tab-list broadcast, no profile mutation, no
+        // failure metric (there is nothing stale to clear or re-learn).
         SkinRefreshTask.task(alice, null, 0L);
         SkinRefreshTask.task(alice, new CustomSkinProperty("textures", "", null, "none"), 0L);
 
         assertEquals(0, global.size(), "null/empty property must not broadcast");
         assertEquals(0, alice.getGameProfile().getProperties().get("textures").size(),
             "null/empty property must not mutate the profile");
-        assertTrue(SkinMetrics.INSTANCE.snapshot().refreshesFailed() >= failedBefore + 2,
-            "both no-skin calls must record a failed refresh");
+        assertEquals(failedBefore, SkinMetrics.INSTANCE.snapshot().refreshesFailed(),
+            "clearing a textureless profile is a successful no-op — must not record a refresh failure");
+
+        // Positive control for the same gate: when stale textures ARE applied,
+        // the null-property task must drop them and run the REMOVE+ADD observer
+        // broadcast plus the respawn cascade (the #194 clear invariant).
+        alice.getGameProfile().getProperties().put("textures",
+            TestProperties.NOTCH.getOriginalProperty());
+        SkinRefreshTask.task(alice, null, 0L);
+
+        assertEquals(0, alice.getGameProfile().getProperties().get("textures").size(),
+            "null-property task must drop stale applied textures");
+        assertEquals(2, global.size(),
+            "stale applied textures must trigger the REMOVE+ADD observer broadcast");
+        assertTrue(log.ofType(SPacketRespawn.class).size() >= 1,
+            "stale applied textures must trigger the respawn cascade");
+        assertEquals(failedBefore, SkinMetrics.INSTANCE.snapshot().refreshesFailed(),
+            "successful clear of stale textures must not record a refresh failure");
     }
 
     private String sourceOf(EntityPlayerMP player) {

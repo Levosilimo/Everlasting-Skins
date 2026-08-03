@@ -43,7 +43,15 @@ final class SkinRefreshTask {
         SkinMetrics.INSTANCE.recordRefreshStarted(target.getUniqueID());
 
         if (property == null || property.isEmpty()) {
-            SkinMetrics.INSTANCE.recordRefreshFailed(target.getUniqueID());
+            // /skin clear with no Mojang profile: storage is already null, so
+            // drop the applied textures property; stale applied textures are
+            // re-broadcast + cascaded, a textureless profile is a silent no-op.
+            try {
+                clearCascade(target);
+            } catch (Throwable t) {
+                EverlastingSkins.logger.error("Skin clear failed for {}", target.getName(), t);
+                SkinMetrics.INSTANCE.recordRefreshFailed(target.getUniqueID());
+            }
             return;
         }
 
@@ -65,15 +73,59 @@ final class SkinRefreshTask {
 
     private static void cascade(EntityPlayerMP target, CustomSkinProperty property, long startNanos,
             long fetchNanos) {
-        MinecraftServer server = target.mcServer;
-        PlayerList playerList = server.getPlayerList();
-        WorldServer world = (WorldServer) target.world;
-
         // GameProfile mutation is what every client ultimately reads textures from.
-        target.getGameProfile().getProperties().removeAll("textures");
-        target.getGameProfile().getProperties().put("textures", property.getOriginalProperty());
+        mutateProfile(target, property);
 
         // Tab-list re-add to ALL online players (global, no dimension scoping).
+        long broadcastNanos = broadcastProfileChange(target);
+
+        // Respawn in the same dimension so the target's own view refreshes without an inventory wipe.
+        respawnSelf(target);
+
+        // In-memory map already updated by the caller; disk flush is off-tick.
+        long saveStartNanos = System.nanoTime();
+        SkinRestorer.getSkinStorage().saveSkinAsync(target.getUniqueID(), property);
+        long saveNanos = System.nanoTime() - saveStartNanos;
+
+        SkinMetrics.INSTANCE.recordRefreshCompleted(
+            target.getUniqueID(), startNanos, fetchNanos, saveNanos, broadcastNanos);
+    }
+
+    private static void mutateProfile(EntityPlayerMP target, CustomSkinProperty property) {
+        target.getGameProfile().getProperties().removeAll("textures");
+        target.getGameProfile().getProperties().put("textures", property.getOriginalProperty());
+    }
+
+    private static void clearAppliedProfile(EntityPlayerMP target) {
+        target.getGameProfile().getProperties().removeAll("textures");
+    }
+
+    /**
+     * Clear half of the cascade: drop the applied textures property and, only
+     * when stale textures actually existed, re-broadcast REMOVE+ADD so
+     * observers re-learn the profile and run the respawn cascade so the
+     * target's own view reverts to the default skin. A textureless profile has
+     * nothing to revert or re-learn: the clear is a silent no-op with no
+     * broadcast, no cascade and no failure metric. Storage was already cleared
+     * by the caller, so nothing is persisted here.
+     */
+    private static void clearCascade(EntityPlayerMP target) {
+        boolean hadAppliedTextures = !target.getGameProfile().getProperties().get("textures").isEmpty();
+        clearAppliedProfile(target);
+        if (!hadAppliedTextures) {
+            return;
+        }
+        broadcastProfileChange(target);
+        respawnSelf(target);
+    }
+
+    /**
+     * Tab-list REMOVE+ADD to ALL online players (global, no dimension scoping);
+     * returns the measured broadcast nanos. The ADD packet serializes the
+     * GameProfile at construction time, so this must run after the mutation.
+     */
+    private static long broadcastProfileChange(EntityPlayerMP target) {
+        PlayerList playerList = target.mcServer.getPlayerList();
         long broadcastStartNanos = System.nanoTime();
         NetworkMetricsHandler netHandler = NetworkMetricsHandler.getOrAttach(target.connection.netManager);
         long outBefore = netHandler != null ? netHandler.outboundBytes() : 0;
@@ -92,8 +144,15 @@ final class SkinRefreshTask {
                 netHandler.outboundBytes() - outBefore,
                 netHandler.inboundBytes() - inBefore);
         }
+        return broadcastNanos;
+    }
 
-        // Respawn in the same dimension so the target's own view refreshes without an inventory wipe.
+    /** Respawn cascade for the target's own view, plus observer EntityTracker re-render. */
+    private static void respawnSelf(EntityPlayerMP target) {
+        MinecraftServer server = target.mcServer;
+        PlayerList playerList = server.getPlayerList();
+        WorldServer world = (WorldServer) target.world;
+
         EntityPlayerMP self = target;
         self.connection.sendPacket(new SPacketRespawn(
             self.dimension, self.world.getDifficulty(),
@@ -122,14 +181,6 @@ final class SkinRefreshTask {
             tracker.track(self);
             tracker.updateVisibility(self);
         }
-
-        // In-memory map already updated by the caller; disk flush is off-tick.
-        long saveStartNanos = System.nanoTime();
-        SkinRestorer.getSkinStorage().saveSkinAsync(self.getUniqueID(), property);
-        long saveNanos = System.nanoTime() - saveStartNanos;
-
-        SkinMetrics.INSTANCE.recordRefreshCompleted(
-            target.getUniqueID(), startNanos, fetchNanos, saveNanos, broadcastNanos);
     }
 
     /** Serialized size of a tab-list packet, used as the broadcast byte count. */

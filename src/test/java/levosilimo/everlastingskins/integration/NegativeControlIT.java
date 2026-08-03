@@ -70,18 +70,23 @@ class NegativeControlIT {
         }).when(ctx.playerList).sendPacketToAllPlayers(any(Packet.class));
         PacketLog log = new PacketLog();
         log.attachTo(alice.connection);
+        long initiatedBefore = SkinMetrics.INSTANCE.snapshot().refreshesInitiated();
         long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
 
         ctx.commandManager.executeCommand(alice, "/skin clear");
-        // The clear pipeline ends in task(player, null), which records a failure;
-        // the baseline is captured after the reset and before the dispatch.
+        // The clear pipeline ends in task(player, null) on an already
+        // textureless profile, which is a successful no-op: awaiting the
+        // initiated counter is the completion barrier (the task runs inline
+        // via addScheduledTask) without assuming a failure was recorded.
         assertTrue(AsyncSupport.await(5000,
-                () -> SkinMetrics.INSTANCE.snapshot().refreshesFailed() > failedBefore),
+                () -> SkinMetrics.INSTANCE.snapshot().refreshesInitiated() > initiatedBefore),
             "clear with no Mojang profile must reach the null-property refresh task");
 
         assertEquals(0, global.size(), "skin-less clear must not broadcast tab-list packets");
         assertEquals(0, log.ofType(SPacketPlayerListItem.class).size());
         assertEquals(0, log.ofType(SPacketRespawn.class).size());
+        assertEquals(failedBefore, SkinMetrics.INSTANCE.snapshot().refreshesFailed(),
+            "clear with nothing applied is a successful no-op — must not record a refresh failure");
         assertEquals(0, alice.getGameProfile().getProperties().get("textures").size());
         assertNull(ctx.storage.getSkin(alice.getUniqueID()));
     }
