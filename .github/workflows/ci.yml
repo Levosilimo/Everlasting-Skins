@@ -156,7 +156,7 @@ jobs:
           java -Xmx1G -Xms512M -jar "$SERVER_JAR" nogui > "${{ env.SERVER_DIR }}/logs/server-stdout.log" 2>&1 &
           SERVER_PID=$!
           echo "server_pid=$SERVER_PID" >> $GITHUB_OUTPUT
-      - name: Wait for server ready and assert mod discovery
+      - name: Wait for server ready
         run: |
           SERVER_PID="${{ steps.start-server.outputs.server_pid }}"
           for i in $(seq 1 120); do
@@ -176,11 +176,6 @@ jobs:
             fi
             sleep 5
           done
-          grep -q "everlastingskins" "${{ env.SERVER_DIR }}/logs/latest.log" || {
-            echo "FAIL: mod not discovered in server log"
-            tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
-            exit 1
-          }
       - name: Download HeadlessMC launcher
         run: |
           mkdir -p "${{ env.HMC_DIR }}"
@@ -206,7 +201,7 @@ jobs:
             echo "hmc.auto.download.specifics=false"
             echo "hmc.crash.report.watcher=true"
           } > "${{ env.HMC_DIR }}/config.properties"
-      - name: Launch real client and assert join on server log
+      - name: Launch real client; assert FML mod handshake and join
         run: |
           set -euo pipefail
           cd "${{ env.HMC_DIR }}"
@@ -229,6 +224,18 @@ jobs:
           done
           kill "$CLIENT_PID" 2>/dev/null || true
           wait "$CLIENT_PID" 2>/dev/null || true
+          # Mod presence: Forge 1.12.2 names the mod id at INFO only in the
+          # FML mod-list handshake lines written when the client joins (the
+          # headless client carries no mods, so the server reports its mod
+          # list as 'missing mods [..., everlastingskins]'). Assert on that
+          # handshake signal after the join attempt - never at server-ready,
+          # before any client exists.
+          if ! grep -Eq 'Attempting connection with missing mods \[[^]]*everlastingskins' "${{ env.SERVER_DIR }}/logs/latest.log" \
+            && ! grep -Eq 'Client attempting to join with [0-9]+ mods : [^ ]*everlastingskins' "${{ env.SERVER_DIR }}/logs/latest.log"; then
+            echo "FAIL: mod id not found in FML handshake mod-list line"
+            tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
+            exit 1
+          fi
           if [ "$JOINED" -ne 1 ]; then
             echo "FAIL: client did not connect to the server"
             tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
