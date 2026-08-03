@@ -13,6 +13,7 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.common.ForgeConfigSpec;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,21 +30,70 @@ import java.util.concurrent.ConcurrentHashMap;
  * i18n service backed by JSON resource files at
  * {@code /assets/everlastingskins/lang/<locale>.json}. Loaded once at server
  * start via {@link #loadAll()}; per-player lookups resolve the client's
- * language code through {@link #defaultLocaleFor(String)} and fall back to
- * {@code Config.LANGUAGE}, then the built-in English file, then the raw key.
+ * language code through {@link #defaultLocaleFor(String)}. Resolution order:
+ * Config override (admin per-server customization), the resolved locale file,
+ * the built-in English file, then the raw key.
  */
 public final class I18nUtils {
     private static final Gson GSON = new Gson();
     private static final Map<String, Map<String, String>> LOCALES = new ConcurrentHashMap<>();
 
     /** Locale code sent to clients that map to nothing; also the normalization fallback. */
-    private static final String DEFAULT_LOCALE = "en_us";
-    /** Map key of the complete English file, used when the resolved locale misses a key. */
-    private static final String FALLBACK_LOCALE = "en";
+    private static final String DEFAULT_LOCALE = "en";
 
     private static final List<String> LOCALE_FILES = List.of(
             "en", "ru", "uk",
             "zh_cn", "es_es", "pt_br", "de_de", "fr_fr", "ja_jp", "ko_kr", "it_it");
+
+    /** Canonical English text per message key; mirrors the Messages config defaults. */
+    private static final Map<String, String> DEFAULT_ENGLISH = Map.ofEntries(
+            Map.entry("change", "Skin change queued"),
+            Map.entry("fulfilled", "Skin has been applied."),
+            Map.entry("timeout", "Skin fetch timed out."),
+            Map.entry("error", "Skin fetch failed."),
+            Map.entry("restored_from", "Skin restored from %s"),
+            Map.entry("cleared_no_profile", "Skin cleared (no Mojang profile found)"),
+            Map.entry("no_source", "No source available"),
+            Map.entry("player_only", "Player only command"),
+            Map.entry("permission_denied", "Permission denied"),
+            Map.entry("cooldown", "Please wait %ds before using /skin again"),
+            Map.entry("rate_limited", "Too many /skin commands. Try again later."),
+            Map.entry("no_skin_found", "No skin found for \"%s\""),
+            Map.entry("no_skin_found_plain", "No skin found"),
+            Map.entry("mineskin_rejected", "MineSkin rejected the URL"),
+            Map.entry("no_random_username", "No random username available"),
+            Map.entry("provider_no_result", "Provider returned no result"),
+            Map.entry("metrics_top_players", "Top players by refresh count:"),
+            Map.entry("metrics_refreshes", " refreshes"),
+            Map.entry("metrics_no_refreshes", "(no refreshes recorded)"),
+            Map.entry("metrics_cleanup", "Metrics cleanup: pruned %d stale player entries"),
+            Map.entry("metrics_reset", "Metrics reset"),
+            Map.entry("discord_announce", "**%s** changed their skin to: `%s`"));
+
+    /** Message keys that expose a {@code messages_*} Config entry for per-server override. */
+    private static final Map<String, ForgeConfigSpec.ConfigValue<String>> CONFIG_MESSAGES = Map.ofEntries(
+            Map.entry("change", Config.MESSAGES_CHANGE),
+            Map.entry("fulfilled", Config.MESSAGES_FULFILLED),
+            Map.entry("timeout", Config.MESSAGES_TIMEOUT),
+            Map.entry("error", Config.MESSAGES_ERROR),
+            Map.entry("restored_from", Config.MESSAGES_RESTORED_FROM),
+            Map.entry("cleared_no_profile", Config.MESSAGES_CLEARED_NO_PROFILE),
+            Map.entry("no_source", Config.MESSAGES_NO_SOURCE),
+            Map.entry("player_only", Config.MESSAGES_PLAYER_ONLY),
+            Map.entry("permission_denied", Config.MESSAGES_PERMISSION_DENIED),
+            Map.entry("cooldown", Config.MESSAGES_COOLDOWN),
+            Map.entry("rate_limited", Config.MESSAGES_RATE_LIMITED),
+            Map.entry("no_skin_found", Config.MESSAGES_NO_SKIN_FOUND),
+            Map.entry("no_skin_found_plain", Config.MESSAGES_NO_SKIN_FOUND_PLAIN),
+            Map.entry("mineskin_rejected", Config.MESSAGES_MINESKIN_REJECTED),
+            Map.entry("no_random_username", Config.MESSAGES_NO_RANDOM_USERNAME),
+            Map.entry("provider_no_result", Config.MESSAGES_PROVIDER_NO_RESULT),
+            Map.entry("metrics_top_players", Config.MESSAGES_METRICS_TOP_PLAYERS),
+            Map.entry("metrics_refreshes", Config.MESSAGES_METRICS_REFRESHES),
+            Map.entry("metrics_no_refreshes", Config.MESSAGES_METRICS_NO_REFRESHES),
+            Map.entry("metrics_cleanup", Config.MESSAGES_METRICS_CLEANUP),
+            Map.entry("metrics_reset", Config.MESSAGES_METRICS_RESET),
+            Map.entry("discord_announce", Config.MESSAGES_DISCORD_ANNOUNCE));
 
     private I18nUtils() {}
 
@@ -97,18 +147,52 @@ public final class I18nUtils {
         return getLocalizedString(key, locale);
     }
 
-    /** Static locale lookup with fallback: resolved locale, English, then the raw key. */
+    /**
+     * Static locale lookup with the override chain: Config override, resolved
+     * locale file, default English file, then the raw key.
+     */
     public static String getLocalizedString(String key, String locale) {
         if (key == null) return null;
+
+        // 1. Config override (admin per-server customization)
+        String configOverride = getConfigOverride(key);
+        if (configOverride != null) return configOverride;
+
+        // 2. Locale file for the resolved locale
         Map<String, String> translations = LOCALES.get(defaultLocaleFor(locale));
         if (translations != null && translations.containsKey(key)) {
             return translations.get(key);
         }
-        Map<String, String> defaults = LOCALES.get(FALLBACK_LOCALE);
+
+        // 3. Default locale (en)
+        Map<String, String> defaults = LOCALES.get(DEFAULT_LOCALE);
         if (defaults != null && defaults.containsKey(key)) {
             return defaults.get(key);
         }
+
+        // 4. Raw key
         return key;
+    }
+
+    /**
+     * Look up a Config override for the given key.
+     * Returns the override if defined (and not equal to the canonical default).
+     */
+    private static String getConfigOverride(String key) {
+        ForgeConfigSpec.ConfigValue<String> configValue = CONFIG_MESSAGES.get(key);
+        if (configValue == null) return null;
+        String userValue;
+        try {
+            userValue = configValue.get();
+        } catch (Exception e) {
+            // Config may not be loaded yet; locale defaults still apply.
+            EverlastingSkins.logger.debug("Message config '{}' unavailable, using locale defaults", key, e);
+            return null;
+        }
+        if (userValue == null || userValue.isEmpty()) return null;
+        // Equal to the canonical default ⇒ admin did not customize this message.
+        if (userValue.equals(DEFAULT_ENGLISH.get(key))) return null;
+        return userValue;
     }
 
     /**
