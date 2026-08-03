@@ -60,6 +60,27 @@ public class TestServerContext implements AutoCloseable {
     private final Path tempDir;
     private final List<EntityPlayerMP> onlinePlayers = new ArrayList<>();
 
+    // Profile attached to the ops entry created by attachPermissionLevelSeam;
+    // PermissionContext.effectiveOpLevel only reads entry.getPermissionLevel(),
+    // so the profile identity is irrelevant to the stubbed behavior.
+    private static final GameProfile SEAM_PROFILE =
+        new GameProfile(java.util.UUID.randomUUID(), "op-seam");
+
+    // ONE ops-list mock shared by makeOp() and attachPermissionLevelSeam().
+    // Each helper stubs both getEntry (read by PermissionContext.effectiveOpLevel)
+    // and getPermissionLevel (read by the packet seam) on it, so whichever runs
+    // last leaves the op level coherent across both consumers instead of
+    // clobbering the other helper's stub with an incomplete mock.
+    private UserListOps opEntries;
+
+    private UserListOps opEntries() {
+        if (opEntries == null) {
+            opEntries = mock(UserListOps.class);
+            when(playerList.getOppedPlayers()).thenReturn(opEntries);
+        }
+        return opEntries;
+    }
+
     // Production runs refresh tasks on the single server thread; the inline
     // harness execution must serialize them the same way, or concurrent
     // dispatches interleave removeAll+put on the same GameProfile.
@@ -121,14 +142,18 @@ public class TestServerContext implements AutoCloseable {
      * Faithful seam for the vanilla permission-level packet: PlayerList
      * computes the op level from the ops list and sends SPacketEntityStatus
      * with byte 24+level (24 for level 0, 28 for level >= 4) on every
-     * updatePermissionLevel. Self-contained: it stubs its own ops-list access,
-     * so it does not depend on makeOp() having been called first.
+     * updatePermissionLevel. Configures the shared ops list (see
+     * {@link #opEntries()}) with BOTH the getEntry stub that
+     * PermissionContext.effectiveOpLevel reads and the getPermissionLevel
+     * stub that fixes the packet byte, so the permission context and the
+     * packet stay coherent no matter whether makeOp() ran before or after.
      */
     public void attachPermissionLevelSeam(int opLevel) {
         when(playerList.canSendCommands(any(GameProfile.class))).thenReturn(true);
-        UserListOps ops = mock(UserListOps.class);
+        UserListOps ops = opEntries();
         when(ops.getPermissionLevel(any(GameProfile.class))).thenReturn(opLevel);
-        when(playerList.getOppedPlayers()).thenReturn(ops);
+        when(ops.getEntry(any(GameProfile.class)))
+            .thenReturn(new UserListOpsEntry(SEAM_PROFILE, opLevel, false));
         doAnswer(inv -> {
             EntityPlayerMP player = (EntityPlayerMP) inv.getArgument(0);
             int level = playerList.canSendCommands(player.getGameProfile())
@@ -186,15 +211,18 @@ public class TestServerContext implements AutoCloseable {
     }
 
     /**
-     * Grants the player op level 2 so canUseCommand(2, ...) passes and the
-     * vanilla permission gate inside SkinCommand admits the command.
+     * Grants the player op level 2 so canUseCommand(2, ...) passes, the
+     * vanilla permission gate inside SkinCommand admits the command, and
+     * PermissionContext.of(uuid, player) reports op level 2. Uses the shared
+     * ops list, stubbing getEntry AND getPermissionLevel so the packet seam
+     * stays coherent when attachPermissionLevelSeam() runs after this.
      */
     public void makeOp(EntityPlayerMP player) {
         when(playerList.canSendCommands(any(GameProfile.class))).thenReturn(true);
-        UserListOps ops = mock(UserListOps.class);
+        UserListOps ops = opEntries();
         when(ops.getEntry(any(GameProfile.class)))
             .thenReturn(new UserListOpsEntry(player.getGameProfile(), 2, false));
-        when(playerList.getOppedPlayers()).thenReturn(ops);
+        when(ops.getPermissionLevel(any(GameProfile.class))).thenReturn(2);
         when(server.getOpPermissionLevel()).thenReturn(2);
     }
 
