@@ -53,9 +53,11 @@ curl -L -o test-infrastructure/headlessmc/headlessmc-launcher-wrapper.jar \
 
 ## CI integration
 
-`.github/workflows/ci.yml` (job `e2e-test-1122`, "Boot Smoke (mc1.12.2)")
-inlines the same flow instead of calling `run-e2e.sh`: start the Forge
-server, launch the headless client (TestPlayer), assert the client joined
+`.github/workflows/ci.yml` (job `e2e-test-1122`, displayed as "E2E
+(mc1.12.2)" — the exact check name branch protection requires on the
+`mc1.12.2` branch — boot smoke, not command E2E) inlines the same flow
+instead of calling `run-e2e.sh`: start the Forge server, launch the
+headless client (TestPlayer), assert the client joined
 on `$SERVER_DIR/logs/latest.log`, then assert mod presence from the FML
 handshake mod-list line. No `/skin` command can be sent without a console
 bridge, so the skin API endpoints are never exercised: the job uses no

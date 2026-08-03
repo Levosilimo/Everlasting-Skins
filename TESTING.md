@@ -45,7 +45,7 @@ bash test-infrastructure/run-e2e.sh mc1.12.2
 
 ### CI execution
 
-The `e2e-test-1122` job ("Boot Smoke (mc1.12.2)") in `.github/workflows/ci.yml` runs on pushes to the `mc1.12.2` branch and inlines the `run-e2e.sh` flow rather than calling the script: boot the Forge server, launch a real headless client (TestPlayer) through the HeadlessMC wrapper, assert the client joined on the server log, then assert mod presence from the FML handshake mod-list line. No WireMock service, no HeadlessMC scenarios.
+The `e2e-test-1122` job (displayed as "E2E (mc1.12.2)" — the exact check name branch protection requires on the `mc1.12.2` branch — boot smoke, not command E2E) in `.github/workflows/ci.yml` runs on pushes to the `mc1.12.2` branch and inlines the `run-e2e.sh` flow rather than calling the script: boot the Forge server, launch a real headless client (TestPlayer) through the HeadlessMC wrapper, assert the client joined on the server log, then assert mod presence from the FML handshake mod-list line. No WireMock service, no HeadlessMC scenarios.
 
 ## Skipping E2E for local commits
 
