@@ -165,10 +165,17 @@ cd "$PROJECT_DIR"
 # Client profile was installed with the 2860 installer, so the uid must
 # match that profile even though the server runs the canonical 2847 build.
 CLIENT_UID="14.23.5.2860"
-timeout --kill-after=10 300 xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
+# Run the client pipeline (timeout -> xvfb-run -> Xvfb + MC java) in its own
+# session/process group so cleanup can kill the whole tree: killing only the
+# timeout/xvfb wrapper PID would orphan the Java client (no pkill by project
+# policy). setsid execs directly when it is not a process group leader (the
+# non-interactive case), so the tracked PGID is the timeout process itself.
+setsid timeout --kill-after=10 300 xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
     --command "launch forge:$MC_VERSION -lwjgl -offline --uid $CLIENT_UID --jvm -Djava.awt.headless=true" \
     --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "$HMC_DIR/client.log" 2>&1 &
 CLIENT_PID=$!
+CLIENT_PGID=$(ps -o pgid= -p "$CLIENT_PID" 2>/dev/null | tr -d ' ' || true)
+OWN_PGID=$(ps -o pgid= -p $$ | tr -d ' ' || true)
 
 JOINED=0
 for i in $(seq 1 90); do
@@ -183,7 +190,19 @@ for i in $(seq 1 90); do
     sleep 2
 done
 
-kill "$CLIENT_PID" 2>/dev/null || true
+# Cleanup: TERM the tracked process group, escalate to KILL after a grace
+# period, then reap. Fall back to a plain PID kill if the group could not
+# be tracked (setsid forked or already gone).
+if [ -n "$CLIENT_PGID" ] && [ "$CLIENT_PGID" != "$OWN_PGID" ]; then
+    kill -TERM -- "-$CLIENT_PGID" 2>/dev/null || true
+    for _ in $(seq 1 10); do
+        kill -0 -- "-$CLIENT_PGID" 2>/dev/null || break
+        sleep 1
+    done
+    kill -KILL -- "-$CLIENT_PGID" 2>/dev/null || true
+else
+    kill "$CLIENT_PID" 2>/dev/null || true
+fi
 wait "$CLIENT_PID" 2>/dev/null || true
 
 echo "=== E2E Assertions ==="

@@ -205,10 +205,19 @@ jobs:
         run: |
           set -euo pipefail
           cd "${{ env.HMC_DIR }}"
-          timeout --kill-after=10 300 xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
+          # Run the whole client pipeline (timeout -> xvfb-run -> Xvfb + MC
+          # java) in its own session/process group so cleanup can terminate
+          # the entire tree. Killing only the timeout/xvfb wrapper PID would
+          # orphan the Java client on self-hosted runners; pkill is banned by
+          # project policy. setsid execs directly when it is not a process
+          # group leader (the GHA/WSL non-interactive case), so the tracked
+          # PGID is the PID of the timeout process itself.
+          setsid timeout --kill-after=10 300 xvfb-run -a java -jar "headlessmc-launcher-wrapper-${{ env.HMC_VERSION }}.jar" \
             --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2860 --jvm -Djava.awt.headless=true" \
             --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "${{ env.HMC_DIR }}/hmc-output.log" 2>&1 &
           CLIENT_PID=$!
+          CLIENT_PGID=$(ps -o pgid= -p "$CLIENT_PID" 2>/dev/null | tr -d ' ' || true)
+          OWN_PGID=$(ps -o pgid= -p $$ | tr -d ' ' || true)
           JOINED=0
           for _ in $(seq 1 90); do
             if grep -q " joined the game" "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null; then
@@ -222,7 +231,19 @@ jobs:
             fi
             sleep 2
           done
-          kill "$CLIENT_PID" 2>/dev/null || true
+          # Cleanup: TERM the tracked process group, escalate to KILL after a
+          # grace period, then reap. Fall back to a plain PID kill if the
+          # group could not be tracked (setsid forked or already gone).
+          if [ -n "$CLIENT_PGID" ] && [ "$CLIENT_PGID" != "$OWN_PGID" ]; then
+            kill -TERM -- "-$CLIENT_PGID" 2>/dev/null || true
+            for _ in $(seq 1 10); do
+              kill -0 -- "-$CLIENT_PGID" 2>/dev/null || break
+              sleep 1
+            done
+            kill -KILL -- "-$CLIENT_PGID" 2>/dev/null || true
+          else
+            kill "$CLIENT_PID" 2>/dev/null || true
+          fi
           wait "$CLIENT_PID" 2>/dev/null || true
           # Mod presence: Forge 1.12.2 names the mod id at INFO only in the
           # FML mod-list handshake lines written when the client joins (the
