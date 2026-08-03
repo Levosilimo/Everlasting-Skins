@@ -10,11 +10,13 @@ import com.mojang.authlib.GameProfile;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
+import com.mojang.authlib.GameProfile;
 import net.minecraft.command.ServerCommandManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityTracker;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.Packet;
+import net.minecraft.network.play.server.SPacketEntityStatus;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerList;
 import net.minecraft.server.management.UserListOps;
@@ -114,6 +116,28 @@ public class TestServerContext implements AutoCloseable {
         EntityPlayerMP player = TestPlayerFactory.create(server, world, name);
         onlinePlayers.add(player);
         return player;
+    }
+
+    /**
+     * Faithful seam for the vanilla permission-level packet: PlayerList
+     * computes the op level from the ops list and sends SPacketEntityStatus
+     * with byte 24+level (24 for level 0, 28 for level >= 4) on every
+     * updatePermissionLevel. Self-contained: it stubs its own ops-list access,
+     * so it does not depend on makeOp() having been called first.
+     */
+    public void attachPermissionLevelSeam(int opLevel) {
+        when(playerList.canSendCommands(any(GameProfile.class))).thenReturn(true);
+        UserListOps ops = mock(UserListOps.class);
+        when(ops.getPermissionLevel(any(GameProfile.class))).thenReturn(opLevel);
+        when(playerList.getOppedPlayers()).thenReturn(ops);
+        doAnswer(inv -> {
+            EntityPlayerMP player = (EntityPlayerMP) inv.getArgument(0);
+            int level = playerList.canSendCommands(player.getGameProfile())
+                ? playerList.getOppedPlayers().getPermissionLevel(player.getGameProfile()) : 0;
+            byte status = level <= 0 ? 24 : level >= 4 ? 28 : (byte) (24 + level);
+            player.connection.sendPacket(new SPacketEntityStatus(player, status));
+            return null;
+        }).when(playerList).updatePermissionLevel(any(EntityPlayerMP.class));
     }
 
     /**

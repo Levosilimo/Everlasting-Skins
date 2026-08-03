@@ -10,7 +10,6 @@ import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.PacketLog;
 import levosilimo.everlastingskins.harness.TestServerContext;
 import levosilimo.everlastingskins.skinchanger.SkinCommandTestAccess;
-import com.mojang.authlib.GameProfile;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.SPacketEntityStatus;
@@ -29,9 +28,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.when;
 
 /**
  * Packet contract of the 1.12.2 refresh cascade: the tab-list update
@@ -66,27 +62,14 @@ class ObserverPacketIT {
         ctx.makeOp(target);
 
         List<Packet<?>> global = new CopyOnWriteArrayList<>();
-        doAnswer(inv -> {
-            global.add(inv.getArgument(0));
-            return null;
-        }).when(ctx.playerList).sendPacketToAllPlayers(any(Packet.class));
+        ctx.recordAndDeliverBroadcast(global);
         PacketLog targetLog = new PacketLog();
         targetLog.attachTo(target.connection);
         PacketLog observerLog = new PacketLog();
         observerLog.attachTo(observer.connection);
-        // Faithful seam for the vanilla permission-level packet: PlayerList
-        // computes the op level from the ops list and sends SPacketEntityStatus
-        // with byte 24+level (24 for level 0, 28 for level >= 4) every time.
-        when(ctx.playerList.canSendCommands(any(GameProfile.class))).thenReturn(true);
-        when(ctx.playerList.getOppedPlayers().getPermissionLevel(any(GameProfile.class))).thenReturn(2);
-        doAnswer(inv -> {
-            EntityPlayerMP player = (EntityPlayerMP) inv.getArgument(0);
-            int level = ctx.playerList.canSendCommands(player.getGameProfile())
-                ? ctx.playerList.getOppedPlayers().getPermissionLevel(player.getGameProfile()) : 0;
-            byte status = level <= 0 ? 24 : level >= 4 ? 28 : (byte) (24 + level);
-            player.connection.sendPacket(new SPacketEntityStatus(player, status));
-            return null;
-        }).when(ctx.playerList).updatePermissionLevel(any(EntityPlayerMP.class));
+        // Self-contained vanilla seam: the permission-level packet is
+        // observable without depending on makeOp() stubbing order.
+        ctx.attachPermissionLevelSeam(2);
 
         ctx.commandManager.executeCommand(target, "/skin set mojang Notch");
         assertTrue(AsyncSupport.await(5000, () -> ctx.storage.getSkin(target.getUniqueID()) != null),
@@ -135,9 +118,15 @@ class ObserverPacketIT {
         assertEquals(1, targetLog.ofType(SPacketPlayerAbilities.class).size(),
             "abilities must be sent exactly once");
 
-        // Observers have no direct per-viewer packets on 1.12.2; they receive
-        // the update through the global sendPacketToAllPlayers broadcast above.
-        assertEquals(0, observerLog.size());
+        // Observers receive the tab-list update through the global broadcast:
+        // sendPacketToAllPlayers delivers REMOVE then ADD to every online
+        // player's connection, this observer included.
+        assertTrue(AsyncSupport.await(5000,
+                () -> observerLog.ofType(SPacketPlayerListItem.class).size() == 2),
+            "observer must receive the REMOVE+ADD tab-list broadcast");
+        List<SPacketPlayerListItem> observerTabList = observerLog.ofType(SPacketPlayerListItem.class);
+        assertEquals(SPacketPlayerListItem.Action.REMOVE_PLAYER, observerTabList.get(0).getAction());
+        assertEquals(SPacketPlayerListItem.Action.ADD_PLAYER, observerTabList.get(1).getAction());
     }
 
     @Test
