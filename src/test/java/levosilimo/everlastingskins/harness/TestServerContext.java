@@ -29,6 +29,7 @@ import net.minecraft.world.storage.WorldInfo;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.relauncher.FMLInjectionData;
 
+import com.google.common.util.concurrent.Futures;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -55,6 +56,11 @@ public class TestServerContext implements AutoCloseable {
 
     private final Path tempDir;
     private final List<EntityPlayerMP> onlinePlayers = new ArrayList<>();
+
+    // Production runs refresh tasks on the single server thread; the inline
+    // harness execution must serialize them the same way, or concurrent
+    // dispatches interleave removeAll+put on the same GameProfile.
+    private static final Object SCHEDULED_TASK_LOCK = new Object();
 
     public MinecraftServer server;
     public ServerCommandManager commandManager;
@@ -83,8 +89,11 @@ public class TestServerContext implements AutoCloseable {
             .thenAnswer(inv -> tempDir.resolve((String) inv.getArgument(0)).toFile());
         // Run scheduled tasks inline so async skin application stays deterministic.
         when(server.addScheduledTask(any(Runnable.class))).thenAnswer(inv -> {
-            ((Runnable) inv.getArgument(0)).run();
-            return true;
+            Runnable runnable = (Runnable) inv.getArgument(0);
+            synchronized (SCHEDULED_TASK_LOCK) {
+                runnable.run();
+            }
+            return Futures.immediateFuture(null);
         });
 
         world = newWorld(0);

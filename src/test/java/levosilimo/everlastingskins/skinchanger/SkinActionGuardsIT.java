@@ -85,8 +85,9 @@ class SkinActionGuardsIT {
         log.attachTo(alice.connection);
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
-        assertTrue(AsyncSupport.await(5000, () -> ctx.storage.getSkin(alice.getUniqueID()) != null),
-            "first dispatch must store the skin");
+        assertTrue(AsyncSupport.await(5000,
+                () -> alice.getGameProfile().getProperties().get("textures").size() == 1),
+            "first dispatch must apply textures to the profile");
         assertEquals(1, fake.lookupCount("Notch"));
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Dinnerbone");
@@ -108,14 +109,21 @@ class SkinActionGuardsIT {
         fake.addSkin("Notch", TestProperties.NOTCH).addSkin("Dinnerbone", TestProperties.DINNERBONE);
         EntityPlayerMP alice = ctx.newPlayer("Alice");
         ctx.makeOp(alice); // op level 2 -> everlastingskins.bypass.cooldown
+        List<Packet<?>> global = new CopyOnWriteArrayList<>();
+        doAnswer(inv -> {
+            global.add(inv.getArgument(0));
+            return null;
+        }).when(ctx.playerList).sendPacketToAllPlayers(any(Packet.class));
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
-        assertTrue(AsyncSupport.await(5000, () -> "Notch".equals(sourceOf(alice))),
-            "first dispatch must store the skin");
+        assertTrue(AsyncSupport.await(5000, () -> global.size() >= 2),
+            "first dispatch must broadcast the REMOVE+ADD pair");
         ctx.commandManager.executeCommand(alice, "/skin set mojang Dinnerbone");
-        assertTrue(AsyncSupport.await(5000, () -> "Dinnerbone".equals(sourceOf(alice))),
+        assertTrue(AsyncSupport.await(5000, () -> global.size() >= 4),
             "second dispatch inside the cooldown window must still apply for ops");
 
+        assertTrue(AsyncSupport.await(5000, () -> "Dinnerbone".equals(sourceOf(alice))),
+            "second dispatch must store the new skin");
         assertEquals(1, fake.lookupCount("Notch"));
         assertEquals(1, fake.lookupCount("Dinnerbone"));
         assertEquals(0, SkinMetrics.INSTANCE.snapshot().refreshesRateLimited());
@@ -135,11 +143,16 @@ class SkinActionGuardsIT {
         assertEquals(TestProperties.NOTCH.getOriginalProperty().getValue(), texturesValue(alice));
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Jeb_");
-        assertTrue(AsyncSupport.await(5000, () -> "Jeb_".equals(sourceOf(alice))),
-            "second dispatch must store the new skin even when the refresh is debounced");
+        // The debounce record is the last effect of the second fetch's
+        // completion callback, so awaiting it guarantees the pipeline finished.
+        assertTrue(AsyncSupport.await(5000,
+                () -> SkinMetrics.INSTANCE.snapshot().refreshesDebounced() >= 1),
+            "second dispatch inside the debounce window must be skipped");
 
+        assertEquals("Jeb_", sourceOf(alice),
+            "second dispatch must store the new skin even when the refresh is debounced");
         // The fetch completed and storage mutated, but the refresh task was
-        // skipped inside the debounce window: the profile keeps the first skin.
+        // skipped: the profile keeps the first skin.
         assertEquals(TestProperties.NOTCH.getOriginalProperty().getValue(), texturesValue(alice),
             "debounced refresh must not re-apply textures to the profile");
         assertEquals(1, SkinMetrics.INSTANCE.snapshot().refreshesDebounced());
