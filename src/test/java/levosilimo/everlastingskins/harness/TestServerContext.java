@@ -14,6 +14,7 @@ import net.minecraft.command.ServerCommandManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityTracker;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.Packet;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerList;
 import net.minecraft.server.management.UserListOps;
@@ -38,6 +39,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -112,6 +114,23 @@ public class TestServerContext implements AutoCloseable {
         EntityPlayerMP player = TestPlayerFactory.create(server, world, name);
         onlinePlayers.add(player);
         return player;
+    }
+
+    /**
+     * Faithful seam for PlayerList.sendPacketToAllPlayers: records the packet
+     * and delivers it to every online player's connection, mirroring the
+     * vanilla loop over the player list. Needed by tests that assert the
+     * broadcast reaches a specific player (e.g. self-reception).
+     */
+    public void recordAndDeliverBroadcast(List<Packet<?>> sink) {
+        doAnswer(inv -> {
+            Packet<?> packet = (Packet<?>) inv.getArgument(0);
+            sink.add(packet);
+            for (EntityPlayerMP online : onlinePlayers) {
+                online.connection.sendPacket(packet);
+            }
+            return null;
+        }).when(playerList).sendPacketToAllPlayers(any(Packet.class));
     }
 
     public EntityPlayerMP newPlayer(String name, WorldServer playerWorld) {
