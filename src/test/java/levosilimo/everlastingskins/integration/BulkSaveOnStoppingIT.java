@@ -9,8 +9,6 @@ package levosilimo.everlastingskins.integration;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.TestServerContext;
-import levosilimo.everlastingskins.metrics.SkinMetrics;
-import levosilimo.everlastingskins.metrics.Snapshot;
 import levosilimo.everlastingskins.skinchanger.SkinCommandTestAccess;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
@@ -24,7 +22,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +34,10 @@ import static org.mockito.Mockito.when;
  * 1.12.2 writer executor is never shut down, saves submitted after the stop
  * events still land on disk (the 1.21 ioAsyncWriterSurvivesSecondShutdown
  * analog has no shutdown call on this branch to guard).
+ *
+ * <p>All assertions are contamination-proof: they read only disk files and
+ * this test's own SkinStorage instance, never the shared metrics counters
+ * that earlier test classes' delayed writer drains may still touch.
  */
 class BulkSaveOnStoppingIT {
 
@@ -45,14 +47,8 @@ class BulkSaveOnStoppingIT {
     private TestServerContext ctx;
 
     @BeforeEach
-    void setUp() throws InterruptedException {
+    void setUp() {
         ctx = new TestServerContext(tempDir);
-        // Earlier test classes' refresh tasks enqueue async saves whose drains
-        // fire up to 50ms (the writer debounce window) later, decrementing the
-        // shared pendingAsyncWrites counter while this class runs. Wait the
-        // window out so the metrics reset below measures only this test's work.
-        Thread.sleep(60);
-        SkinMetrics.INSTANCE.reset();
     }
 
     @AfterEach
@@ -71,8 +67,9 @@ class BulkSaveOnStoppingIT {
         ctx.storage.setSkin(carol.getUniqueID(), TestProperties.ALEX);
         when(ctx.playerList.getPlayers()).thenReturn(Arrays.asList(alice, bob, carol));
         // Enqueue async writes for two players so the stop-time flush has real
-        // work; whether the 50ms scheduled drain or the stop flush wins the
-        // race, the completed==submitted invariant below must hold.
+        // work. The stop handler flushes synchronously (flushPending blocks on
+        // the drain), so right after it returns — before the 50ms scheduled
+        // drain can fire — the files must exist and the queue must be empty.
         ctx.storage.saveSkinAsync(alice.getUniqueID(), TestProperties.NOTCH);
         ctx.storage.saveSkinAsync(bob.getUniqueID(), TestProperties.DINNERBONE);
 
@@ -82,13 +79,12 @@ class BulkSaveOnStoppingIT {
         // can have written her file, so this pins the per-player loop.
         assertTrue(Files.exists(skinFile(carol)),
             "the stop loop must persist in-memory skins without a queued write");
-        assertTrue(Files.exists(skinFile(alice)), "Alice's skin must be written on server stop");
-        assertTrue(Files.exists(skinFile(bob)), "Bob's skin must be written on server stop");
-        Snapshot snap = SkinMetrics.INSTANCE.snapshot();
-        assertEquals(2, snap.savesSubmitted(), "stop must not drop queued async saves");
-        assertEquals(2, snap.savesCompleted(),
-            "stop must drain every submitted save (flush, not drop)");
-        assertEquals(0, snap.pendingAsyncWrites(), "stop must leave no save in flight");
+        assertTrue(Files.exists(skinFile(alice)),
+            "the stop flush must have written Alice's queued save to disk");
+        assertTrue(Files.exists(skinFile(bob)),
+            "the stop flush must have written Bob's queued save to disk");
+        assertFalse(ctx.storage.hasPendingWrites(),
+            "the stop flush must drain the writer queue synchronously, not leave it to the 50ms drain");
     }
 
     @Test
@@ -107,7 +103,7 @@ class BulkSaveOnStoppingIT {
         ctx.storage.saveSkinAsync(carol.getUniqueID(), TestProperties.ALEX);
         assertTrue(AsyncSupport.await(5000, () -> Files.exists(skinFile(carol))),
             "the writer must survive repeated stop events and drain later saves");
-        assertEquals(0, SkinMetrics.INSTANCE.snapshot().pendingAsyncWrites(),
+        assertFalse(ctx.storage.hasPendingWrites(),
             "the post-stop save must drain completely");
     }
 
