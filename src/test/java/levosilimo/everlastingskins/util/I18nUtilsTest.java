@@ -7,6 +7,8 @@
 package levosilimo.everlastingskins.util;
 
 import net.minecraft.entity.player.EntityPlayerMP;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -21,7 +23,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link I18nUtils} — 1.12.2 locale resolution and fallback logic.
@@ -33,6 +37,8 @@ import static org.mockito.Mockito.mock;
  * testable without server infrastructure.</p>
  */
 class I18nUtilsTest {
+
+    private static net.minecraft.server.MinecraftServer fakeServer;
 
     private static final String[] EXPECTED_KEYS = {
         "change", "fulfilled", "timeout", "error", "restored_from", "cleared_no_profile",
@@ -253,6 +259,54 @@ class I18nUtilsTest {
                     }
                 }
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("per-player lookup with loaded locales (lib-7 gap)")
+    @org.junit.jupiter.api.TestInstance(org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS)
+    class PerPlayerWithLoadedLocales {
+
+        @BeforeAll
+        void loadLocales() throws Exception {
+            fakeServer = mock(net.minecraft.server.MinecraftServer.class);
+            java.io.File configDir = java.nio.file.Files.createTempDirectory("es1122-i18n-test").toFile();
+            when(fakeServer.getFile(anyString())).thenReturn(configDir);
+            levosilimo.everlastingskins.skinchanger.SkinRestorer.setServer(fakeServer);
+            I18nUtils.loadAll();
+        }
+
+        @AfterAll
+        void unloadLocales() {
+            levosilimo.everlastingskins.skinchanger.SkinRestorer.setServer(null);
+            I18nUtils.loadAll(); // clears the map back to the empty regime
+        }
+
+        @Test
+        @DisplayName("mocked player with ru_ru language gets Russian text")
+        void ruPlayerGetsRussian() {
+            EntityPlayerMP player = mock(EntityPlayerMP.class);
+            player.language = "ru_ru";
+            assertEquals("**%s** сменил(а) скин на: `%s`",
+                    I18nUtils.getLocalizedString("discord_announce", player));
+        }
+
+        @Test
+        @DisplayName("mocked player with unsupported language falls back to English")
+        void unsupportedLanguageFallsBackToEnglish() {
+            EntityPlayerMP player = mock(EntityPlayerMP.class);
+            player.language = "zz_zz";
+            assertEquals("**%s** changed their skin to: `%s`",
+                    I18nUtils.getLocalizedString("discord_announce", player));
+        }
+
+        @Test
+        @DisplayName("per-player formatMessage fills args from the player's locale")
+        void perPlayerFormatMessageFillsArgs() {
+            EntityPlayerMP player = mock(EntityPlayerMP.class);
+            player.language = "ru_ru";
+            assertEquals("Скин для \"Notch\" не найден",
+                    I18nUtils.formatMessage("no_skin_found", player, "Notch"));
         }
     }
 }

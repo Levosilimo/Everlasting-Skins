@@ -6,7 +6,6 @@
 
 package levosilimo.everlastingskins.integration.discordsrv;
 
-import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.entity.player.EntityPlayerMP;
 import org.apache.logging.log4j.LogManager;
@@ -50,10 +49,7 @@ public final class DiscordSrvHook {
                 return;
             }
 
-            String label = skinSource != null ? skinSource : "default";
-            String message = String.format(
-                I18nUtils.getLocalizedString("discord_announce", Config.LANGUAGE),
-                player.getDisplayNameString(), label);
+            String message = formatAnnounce(player, skinSource);
 
             Object messageAction = textChannelClass.getMethod("sendMessage", CharSequence.class)
                 .invoke(textChannel, message);
@@ -65,5 +61,17 @@ public final class DiscordSrvHook {
         } catch (NoSuchMethodException | IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
             LOGGER.warn("DiscordSRV reflection chain failed: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Builds the localized announcement text for a player. Routes through the
+     * per-player locale (AT-exposed EntityPlayerMP.language) so non-English
+     * players get their own language in the Discord channel; falls back to
+     * Config.LANGUAGE for a null player. Package-private for direct testing.
+     */
+    static String formatAnnounce(EntityPlayerMP player, String skinSource) {
+        String label = skinSource != null ? skinSource : "default";
+        String name = player != null ? player.getDisplayNameString() : "";
+        return I18nUtils.formatMessage("discord_announce", player, name, label);
     }
 }

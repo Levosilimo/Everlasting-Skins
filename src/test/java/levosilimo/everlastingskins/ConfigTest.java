@@ -7,13 +7,15 @@
 package levosilimo.everlastingskins;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ConfigTest {
 
@@ -46,6 +48,55 @@ class ConfigTest {
             Config.mojangProfileCacheEnabled = origEnabled;
             Config.mojangProfileCacheTtlMs = origTtl;
             Config.mojangProfileCacheMaxSize = origMax;
+        }
+    }
+
+    /* ================================================================== */
+    /*  Defaults (lib-7 gap: no default-value coverage on mc1.12.2)        */
+    /* ================================================================== */
+
+    @Nested
+    @DisplayName("Config defaults")
+    class ConfigDefaults {
+
+        @Test
+        @DisplayName("Mojang profile cache defaults to enabled, 1h TTL, 1000 entries")
+        void mojangProfileCacheDefaults() {
+            assertTrue(Config.mojangProfileCacheEnabled);
+            assertEquals(3600000L, Config.mojangProfileCacheTtlMs);
+            assertEquals(1000, Config.mojangProfileCacheMaxSize);
+        }
+
+        @Test
+        @DisplayName("URL allowlist defaults to disabled with the curated domain list")
+        void urlAllowlistDefaults() {
+            assertFalse(Config.urlAllowlistEnabled);
+            List<String> domains = Arrays.asList(Config.urlAllowlistDomains);
+            assertTrue(domains.contains("imgur.com"));
+            assertTrue(domains.contains("textures.minecraft.net"));
+            assertTrue(domains.contains("namemc.com"));
+            assertTrue(domains.contains("mc-heads.net"));
+            assertEquals(9, domains.size());
+        }
+
+        @Test
+        @DisplayName("Default skins default to disabled with Steve + <random> list")
+        void defaultSkinsDefaults() {
+            assertFalse(Config.DEFAULT_SKINS_ENABLED);
+            assertFalse(Config.DEFAULT_SKINS_APPLY_FOR_PREMIUM);
+            assertArrayEquals(new String[]{"Steve", "<random>"}, Config.DEFAULT_SKINS_LIST);
+        }
+
+        @Test
+        @DisplayName("Permission op levels default to 0 for self commands, 2 for elevated ones")
+        void permissionOpLevelDefaults() {
+            assertEquals(0, Config.permissionsOpLevelMojang);
+            assertEquals(0, Config.permissionsOpLevelClear);
+            assertEquals(0, Config.permissionsOpLevelRandom);
+            assertEquals(2, Config.permissionsOpLevelUrl);
+            assertEquals(2, Config.permissionsOpLevelOther);
+            assertEquals(2, Config.permissionsOpLevelMetrics);
+            assertEquals(2, Config.permissionsOpLevelMetricsReset);
         }
     }
 }
