@@ -18,6 +18,7 @@
 - All lib-17 + lib-49 fixes ported from 1.21.
 - **Translation drift** (#167): `ru`/`uk` properties realigned with the 1.21 canonical translations.
 - **ObserverPacketIT race** (#177): await respawn cascade before ordering assertion (line 92).
+- Dead lang key `fulfilled_force` removed from mc1.12.2 lang properties (#184).
 
 ### Tests added
 - `UrlAllowlistTest` (8 cases)
