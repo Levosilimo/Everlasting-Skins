@@ -179,13 +179,9 @@ final class SkinAction {
                     SkinMetrics.INSTANCE.recordRefreshSkipped(p.getUniqueID());
                     continue;
                 }
-                SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
-                if (Config.TOGGLE) {
-                    String msg = isRestore
-                        ? I18nUtils.formatMessage("restored_from", p, sp.getSource())
-                        : I18nUtils.getLocalizedString("fulfilled", p);
-                    p.sendMessage(new TextComponentString(SkinCommand.PREFIX + msg));
-                }
+                // The debounce gates persistence as well as the profile refresh:
+                // storing a skin whose refresh was skipped would leave the stored
+                // source/skin different from the applied GameProfile.
                 long now = System.currentTimeMillis();
                 Long last = lastRefreshByPlayer.get(p.getUniqueID());
                 if (last != null && now - last < Config.DEBOUNCE_MILLIS) {
@@ -194,6 +190,13 @@ final class SkinAction {
                     continue;
                 }
                 lastRefreshByPlayer.put(p.getUniqueID(), now);
+                SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
+                if (Config.TOGGLE) {
+                    String msg = isRestore
+                        ? I18nUtils.formatMessage("restored_from", p, sp.getSource())
+                        : I18nUtils.getLocalizedString("fulfilled", p);
+                    p.sendMessage(new TextComponentString(SkinCommand.PREFIX + msg));
+                }
                 SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, sp, fetchNanos[0]));
                 try {
                     DiscordSrvHook.announceSkinChange(p, customSource);
