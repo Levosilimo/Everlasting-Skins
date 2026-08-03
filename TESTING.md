@@ -3,8 +3,8 @@
 EverlastingSkins uses a three-tier testing pyramid:
 
 ## Tier 1: Pure Java unit tests (JUnit 5)
-- 289 unit tests on 1.21 branch
-- 253 tests on mc1.12.2 branch
+- 324 unit tests on 1.21 branch
+- 314 tests on mc1.12.2 branch
 - Coverage: provider fallback, HTTP outcomes, persistence atomicity, corruption handling, cache behavior, permission system, command dispatch, integration hooks
 - New in 2.1.0-rc.1: `UrlAllowlistTest`, `DefaultSkinResolverTest`, `PlayerLanguageTest`, `PermissionGateIT`; `PermissionServiceManagerTest`, `VanillaPermissionServiceTest`, `LuckPermsPermissionServiceTest`, `MetricsCommandIT` refreshed/pre-existing (not new)
 - Run: `./gradlew test`
@@ -15,56 +15,41 @@ EverlastingSkins uses a three-tier testing pyramid:
 - Lifecycle event observation
 - Run: `./gradlew runServer --no-daemon`
 
-## Tier 3: End-to-end tests (HeadlessMC + HMCSpecifics)
+## Tier 3: End-to-end test — server-log smoke (automated)
 
-### Architecture
+### mc1.12.2: server-log smoke test
 
-The E2E test suite uses HeadlessMC 2.10.0 + HMC-Specifics to drive a real Minecraft client against a real Forge server. Tests run in CI on every push to `1.21` and `mc1.12.2` branches.
+The vanilla 1.12.2 client has no console (stdin/stdout), so HeadlessMC `SEND`/`ENDS_WITH`/`CONTAINS` scenario steps cannot drive it. The E2E is therefore a boot smoke test: start a real Forge server with the mod, launch a headless client, and assert on the server log.
 
 Components:
-- `test-infrastructure/scenarios/*.json` — HeadlessMC JSON test definitions (EndsWith, Contains, Send, Wait step types)
+- `test-infrastructure/run-e2e.sh` — local runner: builds the mod, installs Forge 14.23.5.2847 server, launches a headless client, asserts on the server log
+- `test-infrastructure/assert-skin-property.sh` — asserts the server-side `SKIN_REFRESH` log line (base64-decoded GameProfile property) for a given source
 - `test-infrastructure/server/` — server.properties + eula.txt templates
-- `test-infrastructure/run-e2e.sh` — local execution script
-- `.github/workflows/ci.yml` — CI orchestration
+- `.github/workflows/ci.yml` — `e2e-test-1122` job
 
-### Scenarios
+Assertions (server log):
+1. Server booted (`For help, type "help"`)
+2. Mod discovered (`everlastingskins` in the FML mod list)
+3. Client connected (`TestPlayer joined the game`)
 
-- `skin-set-mojang.json` — sets skin to Mojang username "Notch", verifies success
-- `skin-clear.json` — sets skin, then clears it, verifies cleared state
-- `two-client-skin-visibility.json` — observer client verifies another player's skin
+CI also stubs the Mojang endpoints with WireMock (`localhost:8080`) and verifies requests were served. Functional coverage (command cascade, persistence, permissions, packets) lives in the JUnit integration tests (`src/test/java/.../integration/*IT`); this E2E is a boot smoke test.
 
 ### Local execution
 
-Prerequisites: Java 21 (for 1.21) or Java 8+ (for 1.12.2), network access to Forge Maven
+Prerequisite: Java 8+ on PATH, network access to Forge Maven
 
 ```bash
-# Run E2E for 1.21 with default scenario
-./test-infrastructure/run-e2e.sh 1.21
+# Run E2E for mc1.12.2 (default scenario)
+bash test-infrastructure/run-e2e.sh mc1.12.2
 
-# Run E2E for 1.12.2 with skin-clear scenario
-./test-infrastructure/run-e2e.sh mc1.12.2 skin-clear
-
-# Run with observer scenario (after setting skin as TestPlayer)
-./test-infrastructure/run-e2e.sh 1.21 two-client-skin-visibility
+# Assert the SKIN_REFRESH property in a captured server log
+bash test-infrastructure/assert-skin-property.sh logs/latest.log Notch
 ```
 
 ### CI execution
 
-The CI workflow `.github/workflows/ci.yml` orchestrates:
-1. **lint-yaml** — yamllint over all YAML files
-2. **build** matrix — Gradle build + test on Java 21 (1.21) and Java 8 (mc1.12.2)
-3. **e2e-test** matrix — HeadlessMC scenario execution against a Forge server
-
-### Troubleshooting
-
-**Server fails to start**: Check `eula.txt` exists and contains `eula=true`. Check `server.properties` has `enforce-secure-profile=false`.
-
-**Mojang API rate limiting**: CI runners share IP space with rate-limited sources. If skin fetch fails, use `--offline` mode or stub the Mojang API.
-
-**HeadlessMC crashes**: Delete `~/.minecraft` and `$PROJECT_DIR/headlessmc-run` to clear caches.
-
-**Two-client scenario fails**: HeadlessMC currently runs single client per invocation. Two-client testing requires coordinated invocations.
+The `e2e-test-1122` job in `.github/workflows/ci.yml` runs on pushes to the `mc1.12.2` branch: boot the server with WireMock-stubbed Mojang endpoints, launch the client through the HeadlessMC wrapper, then assert on the server log.
 
 ## Skipping E2E for local commits
 
-E2E runs only on pushes to `1.21` and `mc1.12.2` branches. Feature branches don't trigger E2E.
+E2E runs only on pushes to the `mc1.12.2` branch. Feature branches don't trigger E2E.
