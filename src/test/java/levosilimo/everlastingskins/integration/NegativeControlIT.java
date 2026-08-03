@@ -10,8 +10,7 @@ import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.PacketLog;
 import levosilimo.everlastingskins.harness.TestServerContext;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
-import levosilimo.everlastingskins.skinchanger.SkinCommandTestAccess;
-import net.minecraft.entity.player.EntityPlayerMP;
+import levosilimo.everlastingskins.skinchanger.SkinCommandTestAccess;import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.SPacketPlayerListItem;
 import net.minecraft.network.play.server.SPacketRespawn;
@@ -48,6 +47,9 @@ class NegativeControlIT {
     @BeforeEach
     void setUp() {
         ctx = new TestServerContext(tempDir);
+        // Reset the shared metrics so failure counts below cannot be satisfied
+        // vacuously by earlier tests.
+        SkinMetrics.INSTANCE.reset();
     }
 
     @AfterEach
@@ -67,11 +69,13 @@ class NegativeControlIT {
         }).when(ctx.playerList).sendPacketToAllPlayers(any(Packet.class));
         PacketLog log = new PacketLog();
         log.attachTo(alice.connection);
+        long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
 
         ctx.commandManager.executeCommand(alice, "/skin clear");
-        // The clear pipeline ends in task(player, null), which records a failure.
+        // The clear pipeline ends in task(player, null), which records a failure;
+        // the baseline is captured after the reset and before the dispatch.
         assertTrue(AsyncSupport.await(5000,
-                () -> SkinMetrics.INSTANCE.snapshot().refreshesFailed() >= 1),
+                () -> SkinMetrics.INSTANCE.snapshot().refreshesFailed() > failedBefore),
             "clear with no Mojang profile must reach the null-property refresh task");
 
         assertEquals(0, global.size(), "skin-less clear must not broadcast tab-list packets");
