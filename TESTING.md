@@ -24,7 +24,6 @@ The vanilla 1.12.2 client has no console (stdin/stdout), so HeadlessMC `SEND`/`E
 
 Components:
 - `test-infrastructure/run-e2e.sh` — local runner: builds the mod, installs Forge 14.23.5.2847 server, launches a headless client, asserts on the server log
-- `test-infrastructure/assert-skin-property.sh` — asserts the server-side `SKIN_REFRESH` log line (base64-decoded GameProfile property) for a given source
 - `test-infrastructure/server/` — server.properties + eula.txt templates
 - `.github/workflows/ci.yml` — `e2e-test-1122` job
 
@@ -40,11 +39,8 @@ CI also stubs the Mojang endpoints with WireMock (`localhost:8080`) and verifies
 Prerequisite: Java 8+ on PATH, network access to Forge Maven
 
 ```bash
-# Run E2E for mc1.12.2 (default scenario)
+# Run E2E for mc1.12.2
 bash test-infrastructure/run-e2e.sh mc1.12.2
-
-# Assert the SKIN_REFRESH property in a captured server log
-bash test-infrastructure/assert-skin-property.sh logs/latest.log Notch
 ```
 
 ### CI execution

@@ -19,7 +19,7 @@
 
 - Current configuration targets Minecraft `1.12.2`, Forge `14.23.5.2847`, Java 8 (Corretto `1.8.0_472-amzn` via SDKMAN), Gradle `4.10.3`, ForgeGradle `2.3`, MCP mappings `snapshot_20171003`. No Mixin annotation processor is configured (the leftover `mixin/server/MixinCommandManager.java` stub is excluded from the jar).
 - Build with the repository wrapper. The current `gradlew` is LF-encoded and executable. Build with `./gradlew build`.
-- CI runs on every push to `1.21` and `mc1.12.2` branches: lint (yamllint) + build + unit tests (JUnit 5). 1.21 additionally runs GameTest (32 tests via `runGameTestServer`, mock-player + real packet assertions); mc1.12.2 additionally runs a bash server-log smoke E2E (`run-e2e.sh` + `assert-skin-property.sh`, Mojang endpoints stubbed with WireMock — no HeadlessMC scenarios).
+- CI runs on every push to `1.21` and `mc1.12.2` branches: lint (yamllint) + build + unit tests (JUnit 5). 1.21 additionally runs GameTest (32 tests via `runGameTestServer`, mock-player + real packet assertions); mc1.12.2 additionally runs a bash server-log smoke E2E (`run-e2e.sh`, Mojang endpoints stubbed with WireMock — no HeadlessMC scenarios).
 - `gradle.properties` contains stale metadata (`minecraft_version_range`, `curse_versions`, placeholder description, broad loader/Forge ranges). Treat executable dependency coordinates in `build.gradle` as authoritative until metadata is reconciled.
 - The local Qartez index currently points at another workspace. If Qartez returns paths such as `neodeal/` or `ik_llama.cpp`, stop and re-index this repository rather than trusting impact or dependency results.
 
