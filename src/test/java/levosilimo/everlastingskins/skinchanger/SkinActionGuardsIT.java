@@ -14,6 +14,7 @@ import levosilimo.everlastingskins.integration.FakeMojangAPI;
 import levosilimo.everlastingskins.integration.TestProperties;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.SPacketChat;
@@ -71,6 +72,7 @@ class SkinActionGuardsIT {
         Config.DEBOUNCE_MILLIS = 0;
         Config.COOLDOWN_SECONDS = 3;
         clearStateMaps();
+        clearI18n();
         SkinCommandTestAccess.resetAPIs();
         ctx.close();
     }
@@ -83,6 +85,9 @@ class SkinActionGuardsIT {
         EntityPlayerMP alice = ctx.newPlayer("Alice"); // not op: bypass.cooldown needs op level 2
         PacketLog log = new PacketLog();
         log.attachTo(alice.connection);
+        // Load the real language files (as serverStarting does) so the cooldown
+        // message is the localized template, not the raw i18n key fallback.
+        I18nUtils.loadAll();
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
         assertTrue(AsyncSupport.await(5000,
@@ -93,8 +98,8 @@ class SkinActionGuardsIT {
         ctx.commandManager.executeCommand(alice, "/skin set mojang Dinnerbone");
 
         assertTrue(AsyncSupport.await(5000, () -> log.ofType(SPacketChat.class).stream()
-                .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("cooldown"))),
-            "rate-limited sender must receive the cooldown message");
+                .anyMatch(c -> c.getChatComponent().getUnformattedText().contains("before using /skin"))),
+            "rate-limited sender must receive the localized cooldown message");
         assertEquals(0, fake.lookupCount("Dinnerbone"),
             "rejected dispatch must not fetch from the provider");
         assertEquals("Notch", sourceOf(alice),
@@ -130,7 +135,7 @@ class SkinActionGuardsIT {
     }
 
     @Test
-    void debounce_skipsRefreshWithinWindow() {
+    void debounce_skipsRefreshTaskWithinWindow() {
         Config.DEBOUNCE_MILLIS = 60_000;
         fake.addSkin("Notch", TestProperties.NOTCH);
         fake.addSkin("Jeb_", new CustomSkinProperty("textures", JEB_VALUE,
@@ -149,12 +154,15 @@ class SkinActionGuardsIT {
                 () -> SkinMetrics.INSTANCE.snapshot().refreshesDebounced() >= 1),
             "second dispatch inside the debounce window must be skipped");
 
+        // The fetch callback stores the fetched skin before the debounce gate,
+        // so storage reflects the new source while the refresh TASK is skipped
+        // and the profile keeps the first skin. This stored/applied divergence
+        // is tracked in the separate production debounce lane; this test only
+        // guards the skip itself.
         assertEquals("Jeb_", sourceOf(alice),
-            "second dispatch must store the new skin even when the refresh is debounced");
-        // The fetch completed and storage mutated, but the refresh task was
-        // skipped: the profile keeps the first skin.
+            "fetch callback must store the fetched skin (pre-debounce mutation)");
         assertEquals(TestProperties.NOTCH.getOriginalProperty().getValue(), texturesValue(alice),
-            "debounced refresh must not re-apply textures to the profile");
+            "refresh task must be skipped inside the debounce window (profile untouched)");
         assertEquals(1, SkinMetrics.INSTANCE.snapshot().refreshesDebounced());
     }
 
@@ -185,6 +193,29 @@ class SkinActionGuardsIT {
         assertEquals(4, global.size());
     }
 
+    @Test
+    void noSkinProperty_taskBroadcastsNothing() {
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+        List<Packet<?>> global = new CopyOnWriteArrayList<>();
+        doAnswer(inv -> {
+            global.add(inv.getArgument(0));
+            return null;
+        }).when(ctx.playerList).sendPacketToAllPlayers(any(Packet.class));
+        long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
+
+        // Direct baseline analog of the 1.21 negativeControl: the refresh task
+        // with a null or empty property must fail soft — no tab-list broadcast,
+        // no profile mutation, exactly one recorded failure per call.
+        SkinRefreshTask.task(alice, null, 0L);
+        SkinRefreshTask.task(alice, new CustomSkinProperty("textures", "", null, "none"), 0L);
+
+        assertEquals(0, global.size(), "null/empty property must not broadcast");
+        assertEquals(0, alice.getGameProfile().getProperties().get("textures").size(),
+            "null/empty property must not mutate the profile");
+        assertTrue(SkinMetrics.INSTANCE.snapshot().refreshesFailed() >= failedBefore + 2,
+            "both no-skin calls must record a failed refresh");
+    }
+
     private String sourceOf(EntityPlayerMP player) {
         CustomSkinProperty skin = ctx.storage.getSkin(player.getUniqueID());
         return skin != null ? skin.getSource() : null;
@@ -206,6 +237,14 @@ class SkinActionGuardsIT {
 
     private static void clearMap(String name) throws Exception {
         Field field = SkinAction.class.getDeclaredField(name);
+        field.setAccessible(true);
+        ((Map<?, ?>) field.get(null)).clear();
+    }
+
+    // Other suites rely on the raw-key i18n fallback; restore the empty map
+    // so loadAll() in this suite does not leak localized strings.
+    private static void clearI18n() throws Exception {
+        Field field = I18nUtils.class.getDeclaredField("localizedStrings");
         field.setAccessible(true);
         ((Map<?, ?>) field.get(null)).clear();
     }
