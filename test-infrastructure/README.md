@@ -30,7 +30,13 @@ the client through the HeadlessMC wrapper (`-lwjgl -offline
 
 HeadlessMC scenario steps match against the client process's stdin/stdout.
 A vanilla 1.12.2 client has neither, so `SEND`/`ENDS_WITH`/`CONTAINS` steps
-cannot drive it. Scenario JSON files were removed in favor of bash
+cannot drive it. The `hmc-specifics` module ships an official Forge 1.12.2
+build that can install a console bridge, but this repo deliberately disables
+it in CI (`hmc.auto.download.specifics=false` in `ci.yml` and `run-e2e.sh`):
+without the bridge the client cannot be command-driven, so the job stays a
+boot smoke rather than a scenario run. A JLine `ClassNotFoundException` was
+observed on a 1.21 client; that is not evidence for 1.12.2 and is not why
+specifics are disabled. Scenario JSON files were removed in favor of bash
 assertions on the server log, which is where all command and join activity
 is visible.
 
@@ -47,7 +53,11 @@ curl -L -o test-infrastructure/headlessmc/headlessmc-launcher-wrapper.jar \
 
 ## CI integration
 
-`.github/workflows/ci.yml` (job `e2e-test-1122`) runs the same flow:
-start the Forge server with WireMock-backed endpoints, launch the headless
-client, and assert on `$SERVER_DIR/logs/latest.log`. Client crashes are
-visible because launch steps run under `set -euo pipefail`.
+`.github/workflows/ci.yml` (job `e2e-test-1122`, "Boot Smoke (mc1.12.2)")
+inlines the same flow instead of calling `run-e2e.sh`: start the Forge
+server, assert boot and mod discovery, launch the headless client, and
+assert `TestPlayer joined the game` on `$SERVER_DIR/logs/latest.log`. No
+`/skin` command can be sent without a console bridge, so the skin API
+endpoints are never exercised: the job uses no WireMock service and no
+endpoint overrides. Client crashes are visible because launch steps run
+under `set -euo pipefail`.

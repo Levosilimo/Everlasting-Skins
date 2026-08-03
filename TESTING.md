@@ -32,7 +32,7 @@ Assertions (server log):
 2. Mod discovered (`everlastingskins` in the FML mod list)
 3. Client connected (`TestPlayer joined the game`)
 
-CI also stubs the Mojang endpoints with WireMock (`localhost:8080`) and verifies requests were served. Functional coverage (command cascade, persistence, permissions, packets) lives in the JUnit integration tests (`src/test/java/.../integration/*IT`); this E2E is a boot smoke test.
+Functional coverage (command cascade, persistence, permissions, packets) lives in the JUnit integration tests (`src/test/java/.../integration/*IT`); this E2E is a boot smoke test.
 
 ### Local execution
 
@@ -45,7 +45,7 @@ bash test-infrastructure/run-e2e.sh mc1.12.2
 
 ### CI execution
 
-The `e2e-test-1122` job in `.github/workflows/ci.yml` runs on pushes to the `mc1.12.2` branch: boot the server with WireMock-stubbed Mojang endpoints, launch the client through the HeadlessMC wrapper, then assert on the server log.
+The `e2e-test-1122` job ("Boot Smoke (mc1.12.2)") in `.github/workflows/ci.yml` runs on pushes to the `mc1.12.2` branch and inlines the `run-e2e.sh` flow rather than calling the script: boot the Forge server, assert boot and mod discovery, launch a real headless client through the HeadlessMC wrapper, then assert `TestPlayer joined the game` on the server log. No WireMock service, no HeadlessMC scenarios.
 
 ## Skipping E2E for local commits
 
