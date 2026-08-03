@@ -10,10 +10,13 @@
 - **Per-command op level config** (#153): 7 `op_level.*` keys (same defaults as 1.21).
 - **`everlastingskins.bypass.cooldown` permission node** (#153): `DefaultPermissionLevel.OP`. 8 total nodes registered (added `.source` + `bypass.cooldown`).
 - **PermissionContext widened** (#153): Java 8-compatible class with opLevel 0-4 validation.
+- **MojangProfileCache config wired** (#160): `mojangProfileCache*` keys now read from `Config.load()` (were compiled-in defaults).
+- **i18n infrastructure overhaul** (#162): 22 message keys with per-server config defaults + per-locale overrides via I18nUtils (en/ru/uk + 8 more resource files, 11 locales total); per-player locale via `PlayerLanguage`.
 - **Resource lang files**: `src/main/resources/assets/everlastingskins/lang/{en,ru,uk}.properties` shipped with the mod (not just runtime-writeable config dir).
 
 ### Fixed
 - All lib-17 + lib-49 fixes ported from 1.21.
+- **Translation drift** (#167): `ru`/`uk` properties realigned with the 1.21 canonical translations.
 
 ### Tests added
 - `UrlAllowlistTest` (8 cases)
@@ -21,6 +24,11 @@
 - `PlayerLanguageTest` (3 cases)
 - `PermissionServiceManagerTest` + `VanillaPermissionServiceTest` + `LuckPermsPermissionServiceTest` (refreshed)
 - `PermissionGateIT` (integration test)
+- **Test gaps closed** (#170): Discord I18n routing tests + `ConfigTest` defaults tests + per-player locale tests (11 tests)
+
+### Docs
+- README — fix Forge version (51.0.8 in branches table), add per-player locale + languages sections (#164)
+- CHANGELOG/TESTING cleanup (#166)
 
 ## 2.1.0 (2026-08-02)
 
