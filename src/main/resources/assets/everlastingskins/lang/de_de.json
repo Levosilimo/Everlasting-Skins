@@ -1,7 +1,6 @@
 {
   "change": "Skin-Wechsel eingereiht",
   "fulfilled": "Skin wurde angewendet.",
-  "fulfilled_force": "Ein Operator hat Ihren Skin geändert.",
   "timeout": "Skin-Abruf-Zeitlimit überschritten.",
   "error": "Skin-Abruf fehlgeschlagen.",
   "restored_from": "Skin von %s wiederhergestellt",

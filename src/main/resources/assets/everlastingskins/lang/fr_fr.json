@@ -1,7 +1,6 @@
 {
   "change": "Changement de skin en file",
   "fulfilled": "Skin appliquée avec succès.",
-  "fulfilled_force": "Un opérateur a changé votre skin.",
   "timeout": "Temps d'attente dépassé pour la récupération du skin.",
   "error": "Échec de la récupération du skin.",
   "restored_from": "Skin restauré depuis %s",

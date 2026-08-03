@@ -1,7 +1,6 @@
 {
   "change": "Troca de skin solicitada",
   "fulfilled": "Skin aplicada com sucesso.",
-  "fulfilled_force": "Um operador alterou sua skin.",
   "timeout": "Tempo limite atingido ao buscar a skin.",
   "error": "Falha ao buscar a skin.",
   "restored_from": "Skin restaurada de %s",

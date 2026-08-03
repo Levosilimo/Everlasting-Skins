@@ -1,7 +1,6 @@
 {
   "change": "Skin change queued",
   "fulfilled": "Skin has been applied.",
-  "fulfilled_force": "Operator changed your skin.",
   "timeout": "Skin fetch timed out.",
   "error": "Skin fetch failed.",
   "restored_from": "Skin restored from %s",

@@ -1,7 +1,6 @@
 {
   "change": "皮肤更换已请求",
   "fulfilled": "皮肤已应用。",
-  "fulfilled_force": "管理员已更改您的皮肤。",
   "timeout": "皮肤获取超时。",
   "error": "皮肤获取失败。",
   "restored_from": "皮肤已从 %s 恢复",
