@@ -16,8 +16,11 @@
 
 ### Changed
 - Default permission posture: `/skin set mojang/clear/random` are now open to all players (op_level=0); `/skin set web` and `/skin set/clear <other>` still require op-2; `/skin metrics` and `/skin metrics reset` still require op-2.
+- **Discord announce fires only when a refresh actually runs** (#195): previously `/skin` announced every target to DiscordSRV regardless of outcome — including provider failures, unchanged-skin skips and debounced requests. Announcements now require a completed refresh, matching mc1.12.2 after #194.
 
 ### Fixed
+- **Stored/applied divergence across the refresh debounce** (#195): a second `/skin` request inside the per-player debounce window previously overwrote the stored source/skin and sent a fulfilment message while the applied GameProfile still showed the earlier skin. The debounce now gates persistence, messaging and the Discord announce as well as the refresh: a debounced request is a completion no-op — the dispatch-time "Skin change queued" feedback is unchanged.
+- **`/skin clear` with no Mojang profile kept the old texture applied** (#195): storage was cleared but the applied GameProfile retained the previous textures until the next refresh (the legacy mc1.12.2 port scheduled a refresh task that was a no-op). The clear now drops the textures property from the applied profile and re-broadcasts, so stored (null) and applied stay consistent.
 - Login-time 3-provider HTTP chain offloaded to executor (no more 30s server freeze per login)
 - Multi-target `/skin clear` per-target restores from Mojang
 - `SkinRefreshHandler.task()` wrapped in try/catch (no partial cascade on exception)
