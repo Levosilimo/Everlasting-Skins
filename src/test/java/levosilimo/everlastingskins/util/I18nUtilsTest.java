@@ -59,14 +59,14 @@ class I18nUtilsTest {
         @Test
         @DisplayName("Null locale falls back to the default constant")
         void nullFallsBackToDefault() {
-            assertEquals("en_us", I18nUtils.defaultLocaleFor(null));
+            assertEquals("en", I18nUtils.defaultLocaleFor(null));
         }
 
         @Test
         @DisplayName("Unknown locale falls back to the default constant")
         void unknownFallsBackToDefault() {
-            assertEquals("en_us", I18nUtils.defaultLocaleFor("xx_xx"));
-            assertEquals("en_us", I18nUtils.defaultLocaleFor("pl"));
+            assertEquals("en", I18nUtils.defaultLocaleFor("xx_xx"));
+            assertEquals("en", I18nUtils.defaultLocaleFor("pl"));
         }
     }
 
@@ -146,6 +146,29 @@ class I18nUtilsTest {
         @DisplayName("Null key and null locale returns null")
         void nullKeyAndNullLocale() {
             assertNull(I18nUtils.getLocalizedString(null, (String) null));
+        }
+
+        @Test
+        @DisplayName("Config override wins over locale files when customized")
+        void configOverrideWins() {
+            String original = Config.MESSAGES_CHANGE.get();
+            try {
+                Config.MESSAGES_CHANGE.set("Custom queue message");
+                assertEquals("Custom queue message", I18nUtils.getLocalizedString("change", "ru"));
+                assertEquals("Custom queue message", I18nUtils.getLocalizedString("change", "en"));
+            } finally {
+                Config.MESSAGES_CHANGE.set(original);
+            }
+        }
+
+        @Test
+        @DisplayName("Config default does not shadow locale translations")
+        void configDefaultDoesNotShadow() {
+            // get() returns the Messages default when unset; it must not mask
+            // the per-locale translation or non-English servers regress.
+            assertEquals("Skin change queued", Config.MESSAGES_CHANGE.get());
+            assertEquals("Запрос на смену скина отправлен", I18nUtils.getLocalizedString("change", "ru"));
+            assertEquals("Запит на зміну скіна надіслано", I18nUtils.getLocalizedString("change", "uk"));
         }
 
         @Test
