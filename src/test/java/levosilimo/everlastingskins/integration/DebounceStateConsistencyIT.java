@@ -77,12 +77,20 @@ class DebounceStateConsistencyIT {
         EntityPlayerMP player = ctx.newPlayer("DebAlice");
         ctx.makeOp(player);
 
+        long baseCompleted = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
         ctx.commandManager.executeCommand(player, "/skin set mojang Notch");
         assertTrue(AsyncSupport.await(5000, () -> ctx.storage.getSkin(player.getUniqueID()) != null),
             "first request must store the skin");
         assertTrue(AsyncSupport.await(5000, () -> player.getGameProfile().getProperties().get("textures").size() == 1),
             "first request must apply the skin to the GameProfile");
         assertEquals(NOTCH_VALUE, profileValue(player), "first request applies the requested skin");
+        // The cascade's terminal metric (recordRefreshCompleted) lands AFTER the
+        // profile mutation the awaits above observe; sampling the baseline before
+        // it arrives would count the first request against the debounce assertion
+        // below. Await the terminal metric so the baseline is stable.
+        assertTrue(AsyncSupport.await(5000,
+            () -> SkinMetrics.INSTANCE.snapshot().refreshesCompleted() > baseCompleted),
+            "first request must complete its profile refresh");
 
         long debouncedBefore = SkinMetrics.INSTANCE.snapshot().refreshesDebounced();
         long completedBefore = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
@@ -117,11 +125,18 @@ class DebounceStateConsistencyIT {
         EntityPlayerMP player = ctx.newPlayer("DebBob");
         ctx.makeOp(player);
 
+        long baseCompleted = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
         ctx.commandManager.executeCommand(player, "/skin set mojang Notch");
         assertTrue(AsyncSupport.await(5000, () -> ctx.storage.getSkin(player.getUniqueID()) != null),
             "first request must store the skin");
         assertTrue(AsyncSupport.await(5000, () -> player.getGameProfile().getProperties().get("textures").size() == 1),
             "first request must apply the skin to the GameProfile");
+        // Same settle barrier as debouncedRequest_keepsStoredEqualToApplied: the
+        // terminal metric is the last cascade step, so its arrival proves the
+        // first pipeline fully drained before the baselines below are sampled.
+        assertTrue(AsyncSupport.await(5000,
+            () -> SkinMetrics.INSTANCE.snapshot().refreshesCompleted() > baseCompleted),
+            "first request must complete its profile refresh");
 
         Thread.sleep(300);
         long debouncedBefore = SkinMetrics.INSTANCE.snapshot().refreshesDebounced();
@@ -155,6 +170,7 @@ class DebounceStateConsistencyIT {
         targetLog.attachTo(target.connection);
 
         // Phase 1: apply a skin so there IS something to clear.
+        long baseCompleted = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
         ctx.commandManager.executeCommand(target, "/skin set mojang Notch");
         assertTrue(AsyncSupport.await(5000, () -> ctx.storage.getSkin(target.getUniqueID()) != null),
             "first request must store the skin");
@@ -163,6 +179,13 @@ class DebounceStateConsistencyIT {
             "first request must apply the skin to the GameProfile");
         assertTrue(AsyncSupport.await(5000, () -> global.size() == 2),
             "first request must broadcast REMOVE+ADD");
+        // The broadcasts above fire mid-cascade; saveSkinAsync (and its
+        // recordSaveSubmitted metric) is the next step, after respawn. Await the
+        // terminal metric so no phase-1 save can land after savesBefore is
+        // sampled and masquerade as a save enqueued by the clear.
+        assertTrue(AsyncSupport.await(5000,
+            () -> SkinMetrics.INSTANCE.snapshot().refreshesCompleted() > baseCompleted),
+            "first request must complete its profile refresh");
         global.clear();
         targetLog.clear();
 
