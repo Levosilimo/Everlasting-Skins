@@ -113,11 +113,16 @@ echo "  Server PID: $SERVER_PID"
 
 echo "  Waiting for server to start..."
 for i in $(seq 1 60); do
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+        echo "ERROR: server process exited during startup"
+        cat "$SERVER_DIR/logs/latest.log" 2>/dev/null || true
+        exit 1
+    fi
     if grep -q 'For help, type "help"' "$SERVER_DIR/logs/latest.log" 2>/dev/null; then
         echo "  Server ready after ${i}s"
         break
     fi
-    if [ $i -eq 60 ]; then
+    if [ "$i" -eq 60 ]; then
         echo "ERROR: Server did not start within 5 minutes"
         cat "$SERVER_DIR/logs/latest.log" 2>/dev/null || true
         kill "$SERVER_PID" 2>/dev/null || true
@@ -149,6 +154,7 @@ hmc.rethrow.launch.exceptions=true
 hmc.exit.on.failed.command=true
 hmc.assets.dummy=true
 hmc.always.lwjgl.flag=true
+hmc.jline.enabled=false
 hmc.auto.download.specifics=false
 hmc.crash.report.watcher=true
 CONFIG
