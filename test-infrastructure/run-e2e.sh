@@ -113,11 +113,16 @@ echo "  Server PID: $SERVER_PID"
 
 echo "  Waiting for server to start..."
 for i in $(seq 1 60); do
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+        echo "ERROR: server process exited during startup"
+        cat "$SERVER_DIR/logs/latest.log" 2>/dev/null || true
+        exit 1
+    fi
     if grep -q 'For help, type "help"' "$SERVER_DIR/logs/latest.log" 2>/dev/null; then
         echo "  Server ready after ${i}s"
         break
     fi
-    if [ $i -eq 60 ]; then
+    if [ "$i" -eq 60 ]; then
         echo "ERROR: Server did not start within 5 minutes"
         cat "$SERVER_DIR/logs/latest.log" 2>/dev/null || true
         kill "$SERVER_PID" 2>/dev/null || true
@@ -149,6 +154,7 @@ hmc.rethrow.launch.exceptions=true
 hmc.exit.on.failed.command=true
 hmc.assets.dummy=true
 hmc.always.lwjgl.flag=true
+hmc.jline.enabled=false
 hmc.auto.download.specifics=false
 hmc.crash.report.watcher=true
 CONFIG
@@ -159,10 +165,33 @@ cd "$PROJECT_DIR"
 # Client profile was installed with the 2860 installer, so the uid must
 # match that profile even though the server runs the canonical 2847 build.
 CLIENT_UID="14.23.5.2860"
-timeout --kill-after=10 300 xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
+# Run the client pipeline (timeout -> xvfb-run -> Xvfb + MC java) in its own
+# session/process group so cleanup can kill the whole tree: killing only the
+# timeout/xvfb wrapper PID would orphan the Java client (no pkill by project
+# policy). setsid execs directly when it is not a process group leader (the
+# non-interactive case), so the tracked PGID is the timeout process itself.
+setsid timeout --kill-after=10 300 xvfb-run -a java -jar "$HMC_DIR/headlessmc-launcher-wrapper.jar" \
     --command "launch forge:$MC_VERSION -lwjgl -offline --uid $CLIENT_UID --jvm -Djava.awt.headless=true" \
     --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "$HMC_DIR/client.log" 2>&1 &
 CLIENT_PID=$!
+OWN_PGID=$(ps -o pgid= -p $$ | tr -d ' ' || true)
+# A one-shot ps right after & can read the child's pre-setsid group (the
+# parent's own PGID) and silently degrade cleanup to a wrapper-only kill,
+# orphaning the Java client. Poll until the tracked PGID leaves our own
+# group, the process exits, or a bounded budget runs out, then decide
+# group-kill vs PID-kill fallback.
+CLIENT_PGID=""
+for _ in $(seq 1 50); do
+    if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+        break
+    fi
+    CANDIDATE=$(ps -o pgid= -p "$CLIENT_PID" 2>/dev/null | tr -d ' ' || true)
+    if [ -n "$CANDIDATE" ] && [ "$CANDIDATE" != "$OWN_PGID" ]; then
+        CLIENT_PGID="$CANDIDATE"
+        break
+    fi
+    sleep 0.1
+done
 
 JOINED=0
 for i in $(seq 1 90); do
@@ -177,7 +206,19 @@ for i in $(seq 1 90); do
     sleep 2
 done
 
-kill "$CLIENT_PID" 2>/dev/null || true
+# Cleanup: TERM the tracked process group, escalate to KILL after a grace
+# period, then reap. Fall back to a plain PID kill if the group could not
+# be tracked (setsid forked or already gone).
+if [ -n "$CLIENT_PGID" ] && [ "$CLIENT_PGID" != "$OWN_PGID" ]; then
+    kill -TERM -- "-$CLIENT_PGID" 2>/dev/null || true
+    for _ in $(seq 1 10); do
+        kill -0 -- "-$CLIENT_PGID" 2>/dev/null || break
+        sleep 1
+    done
+    kill -KILL -- "-$CLIENT_PGID" 2>/dev/null || true
+else
+    kill "$CLIENT_PID" 2>/dev/null || true
+fi
 wait "$CLIENT_PID" 2>/dev/null || true
 
 echo "=== E2E Assertions ==="
@@ -188,16 +229,21 @@ else
     echo "FAIL: server did not boot"
     FAILED=1
 fi
-if grep -q "everlastingskins" "$SERVER_DIR/logs/latest.log"; then
-    echo "PASS: mod discovered"
-else
-    echo "FAIL: mod not discovered"
-    FAILED=1
-fi
 if [ "$JOINED" -eq 1 ]; then
     echo "PASS: client connected"
 else
     echo "FAIL: client did not connect"
+    FAILED=1
+fi
+# Forge 1.12.2 names the mod id at INFO in the FML mod-list lines: the
+# server logs 'missing mods [... at CLIENT]' at join and names the full
+# mod list at startup too. Report the connect outcome first so a failed
+# join is not masked by this secondary assertion.
+if grep -Eq 'Attempting connection with missing mods \[[^]]*everlastingskins' "$SERVER_DIR/logs/latest.log" \
+    || grep -Eq 'Client attempting to join with [0-9]+ mods : [^ ]*everlastingskins' "$SERVER_DIR/logs/latest.log"; then
+    echo "PASS: mod discovered (FML handshake mod-list line)"
+else
+    echo "FAIL: mod id not found in FML handshake mod-list line"
     FAILED=1
 fi
 
