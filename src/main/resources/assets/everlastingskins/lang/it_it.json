@@ -1,7 +1,6 @@
 {
   "change": "Cambio skin in coda",
   "fulfilled": "Skin applicata con successo.",
-  "fulfilled_force": "Un operatore ha cambiato la tua skin.",
   "timeout": "Tempo scaduto per il recupero della skin.",
   "error": "Recupero della skin fallito.",
   "restored_from": "Skin ripristinata da %s",

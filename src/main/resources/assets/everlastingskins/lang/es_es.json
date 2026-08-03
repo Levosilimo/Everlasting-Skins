@@ -1,7 +1,6 @@
 {
   "change": "Cambio de aspecto solicitado",
   "fulfilled": "Aspecto aplicado correctamente.",
-  "fulfilled_force": "Un operador ha cambiado tu aspecto.",
   "timeout": "Tiempo de espera agotado al obtener el aspecto.",
   "error": "Error al obtener el aspecto.",
   "restored_from": "Aspecto restaurado desde %s",

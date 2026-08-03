@@ -91,14 +91,6 @@ class I18nUtilsTest {
         }
 
         @Test
-        @DisplayName("Fulfilled force returns operator-changed message")
-        void fulfilledForce() {
-            assertEquals("Operator changed your skin.", I18nUtils.getLocalizedString("fulfilled_force", "en"));
-            assertEquals("Оператор изменил ваш скин.", I18nUtils.getLocalizedString("fulfilled_force", "ru"));
-            assertEquals("Оператор змінив ваш скін.", I18nUtils.getLocalizedString("fulfilled_force", "uk"));
-        }
-
-        @Test
         @DisplayName("ru/uk now carry the full key set, not just legacy keys")
         void ruUkFullCoverage() {
             assertEquals("Метрики сброшены", I18nUtils.getLocalizedString("metrics_reset", "ru"));
@@ -174,7 +166,7 @@ class I18nUtilsTest {
         @Test
         @DisplayName("All keys in en.json resolve to non-empty text")
         void allEnglishKeysResolve() {
-            String[] keys = {"change", "fulfilled", "fulfilled_force", "timeout", "error",
+            String[] keys = {"change", "fulfilled", "timeout", "error",
                 "restored_from", "cleared_no_profile", "no_source", "player_only",
                 "permission_denied", "cooldown", "rate_limited", "no_skin_found",
                 "no_skin_found_plain", "mineskin_rejected", "no_random_username",
