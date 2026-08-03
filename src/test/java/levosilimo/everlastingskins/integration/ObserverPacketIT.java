@@ -103,6 +103,10 @@ class ObserverPacketIT {
         int abilities = indexOfType(self, SPacketPlayerAbilities.class);
         assertTrue(respawn < difficulty && difficulty < permission && permission < abilities,
             "respawn < difficulty < permission-level < abilities order expected");
+        // The seam must emit the vanilla byte 24+level; op level 2 -> 26. This
+        // is the exact byte a real PlayerList.updatePermissionLevel sends.
+        assertEquals(26, ((SPacketEntityStatus) self.get(permission)).getOpCode(),
+            "permission-level packet must carry byte 24+level (26 for op level 2)");
 
         // Each cascade packet is sent exactly once (the 1.21 suite guards the
         // same regressions for the abilities and permission-level packets;
