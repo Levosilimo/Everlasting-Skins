@@ -69,34 +69,23 @@ jobs:
           path: build/libs/*.jar
           if-no-files-found: error
 
-  # ── E2E test on mc1.12.2 ──────────────────────────────────────
+  # ── Boot smoke test on mc1.12.2 ───────────────────────────────
+  # The vanilla 1.12.2 client has no console/stdin bridge: HMCSpecifics
+  # (the only console provider) crashes the client at boot, so HeadlessMC
+  # cannot drive commands and scenario JSONs cannot run here. This job is
+  # a server boot smoke test plus a real headless client join assertion.
   e2e-test-1122:
-    name: E2E (mc1.12.2)
+    name: Boot Smoke (mc1.12.2)
     runs-on: ubuntu-latest
     needs: build-1122
     if: github.event_name == 'push' && github.ref_name == 'mc1.12.2'
     timeout-minutes: 20
-    services:
-      wiremock:
-        image: wiremock/wiremock:3.13.2
-        ports:
-          - 8080:8080
-        volumes:
-          - ${{ github.workspace }}/test-infrastructure/wiremock/fixtures/mappings:/home/wiremock/mappings
-        options: >-
-          --health-cmd "curl -sf http://localhost:8080/__admin/health || exit 1"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 12
-          --health-start-period 15s
     env:
       HMC_DIR: ${{ github.workspace }}/HeadlessMC
       SERVER_DIR: ${{ github.workspace }}/test-server
       MODS_DIR: ${{ github.workspace }}/test-server/mods
       HMC_VERSION: "2.10.0"
     steps:
-      - name: Clean WireMock artifacts (EACCES workaround)
-        run: sudo rm -rf ${{ github.workspace }}/test-infrastructure/wiremock || true
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -164,31 +153,34 @@ jobs:
             ls -la
             exit 1
           fi
-          java -Xmx1G -Xms512M \
-            -Deverlastingskins.allowHttp=true \
-            -Deverlastingskins.endpoint.uuid.eclipse="http://localhost:8080/uuid/eclipse/%playerName%" \
-            -Deverlastingskins.endpoint.uuid.mojang="http://localhost:8080/uuid/mojang/%playerName%" \
-            -Deverlastingskins.endpoint.uuid.minetools="http://localhost:8080/uuid/minetools/%playerName%" \
-            -Deverlastingskins.endpoint.profile.eclipse="http://localhost:8080/profile/eclipse/%uuid%" \
-            -Deverlastingskins.endpoint.profile.mojang="http://localhost:8080/profile/mojang/%uuid%" \
-            -Deverlastingskins.endpoint.profile.minetools="http://localhost:8080/profile/minetools/%uuid%" \
-            -jar "$SERVER_JAR" nogui > "${{ env.SERVER_DIR }}/logs/server-stdout.log" 2>&1 &
+          java -Xmx1G -Xms512M -jar "$SERVER_JAR" nogui > "${{ env.SERVER_DIR }}/logs/server-stdout.log" 2>&1 &
           SERVER_PID=$!
           echo "server_pid=$SERVER_PID" >> $GITHUB_OUTPUT
-      - name: Wait for server ready
+      - name: Wait for server ready and assert mod discovery
         run: |
+          SERVER_PID="${{ steps.start-server.outputs.server_pid }}"
           for i in $(seq 1 120); do
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "ERROR: server process exited during startup"
+              tail -200 "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null || true
+              exit 1
+            fi
             if grep -q 'For help, type "help"' "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null; then
               echo "Server ready after ${i} attempts"
-              exit 0
+              break
             fi
-            if [ $i -eq 120 ]; then
+            if [ "$i" -eq 120 ]; then
               echo "ERROR: Server did not start within 10 minutes"
               tail -200 "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null || true
               exit 1
             fi
             sleep 5
           done
+          grep -q "everlastingskins" "${{ env.SERVER_DIR }}/logs/latest.log" || {
+            echo "FAIL: mod not discovered in server log"
+            tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
+            exit 1
+          }
       - name: Download HeadlessMC launcher
         run: |
           mkdir -p "${{ env.HMC_DIR }}"
@@ -197,6 +189,9 @@ jobs:
       - name: Configure HeadlessMC
         run: |
           {
+            echo "# Vanilla 1.12.2 has no console/stdin bridge: HMCSpecifics"
+            echo "# crashes the client at boot, so no hmc.test.filename scenario"
+            echo "# can run. Smoke test only: server boot + real client join."
             echo "hmc.java.versions=$JAVA_HOME/bin/java"
             echo "hmc.gamedir=${{ github.workspace }}/headlessmc-run"
             echo "hmc.mcdir=$HOME/.minecraft"
@@ -208,8 +203,9 @@ jobs:
             echo "hmc.always.lwjgl.flag=true"
             echo "hmc.jline.enabled=false"
             echo "hmc.auto.download.specifics=false"
+            echo "hmc.crash.report.watcher=true"
           } > "${{ env.HMC_DIR }}/config.properties"
-      - name: Launch client and assert server log
+      - name: Launch real client and assert join on server log
         run: |
           set -euo pipefail
           cd "${{ env.HMC_DIR }}"
@@ -218,36 +214,25 @@ jobs:
             --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "${{ env.HMC_DIR }}/hmc-output.log" 2>&1 &
           CLIENT_PID=$!
           JOINED=0
-          for i in $(seq 1 90); do
+          for _ in $(seq 1 90); do
             if grep -q " joined the game" "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null; then
               JOINED=1
               break
             fi
             if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
-              echo "ERROR: client process exited early"
+              echo "ERROR: client process exited early (see hmc-output.log)"
+              tail -50 "${{ env.HMC_DIR }}/hmc-output.log"
               break
             fi
             sleep 2
           done
           kill "$CLIENT_PID" 2>/dev/null || true
           wait "$CLIENT_PID" 2>/dev/null || true
-          grep -q 'For help, type "help"' "${{ env.SERVER_DIR }}/logs/latest.log" || { echo "FAIL: server did not boot"; tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"; exit 1; }
-          grep -q "everlastingskins" "${{ env.SERVER_DIR }}/logs/latest.log" || { echo "FAIL: mod not discovered"; tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"; exit 1; }
           if [ "$JOINED" -ne 1 ]; then
-            echo "FAIL: client did not connect"
+            echo "FAIL: client did not connect to the server"
             tail -100 "${{ env.SERVER_DIR }}/logs/latest.log"
             tail -50 "${{ env.HMC_DIR }}/hmc-output.log"
             exit 1
-          fi
-      - name: Verify WireMock requests
-        if: always()
-        run: |
-          REQUESTS=$(curl -s http://localhost:8080/__admin/requests 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('requests',[])))" 2>/dev/null || echo "0")
-          echo "WireMock requests served: $REQUESTS"
-          if [ "$REQUESTS" -ge "1" ]; then
-            echo "WireMock: received requests ✅"
-          else
-            echo "WireMock: NO requests received ❌"
           fi
       - name: Kill server
         if: always()
