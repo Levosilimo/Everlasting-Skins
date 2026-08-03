@@ -252,5 +252,22 @@ class I18nUtilsTest {
             assertEquals("Skin change queued",
                     I18nUtils.getLocalizedComponent("change", (net.minecraft.server.level.ServerPlayer) null).getString());
         }
+
+        @Test
+        @DisplayName("Per-player locale resolution: de_de client language drives the translation (lib-7 gap)")
+        void perPlayerLocaleResolution_deDe() {
+            // ServerPlayer cannot be mocked in the unit JVM (its supertype static
+            // initializers need a bootstrapped Minecraft runtime); the player
+            // overload is a null-safe wrapper over this locale-API path.
+            assertEquals("Skin für \"%s\" nicht gefunden", I18nUtils.getLocalizedString("no_skin_found", "de_de"));
+            assertEquals("Skin-Wechsel eingereiht", I18nUtils.getLocalizedString("change", "de_de"));
+        }
+
+        @Test
+        @DisplayName("Per-player locale resolution: unsupported language falls back to English")
+        void perPlayerLocaleResolution_unsupported() {
+            assertEquals("Skin change queued", I18nUtils.getLocalizedString("change", "zz_zz"));
+            assertEquals("No skin found", I18nUtils.getLocalizedString("no_skin_found_plain", "zz_zz"));
+        }
     }
 }
