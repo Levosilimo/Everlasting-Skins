@@ -99,7 +99,13 @@ jobs:
         run: ./gradlew runGameTestServer --no-daemon --console=plain
         timeout-minutes: 15
         env:
-          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Dfile.encoding=UTF-8 --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
+          GRADLE_OPTS: >-
+            -Dorg.gradle.jvmargs="-Dfile.encoding=UTF-8
+            --add-opens=java.base/java.lang=ALL-UNNAMED
+            --add-opens=java.base/java.nio=ALL-UNNAMED
+            --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+            --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED
+            -Dio.netty.tryReflectionSetAccessible=true"
 
   # ── Build & test on mc1.12.2 (Java 8) ─────────────────────────
   build-1122:
