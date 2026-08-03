@@ -174,8 +174,24 @@ setsid timeout --kill-after=10 300 xvfb-run -a java -jar "$HMC_DIR/headlessmc-la
     --command "launch forge:$MC_VERSION -lwjgl -offline --uid $CLIENT_UID --jvm -Djava.awt.headless=true" \
     --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "$HMC_DIR/client.log" 2>&1 &
 CLIENT_PID=$!
-CLIENT_PGID=$(ps -o pgid= -p "$CLIENT_PID" 2>/dev/null | tr -d ' ' || true)
 OWN_PGID=$(ps -o pgid= -p $$ | tr -d ' ' || true)
+# A one-shot ps right after & can read the child's pre-setsid group (the
+# parent's own PGID) and silently degrade cleanup to a wrapper-only kill,
+# orphaning the Java client. Poll until the tracked PGID leaves our own
+# group, the process exits, or a bounded budget runs out, then decide
+# group-kill vs PID-kill fallback.
+CLIENT_PGID=""
+for _ in $(seq 1 50); do
+    if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+        break
+    fi
+    CANDIDATE=$(ps -o pgid= -p "$CLIENT_PID" 2>/dev/null | tr -d ' ' || true)
+    if [ -n "$CANDIDATE" ] && [ "$CANDIDATE" != "$OWN_PGID" ]; then
+        CLIENT_PGID="$CANDIDATE"
+        break
+    fi
+    sleep 0.1
+done
 
 JOINED=0
 for i in $(seq 1 90); do

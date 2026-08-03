@@ -216,8 +216,24 @@ jobs:
             --command "launch forge:1.12.2 -lwjgl -offline --uid 14.23.5.2860 --jvm -Djava.awt.headless=true" \
             --game-args "--server=127.0.0.1 --port=25565 --username TestPlayer" > "${{ env.HMC_DIR }}/hmc-output.log" 2>&1 &
           CLIENT_PID=$!
-          CLIENT_PGID=$(ps -o pgid= -p "$CLIENT_PID" 2>/dev/null | tr -d ' ' || true)
           OWN_PGID=$(ps -o pgid= -p $$ | tr -d ' ' || true)
+          # A one-shot ps right after & can read the child's pre-setsid
+          # group (the runner's own PGID) and silently degrade cleanup to a
+          # wrapper-only kill, orphaning the Java client. Poll until the
+          # tracked PGID leaves our own group, the process exits, or a
+          # bounded budget runs out, then decide group-kill vs PID-kill.
+          CLIENT_PGID=""
+          for _ in $(seq 1 50); do
+            if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+              break
+            fi
+            CANDIDATE=$(ps -o pgid= -p "$CLIENT_PID" 2>/dev/null | tr -d ' ' || true)
+            if [ -n "$CANDIDATE" ] && [ "$CANDIDATE" != "$OWN_PGID" ]; then
+              CLIENT_PGID="$CANDIDATE"
+              break
+            fi
+            sleep 0.1
+          done
           JOINED=0
           for _ in $(seq 1 90); do
             if grep -q " joined the game" "${{ env.SERVER_DIR }}/logs/latest.log" 2>/dev/null; then
