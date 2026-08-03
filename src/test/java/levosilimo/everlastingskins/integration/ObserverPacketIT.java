@@ -31,9 +31,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 
 /**
- * Packet ordering contract of the 1.12.2 refresh cascade: the tab-list update
+ * Packet contract of the 1.12.2 refresh cascade: the tab-list update
  * (REMOVE then ADD) is broadcast globally via PlayerList, then the target's own
- * connection receives the respawn cascade.
+ * connection receives the respawn cascade — each packet type exactly once,
+ * in respawn < difficulty < abilities order.
  */
 class ObserverPacketIT {
 
@@ -100,6 +101,17 @@ class ObserverPacketIT {
         int abilities = indexOfType(self, SPacketPlayerAbilities.class);
         assertTrue(respawn < difficulty && difficulty < abilities,
             "respawn must precede difficulty, which must precede abilities");
+
+        // Each cascade packet is sent exactly once (the 1.21 suite guards the
+        // same regression for abilities and permission-level packets). The
+        // cascade is complete once all three types have arrived, so the counts
+        // below are stable.
+        assertEquals(1, targetLog.ofType(SPacketRespawn.class).size(),
+            "respawn must be sent exactly once");
+        assertEquals(1, targetLog.ofType(SPacketServerDifficulty.class).size(),
+            "difficulty must be sent exactly once");
+        assertEquals(1, targetLog.ofType(SPacketPlayerAbilities.class).size(),
+            "abilities must be sent exactly once");
 
         // Observers have no direct per-viewer packets on 1.12.2; they receive
         // the update through the global sendPacketToAllPlayers broadcast above.

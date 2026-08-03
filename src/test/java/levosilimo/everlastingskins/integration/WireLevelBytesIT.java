@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -60,6 +61,24 @@ class WireLevelBytesIT {
         // ADD_PLAYER payload is >100 bytes (profile + textures); UPDATE_DISPLAY_NAME is much smaller.
         assertTrue(bytes.length > 100,
             "ADD_PLAYER must carry the full profile (size was " + bytes.length + ")");
+    }
+
+    @Test
+    void wireSerialize_addPlayer_carriesSignatureValue() {
+        SkinCommandTestAccess.setMojangAPI(new FakeMojangAPI(TestProperties.NOTCH));
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+        ctx.makeOp(alice);
+
+        ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
+        assertTrue(AsyncSupport.await(5000,
+            () -> alice.getGameProfile().getProperties().get("textures").size() == 1),
+            "profile should carry the applied textures property");
+
+        byte[] bytes = WireSerializer.serialize(
+            new SPacketPlayerListItem(SPacketPlayerListItem.Action.ADD_PLAYER, alice));
+        String wire = new String(bytes, StandardCharsets.UTF_8);
+        assertTrue(wire.contains(TestProperties.NOTCH.getOriginalProperty().getSignature()),
+            "ADD_PLAYER must carry the textures signature on the wire");
     }
 
     @Test
