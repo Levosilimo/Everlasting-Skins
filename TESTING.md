@@ -3,8 +3,8 @@
 EverlastingSkins uses a three-tier testing pyramid:
 
 ## Tier 1: Pure Java unit tests (JUnit 5)
-- 336 unit tests + 32 GameTest = 368 total on 1.21 branch
-- 325 tests on mc1.12.2 branch
+- 1.21 branch: test count is not pinned here — the `1.21` branch's own `TESTING.md` and its CI GameTest run are authoritative (concurrent test PRs change the number)
+- mc1.12.2 branch: test count is not pinned here — the Gradle report from `./gradlew test` is authoritative (concurrent test PRs change the number)
 - Coverage: provider fallback, HTTP outcomes, persistence atomicity, corruption handling, cache behavior, permission system, command dispatch, integration hooks
 - New in 2.1.0-rc.1: `UrlAllowlistTest`, `DefaultSkinResolverTest`, `PlayerLanguageTest`, `PermissionGateIT`; `PermissionServiceManagerTest`, `VanillaPermissionServiceTest`, `LuckPermsPermissionServiceTest`, `MetricsCommandIT` refreshed/pre-existing (not new)
 - **Test gaps closed (#170)**: 11 new tests covering Discord i18n routing, MojangProfileCache config, per-player locale behavior
@@ -24,32 +24,28 @@ The vanilla 1.12.2 client has no console (stdin/stdout), so HeadlessMC `SEND`/`E
 
 Components:
 - `test-infrastructure/run-e2e.sh` — local runner: builds the mod, installs Forge 14.23.5.2847 server, launches a headless client, asserts on the server log
-- `test-infrastructure/assert-skin-property.sh` — asserts the server-side `SKIN_REFRESH` log line (base64-decoded GameProfile property) for a given source
 - `test-infrastructure/server/` — server.properties + eula.txt templates
 - `.github/workflows/ci.yml` — `e2e-test-1122` job
 
 Assertions (server log):
 1. Server booted (`For help, type "help"`)
-2. Mod discovered (`everlastingskins` in the FML mod list)
-3. Client connected (`TestPlayer joined the game`)
+2. Client connected (the TestPlayer client joins)
+3. Mod presence from the FML handshake mod-list line (`everlastingskins` in the mod-list handshake line Forge writes only when the client joins, so this is asserted after the join attempt)
 
-CI also stubs the Mojang endpoints with WireMock (`localhost:8080`) and verifies requests were served. Functional coverage (command cascade, persistence, permissions, packets) lives in the JUnit integration tests (`src/test/java/.../integration/*IT`); this E2E is a boot smoke test.
+Functional coverage (command cascade, persistence, permissions, packets) lives in the JUnit integration tests (`src/test/java/.../integration/*IT`); this E2E is a boot smoke test.
 
 ### Local execution
 
 Prerequisite: Java 8+ on PATH, network access to Forge Maven
 
 ```bash
-# Run E2E for mc1.12.2 (default scenario)
+# Run E2E for mc1.12.2
 bash test-infrastructure/run-e2e.sh mc1.12.2
-
-# Assert the SKIN_REFRESH property in a captured server log
-bash test-infrastructure/assert-skin-property.sh logs/latest.log Notch
 ```
 
 ### CI execution
 
-The `e2e-test-1122` job in `.github/workflows/ci.yml` runs on pushes to the `mc1.12.2` branch: boot the server with WireMock-stubbed Mojang endpoints, launch the client through the HeadlessMC wrapper, then assert on the server log.
+The `e2e-test-1122` job (displayed as "E2E (mc1.12.2)" — the exact check name branch protection requires on the `mc1.12.2` branch — boot smoke, not command E2E) in `.github/workflows/ci.yml` runs on pushes to the `mc1.12.2` branch and inlines the `run-e2e.sh` flow rather than calling the script: boot the Forge server, launch a real headless client (TestPlayer) through the HeadlessMC wrapper, assert the client joined on the server log, then assert mod presence from the FML handshake mod-list line. No WireMock service, no HeadlessMC scenarios.
 
 ## Skipping E2E for local commits
 
