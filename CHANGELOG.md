@@ -12,6 +12,7 @@
 - **`everlastingskins.bypass.cooldown` permission node** (#152): OP default; skips the rate-limit cooldown window for holders.
 - **`everlastingskins.command.skin.source` permission node** (#152): registered as a real node (was hardcoded `true`); retains ALL default for read-only self-source check.
 - **PermissionContext widened** (#152): from `(UUID, boolean isOp)` to `(UUID, int opLevel)` with 0-4 validation. VanillaPermissionService reads per-node op level from Config; LuckPerms/Forge paths delegate fallback to vanilla.
+- **i18n infrastructure overhaul** (#161): translations moved from in-code maps to JSON resource files (`src/main/resources/assets/everlastingskins/lang/<locale>.json`, 11 locales); `defaultLocaleFor()` normalizes MC locale codes (`en_us` -> `en`); per-player locale via `ServerPlayer.clientInformation().language()` with `Config.LANGUAGE` fallback, threaded through all skin command feedback paths; fixed cross-file key leak in locale loading.
 
 ### Changed
 - Default permission posture: `/skin set mojang/clear/random` are now open to all players (op_level=0); `/skin set web` and `/skin set/clear <other>` still require op-2; `/skin metrics` and `/skin metrics reset` still require op-2.
@@ -25,12 +26,18 @@
 - MineSkin 429 bounded sleep (was: unbounded provider-controlled delay)
 - CustomSkinProperty base64 validation
 - GameTest flake on `concurrentSkinSet_twoPlayers` — wall-clock deadline (20s) instead of tick budget
+- **i18n regression** (#168): restored `Messages` config override in I18nUtils (locale files no longer shadow per-server overrides) + locale code normalization for `defaultLocaleFor()`
 
 ### Tests added
 - `MojangProfileCacheTest` (8 cases)
 - `UrlAllowlistTest` (8 cases)
 - `DefaultSkinResolverTest` (11 cases)
 - `PermissionServiceManagerTest` + `VanillaPermissionServiceTest` + `LuckPermsPermissionServiceTest` (refreshed with opLevel)
+- **Test gaps closed** (#169): Discord I18n routing tests + Mojang cache config tests + per-player locale tests (11 tests)
+
+### Docs
+- README — fix Forge versions (51.0.8 / 14.23.5.2847), add languages section + message key CHANGELOG link (#163)
+- CHANGELOG/AGENTS/TESTING cleanup (#165)
 
 ## 2.1.0 (2026-08-02)
 
