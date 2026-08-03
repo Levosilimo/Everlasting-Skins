@@ -48,6 +48,8 @@ curl -L -o test-infrastructure/headlessmc/headlessmc-launcher-wrapper.jar \
 ## CI integration
 
 `.github/workflows/ci.yml` (job `e2e-test-1122`) runs the same flow:
-start the Forge server with WireMock-backed endpoints, launch the headless
-client, and assert on `$SERVER_DIR/logs/latest.log`. Client crashes are
-visible because launch steps run under `set -euo pipefail`.
+start the Forge server, launch the headless client, and assert on
+`$SERVER_DIR/logs/latest.log`. The mod's skin API endpoints are never
+exercised here — without a console bridge no `/skin` command can be sent
+— so the job uses no WireMock service and no endpoint overrides. Client
+crashes are visible because launch steps run under `set -euo pipefail`.
