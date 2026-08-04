@@ -15,6 +15,7 @@ import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
+import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import levosilimo.everlastingskins.util.I18nUtils;
@@ -214,21 +215,31 @@ final class SkinAction {
 
     /**
      * A5: when the stored skin already came from the provider this request
-     * would use, skip the fetch and re-apply the stored skin.
+     * would use AND was fetched for the same username, skip the fetch and
+     * re-apply the stored skin.
      * <p>
      * Providers persist a source-class discriminator ({@link #SOURCE_MOJANG})
-     * rather than the requested username, so the stored value can never equal
-     * {@code customSource}; the skip must compare source-class to
-     * source-class or it never fires against real providers. Only invoked for
-     * username-type (Mojang) requests.
+     * plus the username used to fetch the skin, so the skip fires only when
+     * both match the incoming request. A Mojang-class skin fetched for a
+     * different username is re-fetched (with feedback) instead of silently
+     * re-applied. Only invoked for username-type (Mojang) requests.
+     * <p>
+     * Example 1: stored source="MojangAPI", stored username="Notch", request
+     * for "Notch" → SKIP (refreshesSkippedStored++).
+     * Example 2: stored source="MojangAPI", stored username="Notch", request
+     * for "Jeb_" → NO skip, fresh fetch (refreshesCompleted++), feedback
+     * message.
      */
     private static boolean storedSourceMatches(Collection<EntityPlayerMP> targets, @Nullable String customSource) {
         if (customSource == null) {
             return false;
         }
         return targets.stream().allMatch(p -> {
-            CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
-            return stored != null && SOURCE_MOJANG.equals(stored.getSource());
+            SkinStorage storage = SkinRestorer.getSkinStorage();
+            CustomSkinProperty stored = storage.getSkin(p.getUniqueID());
+            return stored != null
+                    && SOURCE_MOJANG.equals(stored.getSource())
+                    && customSource.equals(stored.getUsername());
         });
     }
 

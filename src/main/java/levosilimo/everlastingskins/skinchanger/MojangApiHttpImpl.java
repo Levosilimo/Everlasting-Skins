@@ -17,6 +17,7 @@ import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.UUIDUtils;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
@@ -167,7 +168,7 @@ public class MojangApiHttpImpl implements MojangAPI {
         URI uri = URI.create(endpoints.profileMojang().replace("%uuid%", UUIDUtils.convertToNoDashes(lookup.getUuid())));
         return fetchJson(uri, MojangProfileResponse.class)
                 .map(MojangProfileResponse::properties)
-                .flatMap(MojangApiHttpImpl::extractTexturesProperty);
+                .flatMap(props -> extractTexturesProperty(props, requestedUsername(lookup)));
     }
 
     private Optional<CustomSkinProperty> tryMineToolsProfile(ProfileLookup lookup) {
@@ -175,14 +176,25 @@ public class MojangApiHttpImpl implements MojangAPI {
         return fetchJson(uri, MineToolsProfileResponse.class)
                 .map(MineToolsProfileResponse::raw)
                 .filter(raw -> "OK".equalsIgnoreCase(raw.status()))
-                .flatMap(raw -> extractTexturesProperty(raw.properties()));
+                .flatMap(raw -> extractTexturesProperty(raw.properties(), requestedUsername(lookup)));
+    }
+
+    /**
+     * The username the lookup was asked for, or null when the lookup was keyed
+     * by UUID (no username exists to persist). The A5 skip compares this stored
+     * username against the next request, so a skin fetched for "Notch" is only
+     * skipped when "Notch" is requested again.
+     */
+    private static String requestedUsername(ProfileLookup lookup) {
+        return UUIDUtils.tryParseUniqueId(lookup.getUsername()).isPresent() ? null : lookup.getUsername();
     }
 
     /**
      * Find the {@code textures} property with a non-empty value, matching the
      * shape of the session server profile response.
      */
-    private static Optional<CustomSkinProperty> extractTexturesProperty(PropertyResponse[] properties) {
+    private static Optional<CustomSkinProperty> extractTexturesProperty(PropertyResponse[] properties,
+            @Nullable String requestedUsername) {
         if (properties == null) {
             return Optional.empty();
         }
@@ -191,7 +203,7 @@ public class MojangApiHttpImpl implements MojangAPI {
                     && property.value() != null
                     && !property.value().isEmpty()) {
                 return Optional.of(new CustomSkinProperty(
-                        "textures", property.value(), property.signature(), SkinAction.SOURCE_MOJANG));
+                        "textures", property.value(), property.signature(), SkinAction.SOURCE_MOJANG, requestedUsername));
             }
         }
         return Optional.empty();
