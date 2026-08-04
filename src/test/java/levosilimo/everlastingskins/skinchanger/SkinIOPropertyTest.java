@@ -74,7 +74,6 @@ class SkinIOPropertyTest {
             UUID.fromString("00000000-0000-0000-0000-000000000004")
     };
 
-    /* ------------------------------ generators ------------------------------ */
 
     @Provide
     Arbitrary<String> values() {
@@ -153,7 +152,6 @@ class SkinIOPropertyTest {
                 .list().ofMinSize(1).ofMaxSize(40);
     }
 
-    /* ------------------------------- helpers ------------------------------- */
 
     private static CustomSkinProperty skin(String value) {
         return new CustomSkinProperty(value, "signature", "property-test");
@@ -250,7 +248,6 @@ class SkinIOPropertyTest {
         }
     }
 
-    /* -------------------------- drain idempotence -------------------------- */
 
     @Group
     class DrainIdempotence {
@@ -285,7 +282,6 @@ class SkinIOPropertyTest {
         }
     }
 
-    /* --------------------------- delete-beats-write -------------------------- */
 
     @Group
     class DeleteBeatsWrite {
@@ -358,7 +354,6 @@ class SkinIOPropertyTest {
         }
     }
 
-    /* ------------------------ serialize-load round-trip ----------------------- */
 
     @Group
     class SerializeLoadRoundTrip {
@@ -400,7 +395,6 @@ class SkinIOPropertyTest {
         }
     }
 
-    /* --------------------------- restart-after-delete ------------------------- */
 
     @Group
     class RestartAfterDelete {
@@ -432,7 +426,6 @@ class SkinIOPropertyTest {
         }
     }
 
-    /* ---------------------------- model equivalence --------------------------- */
 
     @Group
     class ModelEquivalence {
@@ -476,7 +469,6 @@ class SkinIOPropertyTest {
         }
     }
 
-    /* ----------------------------- latest-wins ----------------------------- */
 
     @Group
     class LatestWins {
