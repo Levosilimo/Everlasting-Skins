@@ -53,6 +53,7 @@ public final class I18nUtils {
             Map.entry("error", "Skin fetch failed."),
             Map.entry("restored_from", "Skin restored from %s"),
             Map.entry("cleared_no_profile", "Skin cleared (no Mojang profile found)"),
+            Map.entry("stored_from_other_username", "Skin already stored from Mojang as %s; run /skin clear to switch usernames"),
             Map.entry("no_source", "No source available"),
             Map.entry("player_only", "Player only command"),
             Map.entry("permission_denied", "Permission denied"),

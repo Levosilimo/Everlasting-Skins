@@ -71,6 +71,17 @@ public class SkinStorage {
         return loaded.getSource();
     }
 
+    @Nullable
+    public String getUsername(UUID uuid) {
+        CustomSkinProperty skin = skinMap.get(uuid);
+        if (skin != null) {
+            return skin.isEmpty() ? null : skin.getUsername();
+        }
+        CustomSkinProperty loaded = loadSkin(uuid);
+        if (loaded == null || loaded.isEmpty()) return null;
+        return loaded.getUsername();
+    }
+
     /** Synchronous save; used where durability is required immediately. */
     public void saveSkin(UUID uuid) {
         CustomSkinProperty skinProperty = skinMap.get(uuid);

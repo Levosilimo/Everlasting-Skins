@@ -14,6 +14,7 @@ import java.util.Objects;
 
 public class CustomSkinProperty {
     private final String source;
+    private final String username;
     private final Property originalProperty;
     private static String defaultSkinValue;
 
@@ -22,13 +23,24 @@ public class CustomSkinProperty {
     }
 
     public CustomSkinProperty(final String name, final String value, final String signature, @Nullable final String source) {
-        this.originalProperty = new Property(name, value, signature);
-        this.source = source;
+        this(name, value, signature, source, null);
     }
 
     public CustomSkinProperty(final String value, final String signature, @Nullable final String source) {
-        this.originalProperty = new Property("textures", value, signature);
+        this("textures", value, signature, source, null);
+    }
+
+    /**
+     * @param username the exact username the provider was asked for when this
+     *                 skin was fetched; null for UUID-keyed lookups, MineSkin
+     *                 skins, defaults and legacy persisted skins. Persisted by
+     *                 Gson alongside {@code source}.
+     */
+    public CustomSkinProperty(final String name, final String value, final String signature,
+                              @Nullable final String source, @Nullable final String username) {
+        this.originalProperty = new Property(name, value, signature);
         this.source = source;
+        this.username = username;
     }
 
     public boolean isEmpty() {
@@ -74,5 +86,10 @@ public class CustomSkinProperty {
 
     public String getSource() {
         return source;
+    }
+
+    @Nullable
+    public String getUsername() {
+        return username;
     }
 }
