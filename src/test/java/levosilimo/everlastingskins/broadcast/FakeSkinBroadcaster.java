@@ -1,0 +1,55 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
+package levosilimo.everlastingskins.broadcast;
+
+import com.mojang.authlib.GameProfile;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Recording fake of {@link SkinBroadcaster} for tests that want to assert
+ * the handler's call shape (broadcast then tracker) without rebuilding the
+ * REMOVE+ADD+cascade pipeline. Records every call into observable lists so
+ * tests can pin order and arguments.
+ */
+public final class FakeSkinBroadcaster implements SkinBroadcaster {
+
+    public record BroadcastCall(GameProfile profile, ServerPlayer target, List<ServerPlayer> observers) {
+        BroadcastCall(GameProfile profile, ServerPlayer target, ServerPlayer[] observers) {
+            this(profile, target,
+                observers == null ? Collections.emptyList() : Arrays.asList(observers));
+        }
+    }
+
+    public final List<BroadcastCall> broadcastCalls = new ArrayList<>();
+    public final List<Entity> trackerCalls = new ArrayList<>();
+
+    @Override
+    public void broadcastProfileChange(GameProfile newProfile, ServerPlayer target) {
+        broadcastCalls.add(new BroadcastCall(newProfile, target, (ServerPlayer[]) null));
+    }
+
+    @Override
+    public void broadcastProfileChange(GameProfile newProfile, ServerPlayer target, ServerPlayer[] observers) {
+        broadcastCalls.add(new BroadcastCall(newProfile, target, observers));
+    }
+
+    @Override
+    public void trackerUntrackRetrack(Entity entity) {
+        trackerCalls.add(entity);
+    }
+
+    public void reset() {
+        broadcastCalls.clear();
+        trackerCalls.clear();
+    }
+}
