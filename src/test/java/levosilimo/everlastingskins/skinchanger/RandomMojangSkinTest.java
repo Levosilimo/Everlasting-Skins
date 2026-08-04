@@ -10,8 +10,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import levosilimo.everlastingskins.util.JsonUtils;
+
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -131,6 +134,79 @@ class RandomMojangSkinTest {
         }
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  mskins.net snapshot regression                                      */
+    /* ------------------------------------------------------------------ */
+
+    @Nested
+    @DisplayName("mskins.net snapshot regression")
+    class SnapshotRegression {
+
+        @Test
+        @DisplayName("extracts the same usernames as the saved snapshot")
+        void snapshotUsernames() throws Exception {
+            String html = fixture("skins_random.html");
+
+            List<String> usernames = invokeExtractUsernames(html);
+
+            assertEquals(Arrays.asList("Notch", "Jeb_", "ad", "Dinnerbone"), usernames);
+        }
+    }
+
+    @Nested
+    @DisplayName("Markup brittleness (intentionally alerts on markup change)")
+    class MarkupBrittleness {
+
+        @Test
+        @DisplayName("renamed span class -> empty")
+        void renamedSpanClassReturnsEmpty() throws Exception {
+            String html = "<span class=\"card-title blue-text truncate\">Notch</span>";
+
+            assertTrue(invokeExtractUsernames(html).isEmpty());
+        }
+
+        @Test
+        @DisplayName("removed span -> empty")
+        void removedSpanReturnsEmpty() throws Exception {
+            String html = "<div class=\"card-content\">Notch</div>";
+
+            assertTrue(invokeExtractUsernames(html).isEmpty());
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  hasCape / isSlim - decoded payload interpretation                   */
+    /* ------------------------------------------------------------------ */
+
+    @Nested
+    @DisplayName("Decoded payload interpretation")
+    class DecodedPayloads {
+
+        @Test
+        @DisplayName("hasCape: skin+cape payload -> true")
+        void hasCapeWithCapePayload() throws Exception {
+            assertTrue(RandomMojangSkin.hasCapeInDecoded(decodedFixtureValue("profile-200-skin-and-cape.json")));
+        }
+
+        @Test
+        @DisplayName("hasCape: textures-only payload -> false")
+        void hasCapeWithoutCapePayload() throws Exception {
+            assertFalse(RandomMojangSkin.hasCapeInDecoded(decodedFixtureValue("profile-200-textures-only.json")));
+        }
+
+        @Test
+        @DisplayName("isSlim: metadata slim payload -> true")
+        void isSlimWithMetadataPayload() throws Exception {
+            assertTrue(RandomMojangSkin.isSlimInDecoded(decodedFixtureValue("profile-200-metadata-slim.json")));
+        }
+
+        @Test
+        @DisplayName("isSlim: payload without metadata -> false")
+        void isSlimWithoutMetadataPayload() throws Exception {
+            assertFalse(RandomMojangSkin.isSlimInDecoded(decodedFixtureValue("profile-200-textures-only.json")));
+        }
+    }
+
     /* ================================================================== */
     /*  Reflection helpers                                                 */
     /* ================================================================== */
@@ -164,5 +240,43 @@ class RandomMojangSkinTest {
 
     private static boolean invokeIsSlim(String username) throws Exception {
         return invokePrivateStatic("isSlim", new Class<?>[]{String.class}, username);
+    }
+
+    private static String fixture(String name) throws Exception {
+        java.io.InputStream in = RandomMojangSkinTest.class.getResourceAsStream("/fixtures/mskins/" + name);
+        if (in == null) {
+            throw new AssertionError("Missing fixture: " + name);
+        }
+        try {
+            return readAll(in);
+        } finally {
+            in.close();
+        }
+    }
+
+    private static String decodedFixtureValue(String mojangFixture) throws Exception {
+        java.io.InputStream in = RandomMojangSkinTest.class.getResourceAsStream("/fixtures/mojang/" + mojangFixture);
+        if (in == null) {
+            throw new AssertionError("Missing fixture: " + mojangFixture);
+        }
+        String json;
+        try {
+            json = readAll(in);
+        } finally {
+            in.close();
+        }
+        String value = JsonUtils.parseJson(json)
+                .getAsJsonArray("properties").get(0).getAsJsonObject().get("value").getAsString();
+        return new String(java.util.Base64.getDecoder().decode(value), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static String readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
+        }
+        return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
     }
 }

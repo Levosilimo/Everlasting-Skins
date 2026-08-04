@@ -6,9 +6,12 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import com.google.gson.JsonObject;
 import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
+import levosilimo.everlastingskins.skinchanger.responses.profile.PropertyResponse;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.JsonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -310,9 +313,158 @@ class MojangApiHttpImplTest {
         }
     }
 
+    @Nested
+    @DisplayName("Mojang schema fixtures")
+    class MojangSchemaFixtures {
+
+        private ProfileLookup lookup;
+
+        @BeforeEach
+        void init() {
+            lookup = new ProfileLookup(PLAYER_NAME, PLAYER_UUID);
+        }
+
+        @Test
+        @DisplayName("404 unknown name -> empty (no exception)")
+        void uuid404UnknownName() {
+            httpClient.addResponse(mojangUuidUri, 404, fixture("uuid-404-unknown-name.json"));
+
+            Optional<UUID> result = assertDoesNotThrow(() -> api.getUUID(PLAYER_NAME));
+
+            assertFalse(result.isPresent());
+        }
+
+        @Test
+        @DisplayName("204 empty profile -> empty (no exception)")
+        void profile204Empty() {
+            httpClient.addResponse(mojangProfileUri, 204, fixture("profile-204-empty.json"));
+
+            Optional<CustomSkinProperty> result = assertDoesNotThrow(() -> api.getProfile(lookup));
+
+            assertFalse(result.isPresent());
+        }
+
+        @Test
+        @DisplayName("400 invalid UUID -> empty (no exception)")
+        void profile400InvalidUuid() {
+            httpClient.addResponse(mojangProfileUri, 400, fixture("profile-400-invalid-uuid.json"));
+
+            Optional<CustomSkinProperty> result = assertDoesNotThrow(() -> api.getProfile(lookup));
+
+            assertFalse(result.isPresent());
+        }
+
+        @Test
+        @DisplayName("200 textures only -> value and signature preserved (unsigned=false)")
+        void profile200TexturesOnly() {
+            httpClient.addResponse(mojangProfileUri, 200, fixture("profile-200-textures-only.json"));
+
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
+
+            assertTrue(result.isPresent());
+            PropertyResponse property = propertyOf(result.get());
+            assertEquals("eyJ0aW1lc3RhbXAiOjE3MTIzNDU2Nzg5MDEsInByb2ZpbGVJZCI6IjEyMzQ1Njc4MTIzNDEyMzQxMjM0MTIzNDU2Nzg5YWJjIiwicHJvZmlsZU5hbWUiOiJUZXN0UGxheWVyIiwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2FiYzEyM2RlZjQ1NiJ9fX0=", property.value());
+            assertFalse(property.signature().isEmpty(), "signature must be present when unsigned=false");
+        }
+
+        @Test
+        @DisplayName("200 skin and cape -> value decodes with CAPE present")
+        void profile200SkinAndCape() {
+            httpClient.addResponse(mojangProfileUri, 200, fixture("profile-200-skin-and-cape.json"));
+
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
+
+            assertTrue(result.isPresent());
+            JsonObject decoded = decodeTextures(propertyOf(result.get()).value());
+            assertTrue(decoded.getAsJsonObject("textures").has("CAPE"));
+        }
+
+        @Test
+        @DisplayName("200 metadata slim -> value decodes with model slim")
+        void profile200MetadataSlim() {
+            httpClient.addResponse(mojangProfileUri, 200, fixture("profile-200-metadata-slim.json"));
+
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
+
+            assertTrue(result.isPresent());
+            JsonObject decoded = decodeTextures(propertyOf(result.get()).value());
+            assertEquals("slim", decoded.getAsJsonObject("textures")
+                    .getAsJsonObject("SKIN").getAsJsonObject("metadata").get("model").getAsString());
+        }
+
+        @Test
+        @DisplayName("200 missing signature -> value kept, signature empty")
+        void profile200MissingSignature() {
+            httpClient.addResponse(mojangProfileUri, 200, fixture("profile-200-missing-signature.json"));
+
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
+
+            assertTrue(result.isPresent());
+            PropertyResponse property = propertyOf(result.get());
+            assertFalse(property.value().isEmpty());
+            assertTrue(property.signature().isEmpty());
+        }
+
+        @Test
+        @DisplayName("200 legacy/demo flags -> parsed, value preserved")
+        void profile200LegacyDemo() {
+            httpClient.addResponse(mojangProfileUri, 200, fixture("profile-200-legacy-demo.json"));
+
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
+
+            assertTrue(result.isPresent());
+            assertEquals("eyJ0aW1lc3RhbXAiOjE3MTIzNDU2Nzg5MDEsInByb2ZpbGVJZCI6IjEyMzQ1Njc4MTIzNDEyMzQxMjM0MTIzNDU2Nzg5YWJjIiwicHJvZmlsZU5hbWUiOiJUZXN0UGxheWVyIiwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2FiYzEyM2RlZjQ1NiJ9fX0=", propertyOf(result.get()).value());
+        }
+
+        @Test
+        @DisplayName("real Notch profile -> value and signature populated")
+        void profile200Notch() {
+            httpClient.addResponse(mojangProfileUri, 200, fixture("profile-200-notch.json"));
+
+            Optional<CustomSkinProperty> result = api.getProfile(lookup);
+
+            assertTrue(result.isPresent());
+            PropertyResponse property = propertyOf(result.get());
+            assertEquals("eyJ0aW1lc3RhbXAiOjE3MTIzNDU2Nzg5MDEsInByb2ZpbGVJZCI6IjA2OWE3OWY0NDRlOTQ3MjZhNWJlZmNhOTBlMzhhYWY1IiwicHJvZmlsZU5hbWUiOiJOb3RjaCIsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS8xYTJiM2M0ZDVlNmY3YThiIn19fQ==", property.value());
+            assertFalse(property.signature().isEmpty());
+        }
+    }
+
     /* ================================================================== */
     /*  JSON body helpers                                                  */
     /* ================================================================== */
+
+    private static String fixture(String name) {
+        try (java.io.InputStream in = MojangApiHttpImplTest.class.getResourceAsStream("/fixtures/mojang/" + name)) {
+            if (in == null) {
+                throw new AssertionError("Missing fixture: " + name);
+            }
+            return readAll(in);
+        } catch (java.io.IOException e) {
+            throw new AssertionError("Failed to read fixture: " + name, e);
+        }
+    }
+
+    private static String readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
+        }
+        return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static PropertyResponse propertyOf(CustomSkinProperty skin) {
+        return new PropertyResponse("textures",
+                skin.getOriginalProperty().getValue(),
+                skin.getOriginalProperty().getSignature());
+    }
+
+    private static JsonObject decodeTextures(String base64Value) {
+        byte[] decoded = java.util.Base64.getDecoder().decode(base64Value);
+        return JsonUtils.parseJson(new String(decoded, java.nio.charset.StandardCharsets.UTF_8));
+    }
 
     private static String uuidMojangBody(String name, UUID uuid) {
         return "{\"name\":\"" + name + "\",\"id\":\"" + uuid.toString().replace("-", "") + "\"}";
