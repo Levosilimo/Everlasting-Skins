@@ -20,6 +20,7 @@ import levosilimo.everlastingskins.skinchanger.RandomMojangSkin;
 import levosilimo.everlastingskins.skinchanger.SkinCommand;
 import levosilimo.everlastingskins.skinchanger.SkinRefreshHandler;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
