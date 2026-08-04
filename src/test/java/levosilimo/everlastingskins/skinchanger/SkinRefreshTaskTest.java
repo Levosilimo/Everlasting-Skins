@@ -297,6 +297,42 @@ class SkinRefreshTaskTest {
     /*  C. Multi-observer + multi-target                                   */
     /* ================================================================== */
 
+    @Test
+    @DisplayName("Two observers in the same dimension both receive REMOVE then ADD")
+    void twoObserversBothReceiveBroadcast() {
+        refresh(target);
+
+        assertRemoveAddPair(observer1Log.all(), "observer1");
+        assertRemoveAddPair(observer2Log.all(), "observer2");
+    }
+
+    @Test
+    @DisplayName("The target itself receives its own REMOVE+ADD broadcast (self-reception)")
+    void targetReceivesOwnBroadcast() {
+        refresh(target);
+
+        // The tab-list broadcast is delivered to every online connection,
+        // the target's own included, before any cascade packet.
+        List<Packet<?>> stream = targetLog.all();
+        int removeIdx = indexOfType(stream, SPacketPlayerListItem.class, SPacketPlayerListItem.Action.REMOVE_PLAYER);
+        int addIdx = indexOfType(stream, SPacketPlayerListItem.class, SPacketPlayerListItem.Action.ADD_PLAYER);
+        int respawn = indexOfType(stream, SPacketRespawn.class);
+        assertTrue(removeIdx >= 0 && addIdx == removeIdx + 1 && respawn > addIdx,
+            "self-reception: REMOVE+ADD must reach the target's own connection before the respawn; stream=" + stream);
+    }
+
+    @Test
+    @DisplayName("Cross-dimension observers receive the broadcast (1.12.2 global sendPacketToAllPlayers)")
+    void crossDimension_observerReceives_on1122() {
+        refresh(target);
+
+        // DIVERGENCE DOCUMENTED: 1.12.2 production broadcasts via
+        // sendPacketToAllPlayers, which is global. There is no
+        // DIMENSION_SCOPED_BROADCAST flag on this branch.
+        assertRemoveAddPair(netherLog.all(), "netherObserver");
+    }
+
+    /* ================================================================== */
     /*  Helpers                                                           */
     /* ================================================================== */
 
