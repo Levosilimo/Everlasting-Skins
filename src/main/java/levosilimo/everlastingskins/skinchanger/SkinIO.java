@@ -224,6 +224,8 @@ public class SkinIO {
     /**
      * Atomic write: temp file + force + ATOMIC_MOVE, with a fallback move on
      * failure. Preserved from the original synchronous implementation.
+     * After the rename the parent directory is fsynced so the directory
+     * entry itself survives a power loss (Pillai OSDI'14 safe file flush).
      */
     private void writeSkinFile(UUID uuid, byte[] payload) {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
@@ -241,12 +243,14 @@ public class SkinIO {
             }
 
             Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            fsyncDirectory();
         } catch (IOException e) {
             SkinMetrics.INSTANCE.recordIoFailure(e);
             EverlastingSkins.logger.error("Failed to save skin for player {}", uuid, e);
             if (Files.exists(temp)) {
                 try {
                     Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+                    fsyncDirectory();
                 } catch (IOException ex) {
                     try {
                         Files.deleteIfExists(temp);
@@ -255,6 +259,32 @@ public class SkinIO {
                 }
             }
         }
+    }
+
+    /**
+     * Durability barrier: fsync the parent directory after the rename.
+     * File fsync alone does not flush the rename's directory entry, so
+     * without this a power loss can lose the write even though the content
+     * was already durable. Best-effort: the content is already fsynced, so
+     * a directory fsync failure is logged, never propagated.
+     */
+    private void fsyncDirectory() {
+        try (FileChannel dirChannel = openDirectoryChannel(savePath)) {
+            dirChannel.force(true);
+        } catch (UnsupportedOperationException ignored) {
+            // Some filesystems (e.g. FAT) don't support dir fsync; tolerate silently.
+        } catch (IOException e) {
+            EverlastingSkins.logger.warn("Failed to fsync skin directory {}", savePath, e);
+        }
+    }
+
+    /**
+     * Opens the save directory read-only so it can be fsynced. Package-private
+     * so tests can substitute the channel and assert the durability barrier
+     * runs after the rename.
+     */
+    FileChannel openDirectoryChannel(Path dir) throws IOException {
+        return FileChannel.open(dir, StandardOpenOption.READ);
     }
 
     @Nullable
