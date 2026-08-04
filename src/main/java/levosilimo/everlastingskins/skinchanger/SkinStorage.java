@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
 import javax.annotation.Nullable;
@@ -47,12 +48,18 @@ public class SkinStorage {
     }
 
     public CustomSkinProperty loadSkin(UUID uuid) {
-        CustomSkinProperty skin = skinIO.loadSkin(uuid);
-        if (skin != null && skin.isEmpty()) {
-            skinIO.deleteSkin(uuid);
-            return null;
+        SkinMetrics.INSTANCE.recordReadStart();
+        long start = System.nanoTime();
+        try {
+            CustomSkinProperty skin = skinIO.loadSkin(uuid);
+            if (skin != null && skin.isEmpty()) {
+                skinIO.deleteSkin(uuid);
+                return null;
+            }
+            return skin;
+        } finally {
+            SkinMetrics.INSTANCE.recordReadComplete(System.nanoTime() - start);
         }
-        return skin;
     }
 
     // Retrieve via SkinRestorer.getSkinStorage(); this instance is the backing store.

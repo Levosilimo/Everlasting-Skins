@@ -375,26 +375,31 @@ public class SkinIO {
     private String readSkinFile(UUID uuid) {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
         if (!Files.exists(target)) return null;
+        SkinMetrics.INSTANCE.recordReadStart();
+        long start = System.nanoTime();
+        String content;
         try {
-            String content = Files.readString(target, StandardCharsets.UTF_8);
-            if (!isValidJson(content)) {
-                quarantineFile(uuid);
-                return null;
-            }
-            int status = checksumStatus(content);
-            if (status == CHECKSUM_MISMATCH) {
-                EverlastingSkins.logger.warn("Bit rot detected in skin record {}: checksum mismatch, quarantining", target);
-                quarantineFile(uuid);
-                return null;
-            }
-            if (status == CHECKSUM_ABSENT) {
-                EverlastingSkins.logger.warn(
-                        "Skin record {} has no checksum (legacy format); loaded without integrity verification", target);
-            }
-            return content;
+            content = Files.readString(target, StandardCharsets.UTF_8);
         } catch (IOException e) {
+            SkinMetrics.INSTANCE.recordReadFailure();
             return null;
         }
+        SkinMetrics.INSTANCE.recordReadComplete(System.nanoTime() - start);
+        if (!isValidJson(content)) {
+            quarantineFile(uuid);
+            return null;
+        }
+        int status = checksumStatus(content);
+        if (status == CHECKSUM_MISMATCH) {
+            EverlastingSkins.logger.warn("Bit rot detected in skin record {}: checksum mismatch, quarantining", target);
+            quarantineFile(uuid);
+            return null;
+        }
+        if (status == CHECKSUM_ABSENT) {
+            EverlastingSkins.logger.warn(
+                    "Skin record {} has no checksum (legacy format); loaded without integrity verification", target);
+        }
+        return content;
     }
 
     /**
