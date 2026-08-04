@@ -12,6 +12,7 @@ import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.JsonUtils;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
+import net.jqwik.api.Combinators;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.From;
 import net.jqwik.api.Group;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -87,6 +89,27 @@ class SkinIOPropertyTest {
         return values().list().ofMinSize(2).ofMaxSize(8);
     }
 
+    /** Generated script for the drain-race property: payload plus delete delay. */
+    @Provide
+    Arbitrary<List<RaceStep>> raceScripts() {
+        return Combinators.combine(
+                Arbitraries.strings().withCharRange('a', 'z').ofMinLength(65536).ofMaxLength(262144)
+                        .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8))),
+                Arbitraries.integers().between(45, 70))
+                .as(RaceStep::new)
+                .list().ofSize(4);
+    }
+
+    private static final class RaceStep {
+        final String value;
+        final int delayMs;
+
+        RaceStep(String value, int delayMs) {
+            this.value = value;
+            this.delayMs = delayMs;
+        }
+    }
+
     /* ------------------------------- helpers ------------------------------- */
 
     private static CustomSkinProperty skin(String value) {
@@ -120,6 +143,88 @@ class SkinIOPropertyTest {
         assertTrue(Files.exists(target), "missing skin file: " + target);
         String content = new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
         assertEquals(JsonUtils.toJson(skin(expected)), content, "disk payload must be the latest submitted payload");
+    }
+
+    private static void sleepUnchecked(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted", e);
+        }
+    }
+
+    /* --------------------------- delete-beats-write -------------------------- */
+
+    @Group
+    class DeleteBeatsWrite {
+
+        /**
+         * Model: a delete is a tombstone that beats any earlier write, so a
+         * deferred async payload purged by the delete must never reach disk,
+         * even after a subsequent flush. LSM write-buffer tombstone semantics
+         * (O'Neil et al., Acta Informatica 33, 1996).
+         */
+        @Property(tries = 100)
+        @Label("delete beats write: a deferred async payload cannot resurrect the file")
+        void deleteBeatsWrite(@ForAll @From("values") String value) throws IOException {
+            SkinMetrics.INSTANCE.reset();
+            Path dir = newTempDir();
+            try {
+                SkinIO io = new SkinIO(dir);
+                UUID uuid = UUID.randomUUID();
+                io.saveSkinAsync(uuid, skin(value));
+                io.deleteSkin(uuid);
+                io.flushPending();
+                assertFalse(Files.exists(dir.resolve(uuid + ".json")),
+                        "deleted skin must stay deleted after flush");
+            } finally {
+                deleteRecursively(dir);
+            }
+        }
+
+        /**
+         * Model: the delete is serialized through the single writer thread, so
+         * it cannot be interleaved between an in-flight drain's write and its
+         * atomic rename; the file must be absent once the delete returns. The
+         * drain fires 50ms after the save, so each step issues the delete with
+         * a generated 45-70ms delay to land inside the write window.
+         * Crash-consistency framing per Pillai et al. (OSDI 2014): no
+         * write-after-delete resurrection. The delay is generated data, so a
+         * failing script shrinks to a minimal reproduction.
+         */
+        @Property(tries = 60)
+        @Label("delete beats an in-flight drain: no write-after-delete resurrection")
+        void deleteBeatsInFlightDrain(@ForAll @From("raceScripts") List<RaceStep> steps) throws IOException {
+            SkinMetrics.INSTANCE.reset();
+            Path dir = newTempDir();
+            try {
+                SkinIO io = new SkinIO(dir);
+                for (RaceStep step : steps) {
+                    UUID uuid = UUID.randomUUID();
+                    io.saveSkinAsync(uuid, skin(step.value));
+                    sleepUnchecked(step.delayMs);
+                    io.deleteSkin(uuid);
+                    io.flushPending();
+                    Path target = dir.resolve(uuid + ".json");
+                    assertFalse(Files.exists(target), () -> "write-after-delete: " + target
+                            + " resurrected by a concurrent drain, content="
+                            + readIfPresent(target));
+                }
+            } finally {
+                deleteRecursively(dir);
+            }
+        }
+
+        private static String readIfPresent(Path target) {
+            try {
+                return Files.exists(target)
+                        ? new String(Files.readAllBytes(target), StandardCharsets.UTF_8)
+                        : "<absent>";
+            } catch (IOException e) {
+                return "<unreadable>";
+            }
+        }
     }
 
     /* ----------------------------- latest-wins ----------------------------- */
