@@ -208,6 +208,22 @@ class SkinCommandTabCompleteTest {
         assertTrue(offered.contains("cleanup"));
     }
 
+    @Test
+    @DisplayName("metrics cleanup requires the reset permission like reset does")
+    void metrics_cleanup_completion_requiresResetPermission() {
+        Config.PERMISSIONS_OP_LEVEL_METRICS.set(0);
+        Config.PERMISSIONS_OP_LEVEL_METRICS_RESET.set(2);
+
+        CommandNode<CommandSourceStack> metrics = dispatcher.getRoot().getChild("skin").getChild("metrics");
+        // Level-0 sender holds command.metrics but not command.metrics.reset.
+        assertTrue(metrics.canUse(source));
+        assertFalse(metrics.getChild("cleanup").canUse(source));
+
+        // Level-2 sender holds both.
+        source = sourceWithOpLevel(2);
+        assertTrue(metrics.getChild("cleanup").canUse(source));
+    }
+
     private List<String> completions(String input) {
         ParseResults<CommandSourceStack> parsed = dispatcher.parse(input, source);
         Suggestions suggestions = dispatcher.getCompletionSuggestions(parsed).join();

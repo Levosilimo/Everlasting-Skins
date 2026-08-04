@@ -38,7 +38,16 @@ public final class SkinMetricsCommand {
                         .executes(context -> metrics(context, true)))
                 .then(Commands.literal("players")
                         .executes(SkinMetricsCommand::players))
+                /**
+                 * cleanup is destructive like reset: gate it behind the same
+                 * op level (everlastingskins.command.metrics.reset) so the
+                 * client tree and tab completion do not offer it to senders
+                 * holding only everlastingskins.command.metrics. The executor
+                 * still re-checks the reset permission (parity with 1.12.2's
+                 * metricsSubcommands filter).
+                 */
                 .then(Commands.literal("cleanup")
+                        .requires(source -> source.hasPermission(2))
                         .executes(SkinMetricsCommand::cleanup))
                 .then(Commands.literal("reset")
                         .requires(source -> source.hasPermission(2))
