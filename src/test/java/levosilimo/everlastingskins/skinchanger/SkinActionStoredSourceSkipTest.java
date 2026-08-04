@@ -148,7 +148,9 @@ class SkinActionStoredSourceSkipTest {
     @Test
     @DisplayName("no stored skin never triggers the skip")
     void noStoredSkin_doesNotTriggerSkip() {
-        assertFalse(SkinActionCommand.storedSourceMatches(PLAYER_UUID, "Notch"));
+        // Fresh UUID: skinMap is static, so a shared constant could see a skin
+        // stored by an earlier test in this class.
+        assertFalse(SkinActionCommand.storedSourceMatches(UUID.randomUUID(), "Notch"));
     }
 
     @Test
