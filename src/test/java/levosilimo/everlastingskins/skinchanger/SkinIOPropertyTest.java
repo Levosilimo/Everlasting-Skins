@@ -89,6 +89,12 @@ class SkinIOPropertyTest {
         return values().list().ofMinSize(2).ofMaxSize(8);
     }
 
+    /** 100-value burst: every save must land inside the 50ms debounce window. */
+    @Provide
+    Arbitrary<List<String>> burstValues() {
+        return values().list().ofSize(100);
+    }
+
     /** Generated script for the drain-race property: payload plus delete delay. */
     @Provide
     Arbitrary<List<RaceStep>> raceScripts() {
@@ -151,6 +157,41 @@ class SkinIOPropertyTest {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("interrupted", e);
+        }
+    }
+
+    /* -------------------------- drain idempotence -------------------------- */
+
+    @Group
+    class DrainIdempotence {
+
+        /**
+         * Model: the drain latch and per-UUID coalescing guarantee at most one
+         * real disk write per debounce window, so a 100-save burst inside one
+         * window yields exactly one write, 100 recorded submissions, and the
+         * last payload on disk. Asserted on the SkinMetrics real-write counter
+         * (not wall clocks) so the debounce timing is CI-tolerant.
+         */
+        @Property(tries = 100)
+        @Label("coalescing bound: one debounce window collapses 100 saves into exactly one disk write")
+        void drainIdempotence(@ForAll @From("burstValues") List<String> burst) throws IOException {
+            SkinMetrics.INSTANCE.reset();
+            Path dir = newTempDir();
+            try {
+                SkinIO io = new SkinIO(dir);
+                UUID uuid = UUID.randomUUID();
+                for (String value : burst) {
+                    io.saveSkinAsync(uuid, skin(value));
+                }
+                io.flushPending();
+                assertEquals(1, SkinMetrics.INSTANCE.snapshot().realWrites(),
+                        "100 saves in one debounce window must produce exactly one disk write");
+                assertEquals(burst.size(), SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
+                        "every merge must be recorded as submitted");
+                assertFileValue(dir, uuid, burst.get(burst.size() - 1));
+            } finally {
+                deleteRecursively(dir);
+            }
         }
     }
 
