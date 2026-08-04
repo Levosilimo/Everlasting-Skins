@@ -10,6 +10,7 @@ package levosilimo.everlastingskins.util;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
 public class JsonUtils {
@@ -25,7 +26,20 @@ public class JsonUtils {
         return GSON.toJson(obj);
     }
 
+    /**
+     * Parses a JSON document, failing closed: every parse failure surfaces
+     * as {@link JsonParseException}. Gson internals raise raw
+     * NumberFormatException on truncated {@code \\uXXXX} escapes and
+     * IllegalStateException on non-object roots; both are normalized so
+     * callers can rely on the documented exception class.
+     */
     public static JsonObject parseJson(String json) {
-        return JSON_PARSER.parse(json).getAsJsonObject();
+        try {
+            return JSON_PARSER.parse(json).getAsJsonObject();
+        } catch (JsonParseException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new JsonParseException("Malformed JSON", e);
+        }
     }
 }
