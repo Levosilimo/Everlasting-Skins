@@ -3,7 +3,7 @@
 EverlastingSkins uses a three-tier testing pyramid:
 
 ## Tier 1: Pure Java unit tests (JUnit 5)
-- 336 unit tests + 34 GameTest = 370 total on 1.21 branch
+- 354 unit tests + 34 GameTest = 388 total on 1.21 branch
 - 325 tests on mc1.12.2 branch
 - Coverage: provider fallback, HTTP outcomes, persistence atomicity, corruption handling, cache behavior, permission system, command dispatch, integration hooks
 - New in 2.1.0-rc.1: `MojangProfileCacheTest`, `UrlAllowlistTest`, `DefaultSkinResolverTest`; `PermissionServiceManagerTest`, `VanillaPermissionServiceTest`, `LuckPermsPermissionServiceTest` refreshed with `opLevel` (were pre-existing)
@@ -22,7 +22,7 @@ EverlastingSkins uses a three-tier testing pyramid:
 
 The 1.21 branch uses Minecraft's GameTest framework for automated integration testing. The `gametest-121` CI job runs 34 tests covering the /skin command pipeline via mock players + EmbeddedChannel packet assertions.
 
-Count note: `grep -c "@GameTest"` in `SkinVisibilityTest.java` reports 35 matches — 34 method-level `@GameTest(` tests plus the class-level `@GameTestHolder` annotation, which contains `@GameTest` as a substring. The `runGameTestServer` summary ("34 GAME TESTS COMPLETE") is authoritative.
+Count note: `grep -c "@GameTest"` in `SkinVisibilityTest.java` reports 35 matches: 34 method-level `@GameTest(` tests plus the class-level `@GameTestHolder` annotation. The `runGameTestServer` summary ("34 GAME TESTS COMPLETE") is authoritative.
 
 Components:
 - `src/gametest/java/` — GameTest methods (skin-set, skin-clear, persistence, refresh)

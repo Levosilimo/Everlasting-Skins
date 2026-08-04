@@ -9,6 +9,7 @@ package levosilimo.everlastingskins.skinchanger;
 import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
+import com.mojang.authlib.properties.PropertyMap;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
@@ -68,6 +69,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -531,6 +533,29 @@ class SkinRefreshHandlerTest {
                 "the partial cascade failure must be recorded");
         assertEquals(savesBefore, SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
                 "a failed enqueue must not count as a submitted save");
+    }
+
+    @Test
+    void applyAtomicPersistence_mutateProfileThrowing_failsSoft() {
+        GameProfile profile = mock(GameProfile.class);
+        PropertyMap properties = spy(profileWithTextures(OLD_PROPERTY).getProperties());
+        when(profile.getProperties()).thenReturn(properties);
+        doThrow(new RuntimeException("simulated profile mutation failure"))
+                .when(properties).removeAll("textures");
+        storage.setSkin(PLAYER_UUID, NEW_SKIN);
+        long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
+
+        boolean persisted = SkinRefreshHandler.applyAtomicPersistence(PLAYER_UUID, profile, NEW_SKIN);
+
+        assertFalse(persisted, "a failed profile mutation must report failure");
+        assertEquals(failedBefore + 1, SkinMetrics.INSTANCE.snapshot().refreshesFailed(),
+                "the failed mutation must be recorded");
+        Collection<Property> textures = texturesOf(profile);
+        assertEquals(1, textures.size(), "a failed mutation must leave the profile untouched");
+        assertEquals(OLD_PROPERTY, textures.iterator().next(),
+                "the applied profile must keep its previous textures");
+        verify(playerlist, never()).broadcastAll(any(Packet.class));
+        verify(playerlist, never()).broadcastAll(any(Packet.class), any(ResourceKey.class));
     }
 
     @Test
