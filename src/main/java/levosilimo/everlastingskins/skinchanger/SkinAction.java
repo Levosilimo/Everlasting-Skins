@@ -74,13 +74,16 @@ final class SkinAction {
                 p.sendMessage(new TextComponentString(SkinCommand.PREFIX + I18nUtils.getLocalizedString("change", p)));
             }
         }
-        if (type == SkinActionType.username && storedSourceMatches(targets, customSource)) {
-            for (EntityPlayerMP p : targets) {
-                SkinMetrics.INSTANCE.recordRefreshSkippedStored(p.getUniqueID());
-                CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
-                SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, stored, 0L));
+        if (type == SkinActionType.username) {
+            warnStoredUsernameMismatch(targets, customSource);
+            if (storedSourceMatches(targets, customSource)) {
+                for (EntityPlayerMP p : targets) {
+                    SkinMetrics.INSTANCE.recordRefreshSkippedStored(p.getUniqueID());
+                    CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
+                    SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, stored, 0L));
+                }
+                return;
             }
-            return;
         }
         long[] fetchNanos = {0L};
         CompletableFuture<Map<UUID, CustomSkinProperty>> future = CompletableFuture.supplyAsync(() -> {
@@ -241,6 +244,29 @@ final class SkinAction {
                     && SOURCE_MOJANG.equals(stored.getSource())
                     && customSource.equals(stored.getUsername());
         });
+    }
+
+    /**
+     * The A5 skip is bypassed when the stored skin is Mojang-class but was
+     * fetched for a different username; tell the player why a fresh fetch runs
+     * so the re-fetch is not silent. Skins without a stored username (legacy
+     * persistence or UUID-keyed lookups) cannot name the old username and skip
+     * the notice.
+     */
+    private static void warnStoredUsernameMismatch(Collection<EntityPlayerMP> targets, @Nullable String customSource) {
+        if (customSource == null) {
+            return;
+        }
+        for (EntityPlayerMP p : targets) {
+            CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
+            if (stored != null
+                    && SOURCE_MOJANG.equals(stored.getSource())
+                    && stored.getUsername() != null
+                    && !customSource.equals(stored.getUsername())) {
+                p.sendMessage(new TextComponentString(SkinCommand.PREFIX
+                        + I18nUtils.formatMessage("stored_from_other_username", p, stored.getUsername())));
+            }
+        }
     }
 
     /** True when the fetched skin is byte-identical to what the player already has. */
