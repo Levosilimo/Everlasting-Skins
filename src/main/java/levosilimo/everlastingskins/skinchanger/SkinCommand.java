@@ -18,9 +18,11 @@ import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.command.SkinMetricsCommand;
+import levosilimo.everlastingskins.util.CompletionSources;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -73,8 +75,15 @@ public class SkinCommand {
                 .then(buildSetSubcommand())
                 .then(buildSourceSubcommand())
                 .then(buildClearSubcommand())
-                .then(SkinMetricsCommand.build());
+                .then(SkinMetricsCommand.build().requires(SkinCommand::canUseMetrics));
         dispatcher.register(skinCommand);
+    }
+
+    private static boolean canUseMetrics(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return false;
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
+        return PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics");
     }
 
     private static boolean canTargetOthers(CommandSourceStack source) {
@@ -111,6 +120,8 @@ public class SkinCommand {
         return Commands.literal("set")
                 .then(Commands.literal("mojang")
                         .then(Commands.argument("skin_name", StringArgumentType.word())
+                                .suggests((context, builder) ->
+                                        SharedSuggestionProvider.suggest(CompletionSources.recentUsernames(), builder))
                                 .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
                                         Collections.singleton(context.getSource().getPlayer()),
                                         SkinActionType.username, SkinVariant.ALL, false,
@@ -128,6 +139,8 @@ public class SkinCommand {
                 .then(Commands.literal("web")
                         .then(Commands.literal("classic")
                                 .then(Commands.argument("url", StringArgumentType.string())
+                                        .suggests((context, builder) ->
+                                                SharedSuggestionProvider.suggest(CompletionSources.urlCandidates(), builder))
                                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
                                                 Collections.singleton(context.getSource().getPlayer()),
                                                 SkinActionType.url, SkinVariant.CLASSIC, false,
@@ -144,6 +157,8 @@ public class SkinCommand {
                         )
                         .then(Commands.literal("slim")
                                 .then(Commands.argument("url", StringArgumentType.string())
+                                        .suggests((context, builder) ->
+                                                SharedSuggestionProvider.suggest(CompletionSources.urlCandidates(), builder))
                                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
                                                 Collections.singleton(context.getSource().getPlayer()),
                                                 SkinActionType.url, SkinVariant.SLIM, false,
