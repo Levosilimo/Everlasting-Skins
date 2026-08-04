@@ -119,4 +119,19 @@ class SkinRefreshTaskTest {
                 "the cascade must enqueue exactly one save");
     }
 
+    @Test
+    @DisplayName("restart equivalence: after the cascade the on-disk skin equals the in-memory skin")
+    void afterCascade_ondiskSkinEqualsInMemorySkin() {
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+
+        SkinRefreshTask.task(alice, NEW_SKIN, 0L);
+        ctx.storage.flushPending();
+
+        CustomSkinProperty fromDisk = ctx.storage.loadSkin(alice.getUniqueID());
+        assertNotNull(fromDisk, "the cascade must have persisted the skin to disk");
+        assertEquals(NEW_SKIN, fromDisk,
+                "the on-disk skin after the cascade must equal the stored in-memory skin");
+        assertEquals(ctx.storage.getSkin(alice.getUniqueID()), fromDisk,
+                "a restart reloading from disk must reproduce the in-memory skin");
+    }
 }
