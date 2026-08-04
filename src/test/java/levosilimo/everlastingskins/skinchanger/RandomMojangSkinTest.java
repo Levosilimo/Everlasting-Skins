@@ -129,6 +129,21 @@ class RandomMojangSkinTest {
         }
     }
 
+    @Nested
+    @DisplayName("mskins.net snapshot regression")
+    class SnapshotRegression {
+
+        @Test
+        @DisplayName("extracts the same usernames as the saved snapshot")
+        void snapshotUsernames() throws Exception {
+            String html = fixture("skins_random.html");
+
+            List<String> usernames = invokeExtractUsernames(html);
+
+            assertEquals(List.of("Notch", "Jeb_", "ad", "Dinnerbone"), usernames);
+        }
+    }
+
     /* ================================================================== */
     /*  Reflection helpers                                                 */
     /* ================================================================== */
@@ -162,5 +177,14 @@ class RandomMojangSkinTest {
 
     private static boolean invokeIsSlim(String username) throws Exception {
         return invokePrivateStatic("isSlim", new Class<?>[]{String.class}, username);
+    }
+
+    private static String fixture(String name) throws Exception {
+        try (java.io.InputStream in = RandomMojangSkinTest.class.getResourceAsStream("/fixtures/mskins/" + name)) {
+            if (in == null) {
+                throw new AssertionError("Missing fixture: " + name);
+            }
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
     }
 }
