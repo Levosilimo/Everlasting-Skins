@@ -205,7 +205,7 @@ public class MojangApiHttpImpl implements MojangAPI {
                     && property.value() != null
                     && !property.value().isEmpty()) {
                 return Optional.of(new CustomSkinProperty(
-                        "textures", property.value(), property.signature(), "MojangAPI"));
+                        "textures", property.value(), property.signature(), SkinAction.SOURCE_MOJANG));
             }
         }
         return Optional.empty();

@@ -47,6 +47,11 @@ final class SkinAction {
     static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
         Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
 
+    /** Source-class discriminator persisted on Mojang-sourced skin properties. */
+    static final String SOURCE_MOJANG = "MojangAPI";
+    /** Source-class discriminator persisted on MineSkin-sourced skin properties. */
+    static final String SOURCE_MINESKIN = "MineSkin";
+
     /** Per-UUID last refresh timestamps for the debounce window. */
     private static final ConcurrentHashMap<UUID, Long> lastRefreshByPlayer = new ConcurrentHashMap<>();
     /** Per-UUID last command timestamps for the cooldown rate limit. */
@@ -207,11 +212,23 @@ final class SkinAction {
         });
     }
 
-    /** A5: stored skin's source already matches the request, skip the fetch. */
+    /**
+     * A5: when the stored skin already came from the provider this request
+     * would use, skip the fetch and re-apply the stored skin.
+     * <p>
+     * Providers persist a source-class discriminator ({@link #SOURCE_MOJANG})
+     * rather than the requested username, so the stored value can never equal
+     * {@code customSource}; the skip must compare source-class to
+     * source-class or it never fires against real providers. Only invoked for
+     * username-type (Mojang) requests.
+     */
     private static boolean storedSourceMatches(Collection<EntityPlayerMP> targets, @Nullable String customSource) {
+        if (customSource == null) {
+            return false;
+        }
         return targets.stream().allMatch(p -> {
             CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
-            return stored != null && Objects.equals(stored.getSource(), customSource);
+            return stored != null && SOURCE_MOJANG.equals(stored.getSource());
         });
     }
 

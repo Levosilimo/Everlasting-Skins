@@ -155,7 +155,7 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         CustomSkinProperty property = new CustomSkinProperty(
                 texture.value(),
                 texture.signature(),
-                "MineSkin"
+                SkinAction.SOURCE_MINESKIN
         );
         String skinId = urlResponse.idStr() != null ? urlResponse.idStr() : String.valueOf(urlResponse.id());
 
