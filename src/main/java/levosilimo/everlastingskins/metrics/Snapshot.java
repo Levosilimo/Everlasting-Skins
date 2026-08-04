@@ -28,6 +28,9 @@ public final class Snapshot {
     private final long savesCompleted;
     private final long savesCoalesced;
     private final long realWrites;
+    private final long readsSubmitted;
+    private final long readsCompleted;
+    private final long readFailures;
     private final long ioFailures;
     private final int pendingAsyncWrites;
     private final long onlinePlayers;
@@ -49,6 +52,7 @@ public final class Snapshot {
     private final Map<String, Long> fetchPercentiles;
     private final Map<String, Long> saveEnqueuePercentiles;
     private final Map<String, Long> saveDiskPercentiles;
+    private final Map<String, Long> readDiskPercentiles;
     private final Map<String, Long> broadcastPercentiles;
     private final Map<String, Long> commandTotalPercentiles;
     private final Map<String, Long> taskDurationPercentiles;
@@ -60,6 +64,7 @@ public final class Snapshot {
                     long refreshesSkippedStored, long refreshesRateLimited,
                     long broadcastsSent, long bytesWritten, long savesSubmitted, long savesCompleted,
                     long savesCoalesced, long realWrites,
+                    long readsSubmitted, long readsCompleted, long readFailures,
                     long ioFailures, int pendingAsyncWrites, long onlinePlayers, long uptimeMs,
                     long netBytesWrittenOut, long netBytesReadIn,
                     long tickSpikes, long tickSpikesBroadcast, long tickSpikesCascade, long tickSpikesSaveEnqueue,
@@ -67,7 +72,8 @@ public final class Snapshot {
                     long providerExceptions, long cacheHits, long cacheMisses, long mineSkinDelayTotalMs,
                     Map<String, Long> ioFailuresByType,
                     Map<String, Long> fetchPercentiles, Map<String, Long> saveEnqueuePercentiles,
-                    Map<String, Long> saveDiskPercentiles, Map<String, Long> broadcastPercentiles,
+                    Map<String, Long> saveDiskPercentiles, Map<String, Long> readDiskPercentiles,
+                    Map<String, Long> broadcastPercentiles,
                     Map<String, Long> commandTotalPercentiles, Map<String, Long> taskDurationPercentiles,
                     Map<String, Long> tickSpikePercentiles,
                     Map<UUID, PlayerSnapshot> perPlayer) {
@@ -85,6 +91,9 @@ public final class Snapshot {
         this.savesCompleted = savesCompleted;
         this.savesCoalesced = savesCoalesced;
         this.realWrites = realWrites;
+        this.readsSubmitted = readsSubmitted;
+        this.readsCompleted = readsCompleted;
+        this.readFailures = readFailures;
         this.ioFailures = ioFailures;
         this.pendingAsyncWrites = pendingAsyncWrites;
         this.onlinePlayers = onlinePlayers;
@@ -106,6 +115,7 @@ public final class Snapshot {
         this.fetchPercentiles = fetchPercentiles;
         this.saveEnqueuePercentiles = saveEnqueuePercentiles;
         this.saveDiskPercentiles = saveDiskPercentiles;
+        this.readDiskPercentiles = readDiskPercentiles;
         this.broadcastPercentiles = broadcastPercentiles;
         this.commandTotalPercentiles = commandTotalPercentiles;
         this.taskDurationPercentiles = taskDurationPercentiles;
@@ -127,6 +137,9 @@ public final class Snapshot {
     public long savesCompleted() { return savesCompleted; }
     public long savesCoalesced() { return savesCoalesced; }
     public long realWrites() { return realWrites; }
+    public long readsSubmitted() { return readsSubmitted; }
+    public long readsCompleted() { return readsCompleted; }
+    public long readFailures() { return readFailures; }
     public long ioFailures() { return ioFailures; }
     public int pendingAsyncWrites() { return pendingAsyncWrites; }
     public long onlinePlayers() { return onlinePlayers; }
@@ -149,6 +162,7 @@ public final class Snapshot {
     public Map<String, Long> fetchPercentiles() { return fetchPercentiles; }
     public Map<String, Long> saveEnqueuePercentiles() { return saveEnqueuePercentiles; }
     public Map<String, Long> saveDiskPercentiles() { return saveDiskPercentiles; }
+    public Map<String, Long> readDiskPercentiles() { return readDiskPercentiles; }
     public Map<String, Long> broadcastPercentiles() { return broadcastPercentiles; }
     public Map<String, Long> commandTotalPercentiles() { return commandTotalPercentiles; }
     public Map<String, Long> taskDurationPercentiles() { return taskDurationPercentiles; }

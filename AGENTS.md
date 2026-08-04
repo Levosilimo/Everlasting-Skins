@@ -44,6 +44,7 @@
 - The hook runs `aislop scan --staged` and surfaces findings (god-files, god-functions, deeply nested branches, swallowed exceptions, narrative comments, hardcoded URLs/IDs, FizzBuzz-Enterprise-style overengineering) at commit time. Warnings do not block commits by default; treat them as review signals.
 - `aislop` is fetched on demand by `bunx` (fallback `npx`). No `package.json` or `node_modules` in the repo. If neither runner is on PATH, the hook logs and exits 0.
 - Use `aislop fix` to auto-apply mechanical fixes (unused imports, narrative comments, formatter drift). Use `aislop rules` for the full rule catalog. Use `git commit --no-verify` only when intentionally bypassing the gate.
+- CI enforces the same gate: job `aislop (mc1.12.2)` in `.github/workflows/ci.yml` runs `npx aislop ci --changes --base origin/mc1.12.2` on every PR and push, failing when the score drops below 100. Branch protection registration is pending: the gate fails PR CI but is not yet a required check; the local hook and the CI gate use the same scanner.
 
 ## PR Verification Protocol
 
