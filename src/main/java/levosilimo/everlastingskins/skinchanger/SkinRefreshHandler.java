@@ -111,27 +111,22 @@ public class SkinRefreshHandler {
     }
 
     /**
-     * Atomic persistence + profile mutation (R3 invariant): enqueues the disk
-     * flush and only then applies the skin to the GameProfile. The enqueue
-     * captures the stored skin synchronously (saveSkinAsync serializes the
-     * in-memory map entry at enqueue time), so when it throws, the profile is
-     * left untouched: applied and on-disk state stay consistent and the
-     * change cannot silently revert on the next server restart. Any failure
-     * is logged, counted as a partial-cascade failure, and reported via the
-     * return value so the caller can skip the observer broadcast/cascade.
-     * Test-visible: the invariant is exercised directly by
-     * SkinRefreshHandlerTest without a ServerPlayer.
+     * saveSkinAsync + mutateProfile are atomic: either both succeed or both
+     * fail (returning false). The caller ({@link #task(ServerPlayer)}) skips
+     * broadcast/cascade on failure. The save captures the stored skin at
+     * enqueue time, before the profile is mutated. Test-visible so
+     * SkinRefreshHandlerTest can exercise the invariant without a ServerPlayer.
      */
     static boolean applyAtomicPersistence(UUID playerId, GameProfile profile, CustomSkinProperty skin) {
         try {
             recordSaveEnqueue(playerId);
+            mutateProfile(profile, skin);
+            return true;
         } catch (Throwable t) {
-            EverlastingSkins.logger.error("Skin refresh failed for {}", playerId, t);
+            EverlastingSkins.logger.warn("Skin refresh failed for {}", playerId, t);
             SkinMetrics.INSTANCE.recordRefreshFailed(playerId);
             return false;
         }
-        mutateProfile(profile, skin);
-        return true;
     }
 
     private static void mutateProfile(GameProfile profile, CustomSkinProperty skin) {
