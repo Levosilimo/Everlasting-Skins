@@ -5,6 +5,7 @@
   "error": "Skin fetch failed.",
   "restored_from": "Skin restored from %s",
   "cleared_no_profile": "Skin cleared (no Mojang profile found)",
+  "stored_from_other_username": "Skin already stored from Mojang as %s; run /skin clear to switch usernames",
   "no_source": "No source available",
   "player_only": "Player only command",
   "permission_denied": "Permission denied",

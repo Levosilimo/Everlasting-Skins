@@ -128,12 +128,15 @@ public final class SkinActionCommand {
         });
 
         long t0 = System.nanoTime();
-        if (type == SkinActionType.username && storedSourceMatches(targets, customSource)) {
-            for (ServerPlayer player : targets) {
-                SkinMetrics.INSTANCE.recordRefreshSkippedStored(player.getUUID());
-                SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
+        if (type == SkinActionType.username) {
+            warnStoredUsernameMismatch(targets, customSource);
+            if (storedSourceMatches(targets, customSource)) {
+                for (ServerPlayer player : targets) {
+                    SkinMetrics.INSTANCE.recordRefreshSkippedStored(player.getUUID());
+                    SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
+                }
+                return targets.size();
             }
-            return targets.size();
         }
 
         CompletableFuture<Map<UUID, CustomSkinProperty>> future = fetchSkinProperty(type, variant, withCape, customSource, targets);
@@ -180,6 +183,27 @@ public final class SkinActionCommand {
 
     private static boolean storedSourceMatches(@Nullable String storedSource, @Nullable String storedUsername, String requestedUsername) {
         return SOURCE_MOJANG.equals(storedSource) && Objects.equals(storedUsername, requestedUsername);
+    }
+
+    /**
+     * The A5 skip is bypassed when the stored skin is Mojang-class but was
+     * fetched for a different username; tell the player why a fresh fetch runs
+     * so the re-fetch is not silent. Skins without a stored username (legacy
+     * persistence or UUID-keyed lookups) cannot name the old username and skip
+     * the notice.
+     */
+    private static void warnStoredUsernameMismatch(Collection<ServerPlayer> targets, @Nullable String requestedUsername) {
+        if (requestedUsername == null) return;
+        for (ServerPlayer player : targets) {
+            SkinStorage storage = SkinRestorer.getSkinStorage();
+            String storedUsername = storage.getUsername(player.getUUID());
+            if (SOURCE_MOJANG.equals(storage.getSource(player.getUUID()))
+                    && storedUsername != null
+                    && !storedUsername.equals(requestedUsername)) {
+                player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " "
+                        + I18nUtils.formatMessage("stored_from_other_username", player, storedUsername)));
+            }
+        }
     }
 
     private static CompletableFuture<Map<UUID, CustomSkinProperty>> fetchSkinProperty(SkinActionType type, SkinVariant variant,
