@@ -3,6 +3,8 @@
  */
 package levosilimo.everlastingskins.skinchanger;
 
+import com.google.gson.JsonParseException;
+import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangProfileResponse;
@@ -103,7 +105,7 @@ public class MojangApiHttpImpl implements MojangAPI {
             if (response.statusCode() != 200) {
                 return Optional.empty();
             }
-            MojangUUIDResponse mojang = response.getBodyAs(MojangUUIDResponse.class);
+            MojangUUIDResponse mojang = parseBodyOrNull(response, MojangUUIDResponse.class);
             if (mojang == null) {
                 return Optional.empty();
             }
@@ -133,7 +135,7 @@ public class MojangApiHttpImpl implements MojangAPI {
             if (response.statusCode() != 200) {
                 return Optional.empty();
             }
-            MineToolsUUIDResponse mineTools = response.getBodyAs(MineToolsUUIDResponse.class);
+            MineToolsUUIDResponse mineTools = parseBodyOrNull(response, MineToolsUUIDResponse.class);
             if (mineTools == null) {
                 return Optional.empty();
             }
@@ -165,7 +167,7 @@ public class MojangApiHttpImpl implements MojangAPI {
             if (response.statusCode() != 200) {
                 return Optional.empty();
             }
-            MojangProfileResponse profile = response.getBodyAs(MojangProfileResponse.class);
+            MojangProfileResponse profile = parseBodyOrNull(response, MojangProfileResponse.class);
             if (profile == null) {
                 return Optional.empty();
             }
@@ -201,7 +203,7 @@ public class MojangApiHttpImpl implements MojangAPI {
             if (response.statusCode() != 200) {
                 return Optional.empty();
             }
-            MineToolsProfileResponse mineTools = response.getBodyAs(MineToolsProfileResponse.class);
+            MineToolsProfileResponse mineTools = parseBodyOrNull(response, MineToolsProfileResponse.class);
             if (mineTools == null) {
                 return Optional.empty();
             }
@@ -236,5 +238,28 @@ public class MojangApiHttpImpl implements MojangAPI {
      */
     private static String requestedUsername(ProfileLookup lookup) {
         return UUIDUtils.tryParseUniqueId(lookup.username()).isPresent() ? null : lookup.username();
+    }
+
+    /**
+     * Gson's strict {@code fromJson} (inside {@link HttpResponse#getBodyAs})
+     * throws raw NumberFormatException on truncated {@code \\uXXXX} escapes
+     * and IllegalStateException on valid non-object roots, neither a
+     * JsonSyntaxException. Every parse failure must fail closed: null, never
+     * an exception escape out of the HTTP parse paths.
+     */
+    private static <T> T parseBodyOrNull(HttpResponse response, Class<T> clazz) {
+        try {
+            return response.getBodyAs(clazz);
+        } catch (JsonParseException | NumberFormatException | IllegalStateException e) {
+            logParseFailure(e);
+            return null;
+        } catch (RuntimeException e) {
+            logParseFailure(e);
+            return null;
+        }
+    }
+
+    private static void logParseFailure(RuntimeException e) {
+        EverlastingSkins.logger.warn("Failed to parse Mojang API response: " + e);
     }
 }
