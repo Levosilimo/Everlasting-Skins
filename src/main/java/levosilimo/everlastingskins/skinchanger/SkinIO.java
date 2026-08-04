@@ -316,4 +316,62 @@ public class SkinIO {
         } catch (IOException ignored) {
         }
     }
+
+    /**
+     * Startup integrity sweep: scans every {@code *.json} record in the save
+     * directory, recomputes the in-band SHA-256 and quarantines any record
+     * whose marker no longer matches (bit rot detected before any player
+     * logs in, so a silently corrupt skin can never be applied). Legacy
+     * records without a marker pass through, as do {@code .tmp} and
+     * {@code .corrupt-*} files. Logs a summary line with the counts; the
+     * result is returned so tests (and the summary) can assert the sweep
+     * outcome. One hash per record: negligible at startup scale.
+     */
+    public SweepResult validateAllFiles() {
+        if (!Files.isDirectory(savePath)) {
+            EverlastingSkins.logger.info("SkinIO sweep: no skin directory at {}, nothing to validate", savePath);
+            return new SweepResult(0, 0, 0);
+        }
+        int checked = 0;
+        int corrupt = 0;
+        int legacy = 0;
+        try (Stream<Path> files = Files.list(savePath)) {
+            for (Path file : (Iterable<Path>) files::iterator) {
+                String name = file.getFileName().toString();
+                if (!name.endsWith(FILE_EXTENSION)) continue;
+                checked++;
+                try {
+                    String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                    int status = checksumStatus(content);
+                    if (status == CHECKSUM_MISMATCH) {
+                        EverlastingSkins.logger.warn("Bit rot detected in {} during startup sweep; quarantining", file);
+                        quarantineFile(file);
+                        corrupt++;
+                    } else if (status == CHECKSUM_ABSENT) {
+                        legacy++;
+                    }
+                } catch (IOException e) {
+                    EverlastingSkins.logger.warn("SkinIO sweep could not read {}; leaving it in place", file, e);
+                }
+            }
+        } catch (IOException e) {
+            EverlastingSkins.logger.warn("SkinIO sweep failed to list {}", savePath, e);
+        }
+        EverlastingSkins.logger.info("SkinIO sweep: {} files checked, {} corrupt quarantined, {} legacy without checksum",
+                checked, corrupt, legacy);
+        return new SweepResult(checked, corrupt, legacy);
+    }
+
+    /** Outcome of {@link #validateAllFiles()}. */
+    public static final class SweepResult {
+        public final int filesChecked;
+        public final int corruptFound;
+        public final int legacyFound;
+
+        SweepResult(int filesChecked, int corruptFound, int legacyFound) {
+            this.filesChecked = filesChecked;
+            this.corruptFound = corruptFound;
+            this.legacyFound = legacyFound;
+        }
+    }
 }
