@@ -122,7 +122,15 @@ final class SkinAction {
                     case NEW: {
                         String fetchName = customSource;
                         if (type == SkinActionType.random) {
-                            fetchName = RandomMojangSkin.randomUsername(withCape, variant);
+                            // Cape mode swaps the candidate source: RandomMojangSkin's
+                            // decoded-CAPE check only finds legacy cape holders (Mojang
+                            // stopped embedding CAPE in the textures payload), so
+                            // RandomCapeSource (mskins with_capes + Cosmetica) is used
+                            // instead. The variant filter is intentionally not applied in
+                            // cape mode: the listing is not variant-tagged.
+                            fetchName = withCape
+                                ? new RandomCapeSource().pickRandomCapeUsername()
+                                : RandomMojangSkin.randomUsername(false, variant);
                         } else if (type == SkinActionType.NEW) {
                             fetchName = RandomMojangSkin.newUsername(variant);
                         }

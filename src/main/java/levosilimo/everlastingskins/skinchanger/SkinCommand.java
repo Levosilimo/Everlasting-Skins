@@ -237,17 +237,36 @@ public class SkinCommand extends CommandBase {
                 SkinAction.apply(targets, sender, SkinActionType.url, variant, false, args[3]);
                 break;
             }
-            case "random":
-                Collection<EntityPlayerMP> targets = parseTargets(server, sender, args, false, 3);
+            case "random": {
+                // /skin set random [<cape> [<variant>]] [<targets...>]: the
+                // cape flag and variant are optional and parsed to match the
+                // tab-completion cascade (bool, then variant, then targets).
+                boolean cape = args.length >= 3 && "true".equalsIgnoreCase(args[2]);
+                SkinVariant variant = parseRandomVariant(args);
+                Collection<EntityPlayerMP> targets = parseTargets(server, sender, args, false, 4);
                 String node = targets.size() == 1 && targets.iterator().next() == sender
                     ? "everlastingskins.command.skin"
                     : "everlastingskins.command.skin.other";
                 if (!checkPermission(sender, node)) return;
-                SkinAction.apply(targets, sender, SkinActionType.random, SkinVariant.ALL, false, null);
+                SkinAction.apply(targets, sender, SkinActionType.random, variant, cape, null);
                 break;
+            }
             default:
                 sender.sendMessage(new TextComponentString(PREFIX + "Usage: /skin set <mojang|web|random>"));
         }
+    }
+
+    /**
+     * Variant argument of {@code /skin set random}: optional, defaults to ALL.
+     */
+    private static SkinVariant parseRandomVariant(String[] args) {
+        if (args.length >= 4 && "slim".equalsIgnoreCase(args[3])) {
+            return SkinVariant.SLIM;
+        }
+        if (args.length >= 4 && "classic".equalsIgnoreCase(args[3])) {
+            return SkinVariant.CLASSIC;
+        }
+        return SkinVariant.ALL;
     }
 
     private boolean checkPermission(ICommandSender sender, String node) {
