@@ -34,6 +34,8 @@ public final class MetricsFormat {
                 .append(" completed, ").append(s.savesCoalesced()).append(" coalesced, ")
                 .append(s.realWrites()).append(" real writes, ").append(s.ioFailures()).append(" failed, ")
                 .append(s.pendingAsyncWrites()).append(" pending\n");
+        sb.append("  reads: ").append(s.readsSubmitted()).append(" submitted, ").append(s.readsCompleted())
+                .append(" completed, ").append(s.readFailures()).append(" failed\n");
         sb.append("  io failures by type: ").append(ioFailures(s.ioFailuresByType())).append('\n');
         sb.append("  network: ").append(bytes(s.netBytesWrittenOut())).append(" out, ")
                 .append(bytes(s.netBytesReadIn())).append(" in (per-connection)\n");
@@ -52,6 +54,7 @@ public final class MetricsFormat {
         sb.append("    fetch:        ").append(percentiles(s.fetchPercentiles())).append('\n');
         sb.append("    save enq:     ").append(percentiles(s.saveEnqueuePercentiles())).append('\n');
         sb.append("    save disk:    ").append(percentiles(s.saveDiskPercentiles())).append('\n');
+        sb.append("    read disk:    ").append(percentiles(s.readDiskPercentiles())).append('\n');
         sb.append("    broadcast:    ").append(percentiles(s.broadcastPercentiles())).append('\n');
         sb.append("    command total:").append(percentiles(s.commandTotalPercentiles())).append('\n');
         sb.append("    task duration:").append(percentiles(s.taskDurationPercentiles())).append('\n');
@@ -78,6 +81,9 @@ public final class MetricsFormat {
                 .append(",\"realWrites\":").append(s.realWrites())
                 .append(",\"ioFailures\":").append(s.ioFailures())
                 .append(",\"pending\":").append(s.pendingAsyncWrites()).append('}');
+        sb.append(",\"reads\":{\"submitted\":").append(s.readsSubmitted())
+                .append(",\"completed\":").append(s.readsCompleted())
+                .append(",\"failed\":").append(s.readFailures()).append('}');
         sb.append(",\"ioFailuresByType\":{");
         boolean firstType = true;
         for (Map.Entry<String, Long> e : s.ioFailuresByType().entrySet()) {
@@ -103,6 +109,7 @@ public final class MetricsFormat {
                 .append("\"fetch\":").append(percentilesJson(s.fetchPercentiles()))
                 .append(",\"saveEnqueue\":").append(percentilesJson(s.saveEnqueuePercentiles()))
                 .append(",\"saveDisk\":").append(percentilesJson(s.saveDiskPercentiles()))
+                .append(",\"readDisk\":").append(percentilesJson(s.readDiskPercentiles()))
                 .append(",\"broadcast\":").append(percentilesJson(s.broadcastPercentiles()))
                 .append(",\"commandTotal\":").append(percentilesJson(s.commandTotalPercentiles()))
                 .append(",\"taskDuration\":").append(percentilesJson(s.taskDurationPercentiles()))
