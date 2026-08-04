@@ -328,6 +328,115 @@ class SkinRefreshHandlerTest {
         assertEquals(2, countOfType(targetStream, ClientboundPlayerAbilitiesPacket.class));
     }
 
+    @Test
+    @DisplayName("Tracker untrack/retrack runs before the respawn packet")
+    void trackerUntrackRetrack_beforeRespawn() {
+        refresh();
+
+        assertEquals(List.of("removeEntity", "addEntity"), chunkTrace,
+            "chunk-source untrack must precede retrack");
+        // The tracker step is part of recordObserverBroadcast, which runs
+        // before recordCascade: removeEntity, addEntity, then the respawn
+        // send on the connection.
+        org.mockito.InOrder order = inOrder(chunkSource, target.connection);
+        order.verify(chunkSource).removeEntity(target);
+        order.verify(chunkSource).addEntity(target);
+        order.verify(target.connection).send(any(ClientboundRespawnPacket.class));
+    }
+
+    @Test
+    @DisplayName("Tracker is never touched when REFRESH_VIA_ENTITY_TRACKER is disabled")
+    void trackerSkipped_whenDisabled() {
+        Config.REFRESH_VIA_ENTITY_TRACKER.set(false);
+        refresh();
+
+        assertEquals(Collections.emptyList(), chunkTrace, "no chunk-source interaction expected");
+        verify(chunkSource, never()).removeEntity(target);
+        verify(chunkSource, never()).addEntity(target);
+        // The cascade itself must be unaffected.
+        assertCascadeOrder(targetStream);
+    }
+
+    /* ================================================================== */
+    /*  B. Config flag matrix                                             */
+    /* ================================================================== */
+
+    @Test
+    @DisplayName("Cascade order holds for all 8 BROADCAST_USE_BUNDLE x DIMENSION_SCOPED_BROADCAST x REFRESH_VIA_ENTITY_TRACKER combos")
+    void configMatrix_allCombos_cascadeOrderHolds() {
+        for (boolean bundle : new boolean[]{false, true}) {
+            for (boolean scoped : new boolean[]{false, true}) {
+                for (boolean tracker : new boolean[]{false, true}) {
+                    Config.BROADCAST_USE_BUNDLE.set(bundle);
+                    Config.DIMENSION_SCOPED_BROADCAST.set(scoped);
+                    Config.REFRESH_VIA_ENTITY_TRACKER.set(tracker);
+                    refresh();
+
+                    String combo = "bundle=" + bundle + ", scoped=" + scoped + ", tracker=" + tracker;
+                    assertCascadeOrder(targetStream, combo);
+                    if (bundle) {
+                        assertEquals(1, countOfType(targetStream, ClientboundBundlePacket.class),
+                            combo + ": exactly one bundle");
+                    } else {
+                        assertEquals(1, countOfType(targetStream, ClientboundPlayerInfoRemovePacket.class),
+                            combo + ": exactly one REMOVE");
+                        assertEquals(1, countOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class),
+                            combo + ": exactly one ADD");
+                    }
+                    assertEquals(tracker ? List.of("removeEntity", "addEntity") : Collections.emptyList(),
+                        chunkTrace, combo + ": tracker contract");
+                }
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("DIMENSION_SCOPED_BROADCAST=true: cross-dimension observers receive nothing (bundle and non-bundle)")
+    void dimensionScoped_netherObserverExcluded() {
+        Config.DIMENSION_SCOPED_BROADCAST.set(true);
+        for (boolean bundle : new boolean[]{false, true}) {
+            Config.BROADCAST_USE_BUNDLE.set(bundle);
+            refresh();
+
+            assertTrue(netherStream.isEmpty(),
+                "bundle=" + bundle + ": nether observer must receive nothing; stream=" + netherStream);
+            // Same-dimension observers still receive.
+            if (bundle) {
+                assertEquals(1, countOfType(observer1Stream, ClientboundBundlePacket.class),
+                    "bundle=" + bundle + ": same-dimension observer must get the bundle");
+            } else {
+                assertEquals(1, countOfType(observer1Stream, ClientboundPlayerInfoRemovePacket.class),
+                    "bundle=" + bundle + ": same-dimension observer must get REMOVE");
+                assertEquals(1, countOfType(observer1Stream, ClientboundPlayerInfoUpdatePacket.class),
+                    "bundle=" + bundle + ": same-dimension observer must get ADD");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("DIMENSION_SCOPED_BROADCAST=false: cross-dimension observers receive (bundle and non-bundle)")
+    void dimensionScoped_netherObserverReceives() {
+        Config.DIMENSION_SCOPED_BROADCAST.set(false);
+        for (boolean bundle : new boolean[]{false, true}) {
+            Config.BROADCAST_USE_BUNDLE.set(bundle);
+            refresh();
+
+            if (bundle) {
+                assertEquals(1, countOfType(netherStream, ClientboundBundlePacket.class),
+                    "bundle=" + bundle + ": nether observer must get the bundle");
+            } else {
+                assertEquals(1, countOfType(netherStream, ClientboundPlayerInfoRemovePacket.class),
+                    "bundle=" + bundle + ": nether observer must get REMOVE");
+                assertEquals(1, countOfType(netherStream, ClientboundPlayerInfoUpdatePacket.class),
+                    "bundle=" + bundle + ": nether observer must get ADD");
+            }
+        }
+    }
+
+    /* ================================================================== */
+    /*  C. Multi-observer + multi-target                                   */
+    /* ================================================================== */
+
     /*  Fixture                                                            */
     /* ================================================================== */
 
