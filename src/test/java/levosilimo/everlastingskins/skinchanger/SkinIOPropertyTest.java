@@ -67,6 +67,14 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 class SkinIOPropertyTest {
 
+    /**
+     * Serializes metric-observing property sections: jqwik may shrink a
+     * failing property on a background thread while the next property's tries
+     * run, so the shared SkinMetrics counters need a mutual-exclusion fence
+     * between property bodies.
+     */
+    private static final Object METRICS_LOCK = new Object();
+
     private static final UUID[] UUID_POOL = {
             UUID.fromString("00000000-0000-0000-0000-000000000001"),
             UUID.fromString("00000000-0000-0000-0000-000000000002"),
@@ -262,24 +270,26 @@ class SkinIOPropertyTest {
         @Property(tries = 100)
         @Label("coalescing bound: one debounce window collapses 100 saves into exactly one disk write")
         void drainIdempotence(@ForAll @From("burstValues") List<String> burst) throws IOException {
-            SkinMetrics.INSTANCE.reset();
-            Path dir = newTempDir();
-            try {
-                SkinIO io = new SkinIO(dir);
-                UUID uuid = UUID.randomUUID();
-                for (String value : burst) {
-                    io.saveSkinAsync(uuid, skin(value));
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    UUID uuid = UUID.randomUUID();
+                    for (String value : burst) {
+                        io.saveSkinAsync(uuid, skin(value));
+                    }
+                    io.flushPending();
+                    assertEquals(1, SkinMetrics.INSTANCE.snapshot().realWrites(),
+                            "100 saves in one debounce window must produce exactly one disk write");
+                    assertEquals(burst.size(), SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
+                            "every merge must be recorded as submitted");
+                    assertFileValue(dir, uuid, burst.get(burst.size() - 1));
+                } finally {
+                    deleteRecursively(dir);
                 }
-                io.flushPending();
-                assertEquals(1, SkinMetrics.INSTANCE.snapshot().realWrites(),
-                        "100 saves in one debounce window must produce exactly one disk write");
-                assertEquals(burst.size(), SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
-                        "every merge must be recorded as submitted");
-                assertFileValue(dir, uuid, burst.get(burst.size() - 1));
-            } finally {
-                deleteRecursively(dir);
-            }
-        }
+        
+        }}
     }
 
 
@@ -295,20 +305,22 @@ class SkinIOPropertyTest {
         @Property(tries = 100)
         @Label("delete beats write: a deferred async payload cannot resurrect the file")
         void deleteBeatsWrite(@ForAll @From("values") String value) throws IOException {
-            SkinMetrics.INSTANCE.reset();
-            Path dir = newTempDir();
-            try {
-                SkinIO io = new SkinIO(dir);
-                UUID uuid = UUID.randomUUID();
-                io.saveSkinAsync(uuid, skin(value));
-                io.deleteSkin(uuid);
-                io.flushPending();
-                assertFalse(Files.exists(dir.resolve(uuid + ".json")),
-                        "deleted skin must stay deleted after flush");
-            } finally {
-                deleteRecursively(dir);
-            }
-        }
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    UUID uuid = UUID.randomUUID();
+                    io.saveSkinAsync(uuid, skin(value));
+                    io.deleteSkin(uuid);
+                    io.flushPending();
+                    assertFalse(Files.exists(dir.resolve(uuid + ".json")),
+                            "deleted skin must stay deleted after flush");
+                } finally {
+                    deleteRecursively(dir);
+                }
+        
+        }}
 
         /**
          * Model: the delete is serialized through the single writer thread, so
@@ -323,25 +335,27 @@ class SkinIOPropertyTest {
         @Property(tries = 60)
         @Label("delete beats an in-flight drain: no write-after-delete resurrection")
         void deleteBeatsInFlightDrain(@ForAll @From("raceScripts") List<RaceStep> steps) throws IOException {
-            SkinMetrics.INSTANCE.reset();
-            Path dir = newTempDir();
-            try {
-                SkinIO io = new SkinIO(dir);
-                for (RaceStep step : steps) {
-                    UUID uuid = UUID.randomUUID();
-                    io.saveSkinAsync(uuid, skin(step.value));
-                    sleepUnchecked(step.delayMs);
-                    io.deleteSkin(uuid);
-                    io.flushPending();
-                    Path target = dir.resolve(uuid + ".json");
-                    assertFalse(Files.exists(target), () -> "write-after-delete: " + target
-                            + " resurrected by a concurrent drain, content="
-                            + readIfPresent(target));
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    for (RaceStep step : steps) {
+                        UUID uuid = UUID.randomUUID();
+                        io.saveSkinAsync(uuid, skin(step.value));
+                        sleepUnchecked(step.delayMs);
+                        io.deleteSkin(uuid);
+                        io.flushPending();
+                        Path target = dir.resolve(uuid + ".json");
+                        assertFalse(Files.exists(target), () -> "write-after-delete: " + target
+                                + " resurrected by a concurrent drain, content="
+                                + readIfPresent(target));
+                    }
+                } finally {
+                    deleteRecursively(dir);
                 }
-            } finally {
-                deleteRecursively(dir);
-            }
-        }
+        
+        }}
 
         private static String readIfPresent(Path target) {
             try {
@@ -371,28 +385,30 @@ class SkinIOPropertyTest {
         void roundTripBytes(@ForAll @From("values") String value,
                             @ForAll @From("signatures") String signature,
                             @ForAll @From("sources") String source) throws IOException {
-            SkinMetrics.INSTANCE.reset();
-            Path dir = newTempDir();
-            try {
-                SkinIO io = new SkinIO(dir);
-                SkinStorage storage = new SkinStorage(io);
-                UUID uuid = UUID.randomUUID();
-                CustomSkinProperty skin = new CustomSkinProperty(value, signature, source);
-                io.saveSkin(uuid, skin);
-                String serialized = JsonUtils.toJson(skin);
-                String onDisk = new String(Files.readAllBytes(dir.resolve(uuid + ".json")), StandardCharsets.UTF_8);
-                assertEquals(serialized, onDisk, "file bytes must equal the serialized payload");
-                CustomSkinProperty loaded = storage.loadSkin(uuid);
-                assertNotNull(loaded, "a valid payload must load");
-                assertEquals(serialized, JsonUtils.toJson(loaded),
-                        "re-serialized payload must be byte-identical to the original");
-                assertEquals(value, loaded.getOriginalProperty().value());
-                assertEquals(signature, loaded.getOriginalProperty().signature());
-                assertEquals(source, loaded.getSource());
-            } finally {
-                deleteRecursively(dir);
-            }
-        }
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    SkinStorage storage = new SkinStorage(io);
+                    UUID uuid = UUID.randomUUID();
+                    CustomSkinProperty skin = new CustomSkinProperty(value, signature, source);
+                    io.saveSkin(uuid, skin);
+                    String serialized = JsonUtils.toJson(skin);
+                    String onDisk = new String(Files.readAllBytes(dir.resolve(uuid + ".json")), StandardCharsets.UTF_8);
+                    assertEquals(serialized, onDisk, "file bytes must equal the serialized payload");
+                    CustomSkinProperty loaded = storage.loadSkin(uuid);
+                    assertNotNull(loaded, "a valid payload must load");
+                    assertEquals(serialized, JsonUtils.toJson(loaded),
+                            "re-serialized payload must be byte-identical to the original");
+                    assertEquals(value, loaded.getOriginalProperty().value());
+                    assertEquals(signature, loaded.getOriginalProperty().signature());
+                    assertEquals(source, loaded.getSource());
+                } finally {
+                    deleteRecursively(dir);
+                }
+        
+        }}
     }
 
 
@@ -409,21 +425,23 @@ class SkinIOPropertyTest {
         @Property(tries = 100)
         @Label("restart after delete: a fresh store sees no resurrected skin")
         void restartAfterDelete(@ForAll @From("values") String value) throws IOException {
-            SkinMetrics.INSTANCE.reset();
-            Path dir = newTempDir();
-            try {
-                SkinIO io = new SkinIO(dir);
-                UUID uuid = UUID.randomUUID();
-                io.saveSkinAsync(uuid, skin(value));
-                io.deleteSkin(uuid);
-                io.flushPending();
-                SkinStorage restarted = new SkinStorage(new SkinIO(dir));
-                assertTrue(restarted.loadSkin(uuid) == null,
-                        "restart must not resurrect a deleted skin");
-            } finally {
-                deleteRecursively(dir);
-            }
-        }
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    UUID uuid = UUID.randomUUID();
+                    io.saveSkinAsync(uuid, skin(value));
+                    io.deleteSkin(uuid);
+                    io.flushPending();
+                    SkinStorage restarted = new SkinStorage(new SkinIO(dir));
+                    assertTrue(restarted.loadSkin(uuid) == null,
+                            "restart must not resurrect a deleted skin");
+                } finally {
+                    deleteRecursively(dir);
+                }
+        
+        }}
     }
 
 
@@ -444,29 +462,31 @@ class SkinIOPropertyTest {
         @Label("model equivalence: flushed disk equals the reference model for any op script")
         void modelEquivalence(@ForAll @From("opScripts") List<Op> script)
                 throws InterruptedException, IOException {
-            SkinMetrics.INSTANCE.reset();
-            Path dir = newTempDir();
-            try {
-                SkinIO io = new SkinIO(dir);
-                Map<UUID, String> model = new LinkedHashMap<>();
-                Object lock = new Object();
-                AtomicReference<Throwable> failure = new AtomicReference<>();
-                int mid = script.size() / 2;
-                Thread left = new Thread(() -> applyOps(script.subList(0, mid), io, model, lock, failure));
-                Thread right = new Thread(() -> applyOps(script.subList(mid, script.size()), io, model, lock, failure));
-                left.start();
-                right.start();
-                left.join();
-                right.join();
-                if (failure.get() != null) {
-                    throw new AssertionError("op application failed", failure.get());
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    Map<UUID, String> model = new LinkedHashMap<>();
+                    Object lock = new Object();
+                    AtomicReference<Throwable> failure = new AtomicReference<>();
+                    int mid = script.size() / 2;
+                    Thread left = new Thread(() -> applyOps(script.subList(0, mid), io, model, lock, failure));
+                    Thread right = new Thread(() -> applyOps(script.subList(mid, script.size()), io, model, lock, failure));
+                    left.start();
+                    right.start();
+                    left.join();
+                    right.join();
+                    if (failure.get() != null) {
+                        throw new AssertionError("op application failed", failure.get());
+                    }
+                    io.flushPending();
+                    assertDiskMatchesModel(dir, model);
+                } finally {
+                    deleteRecursively(dir);
                 }
-                io.flushPending();
-                assertDiskMatchesModel(dir, model);
-            } finally {
-                deleteRecursively(dir);
-            }
-        }
+        
+        }}
     }
 
 
@@ -481,20 +501,22 @@ class SkinIOPropertyTest {
         @Property(tries = 100)
         @Label("latest-wins: after flush the disk holds the last submitted payload")
         void latestWins(@ForAll @From("valueSequences") List<String> values) throws IOException {
-            SkinMetrics.INSTANCE.reset();
-            Path dir = newTempDir();
-            try {
-                SkinIO io = new SkinIO(dir);
-                UUID uuid = UUID.randomUUID();
-                for (String value : values) {
-                    io.saveSkinAsync(uuid, skin(value));
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    UUID uuid = UUID.randomUUID();
+                    for (String value : values) {
+                        io.saveSkinAsync(uuid, skin(value));
+                    }
+                    io.flushPending();
+                    assertFileValue(dir, uuid, values.get(values.size() - 1));
+                } finally {
+                    deleteRecursively(dir);
                 }
-                io.flushPending();
-                assertFileValue(dir, uuid, values.get(values.size() - 1));
-            } finally {
-                deleteRecursively(dir);
-            }
-        }
+        
+        }}
 
         /**
          * Model: two concurrent submits race for the same key; the flushed
@@ -506,45 +528,47 @@ class SkinIOPropertyTest {
         @Label("concurrent saves: flushed disk holds one submitted payload, never a mix")
         void concurrentLatestWins(@ForAll @From("values") String valueA, @ForAll @From("values") String valueB)
                 throws InterruptedException, IOException {
-            SkinMetrics.INSTANCE.reset();
-            Path dir = newTempDir();
-            try {
-                SkinIO io = new SkinIO(dir);
-                UUID uuid = UUID.randomUUID();
-                CyclicBarrier start = new CyclicBarrier(2);
-                AtomicReference<Throwable> failure = new AtomicReference<>();
-                Thread threadA = new Thread(() -> {
-                    try {
-                        start.await();
-                        io.saveSkinAsync(uuid, skin(valueA));
-                    } catch (Throwable t) {
-                        failure.compareAndSet(null, t);
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    UUID uuid = UUID.randomUUID();
+                    CyclicBarrier start = new CyclicBarrier(2);
+                    AtomicReference<Throwable> failure = new AtomicReference<>();
+                    Thread threadA = new Thread(() -> {
+                        try {
+                            start.await();
+                            io.saveSkinAsync(uuid, skin(valueA));
+                        } catch (Throwable t) {
+                            failure.compareAndSet(null, t);
+                        }
+                    });
+                    Thread threadB = new Thread(() -> {
+                        try {
+                            start.await();
+                            io.saveSkinAsync(uuid, skin(valueB));
+                        } catch (Throwable t) {
+                            failure.compareAndSet(null, t);
+                        }
+                    });
+                    threadA.start();
+                    threadB.start();
+                    threadA.join();
+                    threadB.join();
+                    if (failure.get() != null) {
+                        throw new AssertionError("concurrent save failed", failure.get());
                     }
-                });
-                Thread threadB = new Thread(() -> {
-                    try {
-                        start.await();
-                        io.saveSkinAsync(uuid, skin(valueB));
-                    } catch (Throwable t) {
-                        failure.compareAndSet(null, t);
-                    }
-                });
-                threadA.start();
-                threadB.start();
-                threadA.join();
-                threadB.join();
-                if (failure.get() != null) {
-                    throw new AssertionError("concurrent save failed", failure.get());
+                    io.flushPending();
+                    CustomSkinProperty loaded = io.loadSkin(uuid);
+                    assertNotNull(loaded, "flushed payload must be loadable");
+                    String onDisk = loaded.getOriginalProperty().value();
+                    assertTrue(valueA.equals(onDisk) || valueB.equals(onDisk),
+                            "disk holds " + onDisk + " which was never submitted");
+                } finally {
+                    deleteRecursively(dir);
                 }
-                io.flushPending();
-                CustomSkinProperty loaded = io.loadSkin(uuid);
-                assertNotNull(loaded, "flushed payload must be loadable");
-                String onDisk = loaded.getOriginalProperty().value();
-                assertTrue(valueA.equals(onDisk) || valueB.equals(onDisk),
-                        "disk holds " + onDisk + " which was never submitted");
-            } finally {
-                deleteRecursively(dir);
-            }
-        }
+        
+        }}
     }
 }
