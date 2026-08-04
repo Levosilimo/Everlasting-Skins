@@ -9,11 +9,15 @@ package levosilimo.everlastingskins.skinchanger;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.RepetitionInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -83,8 +87,82 @@ class SkinIODeleteRaceTest {
         }
     }
 
+    @RepeatedTest(20)
+    @DisplayName("randomized save/delete/flush sequences never resurrect a deleted file")
+    void randomizedSequencesNeverResurrectDeletedFile(RepetitionInfo repetition) throws Exception {
+        UUID u = UUID.randomUUID();
+        Path target = tempDir.resolve(u + ".json");
+        Random rnd = new Random(0x5eedL + repetition.getCurrentRepetition() * 7919L);
+        String lastPayload = null;
+        Op lastOp = null;
+
+        for (int i = 0; i < 15; i++) {
+            switch (rnd.nextInt(3)) {
+                case 0:
+                    lastPayload = "payload-" + rnd.nextInt(100000);
+                    storage.saveSkinAsync(u, skin(lastPayload));
+                    lastOp = Op.SAVE;
+                    break;
+                case 1:
+                    storage.removeSkin(u);
+                    lastOp = Op.DELETE;
+                    break;
+                default:
+                    storage.flushPending();
+            }
+            Thread.sleep(rnd.nextInt(3));
+        }
+        storage.flushPending();
+
+        if (lastOp == Op.DELETE) {
+            assertFalse(Files.exists(target),
+                    "repetition " + repetition.getCurrentRepetition() + ": stale write resurrected a deleted skin");
+        } else if (lastOp == Op.SAVE) {
+            assertTrue(Files.exists(target),
+                    "repetition " + repetition.getCurrentRepetition() + ": last save was lost");
+            String content = new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
+            assertTrue(content.contains(lastPayload),
+                    "repetition " + repetition.getCurrentRepetition() + ": stale payload won over the last save");
+        }
+    }
+
+    @Test
+    @DisplayName("delete then restart: fresh storage must not reload the cleared skin")
+    void restartAfterDeleteKeepsFileAbsent() throws Exception {
+        storage.setSkin(uuid, skin("persisted"));
+        storage.saveSkin(uuid);
+        Path target = tempDir.resolve(uuid + ".json");
+        assertTrue(Files.exists(target));
+
+        storage.removeSkin(uuid);
+        SkinStorage.resetForTest();
+        SkinStorage restarted = new SkinStorage(skinIO);
+
+        assertNull(restarted.getSkin(uuid));
+        assertFalse(Files.exists(target));
+    }
+
+    @Test
+    @DisplayName("removeSkin deletes the file before dropping the map entry")
+    void removeSkinFileThenMap() throws Exception {
+        storage.setSkin(uuid, skin("persisted"));
+        storage.saveSkin(uuid);
+        assertNotNull(storage.getSkin(uuid));
+
+        storage.removeSkin(uuid);
+
+        assertNull(storage.getSkin(uuid));
+        assertNull(storage.getSource(uuid));
+        assertTrue(storage.hasDefaultSkin(uuid));
+        assertFalse(Files.exists(tempDir.resolve(uuid + ".json")));
+    }
+
     private static CustomSkinProperty skin(String value) {
         return new CustomSkinProperty(value, "sig", "src");
+    }
+
+    private enum Op {
+        SAVE, DELETE
     }
 
     /** SkinIO whose drain write blocks until the test releases it. */
