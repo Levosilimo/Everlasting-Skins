@@ -316,20 +316,33 @@ public class SkinIO {
         }
     }
 
-    /** Hex SHA-256 of the given bytes. Built-in {@link MessageDigest}: no new dependency. */
-    private static String sha256Hex(byte[] data) {
+    /**
+     * Per-thread SHA-256 digest reused across calls instead of allocating a
+     * fresh {@link MessageDigest} per hash. Reusing the digest avoids GC
+     * pressure and per-call JCE provider lookup; safe because each call
+     * resets the digest via {@link MessageDigest#reset()} before update.
+     * The provider lookup failure is surfaced on first use, identically to
+     * the per-call allocation it replaces.
+     */
+    private static final ThreadLocal<MessageDigest> SHA_256 = ThreadLocal.withInitial(() -> {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(data);
-            StringBuilder hex = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
-                hex.append(Character.forDigit(b & 0xF, 16));
-            }
-            return hex.toString();
+            return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is required but unavailable", e);
         }
+    });
+
+    /** Hex SHA-256 of the given bytes. Built-in {@link MessageDigest}: no new dependency. */
+    private static String sha256Hex(byte[] data) {
+        MessageDigest digest = SHA_256.get();
+        digest.reset();
+        byte[] hash = digest.digest(data);
+        StringBuilder hex = new StringBuilder(hash.length * 2);
+        for (byte b : hash) {
+            hex.append(Character.forDigit((b >> 4) & 0xF, 16));
+            hex.append(Character.forDigit(b & 0xF, 16));
+        }
+        return hex.toString();
     }
 
     /**
@@ -452,9 +465,12 @@ public class SkinIO {
      * whose marker no longer matches (bit rot detected before any player
      * logs in, so a silently corrupt skin can never be applied). Legacy
      * records without a marker pass through, as do {@code .tmp} and
-     * {@code .corrupt-*} files. Logs a summary line with the counts; the
-     * result is returned so tests (and the summary) can assert the sweep
-     * outcome. One hash per record: negligible at startup scale.
+     * {@code .corrupt-*} files. Logs a per-file warning for each markerless
+     * legacy record — the per-file log enables operators to identify which
+     * files lack the checksum (e.g. created by an older mod version or
+     * manually edited) — plus a summary line with the counts; the result is
+     * returned so tests (and the summary) can assert the sweep outcome. One
+     * hash per record: negligible at startup scale.
      */
     public SweepResult validateAllFiles() {
         if (!Files.isDirectory(savePath)) {
@@ -477,6 +493,12 @@ public class SkinIO {
                         quarantineFile(file);
                         corrupt++;
                     } else if (status == CHECKSUM_ABSENT) {
+                        // Per-file log mirrors the read path's warning so
+                        // operators can identify which files lack the
+                        // checksum (e.g. created by an older mod version or
+                        // manually edited), not just a count in the summary.
+                        EverlastingSkins.logger.warn(
+                                "Skin record {} has no checksum (legacy format); passed through without integrity verification", file);
                         legacy++;
                     }
                 } catch (IOException e) {
