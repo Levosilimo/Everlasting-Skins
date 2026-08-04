@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -131,6 +132,25 @@ class RandomMojangSkinTest {
         }
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  mskins.net snapshot regression                                      */
+    /* ------------------------------------------------------------------ */
+
+    @Nested
+    @DisplayName("mskins.net snapshot regression")
+    class SnapshotRegression {
+
+        @Test
+        @DisplayName("extracts the same usernames as the saved snapshot")
+        void snapshotUsernames() throws Exception {
+            String html = fixture("skins_random.html");
+
+            List<String> usernames = invokeExtractUsernames(html);
+
+            assertEquals(Arrays.asList("Notch", "Jeb_", "ad", "Dinnerbone"), usernames);
+        }
+    }
+
     /* ================================================================== */
     /*  Reflection helpers                                                 */
     /* ================================================================== */
@@ -164,5 +184,27 @@ class RandomMojangSkinTest {
 
     private static boolean invokeIsSlim(String username) throws Exception {
         return invokePrivateStatic("isSlim", new Class<?>[]{String.class}, username);
+    }
+
+    private static String fixture(String name) throws Exception {
+        java.io.InputStream in = RandomMojangSkinTest.class.getResourceAsStream("/fixtures/mskins/" + name);
+        if (in == null) {
+            throw new AssertionError("Missing fixture: " + name);
+        }
+        try {
+            return readAll(in);
+        } finally {
+            in.close();
+        }
+    }
+
+    private static String readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
+        }
+        return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
     }
 }
