@@ -20,21 +20,21 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.UUID;
-import java.util.stream.Stream;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 public class SkinIO {
 
@@ -385,7 +385,7 @@ public class SkinIO {
     }
 
     /**
-     * Recomputed the in-band SHA-256 of a parsed record and compares it to
+     * Recomputes the in-band SHA-256 of a parsed record and compares it to
      * the stored marker. The canonical form (record minus the marker member,
      * re-serialized through the same Gson) is byte-identical to the bytes
      * that were hashed on write, so a single flipped byte in the value,
