@@ -39,7 +39,7 @@ public class EndpointsConfig {
 
     public static String getString(String key) {
         // System property override (for E2E tests with WireMock)
-        // Example: -Deverlastingskins.endpoint.uuid.eclipse=http://localhost:8080/...
+        // Example: -Deverlastingskins.endpoint.uuid.mojang=http://localhost:8080/...
         String sysProp = System.getProperty("everlastingskins." + key);
         if (sysProp != null && !sysProp.isEmpty()) {
             return sysProp;
