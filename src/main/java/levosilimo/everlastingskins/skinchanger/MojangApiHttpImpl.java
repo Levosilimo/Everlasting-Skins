@@ -3,6 +3,7 @@
  */
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangProfileResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
@@ -202,7 +203,7 @@ public class MojangApiHttpImpl implements MojangAPI {
                 return Optional.empty();
             }
             EclipseProfileResponse.SkinProperty skin = eclipse.skinProperty();
-            return Optional.of(new CustomSkinProperty("textures", skin.value(), skin.signature(), "MojangAPI"));
+            return Optional.of(new CustomSkinProperty("textures", skin.value(), skin.signature(), SkinActionCommand.SOURCE_MOJANG));
         } catch (IOException e) {
             return Optional.empty();
         }
@@ -234,7 +235,7 @@ public class MojangApiHttpImpl implements MojangAPI {
             }
             for (PropertyResponse prop : properties) {
                 if ("textures".equals(prop.name()) && prop.value() != null && !prop.value().isEmpty()) {
-                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), "MojangAPI"));
+                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), SkinActionCommand.SOURCE_MOJANG));
                 }
             }
             return Optional.empty();
@@ -276,7 +277,7 @@ public class MojangApiHttpImpl implements MojangAPI {
             }
             for (PropertyResponse prop : properties) {
                 if ("textures".equals(prop.name()) && prop.value() != null && !prop.value().isEmpty()) {
-                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), "MojangAPI"));
+                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), SkinActionCommand.SOURCE_MOJANG));
                 }
             }
             return Optional.empty();

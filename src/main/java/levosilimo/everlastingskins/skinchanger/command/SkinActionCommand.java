@@ -50,6 +50,11 @@ import java.util.concurrent.TimeoutException;
  */
 public final class SkinActionCommand {
 
+    /** Provider-class discriminator stored by MojangApiHttpImpl on every skin it produces. */
+    public static final String SOURCE_MOJANG = "MojangAPI";
+    /** Provider-class discriminator stored by MineSkinApiHttpImpl on every skin it produces. */
+    public static final String SOURCE_MINESKIN = "MineSkin";
+
     private static final String FEEDBACK_PREFIX = "§6[EverlastingSkins]§f";
     private static final ScheduledExecutorService skinCommandExecutor =
             Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors() * 2);
@@ -123,7 +128,7 @@ public final class SkinActionCommand {
         });
 
         long t0 = System.nanoTime();
-        if (type == SkinActionType.username && storedSourceMatches(targets, customSource)) {
+        if (type == SkinActionType.username && storedSourceMatches(targets)) {
             for (ServerPlayer player : targets) {
                 SkinMetrics.INSTANCE.recordRefreshSkippedStored(player.getUUID());
                 SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
@@ -148,12 +153,25 @@ public final class SkinActionCommand {
         return targets.size();
     }
 
-    /** A5: stored skin's source already matches the request, skip the fetch. */
-    private static boolean storedSourceMatches(Collection<ServerPlayer> targets, @Nullable String customSource) {
-        return targets.stream().allMatch(player -> {
-            CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(player.getUUID());
-            return stored != null && Objects.equals(stored.getSource(), customSource);
-        });
+    /**
+     * A5: whether the player's stored skin came from the same provider class
+     * this username request will hit. Stored sources are provider-class
+     * discriminators (SOURCE_MOJANG / SOURCE_MINESKIN), never the requested
+     * username, so the comparison must be class-to-class: matching against
+     * the username would leave the skip unreachable for the real providers.
+     * Package-private seam so the decision is unit-testable without a
+     * ServerPlayer.
+     */
+    public static boolean storedSourceMatches(UUID playerUuid) {
+        return storedSourceMatches(SkinRestorer.getSkinStorage().getSource(playerUuid));
+    }
+
+    private static boolean storedSourceMatches(Collection<ServerPlayer> targets) {
+        return targets.stream().allMatch(player -> storedSourceMatches(player.getUUID()));
+    }
+
+    private static boolean storedSourceMatches(@Nullable String storedSource) {
+        return SOURCE_MOJANG.equals(storedSource);
     }
 
     private static CompletableFuture<Map<UUID, CustomSkinProperty>> fetchSkinProperty(SkinActionType type, SkinVariant variant,
