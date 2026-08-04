@@ -54,3 +54,11 @@
   3. Dispatch a separate librarian or oracle session to audit the implementation: what production code is actually exercised (vs bypassed), whether assertions verify behavior rather than framework mechanics, whether coverage matches stated intent, whether edge cases and error paths are covered, and whether claimed features (commands, integrations, scenarios) are real rather than stubs.
 - Only after the independent auditor finds no major gaps may the PR be merged.
 - Specifically for test PRs: tests must exercise the real mod flow (command dispatch, permission gating, async provider calls, persistence round-trip) — not just framework mechanics such as mock player creation, channel drain, and packet shape assertions.
+
+## Iterative fix-audit-refix-reaudit workflow
+
+- Plan implementation with non-overlapping lanes in isolated worktrees. Each lane owns a disjoint file set; no two lanes touch the same file.
+- One fixer per lane, with frequent logical commits and clear file ownership so lanes stay independently reviewable.
+- After each substantial implementation round, a read-only librarian audits the lane's changes. Findings are reconciled inside the originating lane by that lane's fixer — never by a different lane.
+- Re-audit the same scope after fixes; the lane is not done until the auditor gives an explicit "CLEAN".
+- Merge via GitHub merge commits in dependency order with strict checks. Never use `--admin` bypass, never delete branches, and never force push.
