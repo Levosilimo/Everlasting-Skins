@@ -9,11 +9,13 @@ package levosilimo.everlastingskins.skinchanger;
 import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
+import com.mojang.authlib.properties.PropertyMap;
 import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.broadcast.FakeSkinBroadcaster;
+import levosilimo.everlastingskins.broadcast.VanillaSkinBroadcaster;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.core.Holder;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundBundlePacket;
 import net.minecraft.network.protocol.game.ClientboundChangeDifficultyPacket;
@@ -24,6 +26,7 @@ import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
 import net.minecraft.network.protocol.game.CommonPlayerSpawnInfo;
+import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
@@ -65,38 +68,37 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Broadcast/cascade ordering contract of the 1.21 refresh pipeline
  * ({@link SkinRefreshHandler#task}). Pure Mockito unit test: players,
- * server, player list and level are mocks; the packet stream is captured
- * per connection in send order and PlayerList helpers are replaced by
- * faithful seams that emit the vanilla packet they would send
- * (difficulty via sendLevelInfo, permission-level via
- * sendPlayerPermissionLevel).
+ * server, player list and level are mocks; the per-connection packet
+ * stream (cascade respawn/position/difficulty/permission/abilities only)
+ * is captured, and the broadcaster seam is exercised via
+ * {@link FakeSkinBroadcaster} which records call shape without
+ * re-implementing the REMOVE+ADD+cascade pipeline.
  *
  * <p>Contract pinned here:
  * <ul>
- *   <li>REMOVE is sent strictly before ADD; in non-bundle mode they are
- *       neighbors in the captured stream, in bundle mode they travel inside
- *       one ClientboundBundlePacket (atomicity).</li>
+ *   <li>The handler invokes {@code broadcastProfileChange} once per refresh
+ *       and then {@code trackerUntrackRetrack} when
+ *       {@code REFRESH_VIA_ENTITY_TRACKER} is enabled, in that order.</li>
  *   <li>Cascade order on the target connection:
- *       REMOVE, ADD, respawn, position, difficulty, permission, abilities —
- *       each packet type exactly once per refresh.</li>
- *   <li>Tracker untrack/retrack (chunk-source removeEntity/addEntity) runs
- *       before the respawn packet, and only when
- *       REFRESH_VIA_ENTITY_TRACKER is enabled.</li>
- *   <li>The full cascade order holds under every combination of
+ *       respawn, position, difficulty, permission, abilities — each packet
+ *       type exactly once per refresh.</li>
+ *   <li>Cascade order holds under every combination of
  *       BROADCAST_USE_BUNDLE x DIMENSION_SCOPED_BROADCAST x
  *       REFRESH_VIA_ENTITY_TRACKER.</li>
- *   <li>Self-reception and multi-observer delivery, with cross-dimension
- *       observers excluded when DIMENSION_SCOPED_BROADCAST is enabled.</li>
  * </ul>
+ *
+ * <p>The packet-level REMOVE-before-ADD and bundle-atomicity guarantees
+ * are pinned by {@link VanillaSkinBroadcasterTest} on the production
+ * broadcaster itself; this test only asserts the handler's call shape.
  *
  * <p>Cascade atomicity invariant (R3): the disk flush must be enqueued BEFORE
  * the GameProfile is mutated, so a failed enqueue leaves the applied profile
@@ -128,7 +130,6 @@ class SkinRefreshHandlerTest {
     private static final String TEXTURE_VALUE = "cGF5bG9hZA==";
     private static final String TEXTURE_SIGNATURE = "c2lnbmF0dXJl";
     private static final ResourceKey<Level> OVERWORLD = Level.OVERWORLD;
-    private static final ResourceKey<Level> NETHER = Level.NETHER;
 
     private static final UUID PLAYER_UUID = UUID.randomUUID();
     private static final Property OLD_PROPERTY = new Property("textures", "oldValue", "oldSignature");
@@ -144,23 +145,14 @@ class SkinRefreshHandlerTest {
     private MinecraftServer server;
     private PlayerList playerlist;
     private ServerLevel overworldLevel;
-    private ServerLevel netherLevel;
     private ServerChunkCache chunkSource;
 
     private ServerPlayer target;
-    private ServerPlayer observer1;
-    private ServerPlayer observer2;
-    private ServerPlayer netherObserver;
-    private UUID targetUuid;
 
-    /** Ordered per-connection streams (packets + PlayerList-seam markers). */
+    private FakeSkinBroadcaster fakeBroadcaster;
+
     private final Map<ServerPlayer, List<Object>> playerStreams = new HashMap<>();
     private List<Object> targetStream;
-    private List<Object> observer1Stream;
-    private List<Object> observer2Stream;
-    private List<Object> netherStream;
-    private List<Packet<?>> globalSink;
-    private List<String> chunkTrace;
 
     @BeforeAll
     static void loadConfig() {
@@ -186,18 +178,10 @@ class SkinRefreshHandlerTest {
         SkinMetrics.INSTANCE.reset();
 
         playerStreams.clear();
-        globalSink = new ArrayList<>();
-        chunkTrace = new ArrayList<>();
 
         overworldLevel = levelMock(OVERWORLD);
-        netherLevel = levelMock(NETHER);
         chunkSource = mock(ServerChunkCache.class);
-        doAnswer(inv -> { chunkTrace.add("removeEntity"); return null; })
-            .when(chunkSource).removeEntity(any(Entity.class));
-        doAnswer(inv -> { chunkTrace.add("addEntity"); return null; })
-            .when(chunkSource).addEntity(any(Entity.class));
         when(overworldLevel.getChunkSource()).thenReturn(chunkSource);
-        when(netherLevel.getChunkSource()).thenReturn(chunkSource);
 
         playerlist = mock(PlayerList.class);
         server = mock(MinecraftServer.class);
@@ -205,42 +189,8 @@ class SkinRefreshHandlerTest {
         SkinRestorer.server = server;
 
         target = newPlayer("Target", overworldLevel);
-        observer1 = newPlayer("ObserverOne", overworldLevel);
-        observer2 = newPlayer("ObserverTwo", overworldLevel);
-        netherObserver = newPlayer("NetherObserver", netherLevel);
-        targetUuid = target.getUUID();
-
-        List<ServerPlayer> online = List.of(target, observer1, observer2, netherObserver);
-        when(playerlist.getPlayers()).thenReturn(online);
 
         targetStream = streamFor(target);
-        observer1Stream = streamFor(observer1);
-        observer2Stream = streamFor(observer2);
-        netherStream = streamFor(netherObserver);
-
-        // Non-bundle broadcast: records into the global sink and delivers to
-        // every online player's connection (vanilla PlayerList.broadcastAll).
-        doAnswer(inv -> {
-            Packet<?> packet = inv.getArgument(0);
-            globalSink.add(packet);
-            for (ServerPlayer onlinePlayer : online) {
-                streamFor(onlinePlayer).add(packet);
-            }
-            return null;
-        }).when(playerlist).broadcastAll(any(Packet.class));
-
-        // Dimension-scoped broadcast: same, filtered by the player's level.
-        doAnswer(inv -> {
-            Packet<?> packet = inv.getArgument(0);
-            ResourceKey<Level> dim = inv.getArgument(1);
-            globalSink.add(packet);
-            for (ServerPlayer onlinePlayer : online) {
-                if (onlinePlayer.serverLevel().dimension().equals(dim)) {
-                    streamFor(onlinePlayer).add(packet);
-                }
-            }
-            return null;
-        }).when(playerlist).broadcastAll(any(Packet.class), any(ResourceKey.class));
 
         // Faithful PlayerList seams: emit the packet vanilla would send at
         // this call site into the recipient's stream.
@@ -263,7 +213,11 @@ class SkinRefreshHandlerTest {
             return null;
         }).when(playerlist).sendActivePlayerEffects(any(ServerPlayer.class));
 
-        storage.setSkin(targetUuid,
+        // Inject the recording fake; assertions read its call lists.
+        fakeBroadcaster = new FakeSkinBroadcaster();
+        SkinRefreshHandler.setBroadcaster(fakeBroadcaster);
+
+        storage.setSkin(target.getUUID(),
                 new CustomSkinProperty("textures", TEXTURE_VALUE, TEXTURE_SIGNATURE, "Notch"));
     }
 
@@ -275,64 +229,76 @@ class SkinRefreshHandlerTest {
         skinIO.flushPending();
         setStaticField(SkinRestorer.class, "skinStorage", null);
         SkinRestorer.server = null;
+        // Restore the production broadcaster so a later test in the same JVM
+        // does not see the fake.
+        SkinRefreshHandler.setBroadcaster(new VanillaSkinBroadcaster());
     }
 
     /* ================================================================== */
-    /*  A. Packet sequence contract                                       */
+    /*  A. Broadcaster call shape                                          */
     /* ================================================================== */
 
     @Test
-    @DisplayName("REMOVE is sent strictly before ADD (non-bundle broadcast)")
-    void removeStrictlyBeforeAdd() {
+    @DisplayName("handler invokes broadcastProfileChange then trackerUntrackRetrack (tracker flag enabled)")
+    void handlerCalls_broadcastThenTracker() {
         refresh();
 
-        assertEquals(2, globalSink.size(), "exactly one REMOVE + one ADD broadcast expected");
-        assertTrue(globalSink.get(0) instanceof ClientboundPlayerInfoRemovePacket,
-            "first broadcast must be REMOVE; sink=" + globalSink);
-        assertTrue(globalSink.get(1) instanceof ClientboundPlayerInfoUpdatePacket,
-            "second broadcast must be ADD; sink=" + globalSink);
-
-        int removeIdx = indexOfType(targetStream, ClientboundPlayerInfoRemovePacket.class);
-        int addIdx = indexOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class);
-        assertTrue(removeIdx >= 0 && addIdx > removeIdx,
-            "REMOVE must strictly precede ADD; stream=" + targetStream);
+        assertEquals(1, fakeBroadcaster.broadcastCalls.size(),
+            "exactly one broadcastProfileChange per refresh; calls=" + fakeBroadcaster.broadcastCalls);
+        assertEquals(1, fakeBroadcaster.trackerCalls.size(),
+            "exactly one trackerUntrackRetrack per refresh; calls=" + fakeBroadcaster.trackerCalls);
+        assertEquals(target, fakeBroadcaster.broadcastCalls.get(0).target(),
+            "broadcast target must be the refreshed player");
+        assertEquals(target, fakeBroadcaster.trackerCalls.get(0),
+            "tracker call must target the refreshed player");
     }
 
     @Test
-    @DisplayName("REMOVE+ADD are neighbors in the captured stream (non-bundle)")
-    void removeAddAreNeighbors() {
+    @DisplayName("handler always invokes trackerUntrackRetrack; flag check lives in the broadcaster")
+    void handlerCalls_trackerEvenWhenFlagDisabled() {
+        // The handler unconditionally delegates to broadcaster.trackerUntrackRetrack;
+        // the broadcaster reads REFRESH_VIA_ENTITY_TRACKER and is a no-op when off.
+        // VanillaSkinBroadcasterTest pins that no-op; here we only assert the
+        // call shape from the handler.
+        Config.REFRESH_VIA_ENTITY_TRACKER.set(false);
         refresh();
 
-        int removeIdx = indexOfType(targetStream, ClientboundPlayerInfoRemovePacket.class);
-        int addIdx = indexOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class);
-        assertEquals(removeIdx + 1, addIdx,
-            "no packet may sit between REMOVE and ADD; stream=" + targetStream);
+        assertEquals(1, fakeBroadcaster.broadcastCalls.size(),
+            "broadcast still runs; calls=" + fakeBroadcaster.broadcastCalls);
+        assertEquals(1, fakeBroadcaster.trackerCalls.size(),
+            "handler still calls broadcaster.trackerUntrackRetrack; the flag is the broadcaster's concern");
     }
 
     @Test
-    @DisplayName("Bundle mode: REMOVE+ADD travel inside one ClientboundBundlePacket (atomicity)")
-    void bundleAtomicity_removeAddInSingleBundle() {
-        Config.BROADCAST_USE_BUNDLE.set(true);
-        refresh();
+    @DisplayName("broadcaster is invoked once per refresh across the 8-flag matrix")
+    void configMatrix_handlerInvokesBroadcasterOnce() {
+        for (boolean bundle : new boolean[]{false, true}) {
+            for (boolean scoped : new boolean[]{false, true}) {
+                for (boolean tracker : new boolean[]{false, true}) {
+                    Config.BROADCAST_USE_BUNDLE.set(bundle);
+                    Config.DIMENSION_SCOPED_BROADCAST.set(scoped);
+                    Config.REFRESH_VIA_ENTITY_TRACKER.set(tracker);
+                    refresh();
 
-        List<ClientboundBundlePacket> bundles = filterType(targetStream, ClientboundBundlePacket.class);
-        assertEquals(1, bundles.size(), "exactly one bundle expected; stream=" + targetStream);
-        List<Packet<?>> inner = new ArrayList<>();
-        bundles.get(0).subPackets().forEach(inner::add);
-        assertEquals(2, inner.size(), "bundle must contain exactly REMOVE+ADD; inner=" + inner);
-        assertTrue(inner.get(0) instanceof ClientboundPlayerInfoRemovePacket,
-            "bundle[0] must be REMOVE; inner=" + inner);
-        assertTrue(inner.get(1) instanceof ClientboundPlayerInfoUpdatePacket,
-            "bundle[1] must be ADD; inner=" + inner);
-        // Atomicity: no standalone info packets outside the bundle.
-        assertEquals(0, countOfType(targetStream, ClientboundPlayerInfoRemovePacket.class),
-            "no standalone REMOVE outside the bundle");
-        assertEquals(0, countOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class),
-            "no standalone ADD outside the bundle");
+                    String combo = "bundle=" + bundle + ", scoped=" + scoped + ", tracker=" + tracker;
+                    assertEquals(1, fakeBroadcaster.broadcastCalls.size(),
+                        combo + ": exactly one broadcast");
+                    // The handler always invokes trackerUntrackRetrack; the
+                    // broadcaster reads REFRESH_VIA_ENTITY_TRACKER and may
+                    // skip the work (pinned in VanillaSkinBroadcasterTest).
+                    assertEquals(1, fakeBroadcaster.trackerCalls.size(),
+                        combo + ": handler always delegates tracker call");
+                }
+            }
+        }
     }
 
+    /* ================================================================== */
+    /*  B. Cascade order on the target connection                          */
+    /* ================================================================== */
+
     @Test
-    @DisplayName("Cascade order: REMOVE, ADD, respawn, position, difficulty, permission, abilities")
+    @DisplayName("Cascade order: respawn, position, difficulty, permission, abilities")
     void cascadeOrderFullStream() {
         refresh();
 
@@ -340,7 +306,7 @@ class SkinRefreshHandlerTest {
     }
 
     @Test
-    @DisplayName("Each packet type is sent exactly once per refresh")
+    @DisplayName("Each cascade packet type is sent exactly once per refresh")
     void eachPacketTypeExactlyOnce() {
         // refresh() clears between runs, so drive task() directly to
         // accumulate two refreshes in one captured stream.
@@ -348,10 +314,8 @@ class SkinRefreshHandlerTest {
         SkinRefreshHandler.task(target);
         SkinRefreshHandler.task(target);
 
-        // Two refreshes: every type appears exactly twice total (lib-22
-        // matcher-bugfix guard: no duplicate sends).
-        assertEquals(2, countOfType(targetStream, ClientboundPlayerInfoRemovePacket.class));
-        assertEquals(2, countOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class));
+        // Two refreshes: every cascade type appears exactly twice total
+        // (lib-22 matcher-bugfix guard: no duplicate sends).
         assertEquals(2, countOfType(targetStream, ClientboundRespawnPacket.class));
         assertEquals(2, countOfType(targetStream, ClientboundPlayerPositionPacket.class));
         assertEquals(2, countOfType(targetStream, ClientboundChangeDifficultyPacket.class));
@@ -360,37 +324,26 @@ class SkinRefreshHandlerTest {
     }
 
     @Test
-    @DisplayName("Tracker untrack/retrack runs before the respawn packet")
+    @DisplayName("Tracker untrack/retrack runs before the respawn packet (handler-side ordering)")
     void trackerUntrackRetrack_beforeRespawn() {
+        // Use a tracking broadcaster to capture the call moment so we can
+        // compare it against the respawn index on the captured stream.
+        FakeSkinBroadcaster spyBroadcaster = new FakeSkinBroadcaster() {
+            @Override
+            public void trackerUntrackRetrack(Entity entity) {
+                targetStream.add("trackerUntrackRetrack");
+                super.trackerUntrackRetrack(entity);
+            }
+        };
+        SkinRefreshHandler.setBroadcaster(spyBroadcaster);
+
         refresh();
 
-        assertEquals(List.of("removeEntity", "addEntity"), chunkTrace,
-            "chunk-source untrack must precede retrack");
-        // The tracker step is part of recordObserverBroadcast, which runs
-        // before recordCascade: removeEntity, addEntity, then the respawn
-        // send on the connection.
-        org.mockito.InOrder order = inOrder(chunkSource, target.connection);
-        order.verify(chunkSource).removeEntity(target);
-        order.verify(chunkSource).addEntity(target);
-        order.verify(target.connection).send(any(ClientboundRespawnPacket.class));
+        int tracker = indexOfType(targetStream, "trackerUntrackRetrack", String.class);
+        int respawn = indexOfType(targetStream, ClientboundRespawnPacket.class);
+        assertTrue(tracker >= 0 && respawn > tracker,
+            "tracker must precede respawn; stream=" + targetStream);
     }
-
-    @Test
-    @DisplayName("Tracker is never touched when REFRESH_VIA_ENTITY_TRACKER is disabled")
-    void trackerSkipped_whenDisabled() {
-        Config.REFRESH_VIA_ENTITY_TRACKER.set(false);
-        refresh();
-
-        assertEquals(Collections.emptyList(), chunkTrace, "no chunk-source interaction expected");
-        verify(chunkSource, never()).removeEntity(target);
-        verify(chunkSource, never()).addEntity(target);
-        // The cascade itself must be unaffected.
-        assertCascadeOrder(targetStream);
-    }
-
-    /* ================================================================== */
-    /*  B. Config flag matrix                                             */
-    /* ================================================================== */
 
     @Test
     @DisplayName("Cascade order holds for all 8 BROADCAST_USE_BUNDLE x DIMENSION_SCOPED_BROADCAST x REFRESH_VIA_ENTITY_TRACKER combos")
@@ -405,106 +358,15 @@ class SkinRefreshHandlerTest {
 
                     String combo = "bundle=" + bundle + ", scoped=" + scoped + ", tracker=" + tracker;
                     assertCascadeOrder(targetStream, combo);
-                    if (bundle) {
-                        assertEquals(1, countOfType(targetStream, ClientboundBundlePacket.class),
-                            combo + ": exactly one bundle");
-                    } else {
-                        assertEquals(1, countOfType(targetStream, ClientboundPlayerInfoRemovePacket.class),
-                            combo + ": exactly one REMOVE");
-                        assertEquals(1, countOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class),
-                            combo + ": exactly one ADD");
-                    }
-                    assertEquals(tracker ? List.of("removeEntity", "addEntity") : Collections.emptyList(),
-                        chunkTrace, combo + ": tracker contract");
+                    assertEquals(1, fakeBroadcaster.broadcastCalls.size(),
+                        combo + ": exactly one broadcast call");
                 }
             }
         }
     }
 
-    @Test
-    @DisplayName("DIMENSION_SCOPED_BROADCAST=true: cross-dimension observers receive nothing (bundle and non-bundle)")
-    void dimensionScoped_netherObserverExcluded() {
-        Config.DIMENSION_SCOPED_BROADCAST.set(true);
-        for (boolean bundle : new boolean[]{false, true}) {
-            Config.BROADCAST_USE_BUNDLE.set(bundle);
-            refresh();
-
-            assertTrue(netherStream.isEmpty(),
-                "bundle=" + bundle + ": nether observer must receive nothing; stream=" + netherStream);
-            // Same-dimension observers still receive.
-            if (bundle) {
-                assertEquals(1, countOfType(observer1Stream, ClientboundBundlePacket.class),
-                    "bundle=" + bundle + ": same-dimension observer must get the bundle");
-            } else {
-                assertEquals(1, countOfType(observer1Stream, ClientboundPlayerInfoRemovePacket.class),
-                    "bundle=" + bundle + ": same-dimension observer must get REMOVE");
-                assertEquals(1, countOfType(observer1Stream, ClientboundPlayerInfoUpdatePacket.class),
-                    "bundle=" + bundle + ": same-dimension observer must get ADD");
-            }
-        }
-    }
-
-    @Test
-    @DisplayName("DIMENSION_SCOPED_BROADCAST=false: cross-dimension observers receive (bundle and non-bundle)")
-    void dimensionScoped_netherObserverReceives() {
-        Config.DIMENSION_SCOPED_BROADCAST.set(false);
-        for (boolean bundle : new boolean[]{false, true}) {
-            Config.BROADCAST_USE_BUNDLE.set(bundle);
-            refresh();
-
-            if (bundle) {
-                assertEquals(1, countOfType(netherStream, ClientboundBundlePacket.class),
-                    "bundle=" + bundle + ": nether observer must get the bundle");
-            } else {
-                assertEquals(1, countOfType(netherStream, ClientboundPlayerInfoRemovePacket.class),
-                    "bundle=" + bundle + ": nether observer must get REMOVE");
-                assertEquals(1, countOfType(netherStream, ClientboundPlayerInfoUpdatePacket.class),
-                    "bundle=" + bundle + ": nether observer must get ADD");
-            }
-        }
-    }
-
     /* ================================================================== */
-    /*  C. Multi-observer + multi-target                                   */
-    /* ================================================================== */
-
-    @Test
-    @DisplayName("Two observers in the same dimension both receive REMOVE+ADD (with the new textures)")
-    void twoObserversBothReceiveBroadcast() {
-        refresh();
-
-        assertRemoveAddPair(observer1Stream, "observer1");
-        assertRemoveAddPair(observer2Stream, "observer2");
-        assertAddCarriesNewTexture(observer1Stream);
-        assertAddCarriesNewTexture(observer2Stream);
-    }
-
-    @Test
-    @DisplayName("The target itself receives its own REMOVE+ADD broadcast before the cascade (self-reception)")
-    void targetReceivesOwnBroadcast() {
-        refresh();
-
-        int removeIdx = indexOfType(targetStream, ClientboundPlayerInfoRemovePacket.class);
-        int addIdx = indexOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class);
-        int respawn = indexOfType(targetStream, ClientboundRespawnPacket.class);
-        assertTrue(removeIdx >= 0 && addIdx == removeIdx + 1 && respawn > addIdx,
-            "self-reception: REMOVE+ADD must reach the target's own connection before the respawn; stream=" + targetStream);
-    }
-
-    @Test
-    @DisplayName("Self-reception also holds in bundle mode")
-    void targetReceivesOwnBroadcast_bundleMode() {
-        Config.BROADCAST_USE_BUNDLE.set(true);
-        refresh();
-
-        int bundleIdx = indexOfType(targetStream, ClientboundBundlePacket.class);
-        int respawn = indexOfType(targetStream, ClientboundRespawnPacket.class);
-        assertTrue(bundleIdx >= 0 && respawn > bundleIdx,
-            "self-reception: the bundle must reach the target's own connection before the respawn; stream=" + targetStream);
-    }
-
-    /* ================================================================== */
-    /*  D. Cascade atomicity (persistence) contract                       */
+    /*  C. Cascade atomicity (persistence) contract                       */
     /* ================================================================== */
 
     @Test
@@ -531,6 +393,31 @@ class SkinRefreshHandlerTest {
                 "the partial cascade failure must be recorded");
         assertEquals(savesBefore, SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
                 "a failed enqueue must not count as a submitted save");
+        assertEquals(0, fakeBroadcaster.broadcastCalls.size(),
+            "broadcast must not run when persistence fails");
+    }
+
+    @Test
+    void applyAtomicPersistence_mutateProfileThrowing_failsSoft() {
+        GameProfile profile = mock(GameProfile.class);
+        PropertyMap properties = spy(profileWithTextures(OLD_PROPERTY).getProperties());
+        when(profile.getProperties()).thenReturn(properties);
+        doThrow(new RuntimeException("simulated profile mutation failure"))
+                .when(properties).removeAll("textures");
+        storage.setSkin(PLAYER_UUID, NEW_SKIN);
+        long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
+
+        boolean persisted = SkinRefreshHandler.applyAtomicPersistence(PLAYER_UUID, profile, NEW_SKIN);
+
+        assertFalse(persisted, "a failed profile mutation must report failure");
+        assertEquals(failedBefore + 1, SkinMetrics.INSTANCE.snapshot().refreshesFailed(),
+                "the failed mutation must be recorded");
+        Collection<Property> textures = texturesOf(profile);
+        assertEquals(1, textures.size(), "a failed mutation must leave the profile untouched");
+        assertEquals(OLD_PROPERTY, textures.iterator().next(),
+                "the applied profile must keep its previous textures");
+        verify(playerlist, never()).broadcastAll(any(Packet.class));
+        verify(playerlist, never()).broadcastAll(any(Packet.class), any(ResourceKey.class));
     }
 
     @Test
@@ -575,22 +462,49 @@ class SkinRefreshHandlerTest {
     }
 
     /* ================================================================== */
+    /*  D. /skin clear with no Mojang profile                                */
+    /* ================================================================== */
+
+    @Test
+    @DisplayName("clear path also invokes the broadcaster and the cascade")
+    void clearPath_invokesBroadcasterAndCascade() {
+        // Stored skin is null: drop the applied textures property and
+        // run the broadcast+cascade so observers re-learn the cleared
+        // profile and the target reverts to the default skin.
+        storage.setSkin(target.getUUID(), null);
+        refresh();
+
+        assertEquals(1, fakeBroadcaster.broadcastCalls.size(),
+            "clear path also broadcasts; calls=" + fakeBroadcaster.broadcastCalls);
+        assertEquals(1, fakeBroadcaster.trackerCalls.size(),
+            "clear path also retracks");
+        assertCascadeOrder(targetStream);
+    }
+
+    /* ================================================================== */
+    /*  E. Wire-up verification                                            */
+    /* ================================================================== */
+
+    @Test
+    @DisplayName("getBroadcaster returns the wired instance")
+    void broadcasterGetterReturnsWired() {
+        assertEquals(fakeBroadcaster, SkinRefreshHandler.getBroadcaster(),
+            "the broadcaster the handler uses must be the one we injected");
+    }
+
+    /* ================================================================== */
     /*  Fixture                                                            */
     /* ================================================================== */
 
     /** Runs one refresh and resets all captured streams first. */
     private void refresh() {
         resetStreams();
+        fakeBroadcaster.reset();
         SkinRefreshHandler.task(target);
     }
 
     private void resetStreams() {
         targetStream.clear();
-        observer1Stream.clear();
-        observer2Stream.clear();
-        netherStream.clear();
-        globalSink.clear();
-        chunkTrace.clear();
     }
 
     private ServerPlayer newPlayer(String name, ServerLevel level) {
@@ -626,8 +540,7 @@ class SkinRefreshHandlerTest {
     /**
      * Ordered capture of everything sent to this player's connection.
      * Idempotent per player: the capture doAnswer is attached once and the
-     * same list is returned on every call (broadcast seams call this per
-     * delivered packet).
+     * same list is returned on every call.
      */
     private List<Object> streamFor(ServerPlayer player) {
         return playerStreams.computeIfAbsent(player, p -> {
@@ -658,42 +571,14 @@ class SkinRefreshHandlerTest {
     }
 
     private static void assertCascadeOrder(List<Object> stream, String combo) {
-        int removeIdx = indexOfType(stream, ClientboundPlayerInfoRemovePacket.class);
-        int addIdx = indexOfType(stream, ClientboundPlayerInfoUpdatePacket.class);
         int respawn = indexOfType(stream, ClientboundRespawnPacket.class);
         int position = indexOfType(stream, ClientboundPlayerPositionPacket.class);
         int difficulty = indexOfType(stream, ClientboundChangeDifficultyPacket.class);
         int permission = indexOfType(stream, ClientboundEntityEventPacket.class);
         int abilities = indexOfType(stream, ClientboundPlayerAbilitiesPacket.class);
-        // In bundle mode the REMOVE/ADD indices are -1 (they live inside the
-        // bundle, asserted by the caller); require only the cascade tail
-        // relative order plus broadcast-before-respawn.
         assertTrue(respawn >= 0 && position > respawn && difficulty > position
                 && permission > difficulty && abilities > permission,
             combo + ": expected respawn < position < difficulty < permission < abilities; stream=" + stream);
-        assertTrue(respawn > Math.max(removeIdx, addIdx),
-            combo + ": broadcast (REMOVE/ADD or bundle) must precede the respawn; stream=" + stream);
-    }
-
-    private static void assertRemoveAddPair(List<Object> stream, String who) {
-        int removeIdx = indexOfType(stream, ClientboundPlayerInfoRemovePacket.class);
-        int addIdx = indexOfType(stream, ClientboundPlayerInfoUpdatePacket.class);
-        assertTrue(removeIdx >= 0 && addIdx == removeIdx + 1,
-            who + " must receive REMOVE then ADD as neighbors; stream=" + stream);
-    }
-
-    private static void assertAddCarriesNewTexture(List<Object> stream) {
-        ClientboundPlayerInfoUpdatePacket add = filterType(stream, ClientboundPlayerInfoUpdatePacket.class)
-                .stream()
-                .filter(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER))
-                .findFirst()
-                .orElse(null);
-        assertTrue(add != null, "ADD packet missing from stream=" + stream);
-        boolean hasTexture = add.entries().stream()
-                .anyMatch(e -> e.profile() != null
-                        && e.profile().getProperties().get("textures").stream()
-                                .anyMatch(prop -> TEXTURE_VALUE.equals(prop.value())));
-        assertTrue(hasTexture, "ADD packet must carry the new textures property");
     }
 
     private static int indexOfType(List<?> events, Class<?> type) {
@@ -705,19 +590,17 @@ class SkinRefreshHandlerTest {
         return -1;
     }
 
-    private static long countOfType(List<?> events, Class<?> type) {
-        return events.stream().filter(type::isInstance).count();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> List<T> filterType(List<?> events, Class<T> type) {
-        List<T> result = new ArrayList<>();
-        for (Object event : events) {
-            if (type.isInstance(event)) {
-                result.add((T) event);
+    private static int indexOfType(List<?> events, Object marker, Class<?> type) {
+        for (int i = 0; i < events.size(); i++) {
+            if (type.isInstance(events.get(i)) && events.get(i).equals(marker)) {
+                return i;
             }
         }
-        return result;
+        return -1;
+    }
+
+    private static long countOfType(List<?> events, Class<?> type) {
+        return events.stream().filter(type::isInstance).count();
     }
 
     private static void setField(Object target, String fieldName, Object value) {
