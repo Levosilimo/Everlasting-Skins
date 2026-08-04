@@ -128,7 +128,7 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     }
 
     private Optional<MineSkinResponse> handleSuccessResponse(HttpResponse response, @Nullable SkinVariant requestedVariant) {
-        MineSkinResponse v1 = toV1Response(response.getBodyAs(MineSkinUrlResponse.class), requestedVariant);
+        MineSkinResponse v1 = toV1Response(parseBodyOrNull(response, MineSkinUrlResponse.class), requestedVariant);
         if (v1 != null) {
             return Optional.of(v1);
         }
@@ -204,7 +204,10 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         try {
             JsonObject json = JsonUtils.parseJson(body);
             return jsonObject(json, "skin");
-        } catch (JsonParseException e) {
+        } catch (JsonParseException | NumberFormatException | IllegalStateException e) {
+            // Gson raises these on truncated escapes and non-object roots; fail closed.
+            return null;
+        } catch (RuntimeException e) {
             return null;
         }
     }
@@ -221,7 +224,7 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
 
     private Optional<MineSkinResponse> handleRateLimit(HttpResponse response) {
         int waitMs = 0;
-        MineSkinErrorDelayResponse delay = response.getBodyAs(MineSkinErrorDelayResponse.class);
+        MineSkinErrorDelayResponse delay = parseBodyOrNull(response, MineSkinErrorDelayResponse.class);
         if (delay != null) {
             if (delay.nextRequest() != null && delay.nextRequest() > 0) {
                 waitMs = delay.nextRequest();
@@ -267,7 +270,9 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
                 return (int) Math.max(0, Math.min(wait, Integer.MAX_VALUE));
             }
             return 0;
-        } catch (JsonParseException e) {
+        } catch (JsonParseException | NumberFormatException | IllegalStateException e) {
+            return 0;
+        } catch (RuntimeException e) {
             return 0;
         }
     }
@@ -312,5 +317,28 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * Gson's strict {@code fromJson} (inside {@link HttpResponse#getBodyAs})
+     * throws raw NumberFormatException on truncated {@code \\uXXXX} escapes
+     * and IllegalStateException on valid non-object roots, neither a
+     * JsonSyntaxException. Every parse failure must fail closed: null, never
+     * an exception escape out of the HTTP parse paths.
+     */
+    private static <T> T parseBodyOrNull(HttpResponse response, Class<T> clazz) {
+        try {
+            return response.getBodyAs(clazz);
+        } catch (JsonParseException | NumberFormatException | IllegalStateException e) {
+            logParseFailure(e);
+            return null;
+        } catch (RuntimeException e) {
+            logParseFailure(e);
+            return null;
+        }
+    }
+
+    private static void logParseFailure(RuntimeException e) {
+        EverlastingSkins.logger.warn("Failed to parse MineSkin API response: " + e);
     }
 }
