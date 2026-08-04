@@ -42,6 +42,9 @@ public final class SkinMetrics {
     private final LongAdder savesCoalesced = new LongAdder();
     private final LongAdder realWrites = new LongAdder();
     private final LongAdder ioFailures = new LongAdder();
+    private final LongAdder readsSubmitted = new LongAdder();
+    private final LongAdder readsCompleted = new LongAdder();
+    private final LongAdder readFailures = new LongAdder();
     private final LongAdder netBytesWrittenOut = new LongAdder();
     private final LongAdder netBytesReadIn = new LongAdder();
     private final LongAdder tickSpikes = new LongAdder();
@@ -61,6 +64,7 @@ public final class SkinMetrics {
     private final LatencyHistogram fetchLatency = new LatencyHistogram();
     private final LatencyHistogram saveEnqueueLatency = new LatencyHistogram();
     private final LatencyHistogram saveDiskLatency = new LatencyHistogram();
+    private final LatencyHistogram readDiskLatency = new LatencyHistogram();
     private final LatencyHistogram broadcastLatency = new LatencyHistogram();
     private final LatencyHistogram commandTotalLatency = new LatencyHistogram();
     private final LatencyHistogram taskDurationLatency = new LatencyHistogram();
@@ -126,6 +130,19 @@ public final class SkinMetrics {
 
     public void recordSaveDiskLatency(long nanos) {
         saveDiskLatency.record(nanos);
+    }
+
+    public void recordReadStart() {
+        readsSubmitted.increment();
+    }
+
+    public void recordReadComplete(long nanos) {
+        readsCompleted.increment();
+        readDiskLatency.record(nanos);
+    }
+
+    public void recordReadFailure() {
+        readFailures.increment();
     }
 
     public void recordBroadcastLatency(long nanos) {
@@ -256,6 +273,9 @@ public final class SkinMetrics {
         savesCoalesced.reset();
         realWrites.reset();
         ioFailures.reset();
+        readsSubmitted.reset();
+        readsCompleted.reset();
+        readFailures.reset();
         netBytesWrittenOut.reset();
         netBytesReadIn.reset();
         tickSpikes.reset();
@@ -273,6 +293,7 @@ public final class SkinMetrics {
         fetchLatency.reset();
         saveEnqueueLatency.reset();
         saveDiskLatency.reset();
+        readDiskLatency.reset();
         broadcastLatency.reset();
         commandTotalLatency.reset();
         taskDurationLatency.reset();
@@ -290,6 +311,7 @@ public final class SkinMetrics {
                 refreshesSkippedStored.sum(), refreshesRateLimited.sum(),
                 broadcastsSent.sum(), bytesWritten.sum(), savesSubmitted.sum(), savesCompleted.sum(),
                 savesCoalesced.sum(), realWrites.sum(),
+                readsSubmitted.sum(), readsCompleted.sum(), readFailures.sum(),
                 ioFailures.sum(), pendingAsyncWrites.get(), onlinePlayers.sum(),
                 System.currentTimeMillis() - startedAtMs.get(),
                 netBytesWrittenOut.sum(), netBytesReadIn.sum(),
@@ -299,7 +321,7 @@ public final class SkinMetrics {
                 providerExceptions.sum(), cacheHits.sum(), cacheMisses.sum(), mineSkinDelayTotalMs.sum(),
                 ioFailuresByType(),
                 fetchLatency.percentiles(), saveEnqueueLatency.percentiles(),
-                saveDiskLatency.percentiles(), broadcastLatency.percentiles(),
+                saveDiskLatency.percentiles(), readDiskLatency.percentiles(), broadcastLatency.percentiles(),
                 commandTotalLatency.percentiles(), taskDurationLatency.percentiles(),
                 tickSpikeLatency.percentiles(),
                 snapshotPerPlayer());
