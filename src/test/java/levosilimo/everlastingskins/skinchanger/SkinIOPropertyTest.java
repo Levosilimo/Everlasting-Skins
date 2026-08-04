@@ -31,7 +31,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -112,27 +117,6 @@ class SkinIOPropertyTest {
         return values().list().ofSize(100);
     }
 
-    /** Generated script for the drain-race property: payload plus delete delay. */
-    @Provide
-    Arbitrary<List<RaceStep>> raceScripts() {
-        return Combinators.combine(
-                Arbitraries.strings().withCharRange('a', 'z').ofMinLength(65536).ofMaxLength(262144)
-                        .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8))),
-                Arbitraries.integers().between(45, 70))
-                .as(RaceStep::new)
-                .list().ofSize(4);
-    }
-
-    private static final class RaceStep {
-        final String value;
-        final int delayMs;
-
-        RaceStep(String value, int delayMs) {
-            this.value = value;
-            this.delayMs = delayMs;
-        }
-    }
-
     private enum OpType {
         SAVE_ASYNC, SAVE_SYNC, DELETE
     }
@@ -194,25 +178,6 @@ class SkinIOPropertyTest {
         assertEquals(JsonUtils.toJson(skin(expected)), content, "disk payload must be the latest submitted payload");
     }
 
-    private static void sleepUnchecked(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted", e);
-        }
-    }
-
-    private static String readIfPresent(Path target) {
-        try {
-            return Files.exists(target)
-                    ? new String(Files.readAllBytes(target), StandardCharsets.UTF_8)
-                    : "<absent>";
-        } catch (IOException e) {
-            return "<unreadable>";
-        }
-    }
-
     private static void applyOps(List<Op> ops, SkinStorage storage, Map<UUID, String> model, Object lock,
                                  AtomicReference<Throwable> failure) {
         try {
@@ -267,6 +232,34 @@ class SkinIOPropertyTest {
         }
     }
 
+
+    /**
+     * SkinIO whose drain write blocks until the test releases it, so a
+     * property can deterministically hold a drain in flight.
+     */
+    private static final class BlockingSkinIO extends SkinIO {
+
+        final CountDownLatch writeStarted = new CountDownLatch(1);
+        final CountDownLatch releaseWrite = new CountDownLatch(1);
+
+        BlockingSkinIO(Path savePath) {
+            super(savePath);
+        }
+
+        @Override
+        void saveSkin(UUID uuid, byte[] payload) {
+            writeStarted.countDown();
+            try {
+                if (!releaseWrite.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("test latch not released in time");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted while waiting for test latch", e);
+            }
+            super.saveSkin(uuid, payload);
+        }
+    }
 
     @Group
     class DrainIdempotence {
@@ -338,38 +331,58 @@ class SkinIOPropertyTest {
         /**
          * Model: a delete racing an in-flight drain must not be interleaved
          * between the drain's write and its atomic rename; the file must be
-         * absent once the delete returns. The
-         * drain fires 50ms after the save, so each step issues the delete with
-         * a generated 45-70ms delay to land inside the write window.
-         * Crash-consistency framing per Pillai et al. (OSDI 2014): no
-         * write-after-delete resurrection. The delay is generated data, so a
-         * failing script shrinks to a minimal reproduction.
+         * absent once the delete returns. A {@link BlockingSkinIO} latches the
+         * drain inside its file write, so each try deterministically holds a
+         * drain in flight while the delete runs - no generated sleeps, no
+         * wall-clock races. removedWhileDrainBlocked is diagnostic: the fixed
+         * store serializes the delete through the writer thread and cannot
+         * complete it while the drain write is blocked; the unfixed store runs
+         * the delete on the caller thread immediately, and the drain's write
+         * then lands after it, resurrecting the file and failing the
+         * assertion. Crash-consistency framing per Pillai et al. (OSDI 2014):
+         * no write-after-delete resurrection.
          */
-        @Property(tries = 60)
+        @Property(tries = 10)
         @Label("delete beats an in-flight drain: no write-after-delete resurrection")
-        void deleteBeatsInFlightDrain(@ForAll @From("raceScripts") List<RaceStep> steps) throws IOException {
-        synchronized (METRICS_LOCK) {
+        void deleteBeatsInFlightDrain(@ForAll @From("values") String value) throws Exception {
+            synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
                 Path dir = newTempDir();
                 try {
-                    SkinIO io = new SkinIO(dir);
-                    SkinStorage storage = new SkinStorage(io);
-                    for (RaceStep step : steps) {
-                        UUID uuid = UUID.randomUUID();
-                        storage.saveSkinAsync(uuid, skin(step.value));
-                        sleepUnchecked(step.delayMs);
-                        storage.removeSkin(uuid);
+                    BlockingSkinIO blockingIO = new BlockingSkinIO(dir);
+                    SkinStorage storage = new SkinStorage(blockingIO);
+                    UUID uuid = UUID.randomUUID();
+                    Path target = dir.resolve(uuid + ".json");
+
+                    storage.saveSkinAsync(uuid, skin(value));
+                    assertTrue(blockingIO.writeStarted.await(5, TimeUnit.SECONDS),
+                            "drain must reach the file write before the delete");
+
+                    CountDownLatch removeDone = new CountDownLatch(1);
+                    ExecutorService remover = Executors.newSingleThreadExecutor();
+                    try {
+                        Future<?> delete = remover.submit(() -> {
+                            storage.removeSkin(uuid);
+                            removeDone.countDown();
+                        });
+                        boolean removedWhileDrainBlocked = removeDone.await(300, TimeUnit.MILLISECONDS);
+                        blockingIO.releaseWrite.countDown();
+                        delete.get(5, TimeUnit.SECONDS);
+                        // Barrier on the writer thread: the drain write is
+                        // async, so wait for it to land before asserting.
                         storage.flushPending();
-                        Path target = dir.resolve(uuid + ".json");
-                        assertFalse(Files.exists(target), () -> "write-after-delete: " + target
-                                + " resurrected by a concurrent drain, content="
-                                + readIfPresent(target));
+                        assertFalse(Files.exists(target),
+                                "stale drain write resurrected the deleted file (removedWhileDrainBlocked="
+                                        + removedWhileDrainBlocked + ")");
+                    } finally {
+                        blockingIO.releaseWrite.countDown();
+                        remover.shutdownNow();
                     }
                 } finally {
                     deleteRecursively(dir);
                 }
-        
-        }}
+            }
+        }
 
     }
 
