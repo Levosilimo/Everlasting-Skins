@@ -282,7 +282,7 @@ class SkinIOPropertyTest {
         @Property(tries = 100)
         @Label("coalescing bound: one debounce window collapses 20 saves into exactly one disk write")
         void drainIdempotence(@ForAll @From("burstValues") List<String> burst) throws IOException {
-        synchronized (METRICS_LOCK) {
+            synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
                 Path dir = newTempDir();
                 try {
@@ -301,8 +301,8 @@ class SkinIOPropertyTest {
                 } finally {
                     deleteRecursively(dir);
                 }
-        
-        }}
+            }
+        }
     }
 
 
@@ -318,7 +318,7 @@ class SkinIOPropertyTest {
         @Property(tries = 100)
         @Label("delete beats write: a deferred async payload cannot resurrect the file")
         void deleteBeatsWrite(@ForAll @From("values") String value) throws IOException {
-        synchronized (METRICS_LOCK) {
+            synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
                 Path dir = newTempDir();
                 try {
@@ -333,8 +333,8 @@ class SkinIOPropertyTest {
                 } finally {
                     deleteRecursively(dir);
                 }
-        
-        }}
+            }
+        }
 
         /**
          * Model: a delete racing an in-flight drain must not be interleaved
@@ -411,7 +411,7 @@ class SkinIOPropertyTest {
         void roundTripBytes(@ForAll @From("values") String value,
                             @ForAll @From("signatures") String signature,
                             @ForAll @From("sources") String source) throws IOException {
-        synchronized (METRICS_LOCK) {
+            synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
                 Path dir = newTempDir();
                 try {
@@ -433,8 +433,8 @@ class SkinIOPropertyTest {
                 } finally {
                     deleteRecursively(dir);
                 }
-        
-        }}
+            }
+        }
     }
 
 
@@ -451,7 +451,7 @@ class SkinIOPropertyTest {
         @Property(tries = 100)
         @Label("restart after delete: a fresh store sees no resurrected skin")
         void restartAfterDelete(@ForAll @From("values") String value) throws IOException {
-        synchronized (METRICS_LOCK) {
+            synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
                 Path dir = newTempDir();
                 try {
@@ -467,8 +467,8 @@ class SkinIOPropertyTest {
                 } finally {
                     deleteRecursively(dir);
                 }
-        
-        }}
+            }
+        }
     }
 
 
@@ -489,7 +489,7 @@ class SkinIOPropertyTest {
         @Label("model equivalence: flushed disk equals the reference model for any op script")
         void modelEquivalence(@ForAll @From("opScripts") List<Op> script)
                 throws InterruptedException, IOException {
-        synchronized (METRICS_LOCK) {
+            synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
                 SkinStorage.resetForTest();
                 Path dir = newTempDir();
@@ -514,8 +514,8 @@ class SkinIOPropertyTest {
                 } finally {
                     deleteRecursively(dir);
                 }
-        
-        }}
+            }
+        }
     }
 
 
@@ -530,7 +530,7 @@ class SkinIOPropertyTest {
         @Property(tries = 100)
         @Label("latest-wins: after flush the disk holds the last submitted payload")
         void latestWins(@ForAll @From("valueSequences") List<String> values) throws IOException {
-        synchronized (METRICS_LOCK) {
+            synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
                 Path dir = newTempDir();
                 try {
@@ -545,8 +545,8 @@ class SkinIOPropertyTest {
                 } finally {
                     deleteRecursively(dir);
                 }
-        
-        }}
+            }
+        }
 
         /**
          * Model: two concurrent submits race for the same key; the flushed
@@ -558,7 +558,7 @@ class SkinIOPropertyTest {
         @Label("concurrent saves: flushed disk holds one submitted payload, never a mix")
         void concurrentLatestWins(@ForAll @From("values") String valueA, @ForAll @From("values") String valueB)
                 throws InterruptedException, IOException {
-        synchronized (METRICS_LOCK) {
+            synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
                 Path dir = newTempDir();
                 try {
@@ -599,7 +599,7 @@ class SkinIOPropertyTest {
                 } finally {
                     deleteRecursively(dir);
                 }
-        
-        }}
+            }
+        }
     }
 }
