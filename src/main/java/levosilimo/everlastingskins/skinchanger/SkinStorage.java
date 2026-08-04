@@ -76,7 +76,14 @@ public class SkinStorage {
         CustomSkinProperty skin = skinIO.loadSkin(uuid);
         if (skin != null && skin.isEmpty()) {
             pendingWrites.remove(uuid);
-            skinIO.deleteSkin(uuid);
+            try {
+                deleteSkinSerialized(uuid);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
+            } catch (IOException e) {
+                throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
+            }
             return null;
         }
         return skin;
@@ -104,10 +111,27 @@ public class SkinStorage {
         return loaded.getSource();
     }
 
+    /**
+     * Strict last-write-wins save: the in-memory value is written through the
+     * single writer thread and this call blocks until the write has landed.
+     * Submitting through SAVE_EXECUTOR (FIFO) orders the sync save after any
+     * in-flight drain write for the same UUID; purging the pending payload
+     * first keeps a not-yet-drained async write from overwriting it. Without
+     * the serialization the async drain could land a stale payload after the
+     * sync save (sync/async inversion).
+     */
     public void saveSkin(UUID uuid) {
         CustomSkinProperty skinProperty = skinMap.get(uuid);
-        if (skinProperty != null) {
-            skinIO.saveSkin(uuid, skinProperty);
+        if (skinProperty == null) return;
+        pendingWrites.remove(uuid);
+        byte[] payload = JsonUtils.toJson(skinProperty).getBytes(StandardCharsets.UTF_8);
+        try {
+            SAVE_EXECUTOR.submit(() -> skinIO.saveSkin(uuid, payload)).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            EverlastingSkins.logger.warn("Sync skin save of {} interrupted", uuid, e);
+        } catch (ExecutionException | TimeoutException e) {
+            EverlastingSkins.logger.warn("Sync skin save of {} did not complete in 5s", uuid, e);
         }
     }
 
@@ -173,11 +197,73 @@ public class SkinStorage {
         }
     }
 
+    /**
+     * Raised when a serialized skin delete cannot be confirmed to have landed
+     * (timeout, writer failure, or interrupted wait). The in-memory map entry
+     * and the on-disk file must move together, so callers propagate this
+     * instead of silently dropping the entry while the file survives.
+     */
+    public static class DeleteFailedException extends RuntimeException {
+
+        DeleteFailedException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     public CustomSkinProperty removeSkin(UUID uuid) {
-        pendingWrites.remove(uuid); // purge deferred drain; it must not resurrect a deleted skin
+        // Purge the deferred payload so a drain that has not started yet skips
+        // this UUID, then delete the file before dropping the map entry:
+        // getSkin() reloads from disk on a map miss, so removing the entry
+        // before the file is gone would let a concurrent read resurrect the
+        // cleared skin into the map. A failed delete propagates instead of
+        // dropping the entry: the file and the map must move together.
+        pendingWrites.remove(uuid);
+        try {
+            deleteSkinSerialized(uuid);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
+        } catch (IOException e) {
+            throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
+        }
         skinMap.remove(uuid);
-        skinIO.deleteSkin(uuid);
         return null;
+    }
+
+    /**
+     * Runs the file deletion on the single writer thread so it is serialized
+     * against drain writes, and blocks until the delete has landed. An
+     * in-flight drain that already pulled this payload completes its write
+     * before the delete runs, so no stale write can land after the delete
+     * (write-after-delete race).
+     *
+     * <p>Failure is raised, never swallowed: the caller must not drop the
+     * in-memory entry while the file may still exist, or a later getSkin()
+     * reload resurrects the cleared skin. InterruptedException is re-thrown
+     * as-is; a timeout or writer failure surfaces as
+     * {@link DeleteFailedException}.
+     */
+    private void deleteSkinSerialized(UUID uuid) throws InterruptedException, IOException {
+        try {
+            SAVE_EXECUTOR.submit(() -> {
+                skinIO.deleteSkin(uuid);
+                return null;
+            }).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        } catch (TimeoutException e) {
+            EverlastingSkins.logger.warn("Skin delete of {} timed out after 5s", uuid);
+            throw new DeleteFailedException("Skin delete of " + uuid + " timed out after 5s", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException) {
+                EverlastingSkins.logger.warn("Failed to delete skin file for {}", uuid, cause);
+                throw (IOException) cause;
+            }
+            EverlastingSkins.logger.warn("Skin delete of {} failed", uuid, cause);
+            throw new DeleteFailedException("Skin delete of " + uuid + " failed", cause);
+        }
     }
 
     public CustomSkinProperty setSkin(UUID uuid, @Nullable CustomSkinProperty skin) {
