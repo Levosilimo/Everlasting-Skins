@@ -58,6 +58,9 @@ public class SkinRestorer {
             EverlastingSkins.logger.error("Failed to create skin data directory", e);
         }
         skinIO = new SkinIO(dataDir);
+        // Startup integrity sweep: quarantine bit-rotten records before the
+        // first player logs in, so SkinStorage only ever sees verified files.
+        skinIO.validateAllFiles();
         skinStorage = new SkinStorage(skinIO);
         Config.load(new File(server.getFile("config"), "everlastingskins.cfg"));
         SkinCommand.register(server);

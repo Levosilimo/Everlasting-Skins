@@ -19,18 +19,41 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 public class SkinIO {
 
     private static final String FILE_EXTENSION = ".json";
     private static final String TEMP_SUFFIX = ".tmp";
     private static final String CORRUPT_PREFIX = ".corrupt-";
+
+    /**
+     * In-band per-record integrity marker (Tier 2): hex SHA-256 of the
+     * canonical record bytes, stored as a JSON member of the record itself.
+     * Record and marker therefore move together in one atomic rename, so a
+     * crash can never leave a torn record/checksum pair on disk (a sidecar
+     * file has an unavoidable two-file window). This mirrors the in-band
+     * checksum placement of ARIES (per-log-page checksums) and RocksDB
+     * (per-block trailers) and the committed-state framing of Pillai et al.
+     * (OSDI 2014): a reader sees either the previous committed record or the
+     * new one, never a record whose integrity cannot be checked.
+     */
+    private static final String CHECKSUM_FIELD = "checksum";
+
+    /** {@link #checksumStatus(String)} result: canonical record matches its marker. */
+    private static final int CHECKSUM_VALID = 0;
+    /** {@link #checksumStatus(String)} result: record is malformed or its marker no longer matches. */
+    private static final int CHECKSUM_MISMATCH = 1;
+    /** {@link #checksumStatus(String)} result: record carries no marker (legacy format). */
+    private static final int CHECKSUM_ABSENT = 2;
 
     private final Path savePath;
 
@@ -95,7 +118,7 @@ public class SkinIO {
             Files.createDirectories(savePath);
             Files.deleteIfExists(temp);
 
-            Files.write(temp, payload);
+            Files.write(temp, withChecksum(payload));
 
             try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
                 channel.force(true);
@@ -109,6 +132,54 @@ public class SkinIO {
                 Files.deleteIfExists(temp);
             } catch (IOException ignored) {
             }
+        }
+    }
+
+    /**
+     * Wraps a raw record payload in the checksum envelope: strips any stale
+     * {@value #CHECKSUM_FIELD} member, hashes the canonical record bytes and
+     * appends the hex SHA-256 digest as the {@value #CHECKSUM_FIELD} member.
+     * The canonical record is the payload re-serialized through the same Gson
+     * used by {@link JsonUtils} (deterministic field order and pretty
+     * printing), so the write path and the verify path derive identical
+     * bytes: a single flipped byte anywhere in the canonical record changes
+     * the digest. This is the tier-2 barrier that closes the silent bit-rot
+     * gap — a flipped byte inside the base64 value or signature still parses
+     * as valid JSON, and the {@code isValidJson} check alone cannot see it
+     * (cf. ARIES page checksums and RocksDB block trailers, which store the
+     * integrity marker in-band with the data it protects).
+     * <p>
+     * Backwards compatibility: a payload that is not a JSON object (e.g.
+     * the raw byte payloads written by the durability tests, or any
+     * hand-crafted legacy record) is written verbatim without a marker;
+     * such files load with a warning, never a quarantine.
+     */
+    private static byte[] withChecksum(byte[] payload) {
+        try {
+            JsonObject obj = new JsonParser().parse(new String(payload, StandardCharsets.UTF_8)).getAsJsonObject();
+            obj.remove(CHECKSUM_FIELD);
+            String canonical = JsonUtils.toJson(obj);
+            obj.addProperty(CHECKSUM_FIELD, sha256Hex(canonical.getBytes(StandardCharsets.UTF_8)));
+            return JsonUtils.toJson(obj).getBytes(StandardCharsets.UTF_8);
+        } catch (JsonParseException | IllegalStateException e) {
+            // Not a JSON object: write verbatim (legacy format, no marker).
+            return payload;
+        }
+    }
+
+    /** Hex SHA-256 of the given bytes. Built-in {@link MessageDigest}: no new dependency. */
+    private static String sha256Hex(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data);
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
+                hex.append(Character.forDigit(b & 0xF, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required but unavailable", e);
         }
     }
 
@@ -168,10 +239,53 @@ public class SkinIO {
                 quarantineFile(uuid);
                 return null;
             }
+            int status = checksumStatus(content);
+            if (status == CHECKSUM_MISMATCH) {
+                EverlastingSkins.logger.warn("Bit rot detected in skin record {}: checksum mismatch, quarantining", target);
+                quarantineFile(uuid);
+                return null;
+            }
+            if (status == CHECKSUM_ABSENT) {
+                EverlastingSkins.logger.warn(
+                        "Skin record {} has no checksum (legacy format); loaded without integrity verification", target);
+            }
             return content;
         } catch (IOException e) {
             return null;
         }
+    }
+
+    /**
+     * Recomputed the in-band SHA-256 of a parsed record and compares it to
+     * the stored marker. The canonical form (record minus the marker member,
+     * re-serialized through the same Gson) is byte-identical to the bytes
+     * that were hashed on write, so a single flipped byte in the value,
+     * signature or any other member fails the comparison — the silent
+     * failure mode that {@code isValidJson} cannot see (bit rot that still
+     * parses as valid JSON). Returns {@link #CHECKSUM_VALID} on a match,
+     * {@link #CHECKSUM_MISMATCH} on malformed JSON or a digest mismatch and
+     * {@link #CHECKSUM_ABSENT} for legacy records without a marker.
+     */
+    private static int checksumStatus(String content) {
+        JsonElement element;
+        try {
+            element = new JsonParser().parse(content);
+        } catch (JsonParseException e) {
+            return CHECKSUM_MISMATCH;
+        }
+        if (!element.isJsonObject()) {
+            // Array-shaped records predate the marker; nothing to verify.
+            return CHECKSUM_ABSENT;
+        }
+        JsonObject obj = element.getAsJsonObject();
+        if (!obj.has(CHECKSUM_FIELD) || obj.get(CHECKSUM_FIELD).isJsonNull()) {
+            return CHECKSUM_ABSENT;
+        }
+        String expected = obj.get(CHECKSUM_FIELD).getAsString();
+        obj.remove(CHECKSUM_FIELD);
+        String canonical = JsonUtils.toJson(obj);
+        boolean matches = sha256Hex(canonical.getBytes(StandardCharsets.UTF_8)).equals(expected);
+        return matches ? CHECKSUM_VALID : CHECKSUM_MISMATCH;
     }
 
     private static boolean isValidJson(String content) {
@@ -185,13 +299,79 @@ public class SkinIO {
     }
 
     private void quarantineFile(UUID uuid) {
-        Path target = savePath.resolve(uuid + FILE_EXTENSION);
+        quarantineFile(savePath.resolve(uuid + FILE_EXTENSION));
+    }
+
+    /**
+     * Renames a corrupt record to {@code <name>.corrupt-<ts>} so it is never
+     * re-read. Called for malformed JSON and checksum mismatches alike; a
+     * mismatched record that still parses as JSON is quarantined identically.
+     */
+    private void quarantineFile(Path target) {
         if (!Files.exists(target)) return;
         String timestamp = String.valueOf(Instant.now().toEpochMilli());
-        Path quarantine = savePath.resolve(uuid + FILE_EXTENSION + CORRUPT_PREFIX + timestamp);
+        Path quarantine = target.resolveSibling(target.getFileName() + CORRUPT_PREFIX + timestamp);
         try {
             Files.move(target, quarantine, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ignored) {
+        }
+    }
+
+    /**
+     * Startup integrity sweep: scans every {@code *.json} record in the save
+     * directory, recomputes the in-band SHA-256 and quarantines any record
+     * whose marker no longer matches (bit rot detected before any player
+     * logs in, so a silently corrupt skin can never be applied). Legacy
+     * records without a marker pass through, as do {@code .tmp} and
+     * {@code .corrupt-*} files. Logs a summary line with the counts; the
+     * result is returned so tests (and the summary) can assert the sweep
+     * outcome. One hash per record: negligible at startup scale.
+     */
+    public SweepResult validateAllFiles() {
+        if (!Files.isDirectory(savePath)) {
+            EverlastingSkins.logger.info("SkinIO sweep: no skin directory at {}, nothing to validate", savePath);
+            return new SweepResult(0, 0, 0);
+        }
+        int checked = 0;
+        int corrupt = 0;
+        int legacy = 0;
+        try (Stream<Path> files = Files.list(savePath)) {
+            for (Path file : (Iterable<Path>) files::iterator) {
+                String name = file.getFileName().toString();
+                if (!name.endsWith(FILE_EXTENSION)) continue;
+                checked++;
+                try {
+                    String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                    int status = checksumStatus(content);
+                    if (status == CHECKSUM_MISMATCH) {
+                        EverlastingSkins.logger.warn("Bit rot detected in {} during startup sweep; quarantining", file);
+                        quarantineFile(file);
+                        corrupt++;
+                    } else if (status == CHECKSUM_ABSENT) {
+                        legacy++;
+                    }
+                } catch (IOException e) {
+                    EverlastingSkins.logger.warn("SkinIO sweep could not read {}; leaving it in place", file, e);
+                }
+            }
+        } catch (IOException e) {
+            EverlastingSkins.logger.warn("SkinIO sweep failed to list {}", savePath, e);
+        }
+        EverlastingSkins.logger.info("SkinIO sweep: {} files checked, {} corrupt quarantined, {} legacy without checksum",
+                checked, corrupt, legacy);
+        return new SweepResult(checked, corrupt, legacy);
+    }
+
+    /** Outcome of {@link #validateAllFiles()}. */
+    public static final class SweepResult {
+        public final int filesChecked;
+        public final int corruptFound;
+        public final int legacyFound;
+
+        SweepResult(int filesChecked, int corruptFound, int legacyFound) {
+            this.filesChecked = filesChecked;
+            this.corruptFound = corruptFound;
+            this.legacyFound = legacyFound;
         }
     }
 }
