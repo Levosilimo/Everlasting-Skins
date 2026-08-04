@@ -24,7 +24,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,19 +35,27 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A5 stored-source skip: the stored source is a provider-class discriminator
- * (SOURCE_MOJANG / SOURCE_MINESKIN), so the skip decision is class-to-class.
+ * A5 stored-source skip: the stored skin carries a provider-class
+ * discriminator (SOURCE_MOJANG / SOURCE_MINESKIN) plus the username it was
+ * fetched for, so the skip fires only when BOTH match the incoming request.
  * The real provider implementations must store the production discriminator
  * values — if those literals drift, no stored skin ever matches and the skip
  * silently dies in production. A username-shaped stored source (the old
- * test-only contract) must NOT trigger the skip, and neither must a stored
- * MineSkin-class source or an absent stored skin.
+ * test-only contract) must NOT trigger the skip, neither must a stored
+ * MineSkin-class source, an absent stored skin, or a Mojang-class skin that
+ * was fetched for a different username (which falls through to a fresh
+ * fetch).
  */
 class SkinActionStoredSourceSkipTest {
 
     /** Production discriminator literal pinned by {@link #discriminatorValues_arePinned}. */
     private static final String PRODUCTION_MOJANG_SOURCE = "MojangAPI";
     private static final String PRODUCTION_MINESKIN_SOURCE = "MineSkin";
+
+    /** Distinct texture payload so the fresh-fetch test can tell skins apart. */
+    private static final String JEB_VALUE = Base64.getEncoder().encodeToString(
+        ("{\"textures\":{\"SKIN\":{\"url\":\"http://textures.minecraft.net/texture/jeb\"}}}")
+            .getBytes(StandardCharsets.UTF_8));
 
     private static final UUID PLAYER_UUID = UUID.fromString("12345678-1234-1234-1234-123456789abc");
     private static final String NO_DASH_UUID = "12345678123412341234123456789abc";
@@ -99,6 +109,8 @@ class SkinActionStoredSourceSkipTest {
 
         assertTrue(result.isPresent());
         assertEquals(PRODUCTION_MOJANG_SOURCE, result.get().getSource());
+        assertEquals("Notch", result.get().getUsername(),
+            "the username used for the lookup must be persisted on the skin");
     }
 
     @Test
@@ -152,6 +164,34 @@ class SkinActionStoredSourceSkipTest {
     }
 
     @Test
+    @DisplayName("Mojang-class skin stored for a different username does not skip — fresh fetch stores the new username")
+    void differentUsernameMojangSkin_fetchesFresh() {
+        CustomSkinProperty mojangShapedNotch = new CustomSkinProperty("textures",
+            TestProperties.NOTCH.getOriginalProperty().getValue(),
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MOJANG, "Notch");
+        CustomSkinProperty jebSkin = new CustomSkinProperty("textures", JEB_VALUE,
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MOJANG, "Jeb_");
+        fake.addSkin("Notch", mojangShapedNotch).addSkin("Jeb_", jebSkin);
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+
+        ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
+        assertTrue(AsyncSupport.await(5000, () -> "Notch".equals(usernameOf(alice))),
+            "first dispatch must store the skin with its username");
+        assertEquals(1, fake.lookupCount("Notch"));
+
+        ctx.commandManager.executeCommand(alice, "/skin set mojang Jeb_");
+        assertTrue(AsyncSupport.await(5000, () -> fake.lookupCount("Jeb_") == 1),
+            "different-username redispatch must consult the provider again");
+        assertEquals(0, SkinMetrics.INSTANCE.snapshot().refreshesSkippedStored(),
+            "different-username redispatch must not take the skip");
+        assertTrue(AsyncSupport.await(5000, () -> "Jeb_".equals(usernameOf(alice))),
+            "the fresh fetch must store the new username");
+        assertTrue(AsyncSupport.await(5000,
+                () -> SkinMetrics.INSTANCE.snapshot().refreshesCompleted() >= 2),
+            "different-username redispatch must run the refresh pipeline");
+    }
+
+    @Test
     @DisplayName("no stored skin never triggers the skip")
     void noStoredSkin_doesNotTriggerSkip() {
         fake.addSkin("Notch", TestProperties.NOTCH);
@@ -167,6 +207,11 @@ class SkinActionStoredSourceSkipTest {
     private String sourceOf(EntityPlayerMP player) {
         CustomSkinProperty skin = ctx.storage.getSkin(player.getUniqueID());
         return skin != null ? skin.getSource() : null;
+    }
+
+    private String usernameOf(EntityPlayerMP player) {
+        CustomSkinProperty skin = ctx.storage.getSkin(player.getUniqueID());
+        return skin != null ? skin.getUsername() : null;
     }
 
     private static String validMineSkinJson() {

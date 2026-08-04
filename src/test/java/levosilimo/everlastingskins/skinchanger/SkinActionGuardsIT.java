@@ -178,11 +178,11 @@ class SkinActionGuardsIT {
     @Test
     void storedSourceMatch_skipsProviderFetchAndRebroadcasts() {
         // Production shape: Mojang providers persist the source-class literal
-        // "MojangAPI" (never the requested username), so the A5 skip must fire
-        // on that value or it stays dead in production.
+        // "MojangAPI" plus the username the skin was fetched for, so the A5
+        // skip must fire only when both match the request.
         CustomSkinProperty mojangShaped = new CustomSkinProperty("textures",
             TestProperties.NOTCH.getOriginalProperty().getValue(),
-            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MOJANG);
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MOJANG, "Notch");
         fake.addSkin("Notch", mojangShaped);
         EntityPlayerMP alice = ctx.newPlayer("Alice");
         List<Packet<?>> global = new CopyOnWriteArrayList<>();
