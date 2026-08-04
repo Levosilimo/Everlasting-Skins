@@ -20,6 +20,7 @@ import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -73,6 +74,13 @@ class SkinCommandTabCompleteTest {
         dispatcher = new CommandDispatcher<>();
         SkinCommand.register(dispatcher);
         source = sourceWithOpLevel(0);
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Undo config overrides (e.g. the metrics op levels) so later test
+        // classes in the same JVM always see the defaults.
+        TestConfigSupport.loadDefaults();
     }
 
     @Test
