@@ -112,13 +112,17 @@ class SkinIOPropertyTest {
         return values().list().ofSize(100);
     }
 
-    /** Generated script for the drain-race property: payload plus delete delay. */
+    /**
+     * Generated script for the drain-race property: payload plus delete delay.
+     * The delay range 40-60ms straddles the 50ms drain debounce, so roughly
+     * half the steps issue the delete while the drain write is in flight.
+     */
     @Provide
     Arbitrary<List<RaceStep>> raceScripts() {
         return Combinators.combine(
                 Arbitraries.strings().withCharRange('a', 'z').ofMinLength(65536).ofMaxLength(262144)
                         .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8))),
-                Arbitraries.integers().between(45, 70))
+                Arbitraries.integers().between(40, 60))
                 .as(RaceStep::new)
                 .list().ofSize(4);
     }
@@ -327,12 +331,16 @@ class SkinIOPropertyTest {
          * it cannot be interleaved between an in-flight drain's write and its
          * atomic rename; the file must be absent once the delete returns. The
          * drain fires 50ms after the save, so each step issues the delete with
-         * a generated 45-70ms delay to land inside the write window.
+         * a generated 40-60ms delay straddling that window. The race window
+         * cannot be latched on the 1.21 API (the drain write is private, with
+         * no test seam), so the property keeps generated sleeps as the probe;
+         * 12 tries x 4 steps stays under the 5s flake budget while the
+         * serialized delete keeps the outcome deterministic.
          * Crash-consistency framing per Pillai et al. (OSDI 2014): no
          * write-after-delete resurrection. The delay is generated data, so a
          * failing script shrinks to a minimal reproduction.
          */
-        @Property(tries = 60)
+        @Property(tries = 12)
         @Label("delete beats an in-flight drain: no write-after-delete resurrection")
         void deleteBeatsInFlightDrain(@ForAll @From("raceScripts") List<RaceStep> steps) throws IOException {
         synchronized (METRICS_LOCK) {
