@@ -237,6 +237,66 @@ class SkinRefreshTaskTest {
     /*     broadcast-related flag; bundle/dimension flags are 1.21-only)   */
     /* ================================================================== */
 
+    @Test
+    @DisplayName("Tracker untrack/track/updateVisibility runs once, after the cascade, when the flag is enabled")
+    void trackerRunsAfterCascade_whenEnabled() {
+        Config.refreshViaEntityTracker = true;
+        refresh(target);
+
+        // The leading updateVisibility is a VANILLA side effect: 1.12.2
+        // EntityPlayerMP.sendPlayerAbilities() -> updatePotionMetadata()
+        // calls EntityTracker.updateVisibility(player) on its own.
+        assertEquals(Arrays.asList("updateVisibility", "untrack", "track", "updateVisibility"),
+            trackerCalls,
+            "expected the vanilla updateVisibility (from sendPlayerAbilities), then the "
+                + "flag-block untrack/track/updateVisibility");
+        assertEquals(1, count(trackerCalls, "untrack"), "untrack must run exactly once");
+        assertEquals(1, count(trackerCalls, "track"), "track must run exactly once");
+
+        // The tracker block runs at the END of the respawn cascade: the
+        // abilities packet is sent, then untrack/track/updateVisibility.
+        org.mockito.InOrder order = inOrder(ctx.world.getEntityTracker(), target.connection);
+        order.verify(target.connection).sendPacket(any(SPacketPlayerAbilities.class));
+        order.verify(ctx.world.getEntityTracker()).updateVisibility(target);
+        order.verify(ctx.world.getEntityTracker()).untrack(target);
+        order.verify(ctx.world.getEntityTracker()).track(target);
+        order.verify(ctx.world.getEntityTracker()).updateVisibility(target);
+        assertTrue(indexOfType(targetLog.all(), SPacketPlayerAbilities.class) >= 0,
+            "1.12.2 divergence: the tracker untrack/re-track runs at the END of the respawn "
+                + "cascade, after the abilities packet (1.21 runs it before the respawn)");
+    }
+
+    @Test
+    @DisplayName("Tracker is never touched when refreshViaEntityTracker is disabled")
+    void trackerSkipped_whenDisabled() {
+        Config.refreshViaEntityTracker = false;
+        refresh(target);
+
+        // Only the vanilla sendPlayerAbilities -> updatePotionMetadata ->
+        // EntityTracker.updateVisibility side effect fires; the
+        // refreshViaEntityTracker block must not run.
+        assertEquals(Collections.singletonList("updateVisibility"), trackerCalls,
+            "flag disabled: no untrack/track/updateVisibility from the refresh block expected");
+        EntityTracker tracker = ctx.world.getEntityTracker();
+        verify(tracker, never()).untrack(target);
+        verify(tracker, never()).track(target);
+
+        // The cascade itself must be unaffected by the flag.
+        List<Packet<?>> stream = targetLog.all();
+        int respawn = indexOfType(stream, SPacketRespawn.class);
+        int position = indexOfType(stream, SPacketPlayerPosLook.class);
+        int difficulty = indexOfType(stream, SPacketServerDifficulty.class);
+        int permission = indexOfType(stream, SPacketEntityStatus.class);
+        int abilities = indexOfType(stream, SPacketPlayerAbilities.class);
+        assertTrue(respawn >= 0 && position > respawn && difficulty > position
+                && permission > difficulty && abilities > permission,
+            "cascade order must hold with the tracker flag disabled; stream=" + stream);
+    }
+
+    /* ================================================================== */
+    /*  C. Multi-observer + multi-target                                   */
+    /* ================================================================== */
+
     /*  Helpers                                                           */
     /* ================================================================== */
 
