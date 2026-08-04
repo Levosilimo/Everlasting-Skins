@@ -16,9 +16,9 @@ import java.util.regex.Pattern;
 /**
  * Typed config loaded from {@code /endpoints.properties} on the classpath.
  * <p>
- * All external service URLs (Mojang sessionserver, Eclipse, MineTools,
- * MineSkin, Minecraft textures, NameMC, mskins.net) are defined in that
- * resource file rather than hardcoded as Java string literals.
+ * All external service URLs (Mojang sessionserver, MineTools, MineSkin,
+ * Minecraft textures, NameMC, mskins.net) are defined in that resource
+ * file rather than hardcoded as Java string literals.
  */
 public class EndpointsConfig {
     private static final Properties props = new Properties();
@@ -38,7 +38,7 @@ public class EndpointsConfig {
 
     public static String getString(String key) {
         // System property override (controlled testing / local endpoint injection)
-        // Example: -Deverlastingskins.endpoint.uuid.eclipse=http://localhost:8080/...
+        // Example: -Deverlastingskins.endpoint.uuid.mojang=http://localhost:8080/...
         String sysProp = System.getProperty("everlastingskins." + key);
         if (sysProp != null && !sysProp.isEmpty()) {
             return sysProp;
