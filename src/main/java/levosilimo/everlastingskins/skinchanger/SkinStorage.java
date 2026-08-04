@@ -88,8 +88,12 @@ public class SkinStorage {
     }
 
     public CustomSkinProperty removeSkin(UUID uuid) {
-        skinMap.remove(uuid);
+        // Delete the file first (blocking, serialized through the SkinIO writer
+        // thread) and only then drop the map entry: getSkin() reloads from disk
+        // on a map miss, so removing the entry before the file is gone would let
+        // a concurrent read resurrect the cleared skin into the map.
         skinIO.deleteSkin(uuid);
+        skinMap.remove(uuid);
         return null;
     }
 
