@@ -11,15 +11,15 @@ import com.mojang.authlib.GameProfile;
 import io.netty.buffer.Unpooled;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
+import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
+import levosilimo.everlastingskins.broadcast.VanillaSkinBroadcaster;
 import levosilimo.everlastingskins.enums.SkinActionType;
-import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.I18nUtils;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,13 +27,32 @@ import net.minecraft.server.players.PlayerList;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 
 public class SkinRefreshHandler {
 
     /** Test-visible counter of task() invocations (see gametest assertions). */
     public static volatile long refreshTaskCount = 0;
+
+    /**
+     * Seam for the per-viewer packet fan-out. Production uses
+     * {@link VanillaSkinBroadcaster}; tests inject a recording fake to
+     * assert call shape without re-implementing the REMOVE+ADD+cascade
+     * pipeline. Static so the {@code task} entry point stays
+     * signature-compatible with all existing callers (R3 invariant:
+     * public API unchanged).
+     */
+    private static volatile SkinBroadcaster broadcaster = new VanillaSkinBroadcaster();
+
+    /** Test seam: replace the broadcaster. */
+    public static void setBroadcaster(SkinBroadcaster newBroadcaster) {
+        broadcaster = newBroadcaster;
+    }
+
+    /** Current broadcaster (mainly for tests asserting the wiring). */
+    public static SkinBroadcaster getBroadcaster() {
+        return broadcaster;
+    }
 
     public static void resetRefreshTaskCount() {
         refreshTaskCount = 0;
@@ -137,54 +156,15 @@ public class SkinRefreshHandler {
      * UPDATE_DISPLAY_NAME does not serialize the GameProfile, so observers never
      * received new textures; REMOVE + ADD_PLAYER forces clients to re-learn the
      * profile. Dimension-scoped only when DIMENSION_SCOPED_BROADCAST is enabled.
+     *
+     * <p>Per-viewer packet fan-out is delegated to the injected
+     * {@link SkinBroadcaster}; the call shape is broadcaster-agnostic so
+     * config-flag tests can swap in a recording fake without rebuilding
+     * the REMOVE+ADD+cascade pipeline.
      */
     private static void recordObserverBroadcast(ServerPlayer player, CustomSkinProperty skin) {
-        PlayerList playerlist = player.server.getPlayerList();
-        ServerLevel serverLevel = player.serverLevel();
-        var dimension = serverLevel.dimension();
-        Packet<ClientGamePacketListener> removePacket = new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID()));
-        Packet<ClientGamePacketListener> addPacket = new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player);
-
-        NetworkMetricsHandler netHandler = NetworkMetricsHandler.getOrAttach(player.connection.getConnection());
-        long outBefore = netHandler != null ? netHandler.outboundBytes() : 0;
-        long inBefore = netHandler != null ? netHandler.inboundBytes() : 0;
-        long start = System.nanoTime();
-
-        if (Config.BROADCAST_USE_BUNDLE.get()) {
-            ClientboundBundlePacket bundle = new ClientboundBundlePacket(List.of(removePacket, addPacket));
-            for (ServerPlayer online : playerlist.getPlayers()) {
-                if (Config.DIMENSION_SCOPED_BROADCAST.get() && !online.serverLevel().dimension().equals(dimension)) {
-                    continue;
-                }
-                online.connection.send(bundle);
-            }
-        } else if (Config.DIMENSION_SCOPED_BROADCAST.get()) {
-            playerlist.broadcastAll(removePacket, dimension);
-            playerlist.broadcastAll(addPacket, dimension);
-        } else {
-            playerlist.broadcastAll(removePacket);
-            playerlist.broadcastAll(addPacket);
-        }
-
-        long broadcastNanos = System.nanoTime() - start;
-        SkinMetrics.INSTANCE.recordBroadcastLatency(broadcastNanos);
-        SkinMetrics.INSTANCE.recordSpikeBroadcast(broadcastNanos);
-        SkinMetrics.INSTANCE.recordBroadcast(wireSize(removePacket) + wireSize(addPacket));
-        if (netHandler != null) {
-            SkinMetrics.INSTANCE.recordNetworkDelta(
-                    netHandler.outboundBytes() - outBefore,
-                    netHandler.inboundBytes() - inBefore);
-        }
-
-        // Per-viewer entity re-render via the tracker: untrack/track forces
-        // remote clients to destroy+re-spawn the entity, so their cached
-        // playerInfo re-fetches the new profile entry. Without this step
-        // observers keep rendering the stale skin even after the tab-list
-        // REMOVE+ADD (PR #121 dropped this step; lib-13 research: regression).
-        if (Config.REFRESH_VIA_ENTITY_TRACKER.get()) {
-            ((ServerLevel) player.level()).getChunkSource().removeEntity(player);
-            ((ServerLevel) player.level()).getChunkSource().addEntity(player);
-        }
+        broadcaster.broadcastProfileChange(player.getGameProfile(), player);
+        broadcaster.trackerUntrackRetrack(player);
     }
 
     /**
@@ -227,15 +207,9 @@ public class SkinRefreshHandler {
 
     private static final long TICK_SPIKE_THRESHOLD_NANOS = 50_000_000;
 
-    /** Serialized byte size of the packets, measured with their stream codecs. */
+    /** Serialized byte size of the cascade packets, measured with their stream codecs. */
     private static int wireSize(net.minecraft.network.protocol.Packet<?> packet) {
         try {
-            if (packet instanceof ClientboundPlayerInfoRemovePacket remove) {
-                return encodeSize(remove, ClientboundPlayerInfoRemovePacket.STREAM_CODEC);
-            }
-            if (packet instanceof ClientboundPlayerInfoUpdatePacket update) {
-                return encodeSize(update, ClientboundPlayerInfoUpdatePacket.STREAM_CODEC);
-            }
             if (packet instanceof ClientboundPlayerPositionPacket position) {
                 return encodeSize(position, ClientboundPlayerPositionPacket.STREAM_CODEC);
             }
