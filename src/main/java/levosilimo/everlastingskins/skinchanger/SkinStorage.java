@@ -174,9 +174,14 @@ public class SkinStorage {
     }
 
     public CustomSkinProperty removeSkin(UUID uuid) {
-        pendingWrites.remove(uuid); // purge deferred drain; it must not resurrect a deleted skin
-        skinMap.remove(uuid);
+        // Purge the deferred payload so a drain that has not started yet skips
+        // this UUID, then delete the file before dropping the map entry:
+        // getSkin() reloads from disk on a map miss, so removing the entry
+        // before the file is gone would let a concurrent read resurrect the
+        // cleared skin into the map.
+        pendingWrites.remove(uuid);
         deleteSkinSerialized(uuid);
+        skinMap.remove(uuid);
         return null;
     }
 
