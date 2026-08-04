@@ -55,6 +55,13 @@ public class SkinIO {
      */
     private static final String CHECKSUM_FIELD = "checksum";
 
+    /** {@link #checksumStatus(String)} result: canonical record matches its marker. */
+    private static final int CHECKSUM_VALID = 0;
+    /** {@link #checksumStatus(String)} result: record is malformed or its marker no longer matches. */
+    private static final int CHECKSUM_MISMATCH = 1;
+    /** {@link #checksumStatus(String)} result: record carries no marker (legacy format). */
+    private static final int CHECKSUM_ABSENT = 2;
+
     /**
      * Single-thread writer so per-UUID writes are serialized; latest payload
      * per UUID wins (coalescing). Daemon thread so it never blocks shutdown.
@@ -361,10 +368,53 @@ public class SkinIO {
                 quarantineFile(uuid);
                 return null;
             }
+            int status = checksumStatus(content);
+            if (status == CHECKSUM_MISMATCH) {
+                EverlastingSkins.logger.warn("Bit rot detected in skin record {}: checksum mismatch, quarantining", target);
+                quarantineFile(uuid);
+                return null;
+            }
+            if (status == CHECKSUM_ABSENT) {
+                EverlastingSkins.logger.warn(
+                        "Skin record {} has no checksum (legacy format); loaded without integrity verification", target);
+            }
             return content;
         } catch (IOException e) {
             return null;
         }
+    }
+
+    /**
+     * Recomputed the in-band SHA-256 of a parsed record and compares it to
+     * the stored marker. The canonical form (record minus the marker member,
+     * re-serialized through the same Gson) is byte-identical to the bytes
+     * that were hashed on write, so a single flipped byte in the value,
+     * signature or any other member fails the comparison — the silent
+     * failure mode that {@code isValidJson} cannot see (bit rot that still
+     * parses as valid JSON). Returns {@link #CHECKSUM_VALID} on a match,
+     * {@link #CHECKSUM_MISMATCH} on malformed JSON or a digest mismatch and
+     * {@link #CHECKSUM_ABSENT} for legacy records without a marker.
+     */
+    private static int checksumStatus(String content) {
+        JsonElement element;
+        try {
+            element = JsonParser.parseString(content);
+        } catch (JsonParseException e) {
+            return CHECKSUM_MISMATCH;
+        }
+        if (!element.isJsonObject()) {
+            // Array-shaped records predate the marker; nothing to verify.
+            return CHECKSUM_ABSENT;
+        }
+        JsonObject obj = element.getAsJsonObject();
+        if (!obj.has(CHECKSUM_FIELD) || obj.get(CHECKSUM_FIELD).isJsonNull()) {
+            return CHECKSUM_ABSENT;
+        }
+        String expected = obj.get(CHECKSUM_FIELD).getAsString();
+        obj.remove(CHECKSUM_FIELD);
+        String canonical = JsonUtils.toJson(obj);
+        boolean matches = sha256Hex(canonical.getBytes(StandardCharsets.UTF_8)).equals(expected);
+        return matches ? CHECKSUM_VALID : CHECKSUM_MISMATCH;
     }
 
     private static boolean isValidJson(String content) {
@@ -378,10 +428,18 @@ public class SkinIO {
     }
 
     private void quarantineFile(UUID uuid) {
-        Path target = savePath.resolve(uuid + FILE_EXTENSION);
+        quarantineFile(savePath.resolve(uuid + FILE_EXTENSION));
+    }
+
+    /**
+     * Renames a corrupt record to {@code <name>.corrupt-<ts>} so it is never
+     * re-read. Called for malformed JSON and checksum mismatches alike; a
+     * mismatched record that still parses as JSON is quarantined identically.
+     */
+    private void quarantineFile(Path target) {
         if (!Files.exists(target)) return;
         String timestamp = String.valueOf(Instant.now().toEpochMilli());
-        Path quarantine = savePath.resolve(uuid + FILE_EXTENSION + CORRUPT_PREFIX + timestamp);
+        Path quarantine = target.resolveSibling(target.getFileName() + CORRUPT_PREFIX + timestamp);
         try {
             Files.move(target, quarantine, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ignored) {
