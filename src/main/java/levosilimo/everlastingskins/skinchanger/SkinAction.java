@@ -15,6 +15,7 @@ import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
+import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import levosilimo.everlastingskins.util.I18nUtils;
@@ -47,6 +48,11 @@ final class SkinAction {
     static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
         Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
 
+    /** Source-class discriminator persisted on Mojang-sourced skin properties. */
+    static final String SOURCE_MOJANG = "MojangAPI";
+    /** Source-class discriminator persisted on MineSkin-sourced skin properties. */
+    static final String SOURCE_MINESKIN = "MineSkin";
+
     /** Per-UUID last refresh timestamps for the debounce window. */
     private static final ConcurrentHashMap<UUID, Long> lastRefreshByPlayer = new ConcurrentHashMap<>();
     /** Per-UUID last command timestamps for the cooldown rate limit. */
@@ -68,13 +74,16 @@ final class SkinAction {
                 p.sendMessage(new TextComponentString(SkinCommand.PREFIX + I18nUtils.getLocalizedString("change", p)));
             }
         }
-        if (type == SkinActionType.username && storedSourceMatches(targets, customSource)) {
-            for (EntityPlayerMP p : targets) {
-                SkinMetrics.INSTANCE.recordRefreshSkippedStored(p.getUniqueID());
-                CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
-                SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, stored, 0L));
+        if (type == SkinActionType.username) {
+            warnStoredUsernameMismatch(targets, customSource);
+            if (storedSourceMatches(targets, customSource)) {
+                for (EntityPlayerMP p : targets) {
+                    SkinMetrics.INSTANCE.recordRefreshSkippedStored(p.getUniqueID());
+                    CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
+                    SkinRestorer.getServer().addScheduledTask(() -> SkinRefreshTask.task(p, stored, 0L));
+                }
+                return;
             }
-            return;
         }
         long[] fetchNanos = {0L};
         CompletableFuture<Map<UUID, CustomSkinProperty>> future = CompletableFuture.supplyAsync(() -> {
@@ -207,12 +216,57 @@ final class SkinAction {
         });
     }
 
-    /** A5: stored skin's source already matches the request, skip the fetch. */
+    /**
+     * A5: when the stored skin already came from the provider this request
+     * would use AND was fetched for the same username, skip the fetch and
+     * re-apply the stored skin.
+     * <p>
+     * Providers persist a source-class discriminator ({@link #SOURCE_MOJANG})
+     * plus the username used to fetch the skin, so the skip fires only when
+     * both match the incoming request. A Mojang-class skin fetched for a
+     * different username is re-fetched (with feedback) instead of silently
+     * re-applied. Only invoked for username-type (Mojang) requests.
+     * <p>
+     * Example 1: stored source="MojangAPI", stored username="Notch", request
+     * for "Notch" → SKIP (refreshesSkippedStored++).
+     * Example 2: stored source="MojangAPI", stored username="Notch", request
+     * for "Jeb_" → NO skip, fresh fetch (refreshesCompleted++), feedback
+     * message.
+     */
     private static boolean storedSourceMatches(Collection<EntityPlayerMP> targets, @Nullable String customSource) {
+        if (customSource == null) {
+            return false;
+        }
         return targets.stream().allMatch(p -> {
-            CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
-            return stored != null && Objects.equals(stored.getSource(), customSource);
+            SkinStorage storage = SkinRestorer.getSkinStorage();
+            CustomSkinProperty stored = storage.getSkin(p.getUniqueID());
+            return stored != null
+                    && SOURCE_MOJANG.equals(stored.getSource())
+                    && customSource.equals(stored.getUsername());
         });
+    }
+
+    /**
+     * The A5 skip is bypassed when the stored skin is Mojang-class but was
+     * fetched for a different username; tell the player why a fresh fetch runs
+     * so the re-fetch is not silent. Skins without a stored username (legacy
+     * persistence or UUID-keyed lookups) cannot name the old username and skip
+     * the notice.
+     */
+    private static void warnStoredUsernameMismatch(Collection<EntityPlayerMP> targets, @Nullable String customSource) {
+        if (customSource == null) {
+            return;
+        }
+        for (EntityPlayerMP p : targets) {
+            CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
+            if (stored != null
+                    && SOURCE_MOJANG.equals(stored.getSource())
+                    && stored.getUsername() != null
+                    && !customSource.equals(stored.getUsername())) {
+                p.sendMessage(new TextComponentString(SkinCommand.PREFIX
+                        + I18nUtils.formatMessage("stored_from_other_username", p, stored.getUsername())));
+            }
+        }
     }
 
     /** True when the fetched skin is byte-identical to what the player already has. */

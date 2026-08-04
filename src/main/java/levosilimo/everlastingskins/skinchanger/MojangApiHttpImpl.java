@@ -7,10 +7,8 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangProfileResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
-import levosilimo.everlastingskins.skinchanger.responses.profile.EclipseProfileResponse;
 import levosilimo.everlastingskins.skinchanger.responses.profile.MineToolsProfileResponse;
 import levosilimo.everlastingskins.skinchanger.responses.profile.PropertyResponse;
-import levosilimo.everlastingskins.skinchanger.responses.uuid.EclipseUUIDResponse;
 import levosilimo.everlastingskins.skinchanger.responses.uuid.MineToolsUUIDResponse;
 import levosilimo.everlastingskins.skinchanger.responses.uuid.MojangUUIDResponse;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -19,18 +17,20 @@ import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.UUIDUtils;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.UUID;
 
 /**
  * Mojang profile and UUID lookups over HTTP.
  * <p>
- * Providers are consulted in order (Eclipse, Mojang, MineTools); the first
- * one that returns a usable body wins. Non-200 status codes and transport
- * failures simply advance the chain to the next provider.
+ * Providers are consulted in order (Mojang, MineTools); the first one that
+ * returns a usable body wins. Non-200 status codes and transport failures
+ * simply advance the chain to the next provider.
  */
 public class MojangApiHttpImpl implements MojangAPI {
 
@@ -64,8 +64,8 @@ public class MojangApiHttpImpl implements MojangAPI {
         }
 
         if (isUsername && Config.mojangProfileCacheEnabled) {
-            // A cached profile skips the 3-provider profile chain; the UUID
-            // lookup still runs (1 request instead of 6).
+            // A cached profile skips the profile chain; the UUID lookup still
+            // runs (2 requests instead of 4).
             CustomSkinProperty cached = cache.get(nameOrUniqueId);
             if (cached != null) {
                 return getUUID(nameOrUniqueId).map(uuid -> new MojangSkinDataResult(uuid, cached));
@@ -98,17 +98,15 @@ public class MojangApiHttpImpl implements MojangAPI {
     @Override
     public Optional<UUID> getUUID(String playerName) {
         return firstPresent(
-                tryEclipseUuid(playerName),
-                tryMojangUuid(playerName),
-                tryMineToolsUuid(playerName));
+                () -> tryMojangUuid(playerName),
+                () -> tryMineToolsUuid(playerName));
     }
 
     @Override
     public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
         return firstPresent(
-                tryEclipseProfile(lookup),
-                tryMojangProfile(lookup),
-                tryMineToolsProfile(lookup));
+                () -> tryMojangProfile(lookup),
+                () -> tryMineToolsProfile(lookup));
     }
 
     /**
@@ -135,21 +133,20 @@ public class MojangApiHttpImpl implements MojangAPI {
         }
     }
 
+    /**
+     * Resolve the first present candidate, short-circuiting: the remaining
+     * providers are only consulted when the preceding ones came up empty, so
+     * a successful Mojang lookup costs exactly one HTTP request.
+     */
     @SafeVarargs
-    private static <T> Optional<T> firstPresent(Optional<T>... candidates) {
-        for (Optional<T> candidate : candidates) {
-            if (candidate.isPresent()) {
-                return candidate;
+    private static <T> Optional<T> firstPresent(Supplier<Optional<T>>... candidates) {
+        for (Supplier<Optional<T>> candidate : candidates) {
+            Optional<T> result = candidate.get();
+            if (result.isPresent()) {
+                return result;
             }
         }
         return Optional.empty();
-    }
-
-    private Optional<UUID> tryEclipseUuid(String playerName) {
-        URI uri = URI.create(endpoints.uuidEclipse().replace("%playerName%", playerName));
-        return fetchJson(uri, EclipseUUIDResponse.class)
-                .filter(EclipseUUIDResponse::exists)
-                .map(EclipseUUIDResponse::uuid);
     }
 
     private Optional<UUID> tryMojangUuid(String playerName) {
@@ -167,21 +164,11 @@ public class MojangApiHttpImpl implements MojangAPI {
                 .flatMap(mineTools -> UUIDUtils.tryParseUniqueId(mineTools.id()));
     }
 
-    private Optional<CustomSkinProperty> tryEclipseProfile(ProfileLookup lookup) {
-        URI uri = URI.create(endpoints.profileEclipse().replace("%uuid%", lookup.getUuid().toString()));
-        return fetchJson(uri, EclipseProfileResponse.class)
-                .filter(profile -> profile.exists() && !profile.isPropertyNull())
-                .map(profile -> {
-                    EclipseProfileResponse.SkinProperty skin = profile.skinProperty();
-                    return new CustomSkinProperty("textures", skin.value(), skin.signature(), "MojangAPI");
-                });
-    }
-
     private Optional<CustomSkinProperty> tryMojangProfile(ProfileLookup lookup) {
         URI uri = URI.create(endpoints.profileMojang().replace("%uuid%", UUIDUtils.convertToNoDashes(lookup.getUuid())));
         return fetchJson(uri, MojangProfileResponse.class)
                 .map(MojangProfileResponse::properties)
-                .flatMap(MojangApiHttpImpl::extractTexturesProperty);
+                .flatMap(props -> extractTexturesProperty(props, requestedUsername(lookup)));
     }
 
     private Optional<CustomSkinProperty> tryMineToolsProfile(ProfileLookup lookup) {
@@ -189,14 +176,25 @@ public class MojangApiHttpImpl implements MojangAPI {
         return fetchJson(uri, MineToolsProfileResponse.class)
                 .map(MineToolsProfileResponse::raw)
                 .filter(raw -> "OK".equalsIgnoreCase(raw.status()))
-                .flatMap(raw -> extractTexturesProperty(raw.properties()));
+                .flatMap(raw -> extractTexturesProperty(raw.properties(), requestedUsername(lookup)));
+    }
+
+    /**
+     * The username the lookup was asked for, or null when the lookup was keyed
+     * by UUID (no username exists to persist). The A5 skip compares this stored
+     * username against the next request, so a skin fetched for "Notch" is only
+     * skipped when "Notch" is requested again.
+     */
+    private static String requestedUsername(ProfileLookup lookup) {
+        return UUIDUtils.tryParseUniqueId(lookup.getUsername()).isPresent() ? null : lookup.getUsername();
     }
 
     /**
      * Find the {@code textures} property with a non-empty value, matching the
      * shape of the session server profile response.
      */
-    private static Optional<CustomSkinProperty> extractTexturesProperty(PropertyResponse[] properties) {
+    private static Optional<CustomSkinProperty> extractTexturesProperty(PropertyResponse[] properties,
+            @Nullable String requestedUsername) {
         if (properties == null) {
             return Optional.empty();
         }
@@ -205,7 +203,7 @@ public class MojangApiHttpImpl implements MojangAPI {
                     && property.value() != null
                     && !property.value().isEmpty()) {
                 return Optional.of(new CustomSkinProperty(
-                        "textures", property.value(), property.signature(), "MojangAPI"));
+                        "textures", property.value(), property.signature(), SkinAction.SOURCE_MOJANG, requestedUsername));
             }
         }
         return Optional.empty();

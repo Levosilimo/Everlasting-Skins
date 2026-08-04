@@ -111,6 +111,17 @@ public class SkinStorage {
         return loaded.getSource();
     }
 
+    @Nullable
+    public String getUsername(UUID uuid) {
+        CustomSkinProperty skin = skinMap.get(uuid);
+        if (skin != null) {
+            return skin.isEmpty() ? null : skin.getUsername();
+        }
+        CustomSkinProperty loaded = loadSkin(uuid);
+        if (loaded == null || loaded.isEmpty()) return null;
+        return loaded.getUsername();
+    }
+
     /**
      * Strict last-write-wins save: the in-memory value is written through the
      * single writer thread and this call blocks until the write has landed.

@@ -15,7 +15,8 @@ import java.util.UUID;
 /**
  * Interface for Mojang profile and UUID lookups.
  * <p>
- * Implementations provide a fallback chain: Eclipse → Mojang → MineTools.
+ * Implementations provide a fallback chain: Mojang → MineTools, with the
+ * profile cache consulted before the provider chain.
  * Consumers depend on this interface rather than the concrete HTTP implementation
  * so they can be tested with a deterministic fake.
  */
