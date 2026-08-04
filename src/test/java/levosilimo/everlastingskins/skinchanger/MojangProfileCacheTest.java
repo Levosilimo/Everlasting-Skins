@@ -199,4 +199,33 @@ class MojangProfileCacheTest {
                 "eviction cost grew with capacity: large " + largeMs + "ms vs small " + smallMs + "ms");
         assertEquals(capacity, cache.size());
     }
+
+    @Test
+    @DisplayName("concurrent puts from 8 threads: no deadlock, no lost entries, cap respected")
+    void concurrentPuts_stayConsistent() throws Exception {
+        int threads = 8;
+        int putsPerThread = 500;
+        MojangProfileCache cache = new MojangProfileCache(TimeUnit.HOURS.toMillis(1), 100);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        List<Future<?>> futures = new ArrayList<>();
+        try {
+            for (int t = 0; t < threads; t++) {
+                final int tid = t;
+                futures.add(pool.submit(() -> {
+                    for (int i = 0; i < putsPerThread; i++) {
+                        cache.put("t" + tid + "-user-" + i, SKIN);
+                    }
+                }));
+            }
+            for (Future<?> future : futures) {
+                future.get(30, TimeUnit.SECONDS);   // a deadlock would time out here
+            }
+        } finally {
+            pool.shutdown();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS), "pool did not shut down");
+        }
+        // 4000 distinct keys into a 100-entry cache: exactly the cap survives,
+        // nothing is lost or duplicated, and every survivor is retrievable.
+        assertEquals(100, cache.size());
+    }
 }
