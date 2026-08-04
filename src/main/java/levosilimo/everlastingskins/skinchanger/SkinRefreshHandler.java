@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import com.mojang.authlib.GameProfile;
 import io.netty.buffer.Unpooled;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
@@ -55,22 +56,31 @@ public class SkinRefreshHandler {
             // observers re-learn the profile and rebuild the target's own view.
             // Without this, /skin clear with no Mojang profile left the applied
             // profile showing the old texture while storage said "cleared".
-            mutateProfileCleared(player);
+            mutateProfileCleared(player.getGameProfile());
             recordObserverBroadcast(player, null);
             recordCascade(player);
             return;
         }
         long tStart = System.nanoTime();
-        try {
-            mutateProfile(player, skin);
-            recordSaveEnqueue(player);
-            recordObserverBroadcast(player, skin);
-            recordCascade(player);
-        } catch (Throwable t) {
-            // Fail soft: a partial cascade (profile mutated, observers stale)
-            // must not abort scheduled-task execution or the server tick.
-            EverlastingSkins.logger.error("Skin refresh failed for {}", player.getUUID(), t);
-            SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
+        // Atomicity invariant (R3): persistence is enqueued before the
+        // GameProfile is mutated. recordSaveEnqueue captures the stored skin
+        // synchronously (saveSkinAsync serializes the in-memory map entry at
+        // enqueue time), so when the enqueue throws, the applied profile is
+        // left untouched and in-memory and on-disk state still agree — a
+        // mutated profile with no persisted skin would silently revert on the
+        // next server restart. applyAtomicPersistence records the failure
+        // metric itself; broadcast/cascade only run after it succeeded.
+        if (applyAtomicPersistence(player.getUUID(), player.getGameProfile(), skin)) {
+            try {
+                recordObserverBroadcast(player, skin);
+                recordCascade(player);
+            } catch (Throwable t) {
+                // Fail soft: a partial cascade (profile and disk hold the new
+                // skin, observers stale) must not abort scheduled-task
+                // execution or the server tick.
+                EverlastingSkins.logger.error("Skin refresh failed for {}", player.getUUID(), t);
+                SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
+            }
         }
         long totalNanos = System.nanoTime() - tStart;
         if (totalNanos > TICK_SPIKE_THRESHOLD_NANOS) {
@@ -81,24 +91,48 @@ public class SkinRefreshHandler {
         SkinMetrics.INSTANCE.recordTaskDuration(totalNanos);
     }
 
-    private static void mutateProfile(ServerPlayer player, CustomSkinProperty skin) {
-        player.getGameProfile().getProperties().removeAll("textures");
-        player.getGameProfile().getProperties().put("textures", skin.getOriginalProperty());
+    /**
+     * Atomic persistence + profile mutation (R3 invariant): enqueues the disk
+     * flush and only then applies the skin to the GameProfile. The enqueue
+     * captures the stored skin synchronously (saveSkinAsync serializes the
+     * in-memory map entry at enqueue time), so when it throws, the profile is
+     * left untouched: applied and on-disk state stay consistent and the
+     * change cannot silently revert on the next server restart. Any failure
+     * is logged, counted as a partial-cascade failure, and reported via the
+     * return value so the caller can skip the observer broadcast/cascade.
+     * Test-visible: the invariant is exercised directly by
+     * SkinRefreshHandlerTest without a ServerPlayer.
+     */
+    static boolean applyAtomicPersistence(UUID playerId, GameProfile profile, CustomSkinProperty skin) {
+        try {
+            recordSaveEnqueue(playerId);
+        } catch (Throwable t) {
+            EverlastingSkins.logger.error("Skin refresh failed for {}", playerId, t);
+            SkinMetrics.INSTANCE.recordRefreshFailed(playerId);
+            return false;
+        }
+        mutateProfile(profile, skin);
+        return true;
+    }
+
+    private static void mutateProfile(GameProfile profile, CustomSkinProperty skin) {
+        profile.getProperties().removeAll("textures");
+        profile.getProperties().put("textures", skin.getOriginalProperty());
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
-                player.getGameProfile().getName(),
-                player.getGameProfile().getProperties().get("textures"));
+                profile.getName(),
+                profile.getProperties().get("textures"));
     }
 
-    private static void mutateProfileCleared(ServerPlayer player) {
-        player.getGameProfile().getProperties().removeAll("textures");
+    private static void mutateProfileCleared(GameProfile profile) {
+        profile.getProperties().removeAll("textures");
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={} (cleared)",
-                player.getGameProfile().getName(),
-                player.getGameProfile().getProperties().get("textures"));
+                profile.getName(),
+                profile.getProperties().get("textures"));
     }
 
-    private static void recordSaveEnqueue(ServerPlayer player) {
+    private static void recordSaveEnqueue(UUID playerId) {
         long start = System.nanoTime();
-        SkinRestorer.getSkinStorage().saveSkinAsync(player.getUUID());
+        SkinRestorer.getSkinStorage().saveSkinAsync(playerId);
         long enqueueNanos = System.nanoTime() - start;
         SkinMetrics.INSTANCE.recordSaveEnqueueLatency(enqueueNanos);
         SkinMetrics.INSTANCE.recordSpikeSaveEnqueue(enqueueNanos);
