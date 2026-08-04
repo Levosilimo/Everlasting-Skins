@@ -67,12 +67,12 @@ class SkinIOCRCTest {
     @DisplayName("valid record with matching checksum loads successfully")
     void readSkinFile_verifiesChecksum_pass() {
         UUID uuid = UUID.randomUUID();
-        CustomSkinProperty original = skin("value1");
-        skinIO.saveSkin(uuid, original);
+        String value = base64("value1");
+        skinIO.saveSkin(uuid, skin(value));
 
         CustomSkinProperty loaded = skinIO.loadSkin(uuid);
         assertNotNull(loaded, "a record whose checksum matches must load");
-        assertEquals("value1", loaded.getOriginalProperty().value());
+        assertEquals(value, loaded.getOriginalProperty().value());
         assertEquals("sig1", loaded.getOriginalProperty().signature());
     }
 
@@ -105,11 +105,12 @@ class SkinIOCRCTest {
     void readSkinFile_noChecksum_backwardCompat() throws IOException {
         UUID uuid = UUID.randomUUID();
         // Legacy files were written as bare JsonUtils.toJson(skin) — no marker.
-        Files.writeString(tempDir.resolve(uuid + ".json"), JsonUtils.toJson(skin("legacy")), StandardCharsets.UTF_8);
+        String value = base64("legacy");
+        Files.writeString(tempDir.resolve(uuid + ".json"), JsonUtils.toJson(skin(value)), StandardCharsets.UTF_8);
 
         CustomSkinProperty loaded = skinIO.loadSkin(uuid);
         assertNotNull(loaded, "a markerless legacy record must still load");
-        assertEquals("legacy", loaded.getOriginalProperty().value());
+        assertEquals(value, loaded.getOriginalProperty().value());
         assertTrue(Files.exists(tempDir.resolve(uuid + ".json")),
                 "a legacy record must never be quarantined for lacking a checksum");
     }
@@ -120,7 +121,7 @@ class SkinIOCRCTest {
         List<UUID> valid = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
             UUID u = UUID.randomUUID();
-            skinIO.saveSkin(u, skin("ok-" + i));
+            skinIO.saveSkin(u, skin(base64("ok-" + i)));
             valid.add(u);
         }
         UUID corrupt = UUID.randomUUID();
@@ -152,7 +153,7 @@ class SkinIOCRCTest {
         List<UUID> uuids = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             UUID u = UUID.randomUUID();
-            skinIO.saveSkin(u, skin("perf-" + i));
+            skinIO.saveSkin(u, skin(base64("perf-" + i)));
             uuids.add(u);
         }
 
