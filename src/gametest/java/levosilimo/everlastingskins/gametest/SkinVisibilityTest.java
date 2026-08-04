@@ -1616,7 +1616,7 @@ public class SkinVisibilityTest {
             if (fail) return Optional.empty();
             return Optional.of(new MojangSkinDataResult(
                     UUID.nameUUIDFromBytes(nameOrUniqueId.getBytes(StandardCharsets.UTF_8)),
-                    new CustomSkinProperty(valueFor(nameOrUniqueId), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, nameOrUniqueId)));
+                    new CustomSkinProperty("textures", valueFor(nameOrUniqueId), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, nameOrUniqueId)));
         }
 
         @Override
@@ -1630,7 +1630,7 @@ public class SkinVisibilityTest {
         public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
             maybeSlow();
             if (fail) return Optional.empty();
-            return Optional.of(new CustomSkinProperty(valueFor(lookup.username()), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, lookup.username()));
+            return Optional.of(new CustomSkinProperty("textures", valueFor(lookup.username()), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, lookup.username()));
         }
     }
 
