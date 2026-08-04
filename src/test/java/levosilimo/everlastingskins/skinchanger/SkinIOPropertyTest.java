@@ -286,6 +286,50 @@ class SkinIOPropertyTest {
 
     }
 
+    /* ------------------------ serialize-load round-trip ----------------------- */
+
+    @Group
+    class SerializeLoadRoundTrip {
+
+        /**
+         * Model: the wire format is the state, so serialize -> load ->
+         * re-serialize must be byte-identical and the file bytes must equal
+         * the serialized payload. This is the crash-consistency baseline of
+         * Pillai et al. (OSDI 2014): whatever a reader sees is either the
+         * previous committed bytes or the new committed bytes, never a
+         * partially written record.
+         */
+        @Property(tries = 200)
+        @Label("serialize-load round-trip is byte-identical")
+        void roundTripBytes(@ForAll @From("values") String value,
+                            @ForAll @From("signatures") String signature,
+                            @ForAll @From("sources") String source) throws IOException {
+        synchronized (METRICS_LOCK) {
+                SkinMetrics.INSTANCE.reset();
+                Path dir = newTempDir();
+                try {
+                    SkinIO io = new SkinIO(dir);
+                    SkinStorage storage = new SkinStorage(io);
+                    UUID uuid = UUID.randomUUID();
+                    CustomSkinProperty skin = new CustomSkinProperty(value, signature, source);
+                    io.saveSkin(uuid, skin);
+                    String serialized = JsonUtils.toJson(skin);
+                    String onDisk = new String(Files.readAllBytes(dir.resolve(uuid + ".json")), StandardCharsets.UTF_8);
+                    assertEquals(serialized, onDisk, "file bytes must equal the serialized payload");
+                    CustomSkinProperty loaded = storage.loadSkin(uuid);
+                    assertNotNull(loaded, "a valid payload must load");
+                    assertEquals(serialized, JsonUtils.toJson(loaded),
+                            "re-serialized payload must be byte-identical to the original");
+                    assertEquals(value, loaded.getOriginalProperty().getValue());
+                    assertEquals(signature, loaded.getOriginalProperty().getSignature());
+                    assertEquals(source, loaded.getSource());
+                } finally {
+                    deleteRecursively(dir);
+                }
+        
+        }}
+    }
+
     /* ----------------------------- latest-wins ----------------------------- */
 
     @Group
