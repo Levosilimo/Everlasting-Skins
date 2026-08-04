@@ -141,4 +141,22 @@ class SkinRefreshHandlerTest {
         assertEquals(savesBefore + 1, SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
                 "the cascade must enqueue exactly one save");
     }
+
+    @Test
+    @DisplayName("restart equivalence: after the cascade the on-disk skin equals the in-memory skin")
+    void afterCascade_ondiskSkinEqualsInMemorySkin() throws Exception {
+        GameProfile profile = new GameProfile(PLAYER_UUID, "Alice");
+        storage.setSkin(PLAYER_UUID, NEW_SKIN);
+
+        boolean persisted = SkinRefreshHandler.applyAtomicPersistence(PLAYER_UUID, profile, NEW_SKIN);
+        skinIO.flushPending();
+
+        assertTrue(persisted, "the cascade must report success");
+        CustomSkinProperty fromDisk = skinIO.loadSkin(PLAYER_UUID);
+        assertNotNull(fromDisk, "the cascade must have persisted the skin to disk");
+        assertEquals(NEW_SKIN, fromDisk,
+                "the on-disk skin after the cascade must equal the stored in-memory skin");
+        assertEquals(storage.getSkin(PLAYER_UUID), fromDisk,
+                "a restart reloading from disk must reproduce the in-memory skin");
+    }
 }
