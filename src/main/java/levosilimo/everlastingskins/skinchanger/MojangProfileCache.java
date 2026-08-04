@@ -13,6 +13,7 @@ import levosilimo.everlastingskins.util.CustomSkinProperty;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Small TTL + cap cache for Mojang profile lookups. Keyed by lower-case
@@ -31,21 +32,26 @@ import java.util.Map;
  * atomic section; there is no TOCTOU window between deciding an entry is
  * stale and removing it. A zero or negative {@code maxEntries} stores
  * nothing.
+ *
+ * <p>TTL: timestamps are taken with {@link System#nanoTime()}, which is
+ * monotonic — it never jumps when the wall clock is adjusted (NTP, manual
+ * changes) — and the config's millisecond TTL is converted to nanoseconds
+ * once at construction.
  */
 public class MojangProfileCache {
 
     private static final class CacheEntry {
         final CustomSkinProperty property;
-        final long fetchedAtMs;
+        final long fetchedAtNanos;
 
-        CacheEntry(CustomSkinProperty property, long fetchedAtMs) {
+        CacheEntry(CustomSkinProperty property, long fetchedAtNanos) {
             this.property = property;
-            this.fetchedAtMs = fetchedAtMs;
+            this.fetchedAtNanos = fetchedAtNanos;
         }
     }
 
     private final LinkedHashMap<String, CacheEntry> entries = new LinkedHashMap<>(16, 0.75f, true);
-    private final long ttlMs;
+    private final long ttlNanos;
     private final int maxEntries;
 
     public MojangProfileCache() {
@@ -53,7 +59,7 @@ public class MojangProfileCache {
     }
 
     public MojangProfileCache(long ttlMs, int maxEntries) {
-        this.ttlMs = ttlMs;
+        this.ttlNanos = TimeUnit.MILLISECONDS.toNanos(Math.max(0, ttlMs));
         this.maxEntries = maxEntries;
     }
 
@@ -66,7 +72,7 @@ public class MojangProfileCache {
             SkinMetrics.INSTANCE.recordCacheMiss();
             return null;
         }
-        if (System.currentTimeMillis() - entry.fetchedAtMs > ttlMs) {
+        if (System.nanoTime() - entry.fetchedAtNanos > ttlNanos) {
             entries.remove(key, entry);
             SkinMetrics.INSTANCE.recordCacheMiss();
             return null;
@@ -81,14 +87,14 @@ public class MojangProfileCache {
         String key = username.toLowerCase();
         if (maxEntries <= 0) return;
         if (entries.containsKey(key)) {
-            entries.put(key, new CacheEntry(property, System.currentTimeMillis()));
+            entries.put(key, new CacheEntry(property, System.nanoTime()));
             return;
         }
         evictExpired();
         while (entries.size() >= maxEntries) {
             evictOldest();
         }
-        entries.put(key, new CacheEntry(property, System.currentTimeMillis()));
+        entries.put(key, new CacheEntry(property, System.nanoTime()));
     }
 
     public synchronized int size() {
@@ -106,11 +112,11 @@ public class MojangProfileCache {
      * entries that expire while buried are cleaned on their next access.
      */
     private void evictExpired() {
-        long now = System.currentTimeMillis();
+        long now = System.nanoTime();
         Iterator<Map.Entry<String, CacheEntry>> it = entries.entrySet().iterator();
         while (it.hasNext()) {
             CacheEntry entry = it.next().getValue();
-            if (now - entry.fetchedAtMs <= ttlMs) {
+            if (now - entry.fetchedAtNanos <= ttlNanos) {
                 break;
             }
             it.remove();
