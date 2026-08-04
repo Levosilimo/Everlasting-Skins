@@ -39,6 +39,10 @@ run2/
 # Git worktrees
 .trees/
 
+# Property-test database + agent tool caches
+.jqwik-database
+.lce-cache/
+
 # SDK man local config
 .sdkmanrc
 
