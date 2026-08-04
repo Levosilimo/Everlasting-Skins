@@ -76,7 +76,7 @@ public class SkinStorage {
         CustomSkinProperty skin = skinIO.loadSkin(uuid);
         if (skin != null && skin.isEmpty()) {
             pendingWrites.remove(uuid);
-            skinIO.deleteSkin(uuid);
+            deleteSkinSerialized(uuid);
             return null;
         }
         return skin;
@@ -176,8 +176,25 @@ public class SkinStorage {
     public CustomSkinProperty removeSkin(UUID uuid) {
         pendingWrites.remove(uuid); // purge deferred drain; it must not resurrect a deleted skin
         skinMap.remove(uuid);
-        skinIO.deleteSkin(uuid);
+        deleteSkinSerialized(uuid);
         return null;
+    }
+
+    /**
+     * Runs the file deletion on the single writer thread so it is serialized
+     * against drain writes, and blocks until the delete has landed. An
+     * in-flight drain that already pulled this payload completes its write
+     * before the delete runs, so no stale write can land after the delete
+     * (write-after-delete race).
+     */
+    private void deleteSkinSerialized(UUID uuid) {
+        try {
+            SAVE_EXECUTOR.submit(() -> skinIO.deleteSkin(uuid)).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException | TimeoutException e) {
+            EverlastingSkins.logger.warn("Skin delete did not complete in time for {}", uuid, e);
+        }
     }
 
     public CustomSkinProperty setSkin(UUID uuid, @Nullable CustomSkinProperty skin) {
