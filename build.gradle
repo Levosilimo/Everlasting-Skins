@@ -251,6 +251,7 @@ dependencies {
     compileOnly 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+    testImplementation 'net.jqwik:jqwik:1.9.0'
     testImplementation 'me.clip:placeholderapi:2.12.3'
     testImplementation 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
     testImplementation 'org.mockito:mockito-core:5.12.0'
