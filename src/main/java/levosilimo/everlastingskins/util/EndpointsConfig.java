@@ -17,9 +17,9 @@ import java.util.regex.Pattern;
 /**
  * Typed config loaded from {@code /endpoints.properties} on the classpath.
  * <p>
- * All external service URLs (Mojang sessionserver, Eclipse, MineTools,
- * MineSkin, Minecraft textures, NameMC, mskins.net) are defined in that
- * resource file rather than hardcoded as Java string literals.
+ * All external service URLs (Mojang sessionserver, MineTools, MineSkin,
+ * Minecraft textures, NameMC, mskins.net) are defined in that resource
+ * file rather than hardcoded as Java string literals.
  */
 public class EndpointsConfig {
     private static final Properties props = new Properties();
