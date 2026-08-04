@@ -57,6 +57,9 @@ public class SkinRestorer {
             throw new RuntimeException(e);
         }
         skinIO = new SkinIO(path);
+        // Startup integrity sweep: quarantine bit-rotten records before the
+        // first player logs in, so SkinStorage only ever sees verified files.
+        skinIO.validateAllFiles();
         skinStorage = new SkinStorage(skinIO);
     }
 
