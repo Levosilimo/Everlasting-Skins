@@ -18,10 +18,12 @@ import net.minecraft.network.protocol.game.ClientboundBundlePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.server.players.PlayerList;
 import net.minecraft.world.entity.Entity;
@@ -62,6 +64,24 @@ import static org.mockito.Mockito.when;
  * call shape, this one asserts the packets.
  */
 class VanillaSkinBroadcasterTest {
+
+    /**
+     * The unit-test JVM has no running server, so vanilla's
+     * BuiltInRegistries &lt;clinit&gt; would throw "Not bootstrapped" the moment
+     * a registry-touching class (ServerLevel) is mocked. Flag the bootstrap
+     * as done directly: calling {@link Bootstrap#bootStrap()} would also run
+     * Forge's patched GameData.vanillaSnapshot(), which needs the FML
+     * runtime this JVM does not have.
+     */
+    static {
+        try {
+            Field bootstrapFlag = Bootstrap.class.getDeclaredField("isBootstrapped");
+            bootstrapFlag.setAccessible(true);
+            bootstrapFlag.setBoolean(null, true);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     private static final String TEXTURE_VALUE = "cGF5bG9hZA==";
     private static final String TEXTURE_SIGNATURE = "c2lnbmF0dXJl";
@@ -337,6 +357,12 @@ class VanillaSkinBroadcasterTest {
         ServerGamePacketListenerImpl connection = mock(ServerGamePacketListenerImpl.class);
         setField(player, "connection", connection);
         setField(player, "server", server);
+        // ClientboundPlayerInfoUpdatePacket's Entry constructor reads
+        // p_252094_.gameMode.getGameModeForPlayer(); field-back it with a
+        // mock that returns SURVIVAL.
+        ServerPlayerGameMode gameMode = mock(ServerPlayerGameMode.class);
+        when(gameMode.getGameModeForPlayer()).thenReturn(GameType.SURVIVAL);
+        setField(player, "gameMode", gameMode);
         return player;
     }
 

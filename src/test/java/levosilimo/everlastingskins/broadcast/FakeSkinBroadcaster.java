@@ -21,7 +21,7 @@ import java.util.List;
  * REMOVE+ADD+cascade pipeline. Records every call into observable lists so
  * tests can pin order and arguments.
  */
-public final class FakeSkinBroadcaster implements SkinBroadcaster {
+public class FakeSkinBroadcaster implements SkinBroadcaster {
 
     public record BroadcastCall(GameProfile profile, ServerPlayer target, List<ServerPlayer> observers) {
         BroadcastCall(GameProfile profile, ServerPlayer target, ServerPlayer[] observers) {

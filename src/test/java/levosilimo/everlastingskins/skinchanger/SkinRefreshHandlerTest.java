@@ -25,6 +25,7 @@ import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
 import net.minecraft.network.protocol.game.CommonPlayerSpawnInfo;
+import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
@@ -249,15 +250,19 @@ class SkinRefreshHandlerTest {
     }
 
     @Test
-    @DisplayName("handler invokes broadcastProfileChange and skips trackerUntrackRetrack when flag disabled")
-    void handlerCalls_broadcastOnly_whenTrackerDisabled() {
+    @DisplayName("handler always invokes trackerUntrackRetrack; flag check lives in the broadcaster")
+    void handlerCalls_trackerEvenWhenFlagDisabled() {
+        // The handler unconditionally delegates to broadcaster.trackerUntrackRetrack;
+        // the broadcaster reads REFRESH_VIA_ENTITY_TRACKER and is a no-op when off.
+        // VanillaSkinBroadcasterTest pins that no-op; here we only assert the
+        // call shape from the handler.
         Config.REFRESH_VIA_ENTITY_TRACKER.set(false);
         refresh();
 
         assertEquals(1, fakeBroadcaster.broadcastCalls.size(),
             "broadcast still runs; calls=" + fakeBroadcaster.broadcastCalls);
-        assertEquals(Collections.emptyList(), fakeBroadcaster.trackerCalls,
-            "tracker must be skipped when flag is disabled");
+        assertEquals(1, fakeBroadcaster.trackerCalls.size(),
+            "handler still calls broadcaster.trackerUntrackRetrack; the flag is the broadcaster's concern");
     }
 
     @Test
@@ -274,8 +279,11 @@ class SkinRefreshHandlerTest {
                     String combo = "bundle=" + bundle + ", scoped=" + scoped + ", tracker=" + tracker;
                     assertEquals(1, fakeBroadcaster.broadcastCalls.size(),
                         combo + ": exactly one broadcast");
-                    assertEquals(tracker ? 1 : 0, fakeBroadcaster.trackerCalls.size(),
-                        combo + ": tracker contract");
+                    // The handler always invokes trackerUntrackRetrack; the
+                    // broadcaster reads REFRESH_VIA_ENTITY_TRACKER and may
+                    // skip the work (pinned in VanillaSkinBroadcasterTest).
+                    assertEquals(1, fakeBroadcaster.trackerCalls.size(),
+                        combo + ": handler always delegates tracker call");
                 }
             }
         }
