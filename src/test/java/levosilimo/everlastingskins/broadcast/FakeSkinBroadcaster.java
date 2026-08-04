@@ -23,10 +23,21 @@ import java.util.List;
  */
 public class FakeSkinBroadcaster implements SkinBroadcaster {
 
-    public record BroadcastCall(GameProfile profile, EntityPlayerMP target, List<EntityPlayerMP> observers) {
+    /** Recorded broadcast call. Inner class instead of record (Java 8 target). */
+    public static final class BroadcastCall {
+        public final GameProfile profile;
+        public final EntityPlayerMP target;
+        public final List<EntityPlayerMP> observers;
+
         BroadcastCall(GameProfile profile, EntityPlayerMP target, EntityPlayerMP[] observers) {
-            this(profile, target,
-                observers == null ? Collections.emptyList() : Arrays.asList(observers));
+            this.profile = profile;
+            this.target = target;
+            this.observers = observers == null ? Collections.<EntityPlayerMP>emptyList() : Arrays.asList(observers);
+        }
+
+        @Override
+        public String toString() {
+            return "BroadcastCall{profile=" + profile + ", target=" + target + ", observers=" + observers + '}';
         }
     }
 

@@ -82,9 +82,10 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
         if (!Config.refreshViaEntityTracker) {
             return;
         }
-        if (!(entity instanceof EntityPlayerMP player)) {
+        if (!(entity instanceof EntityPlayerMP)) {
             return;
         }
+        EntityPlayerMP player = (EntityPlayerMP) entity;
         WorldServer world = (WorldServer) player.world;
         EntityTracker tracker = world.getEntityTracker();
         tracker.untrack(player);

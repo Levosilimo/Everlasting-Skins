@@ -171,16 +171,26 @@ class VanillaSkinBroadcasterTest {
 
         SPacketPlayerListItem add = null;
         for (Packet<?> p : targetLog.all()) {
-            if (p instanceof SPacketPlayerListItem pli
-                && pli.getAction() == SPacketPlayerListItem.Action.ADD_PLAYER) {
-                add = pli;
+            if (p instanceof SPacketPlayerListItem
+                && ((SPacketPlayerListItem) p).getAction() == SPacketPlayerListItem.Action.ADD_PLAYER) {
+                add = (SPacketPlayerListItem) p;
                 break;
             }
         }
         assertNotNull(add, "ADD packet missing from stream=" + targetLog.all());
-        assertNotNull(add.getEntries(), "ADD packet must have entries");
-        assertEquals(1, add.getEntries().size(), "ADD packet must have exactly one entry");
-        GameProfile profile = add.getEntries().get(0).getProfile();
+        List<?> entries = add.getEntries();
+        assertNotNull(entries, "ADD packet must have entries");
+        assertEquals(1, entries.size(), "ADD packet must have exactly one entry");
+        // AddPlayerData is an inner class; access via reflection to dodge the
+        // bad RuntimeInvisibleParameterAnnotations attribute in the deobf jar.
+        Object entry = entries.get(0);
+        GameProfile profile;
+        try {
+            java.lang.reflect.Method getProfile = entry.getClass().getMethod("getProfile");
+            profile = (GameProfile) getProfile.invoke(entry);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("AddPlayerData.getProfile() reflection failed", e);
+        }
         assertNotNull(profile, "ADD entry must carry the GameProfile");
         boolean hasTexture = profile.getProperties().get("textures").stream()
             .anyMatch(prop -> "cGF5bG9hZA==".equals(prop.getValue()));
@@ -244,8 +254,8 @@ class VanillaSkinBroadcasterTest {
     private int indexOfType(List<Packet<?>> packets, SPacketPlayerListItem.Action action) {
         for (int i = 0; i < packets.size(); i++) {
             Packet<?> packet = packets.get(i);
-            if (packet instanceof SPacketPlayerListItem pli
-                && pli.getAction() == action) {
+            if (packet instanceof SPacketPlayerListItem
+                && ((SPacketPlayerListItem) packet).getAction() == action) {
                 return i;
             }
         }

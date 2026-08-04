@@ -141,7 +141,7 @@ class SkinRefreshTaskTest {
             "exactly one broadcastProfileChange per refresh; calls=" + fakeBroadcaster.broadcastCalls);
         assertEquals(1, fakeBroadcaster.trackerCalls.size(),
             "exactly one trackerUntrackRetrack per refresh; calls=" + fakeBroadcaster.trackerCalls);
-        assertEquals(target, fakeBroadcaster.broadcastCalls.get(0).target(),
+        assertEquals(target, fakeBroadcaster.broadcastCalls.get(0).target,
             "broadcast target must be the refreshed player");
         assertEquals(target, fakeBroadcaster.trackerCalls.get(0),
             "tracker call must target the refreshed player");
@@ -164,6 +164,7 @@ class SkinRefreshTaskTest {
     void configMatrix_taskInvokesBroadcasterOnce() {
         for (boolean tracker : new boolean[]{false, true}) {
             Config.refreshViaEntityTracker = tracker;
+            fakeBroadcaster.reset();
             refresh(target);
 
             String combo = "tracker=" + tracker;
