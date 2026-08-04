@@ -3,8 +3,11 @@
  */
 package levosilimo.everlastingskins.skinchanger;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
@@ -19,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 public class MineSkinApiHttpImpl implements MineSkinAPI {
 
@@ -29,6 +33,13 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
 
     private final HttpClient httpClient;
     private final String apiKey;
+    private boolean apiKeyWarningEmitted;
+
+    /**
+     * Emits MineSkin configuration warnings. Production logs via the mod
+     * logger; tests swap this sink to capture messages without a log backend.
+     */
+    static Consumer<String> warningSink = MineSkinApiHttpImpl::logConfigWarning;
 
     public MineSkinApiHttpImpl() {
         this(new JavaHttpClient(), Config.MINESKIN_API_KEY.get());
@@ -93,6 +104,12 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
             }
 
             if (statusCode == 403) {
+                warnIfMissingApiKey(statusCode);
+                return Optional.empty();
+            }
+
+            if (statusCode == 401 || statusCode == 404) {
+                warnIfMissingApiKey(statusCode);
                 return Optional.empty();
             }
 
@@ -111,19 +128,30 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
     }
 
     private Optional<MineSkinResponse> handleSuccessResponse(HttpResponse response, @Nullable SkinVariant requestedVariant) {
-        MineSkinUrlResponse urlResponse = response.getBodyAs(MineSkinUrlResponse.class);
+        MineSkinResponse v1 = toV1Response(response.getBodyAs(MineSkinUrlResponse.class), requestedVariant);
+        if (v1 != null) {
+            return Optional.of(v1);
+        }
+        MineSkinResponse v2 = toV2Response(response.body(), requestedVariant);
+        if (v2 != null) {
+            return Optional.of(v2);
+        }
+        return Optional.empty();
+    }
+
+    private static MineSkinResponse toV1Response(MineSkinUrlResponse urlResponse, @Nullable SkinVariant requestedVariant) {
         if (urlResponse == null) {
-            return Optional.empty();
+            return null;
         }
 
         MineSkinData data = urlResponse.data();
         if (data == null) {
-            return Optional.empty();
+            return null;
         }
 
         MineSkinTexture texture = data.texture();
         if (texture == null || texture.value() == null || texture.value().isEmpty()) {
-            return Optional.empty();
+            return null;
         }
 
         CustomSkinProperty property = new CustomSkinProperty(
@@ -135,36 +163,129 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         SkinVariant generatedVariant = resolveVariant(urlResponse.variant());
         String skinId = urlResponse.idStr() != null ? urlResponse.idStr() : String.valueOf(urlResponse.id());
 
-        return Optional.of(new MineSkinResponse(
+        return new MineSkinResponse(
                 property,
                 skinId,
                 requestedVariant,
                 generatedVariant
-        ));
+        );
+    }
+
+    /**
+     * Parses the V2 success shape (api.mineskin.org/v2: skin.texture.data.
+     * value/signature). Returns null when the body is not a V2 success
+     * response, so empty or unknown bodies still resolve to "no result".
+     */
+    private static MineSkinResponse toV2Response(String body, @Nullable SkinVariant requestedVariant) {
+        JsonObject skin = v2SkinObject(body);
+        if (skin == null) {
+            return null;
+        }
+        JsonObject texture = jsonObject(skin, "texture");
+        JsonObject data = texture != null ? jsonObject(texture, "data") : null;
+        JsonElement valueElement = data != null ? data.get("value") : null;
+        if (valueElement == null || !valueElement.isJsonPrimitive() || valueElement.getAsString().isEmpty()) {
+            return null;
+        }
+
+        String signature = jsonString(data, "signature");
+        String skinId = jsonString(skin, "uuid");
+        String variant = jsonString(skin, "variant");
+
+        CustomSkinProperty property = new CustomSkinProperty(
+                valueElement.getAsString(),
+                signature,
+                SkinActionCommand.SOURCE_MINESKIN
+        );
+        return new MineSkinResponse(property, skinId, requestedVariant, resolveVariant(variant));
+    }
+
+    private static JsonObject v2SkinObject(String body) {
+        try {
+            JsonObject json = JsonUtils.parseJson(body);
+            return jsonObject(json, "skin");
+        } catch (JsonParseException e) {
+            return null;
+        }
+    }
+
+    private static JsonObject jsonObject(JsonObject parent, String member) {
+        JsonElement element = parent.get(member);
+        return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
+    }
+
+    private static String jsonString(JsonObject parent, String member) {
+        JsonElement element = parent.get(member);
+        return element != null && element.isJsonPrimitive() ? element.getAsString() : null;
     }
 
     private Optional<MineSkinResponse> handleRateLimit(HttpResponse response) {
+        int waitMs = 0;
         MineSkinErrorDelayResponse delay = response.getBodyAs(MineSkinErrorDelayResponse.class);
         if (delay != null) {
-            int waitMs = 0;
             if (delay.nextRequest() != null && delay.nextRequest() > 0) {
                 waitMs = delay.nextRequest();
             } else if (delay.delay() != null && delay.delay() > 0) {
                 waitMs = delay.delay() * 1000;
             }
-            if (waitMs > 0) {
-                // The delay is provider-controlled; cap it so a malicious or
-                // misconfigured response cannot stall the request thread.
-                long capped = Math.min(waitMs, 5000L);
-                SkinMetrics.INSTANCE.recordMineSkinDelay(capped);
-                try {
-                    Thread.sleep(capped);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+        }
+        if (waitMs <= 0) {
+            waitMs = v2RateLimitWaitMs(response.body());
+        }
+        if (waitMs > 0) {
+            // The delay is provider-controlled; cap it so a malicious or
+            // misconfigured response cannot stall the request thread.
+            long capped = Math.min(waitMs, 5000L);
+            SkinMetrics.INSTANCE.recordMineSkinDelay(capped);
+            try {
+                Thread.sleep(capped);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Extracts the wait time from a V2 rate-limit body: rateLimit.next.
+     * relative is a millisecond delay; absolute is an epoch-millis timestamp.
+     */
+    private static int v2RateLimitWaitMs(String body) {
+        try {
+            JsonObject rateLimit = jsonObject(JsonUtils.parseJson(body), "rateLimit");
+            JsonObject next = rateLimit != null ? jsonObject(rateLimit, "next") : null;
+            if (next == null) {
+                return 0;
+            }
+            JsonElement relative = next.get("relative");
+            if (relative != null && relative.isJsonPrimitive() && relative.getAsLong() > 0) {
+                return (int) Math.min(relative.getAsLong(), Integer.MAX_VALUE);
+            }
+            JsonElement absolute = next.get("absolute");
+            if (absolute != null && absolute.isJsonPrimitive()) {
+                long wait = absolute.getAsLong() - System.currentTimeMillis();
+                return (int) Math.max(0, Math.min(wait, Integer.MAX_VALUE));
+            }
+            return 0;
+        } catch (JsonParseException e) {
+            return 0;
+        }
+    }
+
+    private void warnIfMissingApiKey(int statusCode) {
+        if (apiKey != null && !apiKey.isEmpty()) {
+            return;
+        }
+        if (apiKeyWarningEmitted) {
+            return;
+        }
+        apiKeyWarningEmitted = true;
+        warningSink.accept("MineSkin API returned HTTP " + statusCode
+                + " and no API key is configured - set MINESKIN_API_KEY in the mod config");
+    }
+
+    private static void logConfigWarning(String message) {
+        EverlastingSkins.logger.warn(message);
     }
 
     private Map<String, String> buildHeaders() {

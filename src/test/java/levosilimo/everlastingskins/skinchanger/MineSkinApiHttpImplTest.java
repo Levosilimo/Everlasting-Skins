@@ -7,17 +7,29 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import com.electronwill.nightconfig.core.CommentedConfig;
+import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.MineSkinResponse;
 import levosilimo.everlastingskins.util.EndpointsConfig;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,13 +48,28 @@ class MineSkinApiHttpImplTest {
     private static final String VALID_VALUE = "dGV4dHVyZXMgeyBTS0lOIHsgdXJsOiAiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS90ZXN0IiB9IH0=";
     private static final String VALID_SIG = "signature==";
 
+    /** Texture value shared by the V1/V2 fixture files. */
+    private static final String FIXTURE_TEXTURE_VALUE = "eyJ0aW1lc3RhbXAiOjE3MzAwMDAwMDAwMDAsInByb2ZpbGVJZCI6IjU1MGU4NDAwZTI5YjQxZDRhNzE2NDQ2NjU1NDQwMDAwIiwicHJvZmlsZU5hbWUiOiJMZXZvc2lsaW1vIiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9hYmMxMjNkZWY0NTYifX19";
+    private static final String FIXTURE_SIGNATURE = "TQLAykIrTfFeo4eO7uNx0aj4eCy0eR9qAAqXr8CWjZ9NAsDKQitN8V6jh47u43HRqPh4LLR5H2oACpevwJaNn00CwMpCK03xXqOHju7jcdGo+HgstHkfagAKl6/Alo2fTQLAykIrTfFeo4eO7uNx0aj4eCy0eR9qAAqXr8CWjZ9NAsDKQitN8V6jh47u43HRqPh4LLR5H2oACpevwJaNn00CwMpCK03xXqOHju7jcdGo+HgstHkfagAKl6/Alo2fTQLAykIrTfFeo4eO7uNx0aj4eCy0eR9qAAqXr8CWjZ9NAsDKQitN8V6jh47u43HRqPh4LLR5H2oACpevwJaNnw==";
+
     private FakeHttpClient httpClient;
     private MineSkinApiHttpImpl api;
+
+    @BeforeAll
+    static void initConfig() {
+        // genSkinInternal reads URL_ALLOWLIST_* from the Forge config spec.
+        // Serve defaults from an in-memory config so this class runs standalone
+        // instead of depending on ConfigTest having run first.
+        Config.COMMON_CONFIG.setConfig(
+                InMemoryCommentedFormat.defaultInstance().createConfig(java.util.HashMap::new));
+    }
 
     @BeforeEach
     void setUp() {
         httpClient = new FakeHttpClient();
-        api = new MineSkinApiHttpImpl(httpClient, "");
+        // A configured key keeps the retry-classification tests off the
+        // empty-key config-warning path (covered separately in ConfigWarnings).
+        api = new MineSkinApiHttpImpl(httpClient, "test-api-key");
     }
 
     @Nested
@@ -215,8 +242,197 @@ class MineSkinApiHttpImplTest {
     }
 
     /* ================================================================== */
+    /*  Contract fixtures: V1 shape (current /generate/url)                 */
+    /* ================================================================== */
+
+    @Nested
+    @DisplayName("V1 contract fixtures")
+    class V1ContractFixtures {
+
+        @Test
+        @DisplayName("200 OK valid V1 body → parses texture.value and idStr")
+        void validBody() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 200, fixture("v1-200-valid.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(result.isPresent());
+            assertEquals(FIXTURE_TEXTURE_VALUE, result.get().property().getOriginalProperty().value());
+            assertEquals(FIXTURE_SIGNATURE, result.get().property().getOriginalProperty().signature());
+            assertEquals("12345", result.get().mineSkinId());
+        }
+
+        @Test
+        @DisplayName("200 OK V1 body with empty texture → empty (no result, no crash)")
+        void emptyTexture() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 200, fixture("v1-200-empty-texture.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("429 V1 delayInfo → recorded waitMs honors the provider delay")
+        void rateLimitDelay() throws Exception {
+            long before = SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs();
+            httpClient.addResponse(MINESKIN_URI, 429, fixture("v1-429-delay.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(result.isEmpty());
+            long recorded = SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs() - before;
+            assertEquals(1000, recorded);
+        }
+    }
+
+    /* ================================================================== */
+    /*  Contract fixtures: V2 shape (api.mineskin.org/v2) — F2             */
+    /*  The V2 body nests value/signature under skin.texture.data, which    */
+    /*  the V1 parser (data.texture.value) reads as empty. These tests      */
+    /*  pin that a V2 body must parse or fail loudly — never silent empty.  */
+    /* ================================================================== */
+
+    @Nested
+    @DisplayName("V2 contract fixtures")
+    class V2ContractFixtures {
+
+        @Test
+        @DisplayName("200 OK V2 body → parses skin.texture.data.value (no silent empty)")
+        void validBody() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 200, fixture("v2-200-valid.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(result.isPresent());
+            assertEquals(FIXTURE_TEXTURE_VALUE, result.get().property().getOriginalProperty().value());
+            assertEquals(FIXTURE_SIGNATURE, result.get().property().getOriginalProperty().signature());
+            assertEquals("c891dfac-4cd2-47a2-a557-43e7e82ce76f", result.get().mineSkinId());
+        }
+
+        @Test
+        @DisplayName("200 OK V2 body with empty texture → empty (no result)")
+        void emptyTexture() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 200, fixture("v2-200-empty-texture.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("429 V2 rateLimit.next → recorded waitMs from relative delay")
+        void rateLimit() throws Exception {
+            long before = SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs();
+            httpClient.addResponse(MINESKIN_URI, 429, fixture("v2-429-ratelimit.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(result.isEmpty());
+            long recorded = SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs() - before;
+            assertEquals(250, recorded);
+        }
+    }
+
+    /* ================================================================== */
+    /*  Config warnings: 401/403/404 with an unset MINESKIN_API_KEY         */
+    /* ================================================================== */
+
+    @Nested
+    @DisplayName("Config warnings (MINESKIN_API_KEY)")
+    class ConfigWarnings {
+
+        private final List<String> warnings = new ArrayList<>();
+        private Consumer<String> originalSink;
+        private MineSkinApiHttpImpl unkeyedApi;
+
+        @BeforeEach
+        void captureWarnings() {
+            originalSink = MineSkinApiHttpImpl.warningSink;
+            MineSkinApiHttpImpl.warningSink = warnings::add;
+            unkeyedApi = new MineSkinApiHttpImpl(httpClient, "");
+        }
+
+        @AfterEach
+        void restoreSink() {
+            MineSkinApiHttpImpl.warningSink = originalSink;
+        }
+
+        @Test
+        @DisplayName("401 with no API key → warning mentions MINESKIN_API_KEY")
+        void unauthorizedWithoutKey() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 401, "{\"errorCode\":\"unauthorized\"}");
+
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertEquals(1, warnings.size());
+            assertTrue(warnings.get(0).contains("MINESKIN_API_KEY"));
+        }
+
+        @Test
+        @DisplayName("403 with no API key → warning mentions MINESKIN_API_KEY")
+        void forbiddenWithoutKey() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 403, "{\"errorCode\":\"invalid_api_key\"}");
+
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertEquals(1, warnings.size());
+            assertTrue(warnings.get(0).contains("MINESKIN_API_KEY"));
+        }
+
+        @Test
+        @DisplayName("404 with no API key → warning mentions MINESKIN_API_KEY")
+        void missingResourceWithoutKey() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 404, "{}");
+
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertEquals(1, warnings.size());
+            assertTrue(warnings.get(0).contains("MINESKIN_API_KEY"));
+        }
+
+        @Test
+        @DisplayName("403 with API key configured → no config warning")
+        void forbiddenWithKey() throws Exception {
+            MineSkinApiHttpImpl keyedApi = new MineSkinApiHttpImpl(httpClient, "test-api-key");
+            httpClient.addResponse(MINESKIN_URI, 403, "{\"errorCode\":\"invalid_api_key\"}");
+
+            keyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(warnings.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Warning emitted at most once per impl instance")
+        void warnedOnce() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 401, "{}");
+
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertEquals(1, warnings.size());
+        }
+    }
+
+    /* ================================================================== */
     /*  JSON body helpers                                                  */
     /* ================================================================== */
+
+    /** Reads a contract fixture from src/test/resources/fixtures/mineskin/. */
+    private static String fixture(String name) throws IOException {
+        try (InputStream in = MineSkinApiHttpImplTest.class.getResourceAsStream("/fixtures/mineskin/" + name)) {
+            if (in == null) {
+                throw new IOException("missing fixture: " + name);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            return out.toString("UTF-8");
+        }
+    }
 
     private static String validMineSkinJson() {
         return """
