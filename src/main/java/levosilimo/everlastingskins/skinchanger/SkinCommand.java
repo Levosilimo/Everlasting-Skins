@@ -16,6 +16,7 @@ import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
+import levosilimo.everlastingskins.util.CompletionSources;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.command.CommandBase;
@@ -29,7 +30,6 @@ import net.minecraft.util.text.TextComponentString;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -103,11 +103,65 @@ public class SkinCommand extends CommandBase {
     @Override
     public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender,
             String[] args, @Nullable BlockPos targetPos) {
-        if (args.length == 1) return Arrays.asList("set", "clear", "source", "metrics");
-        if (args.length == 2 && "metrics".equals(args[0])) {
-            return getListOfStringsMatchingLastWord(args, "human", "json", "players", "cleanup", "reset");
+        if (args.length == 1) {
+            return subcommandCompletions(sender, args);
+        }
+        if ("set".equals(args[0])) {
+            return setTabCompletions(server, sender, args);
+        }
+        if (("clear".equals(args[0]) || "source".equals(args[0])) && args.length == 2) {
+            return canTargetOthers(sender)
+                ? getListOfStringsMatchingLastWord(args, CompletionSources.onlinePlayerNames(server))
+                : Collections.emptyList();
+        }
+        if ("metrics".equals(args[0]) && args.length == 2) {
+            return getListOfStringsMatchingLastWord(args, CompletionSources.metricsSubcommands(sender));
         }
         return Collections.emptyList();
+    }
+
+    /** Subcommand names the sender may actually use, in /skin usage order. */
+    private List<String> subcommandCompletions(ICommandSender sender, String[] args) {
+        List<String> subcommands = new ArrayList<>();
+        if (CompletionSources.hasPermission(sender, "everlastingskins.command.skin")) {
+            subcommands.add("set");
+        }
+        if (CompletionSources.hasPermission(sender, "everlastingskins.command.skin.clear")) {
+            subcommands.add("clear");
+        }
+        if (CompletionSources.hasPermission(sender, "everlastingskins.command.skin")) {
+            subcommands.add("source");
+        }
+        if (CompletionSources.hasPermission(sender, "everlastingskins.command.metrics")) {
+            subcommands.add("metrics");
+        }
+        return getListOfStringsMatchingLastWord(args, subcommands);
+    }
+
+    /** Per-position candidates under {@code /skin set ...}. */
+    private List<String> setTabCompletions(MinecraftServer server, ICommandSender sender, String[] args) {
+        if (args.length == 2) {
+            return getListOfStringsMatchingLastWord(args, CompletionSources.providerNames());
+        }
+        if ("mojang".equals(args[1]) && args.length == 3) {
+            return getListOfStringsMatchingLastWord(args, CompletionSources.recentUsernames());
+        }
+        if ("web".equals(args[1])) {
+            if (args.length == 3) return getListOfStringsMatchingLastWord(args, "classic", "slim");
+            if (args.length == 4) return getListOfStringsMatchingLastWord(args, CompletionSources.urlCandidates());
+        }
+        if ("random".equals(args[1]) && args.length >= 3 && args.length <= 5) {
+            if (args.length == 3) return getListOfStringsMatchingLastWord(args, "true", "false");
+            if (args.length == 4) return getListOfStringsMatchingLastWord(args, "classic", "slim");
+            return canTargetOthers(sender)
+                ? getListOfStringsMatchingLastWord(args, CompletionSources.onlinePlayerNames(server))
+                : Collections.emptyList();
+        }
+        return Collections.emptyList();
+    }
+
+    private boolean canTargetOthers(ICommandSender sender) {
+        return CompletionSources.hasPermission(sender, "everlastingskins.command.skin.other");
     }
 
     public static void register(MinecraftServer server) {
