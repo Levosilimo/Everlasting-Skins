@@ -19,18 +19,34 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 public class SkinIO {
 
     private static final String FILE_EXTENSION = ".json";
     private static final String TEMP_SUFFIX = ".tmp";
     private static final String CORRUPT_PREFIX = ".corrupt-";
+
+    /**
+     * In-band per-record integrity marker (Tier 2): hex SHA-256 of the
+     * canonical record bytes, stored as a JSON member of the record itself.
+     * Record and marker therefore move together in one atomic rename, so a
+     * crash can never leave a torn record/checksum pair on disk (a sidecar
+     * file has an unavoidable two-file window). This mirrors the in-band
+     * checksum placement of ARIES (per-log-page checksums) and RocksDB
+     * (per-block trailers) and the committed-state framing of Pillai et al.
+     * (OSDI 2014): a reader sees either the previous committed record or the
+     * new one, never a record whose integrity cannot be checked.
+     */
+    private static final String CHECKSUM_FIELD = "checksum";
 
     private final Path savePath;
 
@@ -95,7 +111,7 @@ public class SkinIO {
             Files.createDirectories(savePath);
             Files.deleteIfExists(temp);
 
-            Files.write(temp, payload);
+            Files.write(temp, withChecksum(payload));
 
             try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
                 channel.force(true);
@@ -109,6 +125,54 @@ public class SkinIO {
                 Files.deleteIfExists(temp);
             } catch (IOException ignored) {
             }
+        }
+    }
+
+    /**
+     * Wraps a raw record payload in the checksum envelope: strips any stale
+     * {@value #CHECKSUM_FIELD} member, hashes the canonical record bytes and
+     * appends the hex SHA-256 digest as the {@value #CHECKSUM_FIELD} member.
+     * The canonical record is the payload re-serialized through the same Gson
+     * used by {@link JsonUtils} (deterministic field order and pretty
+     * printing), so the write path and the verify path derive identical
+     * bytes: a single flipped byte anywhere in the canonical record changes
+     * the digest. This is the tier-2 barrier that closes the silent bit-rot
+     * gap — a flipped byte inside the base64 value or signature still parses
+     * as valid JSON, and the {@code isValidJson} check alone cannot see it
+     * (cf. ARIES page checksums and RocksDB block trailers, which store the
+     * integrity marker in-band with the data it protects).
+     * <p>
+     * Backwards compatibility: a payload that is not a JSON object (e.g.
+     * the raw byte payloads written by the durability tests, or any
+     * hand-crafted legacy record) is written verbatim without a marker;
+     * such files load with a warning, never a quarantine.
+     */
+    private static byte[] withChecksum(byte[] payload) {
+        try {
+            JsonObject obj = new JsonParser().parse(new String(payload, StandardCharsets.UTF_8)).getAsJsonObject();
+            obj.remove(CHECKSUM_FIELD);
+            String canonical = JsonUtils.toJson(obj);
+            obj.addProperty(CHECKSUM_FIELD, sha256Hex(canonical.getBytes(StandardCharsets.UTF_8)));
+            return JsonUtils.toJson(obj).getBytes(StandardCharsets.UTF_8);
+        } catch (JsonParseException | IllegalStateException e) {
+            // Not a JSON object: write verbatim (legacy format, no marker).
+            return payload;
+        }
+    }
+
+    /** Hex SHA-256 of the given bytes. Built-in {@link MessageDigest}: no new dependency. */
+    private static String sha256Hex(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data);
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
+                hex.append(Character.forDigit(b & 0xF, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required but unavailable", e);
         }
     }
 

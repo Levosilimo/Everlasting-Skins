@@ -6,6 +6,7 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import com.google.gson.JsonObject;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -175,7 +176,18 @@ class SkinIOPropertyTest {
         Path target = dir.resolve(uuid + ".json");
         assertTrue(Files.exists(target), "missing skin file: " + target);
         String content = new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
-        assertEquals(JsonUtils.toJson(skin(expected)), content, "disk payload must be the latest submitted payload");
+        assertEquals(JsonUtils.toJson(skin(expected)), stripChecksum(content),
+                "disk payload must be the latest submitted payload");
+    }
+
+    /**
+     * The persisted record is the payload wrapped in the in-band checksum
+     * envelope (see SkinIO Tier 2); strip the marker before comparing bytes.
+     */
+    private static String stripChecksum(String envelope) {
+        JsonObject obj = JsonUtils.parseJson(envelope);
+        obj.remove("checksum");
+        return JsonUtils.toJson(obj);
     }
 
     private static void applyOps(List<Op> ops, SkinStorage storage, Map<UUID, String> model, Object lock,
@@ -227,7 +239,7 @@ class SkinIOPropertyTest {
         for (Map.Entry<UUID, String> entry : model.entrySet()) {
             String content = byName.get(entry.getKey().toString());
             assertTrue(content != null, "model uuid missing on disk: " + entry.getKey());
-            assertEquals(JsonUtils.toJson(skin(entry.getValue())), content,
+            assertEquals(JsonUtils.toJson(skin(entry.getValue())), stripChecksum(content),
                     "disk payload must match the model for " + entry.getKey());
         }
     }
@@ -422,7 +434,10 @@ class SkinIOPropertyTest {
                     io.saveSkin(uuid, skin);
                     String serialized = JsonUtils.toJson(skin);
                     String onDisk = new String(Files.readAllBytes(dir.resolve(uuid + ".json")), StandardCharsets.UTF_8);
-                    assertEquals(serialized, onDisk, "file bytes must equal the serialized payload");
+                    assertTrue(JsonUtils.parseJson(onDisk).has("checksum"),
+                            "persisted record must carry the in-band checksum marker");
+                    assertEquals(serialized, stripChecksum(onDisk),
+                            "file must hold the serialized payload inside the checksum envelope");
                     CustomSkinProperty loaded = storage.loadSkin(uuid);
                     assertNotNull(loaded, "a valid payload must load");
                     assertEquals(serialized, JsonUtils.toJson(loaded),
