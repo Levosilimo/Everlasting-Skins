@@ -73,20 +73,26 @@ public class SkinStorage {
     }
 
     public CustomSkinProperty loadSkin(UUID uuid) {
-        CustomSkinProperty skin = skinIO.loadSkin(uuid);
-        if (skin != null && skin.isEmpty()) {
-            pendingWrites.remove(uuid);
-            try {
-                deleteSkinSerialized(uuid);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
-            } catch (IOException e) {
-                throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
+        SkinMetrics.INSTANCE.recordReadStart();
+        long start = System.nanoTime();
+        try {
+            CustomSkinProperty skin = skinIO.loadSkin(uuid);
+            if (skin != null && skin.isEmpty()) {
+                pendingWrites.remove(uuid);
+                try {
+                    deleteSkinSerialized(uuid);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
+                } catch (IOException e) {
+                    throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
+                }
+                return null;
             }
-            return null;
+            return skin;
+        } finally {
+            SkinMetrics.INSTANCE.recordReadComplete(System.nanoTime() - start);
         }
-        return skin;
     }
 
     // Access via SkinRestorer.getSkinStorage().
