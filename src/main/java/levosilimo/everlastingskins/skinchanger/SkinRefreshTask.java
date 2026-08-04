@@ -6,25 +6,21 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import com.mojang.authlib.GameProfile;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
-import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
+import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
+import levosilimo.everlastingskins.broadcast.VanillaSkinBroadcaster;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import io.netty.buffer.Unpooled;
-import net.minecraft.entity.EntityTracker;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.network.PacketBuffer;
 import net.minecraft.network.play.server.SPacketEntityEffect;
-import net.minecraft.network.play.server.SPacketPlayerListItem;
 import net.minecraft.network.play.server.SPacketRespawn;
 import net.minecraft.network.play.server.SPacketServerDifficulty;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerList;
 import net.minecraft.world.WorldServer;
-
-import java.io.IOException;
 
 /**
  * Server-tick half of a skin change: enqueues the async disk flush, mutates
@@ -34,6 +30,25 @@ import java.io.IOException;
  * main thread via {@code addScheduledTask} so packet sends are thread-safe.
  */
 final class SkinRefreshTask {
+
+    /**
+     * Seam for the per-viewer packet fan-out. Production uses
+     * {@link VanillaSkinBroadcaster}; tests inject a recording fake to
+     * assert call shape without re-implementing the REMOVE+ADD+cascade
+     * pipeline. Static so the {@code task} entry point stays
+     * signature-compatible with all existing callers.
+     */
+    private static volatile SkinBroadcaster broadcaster = new VanillaSkinBroadcaster();
+
+    /** Test seam: replace the broadcaster. */
+    static void setBroadcaster(SkinBroadcaster newBroadcaster) {
+        broadcaster = newBroadcaster;
+    }
+
+    /** Current broadcaster (mainly for tests asserting the wiring). */
+    static SkinBroadcaster getBroadcaster() {
+        return broadcaster;
+    }
 
     private SkinRefreshTask() {
     }
@@ -129,33 +144,19 @@ final class SkinRefreshTask {
 
     /**
      * Tab-list REMOVE+ADD to ALL online players (global, no dimension scoping);
-     * returns the measured broadcast nanos. The ADD packet serializes the
-     * GameProfile at construction time, so this must run after the mutation.
+     * returns the measured broadcast nanos. Per-viewer packet fan-out is
+     * delegated to the injected {@link SkinBroadcaster}; the call shape is
+     * broadcaster-agnostic so config-flag tests can swap in a recording
+     * fake without rebuilding the REMOVE+ADD+cascade pipeline.
      */
     private static long broadcastProfileChange(EntityPlayerMP target) {
-        PlayerList playerList = target.mcServer.getPlayerList();
         long broadcastStartNanos = System.nanoTime();
-        NetworkMetricsHandler netHandler = NetworkMetricsHandler.getOrAttach(target.connection.netManager);
-        long outBefore = netHandler != null ? netHandler.outboundBytes() : 0;
-        long inBefore = netHandler != null ? netHandler.inboundBytes() : 0;
-        SPacketPlayerListItem removePacket =
-            new SPacketPlayerListItem(SPacketPlayerListItem.Action.REMOVE_PLAYER, target);
-        SPacketPlayerListItem addPacket =
-            new SPacketPlayerListItem(SPacketPlayerListItem.Action.ADD_PLAYER, target);
-        playerList.sendPacketToAllPlayers(removePacket);
-        playerList.sendPacketToAllPlayers(addPacket);
-        long broadcastNanos = System.nanoTime() - broadcastStartNanos;
-        SkinMetrics.INSTANCE.recordBroadcastLatency(broadcastNanos);
-        SkinMetrics.INSTANCE.recordBroadcast(wireSize(removePacket) + wireSize(addPacket));
-        if (netHandler != null) {
-            SkinMetrics.INSTANCE.recordNetworkDelta(
-                netHandler.outboundBytes() - outBefore,
-                netHandler.inboundBytes() - inBefore);
-        }
-        return broadcastNanos;
+        broadcaster.broadcastProfileChange(target.getGameProfile(), target);
+        broadcaster.trackerUntrackRetrack(target);
+        return System.nanoTime() - broadcastStartNanos;
     }
 
-    /** Respawn cascade for the target's own view, plus observer EntityTracker re-render. */
+    /** Respawn cascade for the target's own view. */
     private static void respawnSelf(EntityPlayerMP target) {
         MinecraftServer server = target.mcServer;
         PlayerList playerList = server.getPlayerList();
@@ -181,26 +182,5 @@ final class SkinRefreshTask {
 
         // Time/weather resend, matching join behavior.
         playerList.updateTimeAndWeatherForPlayer(self, world);
-
-        // Observer re-render via per-viewer EntityTracker untrack/re-track.
-        if (Config.refreshViaEntityTracker) {
-            EntityTracker tracker = world.getEntityTracker();
-            tracker.untrack(self);
-            tracker.track(self);
-            tracker.updateVisibility(self);
-        }
-    }
-
-    /** Serialized size of a tab-list packet, used as the broadcast byte count. */
-    private static long wireSize(SPacketPlayerListItem packet) {
-        PacketBuffer buf = new PacketBuffer(Unpooled.buffer());
-        try {
-            packet.writePacketData(buf);
-            return buf.readableBytes();
-        } catch (IOException e) {
-            return 0;
-        } finally {
-            buf.release();
-        }
     }
 }
