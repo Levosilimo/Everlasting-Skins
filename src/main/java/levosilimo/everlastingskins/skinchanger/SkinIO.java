@@ -100,20 +100,47 @@ public class SkinIO {
                 channel.force(true);
             }
 
-            Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            moveIntoPlace(uuid, temp, target);
         } catch (IOException e) {
             SkinMetrics.INSTANCE.recordIoFailure(e);
             EverlastingSkins.logger.error("Failed to save skin for player {}", uuid, e);
-            if (Files.exists(temp)) {
-                try {
-                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException ex) {
-                    try {
-                        Files.deleteIfExists(temp);
-                    } catch (IOException ignored) {
-                    }
-                }
+            try {
+                Files.deleteIfExists(temp);
+            } catch (IOException ignored) {
             }
+        }
+    }
+
+    /**
+     * Renames the fsync'd temp file over the target. Filesystems without
+     * atomic renames throw from ATOMIC_MOVE; we then downgrade to a plain
+     * move, but surface the loss of crash-consistency instead of swallowing
+     * it. Either way the parent directory is fsync'd afterwards: file fsync
+     * does not flush the rename's directory entry, so without this the write
+     * can vanish on power loss (Pillai OSDI'14).
+     */
+    private void moveIntoPlace(UUID uuid, Path temp, Path target) throws IOException {
+        try {
+            Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            SkinMetrics.INSTANCE.recordIoFailure(e);
+            EverlastingSkins.logger.warn("Atomic rename unsupported for {}, downgrading to non-atomic move", uuid, e);
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+        fsyncDirectory();
+    }
+
+    /**
+     * fsyncs the save directory. Java 8 cannot open directories for READ on
+     * every platform (Windows throws AccessDeniedException), so a failure is
+     * logged but does not fail the save: the file content is already durable,
+     * only the rename entry may not survive a crash.
+     */
+    private void fsyncDirectory() {
+        try (FileChannel dir = FileChannel.open(savePath, StandardOpenOption.READ)) {
+            dir.force(true);
+        } catch (IOException e) {
+            EverlastingSkins.logger.warn("Failed to fsync skin directory {}", savePath, e);
         }
     }
 
