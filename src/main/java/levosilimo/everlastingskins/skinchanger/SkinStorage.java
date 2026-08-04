@@ -76,7 +76,14 @@ public class SkinStorage {
         CustomSkinProperty skin = skinIO.loadSkin(uuid);
         if (skin != null && skin.isEmpty()) {
             pendingWrites.remove(uuid);
-            deleteSkinSerialized(uuid);
+            try {
+                deleteSkinSerialized(uuid);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
+            } catch (IOException e) {
+                throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
+            }
             return null;
         }
         return skin;
@@ -190,14 +197,35 @@ public class SkinStorage {
         }
     }
 
+    /**
+     * Raised when a serialized skin delete cannot be confirmed to have landed
+     * (timeout, writer failure, or interrupted wait). The in-memory map entry
+     * and the on-disk file must move together, so callers propagate this
+     * instead of silently dropping the entry while the file survives.
+     */
+    public static class DeleteFailedException extends RuntimeException {
+
+        DeleteFailedException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     public CustomSkinProperty removeSkin(UUID uuid) {
         // Purge the deferred payload so a drain that has not started yet skips
         // this UUID, then delete the file before dropping the map entry:
         // getSkin() reloads from disk on a map miss, so removing the entry
         // before the file is gone would let a concurrent read resurrect the
-        // cleared skin into the map.
+        // cleared skin into the map. A failed delete propagates instead of
+        // dropping the entry: the file and the map must move together.
         pendingWrites.remove(uuid);
-        deleteSkinSerialized(uuid);
+        try {
+            deleteSkinSerialized(uuid);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
+        } catch (IOException e) {
+            throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
+        }
         skinMap.remove(uuid);
         return null;
     }
@@ -208,14 +236,33 @@ public class SkinStorage {
      * in-flight drain that already pulled this payload completes its write
      * before the delete runs, so no stale write can land after the delete
      * (write-after-delete race).
+     *
+     * <p>Failure is raised, never swallowed: the caller must not drop the
+     * in-memory entry while the file may still exist, or a later getSkin()
+     * reload resurrects the cleared skin. InterruptedException is re-thrown
+     * as-is; a timeout or writer failure surfaces as
+     * {@link DeleteFailedException}.
      */
-    private void deleteSkinSerialized(UUID uuid) {
+    private void deleteSkinSerialized(UUID uuid) throws InterruptedException, IOException {
         try {
-            SAVE_EXECUTOR.submit(() -> skinIO.deleteSkin(uuid)).get(5, TimeUnit.SECONDS);
+            SAVE_EXECUTOR.submit(() -> {
+                skinIO.deleteSkin(uuid);
+                return null;
+            }).get(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } catch (ExecutionException | TimeoutException e) {
-            EverlastingSkins.logger.warn("Skin delete did not complete in time for {}", uuid, e);
+            throw e;
+        } catch (TimeoutException e) {
+            EverlastingSkins.logger.warn("Skin delete of {} timed out after 5s", uuid);
+            throw new DeleteFailedException("Skin delete of " + uuid + " timed out after 5s", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException) {
+                EverlastingSkins.logger.warn("Failed to delete skin file for {}", uuid, cause);
+                throw (IOException) cause;
+            }
+            EverlastingSkins.logger.warn("Skin delete of {} failed", uuid, cause);
+            throw new DeleteFailedException("Skin delete of " + uuid + " failed", cause);
         }
     }
 

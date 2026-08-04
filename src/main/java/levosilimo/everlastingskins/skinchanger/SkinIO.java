@@ -68,14 +68,15 @@ public class SkinIO {
         }
     }
 
-    public void deleteSkin(UUID uuid) {
+    /**
+     * Deletes the skin file. Failures propagate so the caller can keep the
+     * in-memory state in lockstep with the disk instead of dropping the map
+     * entry while the file survives (later reload resurrects the skin).
+     */
+    public void deleteSkin(UUID uuid) throws IOException {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
-        try {
-            if (Files.deleteIfExists(target)) {
-                EverlastingSkins.logger.info("Deleted skin file for {}", uuid);
-            }
-        } catch (IOException e) {
-            EverlastingSkins.logger.warn("Failed to delete skin file for {}", uuid, e);
+        if (Files.deleteIfExists(target)) {
+            EverlastingSkins.logger.info("Deleted skin file for {}", uuid);
         }
     }
 
