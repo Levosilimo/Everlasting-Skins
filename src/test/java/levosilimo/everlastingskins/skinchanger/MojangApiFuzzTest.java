@@ -81,6 +81,19 @@ class MojangApiFuzzTest {
         return MalformedJsonCorpus.malformedJson();
     }
 
+    @Provide
+    net.jqwik.api.Arbitrary<String> truncatedEscapeJson() {
+        // Truncated \\uXXXX escapes; the strict Gson fromJson raises a raw
+        // NumberFormatException on every one of these shapes.
+        return net.jqwik.api.Arbitraries.of(
+                "{\"id\":\"\\u12\"}",
+                "{\"id\":\"\\u1\"}",
+                "{\"id\":\"\\u\"}",
+                "{\"id\":\"\\u12\\u\"}",
+                "{\"id\":\"\\uZZZZ\"}"
+        );
+    }
+
     /* ------------------------------------------------------------------ */
     /*  B1: UUID response parse                                            */
     /* ------------------------------------------------------------------ */
@@ -172,6 +185,30 @@ class MojangApiFuzzTest {
                 () -> "getProfile escaped on: " + excerpt(bytes));
         assertDoesNotThrow(() -> api.getSkin(PLAYER_UUID.toString()),
                 () -> "getSkin escaped on: " + excerpt(bytes));
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  B5: truncated \\uXXXX escapes (raw NumberFormatException)          */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Truncated {@code \\uXXXX} escapes (e.g. {@code {"id":"\\u12"}}) make
+     * the strict Gson {@code fromJson} throw a raw NumberFormatException
+     * instead of JsonSyntaxException, which escaped the parsers before the
+     * round-9 production fix. The UUID lookup must fail closed on every
+     * variant.
+     */
+    @Property(tries = 20)
+    @Label("B5: truncated \\uXXXX escapes fail closed on the Mojang UUID lookup")
+    void parseMojangUuidResponse_truncatedEscape_returnsEmpty(
+            @ForAll @From("truncatedEscapeJson") String bytes) {
+        httpClient.addResponse(mojangUuidUri, 200, bytes);
+        httpClient.addResponse(mineToolsUuidUri, 200, bytes);
+
+        Optional<UUID> result = assertDoesNotThrow(() -> api.getUUID(PLAYER_NAME));
+
+        assertTrue(!result.isPresent(),
+                () -> "truncated escape produced a UUID: " + excerpt(bytes));
     }
 
     /* ================================================================== */

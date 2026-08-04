@@ -87,6 +87,20 @@ class MineSkinApiFuzzTest {
         return MalformedJsonCorpus.rateLimitMalformed();
     }
 
+    @Provide
+    net.jqwik.api.Arbitrary<String> nonObjectRootJson() {
+        // Valid JSON whose root is not an object; the strict Gson fromJson
+        // raises IllegalStateException on every one of these shapes.
+        return net.jqwik.api.Arbitraries.of(
+                "\"not-an-object\"",
+                "1",
+                "[1,2]",
+                "null",
+                "true",
+                "NaN"
+        );
+    }
+
     /* ------------------------------------------------------------------ */
     /*  C1: V1 success-shape parse                                         */
     /* ------------------------------------------------------------------ */
@@ -185,6 +199,52 @@ class MineSkinApiFuzzTest {
             }
             assertEquals(0, SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs(),
                     () -> "malformed 429 bytes scheduled a wait: " + excerpt(bytes));
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  C5/C6: valid non-object roots (raw IllegalStateException)          */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * A valid non-object root (e.g. a bare string) makes the strict Gson
+     * {@code fromJson} throw IllegalStateException ("Expected
+     * BEGIN_OBJECT...") and the V2 {@code JsonUtils} path throw on
+     * {@code getAsJsonObject}; both escaped the parsers before the round-9
+     * production fix. The V2 parse path must fail closed to "no result".
+     */
+    @Property(tries = 20)
+    @Label("C5: MineSkin V2 response fails closed on valid non-object roots, never throws")
+    void parseMineSkinResponse_v2_nonObjectRoot_returnsEmpty(
+            @ForAll @From("nonObjectRootJson") String bytes) {
+        httpClient.addResponse(MINESKIN_URI, 200, bytes);
+
+        Optional<MineSkinResponse> result = assertDoesNotThrow(() ->
+                api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC));
+
+        assertTrue(!result.isPresent(),
+                () -> "non-object root produced a V2 skin: " + excerpt(bytes));
+    }
+
+    /**
+     * A valid non-object root served as a 429 rate-limit body must resolve
+     * to a zero wait: no exception escapes and no delay is scheduled.
+     */
+    @Property(tries = 20)
+    @Label("C6: MineSkin rate-limit fails closed on valid non-object roots, never throws")
+    void parseMineSkinRateLimit_nonObjectRoot_returnsZero(
+            @ForAll @From("nonObjectRootJson") String bytes) {
+        synchronized (METRICS_LOCK) {
+            SkinMetrics.INSTANCE.reset();
+            httpClient.addResponse(MINESKIN_URI, 429, bytes);
+
+            Optional<MineSkinResponse> result = assertDoesNotThrow(() ->
+                    api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC));
+
+            assertTrue(!result.isPresent(),
+                    () -> "non-object root produced a rate-limit result: " + excerpt(bytes));
+            assertEquals(0, SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs(),
+                    () -> "non-object root scheduled a wait: " + excerpt(bytes));
         }
     }
 
