@@ -27,9 +27,11 @@ import net.minecraft.world.WorldServer;
 import java.io.IOException;
 
 /**
- * Server-tick half of a skin change: mutates the GameProfile, forces every
- * viewer to re-read it, and enqueues the async disk flush. Runs on the main
- * thread via {@code addScheduledTask} so packet sends are thread-safe.
+ * Server-tick half of a skin change: enqueues the async disk flush, mutates
+ * the GameProfile, and forces every viewer to re-read it. The flush is
+ * enqueued before the mutation so a failed enqueue leaves the applied
+ * profile untouched (applied and on-disk state stay consistent). Runs on the
+ * main thread via {@code addScheduledTask} so packet sends are thread-safe.
  */
 final class SkinRefreshTask {
 
@@ -73,6 +75,17 @@ final class SkinRefreshTask {
 
     private static void cascade(EntityPlayerMP target, CustomSkinProperty property, long startNanos,
             long fetchNanos) {
+        // Atomicity invariant: the disk flush is enqueued BEFORE the
+        // GameProfile is mutated. saveSkinAsync serializes the property
+        // synchronously, so when the enqueue throws, the applied profile is
+        // left untouched and in-memory and on-disk state still agree — a
+        // mutated profile with no persisted skin would silently revert on the
+        // next server restart. The in-memory map was already updated by the
+        // caller; the flush itself runs off-tick.
+        long saveStartNanos = System.nanoTime();
+        SkinRestorer.getSkinStorage().saveSkinAsync(target.getUniqueID(), property);
+        long saveNanos = System.nanoTime() - saveStartNanos;
+
         // GameProfile mutation is what every client ultimately reads textures from.
         mutateProfile(target, property);
 
@@ -81,11 +94,6 @@ final class SkinRefreshTask {
 
         // Respawn in the same dimension so the target's own view refreshes without an inventory wipe.
         respawnSelf(target);
-
-        // In-memory map already updated by the caller; disk flush is off-tick.
-        long saveStartNanos = System.nanoTime();
-        SkinRestorer.getSkinStorage().saveSkinAsync(target.getUniqueID(), property);
-        long saveNanos = System.nanoTime() - saveStartNanos;
 
         SkinMetrics.INSTANCE.recordRefreshCompleted(
             target.getUniqueID(), startNanos, fetchNanos, saveNanos, broadcastNanos);
