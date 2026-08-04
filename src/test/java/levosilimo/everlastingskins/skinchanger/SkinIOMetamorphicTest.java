@@ -82,10 +82,16 @@ class SkinIOMetamorphicTest {
         return Arbitraries.strings().withCharRange('a', 'z').ofMinLength(1).ofMaxLength(8).injectNull(0.25);
     }
 
-    /** Small non-JSON byte strings, deterministic garbage for the corrupt-file property. */
+    /**
+     * Small non-JSON byte strings, deterministic garbage for the corrupt-file
+     * property. The charset excludes every JSON structural character (braces,
+     * brackets, colon, comma, quote, backslash, slash, whitespace), digits and
+     * letters, so no generated string can ever parse as valid JSON: every
+     * sample exercises the invalid-JSON quarantine path.
+     */
     @Provide
     Arbitrary<String> garbage() {
-        return Arbitraries.strings().withChars('!', '#', '%', '*', '{', '}', '<', '>')
+        return Arbitraries.strings().withChars('!', '#', '%', '*', '<', '>', '^', '|', '~', '$', '@', '?', '+', '=')
                 .ofMinLength(1).ofMaxLength(32);
     }
 
@@ -214,7 +220,7 @@ class SkinIOMetamorphicTest {
      * sees either the previous committed bytes or absence, never a partial
      * record and never an exception from a malformed record.
      */
-    @Property(tries = 50)
+    @Property(tries = 100)
     @Label("corruptFile_returnsNull: a garbage skin file is treated as absent, no exception escapes")
     void corruptFile_returnsNull(@ForAll @From("garbage") String garbage) throws IOException {
         synchronized (METRICS_LOCK) {
