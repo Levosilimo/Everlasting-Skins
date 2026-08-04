@@ -211,4 +211,55 @@ class MojangProfileCacheTest {
         assertNull(cache.get("a"));
         assertNotNull(cache.get("b"));
     }
+
+    @Test
+    @DisplayName("stress: 5000 puts into a 1000-entry cache never exceed the cap")
+    void stress_neverExceedsCap() {
+        MojangProfileCache cache = new MojangProfileCache(TimeUnit.HOURS.toMillis(1), 1000);
+        for (int i = 0; i < 5000; i++) {
+            cache.put("stress-user-" + i, SKIN);
+            if (cache.size() > 1000) {
+                fail("cache exceeded 1000 entries after put #" + i);
+            }
+        }
+        assertEquals(1000, cache.size());
+        // untouched entries age out in insertion order: newest survives, oldest is gone
+        assertNotNull(cache.get("stress-user-4999"));
+        assertNull(cache.get("stress-user-0"));
+    }
+
+    @Test
+    @DisplayName("eviction stays O(1) per put: 2000 evictions from a full 200k cache")
+    void evictionCost_isConstantTime() {
+        int capacity = 200_000;
+        int evictions = 2_000;
+        MojangProfileCache cache = new MojangProfileCache(TimeUnit.HOURS.toMillis(1), capacity);
+        for (int i = 0; i < capacity; i++) {
+            cache.put("warm-" + i, SKIN);   // fill phase also JIT-warms the eviction path
+        }
+
+        long start = System.nanoTime();
+        for (int i = 0; i < evictions; i++) {
+            cache.put("evict-" + i, SKIN);
+        }
+        long largeMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+        // The old O(n) stream-min scan over 200k entries per put would take
+        // tens of seconds; O(1) head eviction takes a few ms. The thresholds
+        // are deliberately loose so slow CI machines do not flake.
+        assertTrue(largeMs < 5_000, "2000 puts into a full " + capacity + " cache took " + largeMs + "ms");
+
+        MojangProfileCache small = new MojangProfileCache(TimeUnit.HOURS.toMillis(1), 100);
+        for (int i = 0; i < 100; i++) {
+            small.put("s-" + i, SKIN);
+        }
+        long smallStart = System.nanoTime();
+        for (int i = 0; i < evictions; i++) {
+            small.put("sev-" + i, SKIN);
+        }
+        long smallMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - smallStart);
+        assertTrue(largeMs <= smallMs * 50 + 500,
+                "eviction cost grew with capacity: large " + largeMs + "ms vs small " + smallMs + "ms");
+        assertEquals(capacity, cache.size());
+    }
 }
