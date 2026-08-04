@@ -175,7 +175,8 @@ public class MojangApiHttpImpl implements MojangAPI {
             }
             for (PropertyResponse prop : properties) {
                 if ("textures".equals(prop.name()) && prop.value() != null && !prop.value().isEmpty()) {
-                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), SkinActionCommand.SOURCE_MOJANG));
+                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(),
+                            SkinActionCommand.SOURCE_MOJANG, requestedUsername(lookup)));
                 }
             }
             return Optional.empty();
@@ -217,12 +218,23 @@ public class MojangApiHttpImpl implements MojangAPI {
             }
             for (PropertyResponse prop : properties) {
                 if ("textures".equals(prop.name()) && prop.value() != null && !prop.value().isEmpty()) {
-                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), SkinActionCommand.SOURCE_MOJANG));
+                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(),
+                            SkinActionCommand.SOURCE_MOJANG, requestedUsername(lookup)));
                 }
             }
             return Optional.empty();
         } catch (IOException e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * The username the lookup was asked for, or null when the lookup was keyed
+     * by UUID (no username exists to persist). The A5 skip compares this stored
+     * username against the next request, so a skin fetched for "Notch" is only
+     * skipped when "Notch" is requested again.
+     */
+    private static String requestedUsername(ProfileLookup lookup) {
+        return UUIDUtils.tryParseUniqueId(lookup.username()).isPresent() ? null : lookup.username();
     }
 }
