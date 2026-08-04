@@ -10,8 +10,11 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -99,6 +102,15 @@ public class MojangProfileCache {
 
     public synchronized int size() {
         return entries.size();
+    }
+
+    /**
+     * Snapshot of the cached usernames (lower-case keys), most recently used
+     * first. The copy is unmodifiable, so callers cannot mutate cache state;
+     * the size is inherently capped at the configured max entries.
+     */
+    public synchronized List<String> snapshot() {
+        return Collections.unmodifiableList(new ArrayList<>(entries.keySet()));
     }
 
     public synchronized void clear() {
