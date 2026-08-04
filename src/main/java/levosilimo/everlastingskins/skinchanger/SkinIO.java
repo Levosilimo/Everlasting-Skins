@@ -465,9 +465,12 @@ public class SkinIO {
      * whose marker no longer matches (bit rot detected before any player
      * logs in, so a silently corrupt skin can never be applied). Legacy
      * records without a marker pass through, as do {@code .tmp} and
-     * {@code .corrupt-*} files. Logs a summary line with the counts; the
-     * result is returned so tests (and the summary) can assert the sweep
-     * outcome. One hash per record: negligible at startup scale.
+     * {@code .corrupt-*} files. Logs a per-file warning for each markerless
+     * legacy record — the per-file log enables operators to identify which
+     * files lack the checksum (e.g. created by an older mod version or
+     * manually edited) — plus a summary line with the counts; the result is
+     * returned so tests (and the summary) can assert the sweep outcome. One
+     * hash per record: negligible at startup scale.
      */
     public SweepResult validateAllFiles() {
         if (!Files.isDirectory(savePath)) {
@@ -490,6 +493,12 @@ public class SkinIO {
                         quarantineFile(file);
                         corrupt++;
                     } else if (status == CHECKSUM_ABSENT) {
+                        // Per-file log mirrors the read path's warning so
+                        // operators can identify which files lack the
+                        // checksum (e.g. created by an older mod version or
+                        // manually edited), not just a count in the summary.
+                        EverlastingSkins.logger.warn(
+                                "Skin record {} has no checksum (legacy format); passed through without integrity verification", file);
                         legacy++;
                     }
                 } catch (IOException e) {
