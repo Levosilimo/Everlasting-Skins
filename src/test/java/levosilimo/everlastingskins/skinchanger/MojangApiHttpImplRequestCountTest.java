@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * provider stub previously added a second request to every UUID/profile
  * lookup (a wasted call against the defunct skinsrestorer.net host before
  * the real Mojang call ran), so a counting client must observe a single
- * request against the Mojang URL and none against the Eclipse URL.
+ * request against the Mojang URL.
  */
 class MojangApiHttpImplRequestCountTest {
 
@@ -39,10 +39,8 @@ class MojangApiHttpImplRequestCountTest {
     private static final String NO_DASH_UUID = "069a79f444e94726a5befca90e38aaf5";
 
     private static final MojangEndpoints TEST_ENDPOINTS = new MojangEndpoints(
-            "http://test.local/uuid/eclipse/%playerName%",
             "http://test.local/uuid/mojang/%playerName%",
             "http://test.local/uuid/minetools/%playerName%",
-            "http://test.local/profile/eclipse/%uuid%",
             "http://test.local/profile/mojang/%uuid%",
             "http://test.local/profile/minetools/%uuid%"
     );
@@ -69,7 +67,6 @@ class MojangApiHttpImplRequestCountTest {
         assertEquals(PLAYER_UUID, result.get());
         assertEquals(1, httpClient.totalRequests());
         assertEquals(1, httpClient.requestsTo(mojangUuidUri));
-        assertEquals(0, httpClient.requestsTo(URI.create("http://test.local/uuid/eclipse/" + PLAYER_NAME)));
     }
 
     @Test
@@ -85,7 +82,6 @@ class MojangApiHttpImplRequestCountTest {
         assertEquals("v", result.get().getOriginalProperty().getValue());
         assertEquals(1, httpClient.totalRequests());
         assertEquals(1, httpClient.requestsTo(mojangProfileUri));
-        assertEquals(0, httpClient.requestsTo(URI.create("http://test.local/profile/eclipse/" + PLAYER_UUID)));
     }
 
     /** FakeHttpClient that records every executed URI so per-URL counts are assertable. */

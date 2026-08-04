@@ -31,10 +31,8 @@ class MojangApiHttpImplTest {
     private static final String NO_DASH_UUID = "12345678123412341234123456789abc";
 
     private static final MojangEndpoints TEST_ENDPOINTS = new MojangEndpoints(
-            "http://test.local/uuid/eclipse/%playerName%",
             "http://test.local/uuid/mojang/%playerName%",
             "http://test.local/uuid/minetools/%playerName%",
-            "http://test.local/profile/eclipse/%uuid%",
             "http://test.local/profile/mojang/%uuid%",
             "http://test.local/profile/minetools/%uuid%"
     );
