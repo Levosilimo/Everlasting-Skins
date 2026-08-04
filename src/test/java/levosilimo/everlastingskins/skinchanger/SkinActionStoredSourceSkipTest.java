@@ -8,13 +8,23 @@ package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.harness.AsyncSupport;
+import levosilimo.everlastingskins.harness.TestServerContext;
+import levosilimo.everlastingskins.integration.FakeMojangAPI;
+import levosilimo.everlastingskins.integration.TestProperties;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.MineSkinResponse;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EndpointsConfig;
+import net.minecraft.entity.player.EntityPlayerMP;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,7 +37,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (SOURCE_MOJANG / SOURCE_MINESKIN), so the skip decision is class-to-class.
  * The real provider implementations must store the production discriminator
  * values — if those literals drift, no stored skin ever matches and the skip
- * silently dies in production.
+ * silently dies in production. A username-shaped stored source (the old
+ * test-only contract) must NOT trigger the skip, and neither must a stored
+ * MineSkin-class source or an absent stored skin.
  */
 class SkinActionStoredSourceSkipTest {
 
@@ -37,6 +49,29 @@ class SkinActionStoredSourceSkipTest {
 
     private static final UUID PLAYER_UUID = UUID.fromString("12345678-1234-1234-1234-123456789abc");
     private static final String NO_DASH_UUID = "12345678123412341234123456789abc";
+
+    @TempDir
+    Path tempDir;
+
+    private TestServerContext ctx;
+    private FakeMojangAPI fake;
+
+    @BeforeEach
+    void setUp() {
+        ctx = new TestServerContext(tempDir);
+        fake = new FakeMojangAPI();
+        SkinCommandTestAccess.setMojangAPI(fake);
+        SkinMetrics.INSTANCE.reset();
+        SkinActionTestAccess.clearGuardState();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SkinActionTestAccess.clearGuardState();
+        SkinActionTestAccess.clearI18n();
+        SkinCommandTestAccess.resetAPIs();
+        ctx.close();
+    }
 
     @Test
     @DisplayName("discriminator values are pinned to what the providers store")
@@ -78,6 +113,60 @@ class SkinActionStoredSourceSkipTest {
 
         assertNotNull(result);
         assertEquals(PRODUCTION_MINESKIN_SOURCE, result.property().getSource());
+    }
+
+    @Test
+    @DisplayName("MineSkin-class stored source does not trigger the Mojang skip")
+    void mineSkinClassSource_doesNotTriggerSkip() {
+        CustomSkinProperty mineSkinShaped = new CustomSkinProperty("textures",
+            TestProperties.NOTCH.getOriginalProperty().getValue(),
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MINESKIN);
+        fake.addSkin("Notch", mineSkinShaped);
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+
+        ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
+        assertTrue(AsyncSupport.await(5000, () -> SkinAction.SOURCE_MINESKIN.equals(sourceOf(alice))),
+            "first dispatch must store the MineSkin-class skin");
+
+        ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
+        assertTrue(AsyncSupport.await(5000, () -> fake.lookupCount("Notch") == 2),
+            "MineSkin-class stored source must not skip a Mojang fetch");
+    }
+
+    @Test
+    @DisplayName("username-shaped stored source does not trigger the skip (old test-only contract)")
+    void usernameShapedSource_doesNotTriggerSkip() {
+        CustomSkinProperty usernameShaped = new CustomSkinProperty("textures",
+            TestProperties.NOTCH.getOriginalProperty().getValue(),
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), "Notch");
+        fake.addSkin("Notch", usernameShaped);
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+
+        ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
+        assertTrue(AsyncSupport.await(5000, () -> "Notch".equals(sourceOf(alice))),
+            "first dispatch must store the username-shaped skin");
+
+        ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
+        assertTrue(AsyncSupport.await(5000, () -> fake.lookupCount("Notch") == 2),
+            "a username stored as source must not skip the fetch");
+    }
+
+    @Test
+    @DisplayName("no stored skin never triggers the skip")
+    void noStoredSkin_doesNotTriggerSkip() {
+        fake.addSkin("Notch", TestProperties.NOTCH);
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+
+        ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
+        assertTrue(AsyncSupport.await(5000, () -> fake.lookupCount("Notch") == 1),
+            "an absent stored skin must not suppress the fetch");
+        assertTrue(AsyncSupport.await(5000, () -> sourceOf(alice) != null),
+            "dispatch must store the fetched skin");
+    }
+
+    private String sourceOf(EntityPlayerMP player) {
+        CustomSkinProperty skin = ctx.storage.getSkin(player.getUniqueID());
+        return skin != null ? skin.getSource() : null;
     }
 
     private static String validMineSkinJson() {
