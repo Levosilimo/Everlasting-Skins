@@ -16,6 +16,7 @@ import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.skinchanger.RandomCapeSource;
 import levosilimo.everlastingskins.skinchanger.RandomMojangSkin;
 import levosilimo.everlastingskins.skinchanger.SkinCommand;
 import levosilimo.everlastingskins.skinchanger.SkinRefreshHandler;
@@ -247,8 +248,17 @@ public final class SkinActionCommand {
                         break;
                     }
                     case random: {
+                        // Cape mode swaps the candidate source: RandomMojangSkin's
+                        // decoded-CAPE check only finds legacy cape holders (Mojang
+                        // stopped embedding CAPE in the textures payload), so
+                        // RandomCapeSource (mskins with_capes + Cosmetica) is used
+                        // instead. The variant filter is intentionally not applied in
+                        // cape mode: the listing is not variant-tagged.
+                        String username = withCape
+                                ? new RandomCapeSource().pickRandomCapeUsername()
+                                : RandomMojangSkin.randomUsername(false, variant);
                         CustomSkinProperty skinProperty = SkinCommand.getMojangAPI()
-                                .getSkin(Objects.requireNonNull(RandomMojangSkin.randomUsername(withCape, variant)))
+                                .getSkin(Objects.requireNonNull(username))
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
                         for (ServerPlayer t : targets) {
                             fetched.put(t.getUUID(), skinProperty);
