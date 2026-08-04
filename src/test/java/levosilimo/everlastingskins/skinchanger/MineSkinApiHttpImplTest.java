@@ -258,6 +258,54 @@ class MineSkinApiHttpImplTest {
     }
 
     /* ================================================================== */
+    /*  Contract fixtures: V2 shape (api.mineskin.org/v2) — F2             */
+    /*  The V2 body nests value/signature under skin.texture.data, which    */
+    /*  the V1 parser (data.texture.value) reads as empty. These tests      */
+    /*  pin that a V2 body must parse or fail loudly — never silent empty.  */
+    /* ================================================================== */
+
+    @Nested
+    @DisplayName("V2 contract fixtures")
+    class V2ContractFixtures {
+
+        @Test
+        @DisplayName("200 OK V2 body -> parses skin.texture.data.value (no silent empty)")
+        void validBody() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 200, fixture("v2-200-valid.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(result.isPresent());
+            assertEquals(FIXTURE_TEXTURE_VALUE, result.get().property().getOriginalProperty().getValue());
+            assertEquals(FIXTURE_SIGNATURE, result.get().property().getOriginalProperty().getSignature());
+            assertEquals("c891dfac-4cd2-47a2-a557-43e7e82ce76f", result.get().mineSkinId());
+        }
+
+        @Test
+        @DisplayName("200 OK V2 body with empty texture -> empty (no result)")
+        void emptyTexture() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 200, fixture("v2-200-empty-texture.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertFalse(result.isPresent());
+        }
+
+        @Test
+        @DisplayName("429 V2 rateLimit.next -> recorded waitMs from relative delay")
+        void rateLimit() throws Exception {
+            long before = SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs();
+            httpClient.addResponse(MINESKIN_URI, 429, fixture("v2-429-ratelimit.json"));
+
+            Optional<MineSkinResponse> result = api.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertFalse(result.isPresent());
+            long recorded = SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs() - before;
+            assertEquals(250, recorded);
+        }
+    }
+
+    /* ================================================================== */
     /*  JSON body helpers                                                  */
     /* ================================================================== */
 
