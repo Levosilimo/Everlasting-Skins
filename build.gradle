@@ -159,18 +159,67 @@ minecraft {
             // (GameTest job failed with "Reflective setAccessible(true)
             // disabled" / module exports). Applied to the forked GameTest
             // server JVM, not the Gradle daemon.
+            //
+            // ALL-UNNAMED alone is not enough: FG6 dev loads Netty as NAMED
+            // JPMS modules (io.netty.*) inside Forge's SecureModuleClassLoader,
+            // and the JVM refuses "does not open java.nio / export
+            // jdk.internal.misc to module io.netty.common" for those. Open and
+            // export the same packages to each Netty module the dev runtime
+            // loads; flags for modules absent from the layer are ignored.
+            //
+            // NOTE: startup --add-opens cannot reach modules Forge defines in a
+            // runtime module layer (io.netty.common lives in the SECURE-BOOTSTRAP
+            // layer, created after JVM start), so PlatformDependent still cannot
+            // open java.nio reflectively there. tryReflectionSetAccessible=false
+            // makes Netty skip that doomed attempt entirely instead of throwing
+            // and logging InaccessibleObjectException at every boot; the fallback
+            // (heap buffers / no-unsafe paths) is what the current environment
+            // ends up with either way.
             jvmArgs(
                 '--add-opens=java.base/java.lang=ALL-UNNAMED',
                 '--add-opens=java.base/java.nio=ALL-UNNAMED',
                 '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED',
                 '--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED',
-                '-Dio.netty.tryReflectionSetAccessible=true'
+                '--add-opens=java.base/java.nio=io.netty.common',
+                '--add-opens=java.base/java.nio=io.netty.buffer',
+                '--add-opens=java.base/java.nio=io.netty.transport',
+                '--add-opens=java.base/java.nio=io.netty.handler',
+                '--add-opens=java.base/java.nio=io.netty.codec',
+                '--add-opens=java.base/java.nio=io.netty.resolver',
+                '--add-opens=java.base/sun.nio.ch=io.netty.common',
+                '--add-opens=java.base/sun.nio.ch=io.netty.transport',
+                '--add-exports=java.base/jdk.internal.misc=io.netty.common',
+                '--add-exports=java.base/jdk.internal.misc=io.netty.buffer',
+                '--add-exports=java.base/jdk.internal.misc=io.netty.transport',
+                '--add-exports=java.base/jdk.internal.misc=io.netty.handler',
+                '--add-exports=java.base/jdk.internal.misc=io.netty.codec',
+                '--add-exports=java.base/jdk.internal.misc=io.netty.resolver',
+                '-Dio.netty.tryReflectionSetAccessible=false'
             )
             mods {
                 everlastingskins {
                     source sourceSets.main
                     source sourceSets.gametest
                 }
+            }
+        }
+    }
+}
+
+// Minecraft 1.21's Settings loader opens server.properties with no
+// exists() check; a missing file logs NoSuchFileException + ERROR on every
+// GameTest boot. Seed the run directory with a default server.properties so
+// the GameTest server starts clean (vanilla defaults; the server rewrites
+// the file on shutdown anyway).
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    doFirst {
+        def runDir = project.file(project.findProperty('mc.runDir') ?: 'run')
+        runDir.mkdirs()
+        def props = new File(runDir, 'server.properties')
+        if (!props.exists()) {
+            def template = project.file('test-infrastructure/server.properties')
+            if (template.exists()) {
+                props.text = template.text
             }
         }
     }

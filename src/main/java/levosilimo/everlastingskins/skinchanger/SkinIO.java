@@ -100,9 +100,24 @@ public class SkinIO {
         }
     }
 
-    public void deleteSkin(UUID uuid) {
-        // A deferred drain must not resurrect a deleted skin from a stale payload.
+        public void deleteSkin(UUID uuid) {
+        // Drop any deferred payload first so a drain that has not started yet
+        // skips this UUID, then perform the file deletion ON the writer thread.
+        // An in-flight drain that already pulled this payload completes its
+        // write before our delete runs (single writer thread), so a cleared
+        // skin can never be resurrected by a stale write landing after the
+        // delete (write-after-delete race).
         pendingWrites.remove(uuid);
+        try {
+            writer().submit(() -> deleteSkinFile(uuid)).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            EverlastingSkins.logger.warn("SkinIO delete did not complete in time for {}", uuid, e);
+        }
+    }
+
+    private void deleteSkinFile(UUID uuid) {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
         try {
             if (Files.deleteIfExists(target)) {
