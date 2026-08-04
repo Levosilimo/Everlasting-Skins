@@ -437,6 +437,42 @@ class SkinRefreshHandlerTest {
     /*  C. Multi-observer + multi-target                                   */
     /* ================================================================== */
 
+    @Test
+    @DisplayName("Two observers in the same dimension both receive REMOVE+ADD (with the new textures)")
+    void twoObserversBothReceiveBroadcast() {
+        refresh();
+
+        assertRemoveAddPair(observer1Stream, "observer1");
+        assertRemoveAddPair(observer2Stream, "observer2");
+        assertAddCarriesNewTexture(observer1Stream);
+        assertAddCarriesNewTexture(observer2Stream);
+    }
+
+    @Test
+    @DisplayName("The target itself receives its own REMOVE+ADD broadcast before the cascade (self-reception)")
+    void targetReceivesOwnBroadcast() {
+        refresh();
+
+        int removeIdx = indexOfType(targetStream, ClientboundPlayerInfoRemovePacket.class);
+        int addIdx = indexOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class);
+        int respawn = indexOfType(targetStream, ClientboundRespawnPacket.class);
+        assertTrue(removeIdx >= 0 && addIdx == removeIdx + 1 && respawn > addIdx,
+            "self-reception: REMOVE+ADD must reach the target's own connection before the respawn; stream=" + targetStream);
+    }
+
+    @Test
+    @DisplayName("Self-reception also holds in bundle mode")
+    void targetReceivesOwnBroadcast_bundleMode() {
+        Config.BROADCAST_USE_BUNDLE.set(true);
+        refresh();
+
+        int bundleIdx = indexOfType(targetStream, ClientboundBundlePacket.class);
+        int respawn = indexOfType(targetStream, ClientboundRespawnPacket.class);
+        assertTrue(bundleIdx >= 0 && respawn > bundleIdx,
+            "self-reception: the bundle must reach the target's own connection before the respawn; stream=" + targetStream);
+    }
+
+    /* ================================================================== */
     /*  Fixture                                                            */
     /* ================================================================== */
 
