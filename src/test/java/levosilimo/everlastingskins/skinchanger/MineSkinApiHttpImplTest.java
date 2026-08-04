@@ -11,6 +11,7 @@ import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.MineSkinResponse;
 import levosilimo.everlastingskins.util.EndpointsConfig;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -20,7 +21,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -302,6 +306,86 @@ class MineSkinApiHttpImplTest {
             assertFalse(result.isPresent());
             long recorded = SkinMetrics.INSTANCE.snapshot().mineSkinDelayTotalMs() - before;
             assertEquals(250, recorded);
+        }
+    }
+
+    /* ================================================================== */
+    /*  Config warnings: 401/403/404 with an unset MINESKIN_API_KEY         */
+    /* ================================================================== */
+
+    @Nested
+    @DisplayName("Config warnings (MINESKIN_API_KEY)")
+    class ConfigWarnings {
+
+        private final List<String> warnings = new ArrayList<String>();
+        private Consumer<String> originalSink;
+        private MineSkinApiHttpImpl unkeyedApi;
+
+        @BeforeEach
+        void captureWarnings() {
+            originalSink = MineSkinApiHttpImpl.warningSink;
+            MineSkinApiHttpImpl.warningSink = warnings::add;
+            unkeyedApi = new MineSkinApiHttpImpl(httpClient, "");
+        }
+
+        @AfterEach
+        void restoreSink() {
+            MineSkinApiHttpImpl.warningSink = originalSink;
+        }
+
+        @Test
+        @DisplayName("401 with no API key -> warning mentions MINESKIN_API_KEY")
+        void unauthorizedWithoutKey() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 401, "{\"errorCode\":\"unauthorized\"}");
+
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertEquals(1, warnings.size());
+            assertTrue(warnings.get(0).contains("MINESKIN_API_KEY"));
+        }
+
+        @Test
+        @DisplayName("403 with no API key -> warning mentions MINESKIN_API_KEY")
+        void forbiddenWithoutKey() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 403, "{\"errorCode\":\"invalid_api_key\"}");
+
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertEquals(1, warnings.size());
+            assertTrue(warnings.get(0).contains("MINESKIN_API_KEY"));
+        }
+
+        @Test
+        @DisplayName("404 with no API key -> warning mentions MINESKIN_API_KEY")
+        void missingResourceWithoutKey() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 404, "{}");
+
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertEquals(1, warnings.size());
+            assertTrue(warnings.get(0).contains("MINESKIN_API_KEY"));
+        }
+
+        @Test
+        @DisplayName("403 with API key configured -> no config warning")
+        void forbiddenWithKey() throws Exception {
+            MineSkinApiHttpImpl keyedApi = new MineSkinApiHttpImpl(httpClient, "test-api-key");
+            httpClient.addResponse(MINESKIN_URI, 403, "{\"errorCode\":\"invalid_api_key\"}");
+
+            keyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertTrue(warnings.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Warning emitted at most once per impl instance")
+        void warnedOnce() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 401, "{}");
+
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+            unkeyedApi.genSkinInternal(IMAGE_URL, SkinVariant.CLASSIC);
+
+            assertEquals(1, warnings.size());
         }
     }
 
