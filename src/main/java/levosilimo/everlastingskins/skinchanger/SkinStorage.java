@@ -104,10 +104,27 @@ public class SkinStorage {
         return loaded.getSource();
     }
 
+    /**
+     * Strict last-write-wins save: the in-memory value is written through the
+     * single writer thread and this call blocks until the write has landed.
+     * Submitting through SAVE_EXECUTOR (FIFO) orders the sync save after any
+     * in-flight drain write for the same UUID; purging the pending payload
+     * first keeps a not-yet-drained async write from overwriting it. Without
+     * the serialization the async drain could land a stale payload after the
+     * sync save (sync/async inversion).
+     */
     public void saveSkin(UUID uuid) {
         CustomSkinProperty skinProperty = skinMap.get(uuid);
-        if (skinProperty != null) {
-            skinIO.saveSkin(uuid, skinProperty);
+        if (skinProperty == null) return;
+        pendingWrites.remove(uuid);
+        byte[] payload = JsonUtils.toJson(skinProperty).getBytes(StandardCharsets.UTF_8);
+        try {
+            SAVE_EXECUTOR.submit(() -> skinIO.saveSkin(uuid, payload)).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            EverlastingSkins.logger.warn("Sync skin save of {} interrupted", uuid, e);
+        } catch (ExecutionException | TimeoutException e) {
+            EverlastingSkins.logger.warn("Sync skin save of {} did not complete in 5s", uuid, e);
         }
     }
 
