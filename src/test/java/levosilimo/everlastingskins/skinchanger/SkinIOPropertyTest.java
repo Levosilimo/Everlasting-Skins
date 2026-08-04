@@ -27,7 +27,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Model-based property tests for the per-UUID skin store.
@@ -63,6 +66,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * so the debounce timing stays deterministic under CI load.
  */
 class SkinIOPropertyTest {
+
+    private static final UUID[] UUID_POOL = {
+            UUID.fromString("00000000-0000-0000-0000-000000000001"),
+            UUID.fromString("00000000-0000-0000-0000-000000000002"),
+            UUID.fromString("00000000-0000-0000-0000-000000000003"),
+            UUID.fromString("00000000-0000-0000-0000-000000000004")
+    };
 
     /* ------------------------------ generators ------------------------------ */
 
@@ -116,6 +126,33 @@ class SkinIOPropertyTest {
         }
     }
 
+    private enum OpType {
+        SAVE_ASYNC, SAVE_SYNC, DELETE
+    }
+
+    private static final class Op {
+        final OpType type;
+        final UUID uuid;
+        final String value;
+
+        Op(OpType type, UUID uuid, String value) {
+            this.type = type;
+            this.uuid = uuid;
+            this.value = value;
+        }
+    }
+
+    /** Random op scripts over a small uuid pool so collisions and tombstones are frequent. */
+    @Provide
+    Arbitrary<List<Op>> opScripts() {
+        return Combinators.combine(
+                Arbitraries.of(OpType.values()),
+                Arbitraries.of(UUID_POOL),
+                values())
+                .as(Op::new)
+                .list().ofMinSize(1).ofMaxSize(40);
+    }
+
     /* ------------------------------- helpers ------------------------------- */
 
     private static CustomSkinProperty skin(String value) {
@@ -157,6 +194,59 @@ class SkinIOPropertyTest {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("interrupted", e);
+        }
+    }
+
+    private static void applyOps(List<Op> ops, SkinIO io, Map<UUID, String> model, Object lock,
+                                 AtomicReference<Throwable> failure) {
+        try {
+            for (Op op : ops) {
+                synchronized (lock) {
+                    switch (op.type) {
+                        case SAVE_ASYNC:
+                            model.put(op.uuid, op.value);
+                            io.saveSkinAsync(op.uuid, skin(op.value));
+                            break;
+                        case SAVE_SYNC:
+                            model.put(op.uuid, op.value);
+                            io.saveSkin(op.uuid, skin(op.value));
+                            break;
+                        case DELETE:
+                            model.remove(op.uuid);
+                            io.deleteSkin(op.uuid);
+                            break;
+                        default:
+                            throw new IllegalStateException("unknown op " + op.type);
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            failure.compareAndSet(null, t);
+        }
+    }
+
+    private static void assertDiskMatchesModel(Path dir, Map<UUID, String> model) throws IOException {
+        Map<String, String> byName = new LinkedHashMap<>();
+        try (Stream<Path> stream = Files.list(dir)) {
+            for (Path file : (Iterable<Path>) stream::iterator) {
+                String name = file.getFileName().toString();
+                if (name.endsWith(".tmp")) {
+                    fail("stray temp file after flush: " + file);
+                }
+                if (!name.endsWith(".json")) {
+                    fail("unexpected file in storage dir: " + file);
+                }
+                byName.put(name.substring(0, name.length() - 5),
+                        new String(Files.readAllBytes(file), StandardCharsets.UTF_8));
+            }
+        }
+        assertEquals(model.size(), byName.size(),
+                "disk file count must match the model");
+        for (Map.Entry<UUID, String> entry : model.entrySet()) {
+            String content = byName.get(entry.getKey().toString());
+            assertTrue(content != null, "model uuid missing on disk: " + entry.getKey());
+            assertEquals(JsonUtils.toJson(skin(entry.getValue())), content,
+                    "disk payload must match the model for " + entry.getKey());
         }
     }
 
@@ -304,6 +394,82 @@ class SkinIOPropertyTest {
                 assertEquals(value, loaded.getOriginalProperty().value());
                 assertEquals(signature, loaded.getOriginalProperty().signature());
                 assertEquals(source, loaded.getSource());
+            } finally {
+                deleteRecursively(dir);
+            }
+        }
+    }
+
+    /* --------------------------- restart-after-delete ------------------------- */
+
+    @Group
+    class RestartAfterDelete {
+
+        /**
+         * Model: a tombstone must survive a restart, so a fresh store over the
+         * same directory must see no file for the deleted uuid. Encodes the
+         * crash-consistency framing of Pillai et al. (OSDI 2014): restart is
+         * the harshest reader, and it must never observe a resurrected
+         * tombstone.
+         */
+        @Property(tries = 100)
+        @Label("restart after delete: a fresh store sees no resurrected skin")
+        void restartAfterDelete(@ForAll @From("values") String value) throws IOException {
+            SkinMetrics.INSTANCE.reset();
+            Path dir = newTempDir();
+            try {
+                SkinIO io = new SkinIO(dir);
+                UUID uuid = UUID.randomUUID();
+                io.saveSkinAsync(uuid, skin(value));
+                io.deleteSkin(uuid);
+                io.flushPending();
+                SkinStorage restarted = new SkinStorage(new SkinIO(dir));
+                assertTrue(restarted.loadSkin(uuid) == null,
+                        "restart must not resurrect a deleted skin");
+            } finally {
+                deleteRecursively(dir);
+            }
+        }
+    }
+
+    /* ---------------------------- model equivalence --------------------------- */
+
+    @Group
+    class ModelEquivalence {
+
+        /**
+         * Model: the full specification. A random concurrent op script (async
+         * save, sync save, delete over a small uuid pool) is applied against
+         * the reference map under a shared lock that fixes submission order;
+         * the flush must reproduce the model exactly - one file per live
+         * entry carrying the latest payload, no file for deleted entries, no
+         * stray temp files. The script runs on two threads so the deferred
+         * drain interleaves with later ops (QuickCheck-style model checking,
+         * Claessen &amp; Hughes, ICFP 2000).
+         */
+        @Property(tries = 100)
+        @Label("model equivalence: flushed disk equals the reference model for any op script")
+        void modelEquivalence(@ForAll @From("opScripts") List<Op> script)
+                throws InterruptedException, IOException {
+            SkinMetrics.INSTANCE.reset();
+            Path dir = newTempDir();
+            try {
+                SkinIO io = new SkinIO(dir);
+                Map<UUID, String> model = new LinkedHashMap<>();
+                Object lock = new Object();
+                AtomicReference<Throwable> failure = new AtomicReference<>();
+                int mid = script.size() / 2;
+                Thread left = new Thread(() -> applyOps(script.subList(0, mid), io, model, lock, failure));
+                Thread right = new Thread(() -> applyOps(script.subList(mid, script.size()), io, model, lock, failure));
+                left.start();
+                right.start();
+                left.join();
+                right.join();
+                if (failure.get() != null) {
+                    throw new AssertionError("op application failed", failure.get());
+                }
+                io.flushPending();
+                assertDiskMatchesModel(dir, model);
             } finally {
                 deleteRecursively(dir);
             }
