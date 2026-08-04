@@ -138,11 +138,23 @@ public class SkinIO {
      * only the rename entry may not survive a crash.
      */
     private void fsyncDirectory() {
-        try (FileChannel dir = FileChannel.open(savePath, StandardOpenOption.READ)) {
+        try (FileChannel dir = openDirectoryChannel(savePath)) {
             dir.force(true);
+        } catch (UnsupportedOperationException ignored) {
+            // Some filesystems (e.g. FAT) don't support dir fsync; tolerate silently.
         } catch (IOException e) {
             EverlastingSkins.logger.warn("Failed to fsync skin directory {}", savePath, e);
         }
+    }
+
+    /**
+     * Opens the save directory read-only so it can be fsynced. Package-private
+     * so tests can substitute the channel and assert the durability barrier
+     * runs after the rename (Mockito cannot intercept static
+     * {@code FileChannel.open} on the Java 8 line).
+     */
+    FileChannel openDirectoryChannel(Path dir) throws IOException {
+        return FileChannel.open(dir, StandardOpenOption.READ);
     }
 
     @Nullable
