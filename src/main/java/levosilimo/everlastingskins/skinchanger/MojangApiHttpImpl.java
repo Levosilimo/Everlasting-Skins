@@ -78,44 +78,14 @@ public class MojangApiHttpImpl implements MojangAPI {
 
     @Override
     public Optional<UUID> getUUID(String playerName) {
-        return tryEclipseUuid(playerName)
-                .or(() -> tryMojangUuid(playerName))
+        return tryMojangUuid(playerName)
                 .or(() -> tryMineToolsUuid(playerName));
     }
 
     @Override
     public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
-        return tryEclipseProfile(lookup)
-                .or(() -> tryMojangProfile(lookup))
+        return tryMojangProfile(lookup)
                 .or(() -> tryMineToolsProfile(lookup));
-    }
-
-    private Optional<UUID> tryEclipseUuid(String playerName) {
-        try {
-            String url = endpoints.uuidEclipse().replace("%playerName%", playerName);
-            HttpResponse response = httpClient.execute(
-                    URI.create(url),
-                    null,
-                    HttpClient.HttpType.JSON,
-                    USER_AGENT,
-                    HttpClient.HttpMethod.GET,
-                    Collections.emptyMap(),
-                    REQUEST_TIMEOUT
-            );
-            if (response.statusCode() != 200) {
-                return Optional.empty();
-            }
-            EclipseUUIDResponse eclipse = response.getBodyAs(EclipseUUIDResponse.class);
-            if (eclipse == null) {
-                return Optional.empty();
-            }
-            if (!eclipse.exists() || eclipse.uuid() == null) {
-                return Optional.empty();
-            }
-            return Optional.of(eclipse.uuid());
-        } catch (IOException e) {
-            return Optional.empty();
-        }
     }
 
     private Optional<UUID> tryMojangUuid(String playerName) {
@@ -174,36 +144,6 @@ public class MojangApiHttpImpl implements MojangAPI {
                 return Optional.empty();
             }
             return UUIDUtils.tryParseUniqueId(mineTools.id());
-        } catch (IOException e) {
-            return Optional.empty();
-        }
-    }
-
-    private Optional<CustomSkinProperty> tryEclipseProfile(ProfileLookup lookup) {
-        try {
-            String uuidStr = lookup.uuid().toString();
-            String url = endpoints.profileEclipse().replace("%uuid%", uuidStr);
-            HttpResponse response = httpClient.execute(
-                    URI.create(url),
-                    null,
-                    HttpClient.HttpType.JSON,
-                    USER_AGENT,
-                    HttpClient.HttpMethod.GET,
-                    Collections.emptyMap(),
-                    REQUEST_TIMEOUT
-            );
-            if (response.statusCode() != 200) {
-                return Optional.empty();
-            }
-            EclipseProfileResponse eclipse = response.getBodyAs(EclipseProfileResponse.class);
-            if (eclipse == null) {
-                return Optional.empty();
-            }
-            if (!eclipse.exists() || eclipse.isPropertyNull()) {
-                return Optional.empty();
-            }
-            EclipseProfileResponse.SkinProperty skin = eclipse.skinProperty();
-            return Optional.of(new CustomSkinProperty("textures", skin.value(), skin.signature(), SkinActionCommand.SOURCE_MOJANG));
         } catch (IOException e) {
             return Optional.empty();
         }
