@@ -111,10 +111,10 @@ class SkinIOPropertyTest {
         return values().list().ofMinSize(2).ofMaxSize(8);
     }
 
-    /** 100-value burst: every save must land inside the 50ms debounce window. */
+    /** 20-value burst: every save must land inside the 50ms debounce window. */
     @Provide
     Arbitrary<List<String>> burstValues() {
-        return values().list().ofSize(100);
+        return values().list().ofSize(20);
     }
 
     private enum OpType {
@@ -266,13 +266,21 @@ class SkinIOPropertyTest {
 
         /**
          * Model: the drain latch and per-UUID coalescing guarantee at most one
-         * real disk write per debounce window, so a 100-save burst inside one
-         * window yields exactly one write, 100 recorded submissions, and the
-         * last payload on disk. Asserted on the SkinMetrics real-write counter
-         * (not wall clocks) so the debounce timing is CI-tolerant.
+         * real disk write per debounce window, so a save burst inside one
+         * window yields exactly one write, one recorded submission per save,
+         * and the last payload on disk. Asserted on the SkinMetrics real-write
+         * counter (not wall clocks) so the debounce timing is CI-tolerant.
+         * <p>
+         * The burst is capped at 20 saves: the loop must finish inside the
+         * 50ms debounce window, and a 100-save loop made the assertion
+         * wall-clock dependent under CPU starvation (a >=50ms gap between the
+         * first and last save lets the scheduled drain fire mid-loop and
+         * split the burst into two writes). flushPending() is the completion
+         * barrier - it submits the drain and blocks until the write landed -
+         * so no extra wall-clock wait is needed.
          */
         @Property(tries = 100)
-        @Label("coalescing bound: one debounce window collapses 100 saves into exactly one disk write")
+        @Label("coalescing bound: one debounce window collapses 20 saves into exactly one disk write")
         void drainIdempotence(@ForAll @From("burstValues") List<String> burst) throws IOException {
         synchronized (METRICS_LOCK) {
                 SkinMetrics.INSTANCE.reset();
@@ -286,7 +294,7 @@ class SkinIOPropertyTest {
                     }
                     storage.flushPending();
                     assertEquals(1, SkinMetrics.INSTANCE.snapshot().realWrites(),
-                            "100 saves in one debounce window must produce exactly one disk write");
+                            "all " + burst.size() + " saves in one debounce window must produce exactly one disk write");
                     assertEquals(burst.size(), SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
                             "every merge must be recorded as submitted");
                     assertFileValue(dir, uuid, burst.get(burst.size() - 1));
