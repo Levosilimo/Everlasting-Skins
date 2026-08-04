@@ -6,9 +6,11 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import com.mojang.authlib.properties.Property;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.harness.PacketLog;
 import levosilimo.everlastingskins.harness.TestServerContext;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.entity.EntityTracker;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -26,20 +28,26 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -78,11 +86,20 @@ import static org.mockito.Mockito.verify;
  *       players. Cross-dimension observers receive it (see
  *       {@code crossDimension_observerReceives_on1122}).</li>
  * </ul>
+ *
+ * <p>Cascade atomicity invariant (R3): SkinRefreshTask must enqueue the disk
+ * flush BEFORE mutating the GameProfile, so a failed enqueue leaves the
+ * applied profile untouched — applied and on-disk skin stay consistent and
+ * the change cannot silently revert on the next server restart.
  */
 class SkinRefreshTaskTest {
 
     private static final String TEXTURE_VALUE = "cGF5bG9hZA==";
     private static final String TEXTURE_SIGNATURE = "c2lnbmF0dXJl";
+
+    private static final Property OLD_PROPERTY = new Property("textures", "oldValue", "oldSignature");
+    private static final CustomSkinProperty NEW_SKIN =
+            new CustomSkinProperty("textures", "newValue", "newSignature", "MojangAPI");
 
     @TempDir
     Path tempDir;
@@ -104,6 +121,7 @@ class SkinRefreshTaskTest {
     @BeforeEach
     void setUp() {
         ctx = new TestServerContext(tempDir);
+        SkinMetrics.INSTANCE.reset();
         target = ctx.newPlayer("Target");
         observer1 = ctx.newPlayer("ObserverOne");
         observer2 = ctx.newPlayer("ObserverTwo");
@@ -153,7 +171,10 @@ class SkinRefreshTaskTest {
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
+        // Undo any failing-storage install so the context closes on the real
+        // storage (flushPending must drain real pending writes, not a mock).
+        setStaticField(SkinRestorer.class, "skinStorage", ctx.storage);
         Config.refreshViaEntityTracker = true;
         ctx.close();
     }
@@ -333,6 +354,76 @@ class SkinRefreshTaskTest {
     }
 
     /* ================================================================== */
+    /*  D. Cascade atomicity (persistence) contract                       */
+    /* ================================================================== */
+
+    @Test
+    @DisplayName("saveSkinAsync failure leaves the applied GameProfile textures untouched")
+    void saveSkinAsyncFailure_leavesProfileUntouched() throws Exception {
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+        alice.getGameProfile().getProperties().put("textures", OLD_PROPERTY);
+        SkinStorage failing = mock(SkinStorage.class);
+        doThrow(new RuntimeException("simulated disk enqueue failure"))
+                .when(failing).saveSkinAsync(any(UUID.class), any(CustomSkinProperty.class));
+        setStaticField(SkinRestorer.class, "skinStorage", failing);
+
+        long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
+        long savesBefore = SkinMetrics.INSTANCE.snapshot().savesSubmitted();
+
+        SkinRefreshTask.task(alice, NEW_SKIN, 0L);
+
+        Collection<Property> textures = texturesOf(alice);
+        assertEquals(1, textures.size(), "a failed save must not mutate the profile");
+        assertEquals(OLD_PROPERTY, textures.iterator().next(),
+                "the applied profile must keep the previous textures when persistence fails");
+        assertEquals(failedBefore + 1, SkinMetrics.INSTANCE.snapshot().refreshesFailed(),
+                "the partial cascade failure must be recorded");
+        assertEquals(savesBefore, SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
+                "a failed enqueue must not count as a submitted save");
+    }
+
+    @Test
+    @DisplayName("successful save applies the stored skin to the GameProfile")
+    void saveSkinAsyncSuccess_appliesStoredSkin() {
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+        alice.getGameProfile().getProperties().put("textures", OLD_PROPERTY);
+
+        long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
+        long completedBefore = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
+        long savesBefore = SkinMetrics.INSTANCE.snapshot().savesSubmitted();
+
+        SkinRefreshTask.task(alice, NEW_SKIN, 0L);
+        ctx.storage.flushPending();
+
+        Collection<Property> textures = texturesOf(alice);
+        assertEquals(1, textures.size());
+        assertEquals(NEW_SKIN.getOriginalProperty(), textures.iterator().next(),
+                "the applied profile must match the saved skin value");
+        assertEquals(failedBefore, SkinMetrics.INSTANCE.snapshot().refreshesFailed(),
+                "a successful refresh must not record a failure");
+        assertEquals(completedBefore + 1, SkinMetrics.INSTANCE.snapshot().refreshesCompleted(),
+                "a successful cascade must record a completed refresh");
+        assertEquals(savesBefore + 1, SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
+                "the cascade must enqueue exactly one save");
+    }
+
+    @Test
+    @DisplayName("restart equivalence: after the cascade the on-disk skin equals the in-memory skin")
+    void afterCascade_ondiskSkinEqualsInMemorySkin() {
+        EntityPlayerMP alice = ctx.newPlayer("Alice");
+
+        SkinRefreshTask.task(alice, NEW_SKIN, 0L);
+        ctx.storage.flushPending();
+
+        CustomSkinProperty fromDisk = ctx.storage.loadSkin(alice.getUniqueID());
+        assertNotNull(fromDisk, "the cascade must have persisted the skin to disk");
+        assertEquals(NEW_SKIN, fromDisk,
+                "the on-disk skin after the cascade must equal the stored in-memory skin");
+        assertEquals(ctx.storage.getSkin(alice.getUniqueID()), fromDisk,
+                "a restart reloading from disk must reproduce the in-memory skin");
+    }
+
+    /* ================================================================== */
     /*  Helpers                                                           */
     /* ================================================================== */
 
@@ -390,5 +481,15 @@ class SkinRefreshTaskTest {
 
     private static long count(List<String> events, String marker) {
         return events.stream().filter(marker::equals).count();
+    }
+
+    private static void setStaticField(Class<?> clazz, String name, Object value) throws Exception {
+        Field field = clazz.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(null, value);
+    }
+
+    private static Collection<Property> texturesOf(EntityPlayerMP player) {
+        return player.getGameProfile().getProperties().get("textures");
     }
 }
