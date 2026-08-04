@@ -3,6 +3,7 @@
  */
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangProfileResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
@@ -77,44 +78,14 @@ public class MojangApiHttpImpl implements MojangAPI {
 
     @Override
     public Optional<UUID> getUUID(String playerName) {
-        return tryEclipseUuid(playerName)
-                .or(() -> tryMojangUuid(playerName))
+        return tryMojangUuid(playerName)
                 .or(() -> tryMineToolsUuid(playerName));
     }
 
     @Override
     public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
-        return tryEclipseProfile(lookup)
-                .or(() -> tryMojangProfile(lookup))
+        return tryMojangProfile(lookup)
                 .or(() -> tryMineToolsProfile(lookup));
-    }
-
-    private Optional<UUID> tryEclipseUuid(String playerName) {
-        try {
-            String url = endpoints.uuidEclipse().replace("%playerName%", playerName);
-            HttpResponse response = httpClient.execute(
-                    URI.create(url),
-                    null,
-                    HttpClient.HttpType.JSON,
-                    USER_AGENT,
-                    HttpClient.HttpMethod.GET,
-                    Collections.emptyMap(),
-                    REQUEST_TIMEOUT
-            );
-            if (response.statusCode() != 200) {
-                return Optional.empty();
-            }
-            EclipseUUIDResponse eclipse = response.getBodyAs(EclipseUUIDResponse.class);
-            if (eclipse == null) {
-                return Optional.empty();
-            }
-            if (!eclipse.exists() || eclipse.uuid() == null) {
-                return Optional.empty();
-            }
-            return Optional.of(eclipse.uuid());
-        } catch (IOException e) {
-            return Optional.empty();
-        }
     }
 
     private Optional<UUID> tryMojangUuid(String playerName) {
@@ -178,36 +149,6 @@ public class MojangApiHttpImpl implements MojangAPI {
         }
     }
 
-    private Optional<CustomSkinProperty> tryEclipseProfile(ProfileLookup lookup) {
-        try {
-            String uuidStr = lookup.uuid().toString();
-            String url = endpoints.profileEclipse().replace("%uuid%", uuidStr);
-            HttpResponse response = httpClient.execute(
-                    URI.create(url),
-                    null,
-                    HttpClient.HttpType.JSON,
-                    USER_AGENT,
-                    HttpClient.HttpMethod.GET,
-                    Collections.emptyMap(),
-                    REQUEST_TIMEOUT
-            );
-            if (response.statusCode() != 200) {
-                return Optional.empty();
-            }
-            EclipseProfileResponse eclipse = response.getBodyAs(EclipseProfileResponse.class);
-            if (eclipse == null) {
-                return Optional.empty();
-            }
-            if (!eclipse.exists() || eclipse.isPropertyNull()) {
-                return Optional.empty();
-            }
-            EclipseProfileResponse.SkinProperty skin = eclipse.skinProperty();
-            return Optional.of(new CustomSkinProperty("textures", skin.value(), skin.signature(), "MojangAPI"));
-        } catch (IOException e) {
-            return Optional.empty();
-        }
-    }
-
     private Optional<CustomSkinProperty> tryMojangProfile(ProfileLookup lookup) {
         try {
             String uuidNoDash = lookup.uuid().toString().replace("-", "");
@@ -234,7 +175,8 @@ public class MojangApiHttpImpl implements MojangAPI {
             }
             for (PropertyResponse prop : properties) {
                 if ("textures".equals(prop.name()) && prop.value() != null && !prop.value().isEmpty()) {
-                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), "MojangAPI"));
+                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(),
+                            SkinActionCommand.SOURCE_MOJANG, requestedUsername(lookup)));
                 }
             }
             return Optional.empty();
@@ -276,12 +218,23 @@ public class MojangApiHttpImpl implements MojangAPI {
             }
             for (PropertyResponse prop : properties) {
                 if ("textures".equals(prop.name()) && prop.value() != null && !prop.value().isEmpty()) {
-                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(), "MojangAPI"));
+                    return Optional.of(new CustomSkinProperty("textures", prop.value(), prop.signature(),
+                            SkinActionCommand.SOURCE_MOJANG, requestedUsername(lookup)));
                 }
             }
             return Optional.empty();
         } catch (IOException e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * The username the lookup was asked for, or null when the lookup was keyed
+     * by UUID (no username exists to persist). The A5 skip compares this stored
+     * username against the next request, so a skin fetched for "Notch" is only
+     * skipped when "Notch" is requested again.
+     */
+    private static String requestedUsername(ProfileLookup lookup) {
+        return UUIDUtils.tryParseUniqueId(lookup.username()).isPresent() ? null : lookup.username();
     }
 }

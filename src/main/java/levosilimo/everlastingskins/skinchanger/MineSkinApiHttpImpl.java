@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.*;
 import levosilimo.everlastingskins.util.*;
@@ -128,7 +129,7 @@ public class MineSkinApiHttpImpl implements MineSkinAPI {
         CustomSkinProperty property = new CustomSkinProperty(
                 texture.value(),
                 texture.signature(),
-                "MineSkin"
+                SkinActionCommand.SOURCE_MINESKIN
         );
 
         SkinVariant generatedVariant = resolveVariant(urlResponse.variant());
