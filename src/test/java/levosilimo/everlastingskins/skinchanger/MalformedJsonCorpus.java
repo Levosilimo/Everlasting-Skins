@@ -7,10 +7,6 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonSyntaxException;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -39,16 +35,15 @@ import java.util.UUID;
  * <p>
  * Corpus contract (what the properties are allowed to feed the parsers):
  * <ul>
- *   <li>Every input is either malformed JSON (Gson raises JsonSyntaxException,
- *       which {@code HttpResponse.getBodyAs} swallows) or valid JSON with an
+ *   <li>Every input is either malformed JSON (Gson raises
+ *       JsonSyntaxException, which {@code HttpResponse.getBodyAs} swallows),
+ *       valid JSON whose root is not an object, or valid JSON with an
  *       <b>object</b> root whose hostile content stays inert data.</li>
- *   <li>Valid non-object roots ({@code [1,2]}, {@code 1}, {@code "x"},
- *       {@code null}, {@code NaN} as a whole document) are excluded: they make
- *       {@code JsonObject#getAsJsonObject} throw {@code IllegalStateException},
- *       a fail-open escape in the MineSkin v2/rate-limit paths that is a
- *       documented production finding, not a malformed-bytes shape. The
- *       {@link #malformedJson()} mix re-filters every candidate as a safety
- *       net.</li>
+ *   <li>Truncated {@code \\uXXXX} escapes and valid non-object roots
+ *       ({@code [1,2]}, {@code 1}, {@code "x"}, {@code null}, {@code NaN} as
+ *       a whole document) are exercised directly: Gson internals raise raw
+ *       NumberFormatException and IllegalStateException on these shapes, and
+ *       every HTTP parser fails closed on them (round-9 production fix).</li>
  *   <li>No input parses to a complete result: hostile values only land in
  *       scalar fields, never as a valid 32-hex UUID or a complete textures
  *       property, so the {@code returnsEmpty} properties assert a real
@@ -66,7 +61,6 @@ public final class MalformedJsonCorpus {
     }
 
     private static final Gson GSON = new Gson();
-    private static final JsonParser PARSE_FILTER = new JsonParser();
 
     /** The exact marker {@link RandomMojangSkin} scans for. */
     private static final String SPAN_OPENER = "<span class=\"card-title green-text truncate\">";
@@ -190,7 +184,7 @@ public final class MalformedJsonCorpus {
                 Tuple.of(10, invalidUnicode()),
                 Tuple.of(4, oversized()),
                 Tuple.of(20, hostileValues())
-        ).filter(MalformedJsonCorpus::parsesToObjectOrMalformed);
+        );
     }
 
     /** MineSkin v2-shape failures: truncated v2 documents plus the universal mix. */
@@ -199,7 +193,7 @@ public final class MalformedJsonCorpus {
                 Tuple.of(15, malformedJson()),
                 Tuple.of(10, v2Truncated()),
                 Tuple.of(10, v2Corrupted())
-        ).filter(MalformedJsonCorpus::parsesToObjectOrMalformed);
+        );
     }
 
     /** MineSkin rate-limit bodies that must fail closed to a zero wait. */
@@ -207,7 +201,7 @@ public final class MalformedJsonCorpus {
         return Arbitraries.frequencyOf(
                 Tuple.of(70, malformedJson()),
                 Tuple.of(30, Arbitraries.of(RATE_LIMIT_DOCS))
-        ).filter(MalformedJsonCorpus::parsesToObjectOrMalformed);
+        );
     }
 
     /** Valid JSON with hostile string values; used by the injection-inertness property. */
@@ -253,7 +247,6 @@ public final class MalformedJsonCorpus {
                 Arbitraries.strings()
                         .withChars('[', ']', '{', '}', '"', ':', ',', '1', '2', ' ', 'a', 'n', 'u', 'l', 't', 'r', 'e', '0')
                         .ofMinLength(1).ofMaxLength(48)
-                        .filter(MalformedJsonCorpus::parsesToObjectOrMalformed)
         );
     }
 
@@ -541,39 +534,5 @@ public final class MalformedJsonCorpus {
             sb.append(s);
         }
         return sb.toString();
-    }
-
-    /**
-     * Safety net: a candidate is corpus-safe when it fails closed under
-     * <b>both</b> Gson entry points — the lenient {@link JsonParser} (used by
-     * {@code JsonUtils.parseJson} and the MineSkin v2/rate-limit paths) and
-     * the strict {@code Gson#fromJson} (used by {@code HttpResponse.getBodyAs}):
-     * either it is malformed JSON (JsonSyntaxException on both paths) or it
-     * parses to an object-shaped document (hostile content stays inert data).
-     * <p>
-     * Documented exclusion (production finding, test-only PR): truncated
-     * {@code \u005CuXXXX} escapes (e.g. {@code {"k":"\u005Cu12"}}) make the strict
-     * {@code fromJson} throw a raw {@code NumberFormatException} instead of
-     * {@code JsonSyntaxException} — Gson 2.10.1 {@code JsonReader} gap — so
-     * {@code HttpResponse.getBodyAs} lets it escape. Such candidates are
-     * rejected here; the Mojang/MineSkin parsers need a follow-up fix round.
-     */
-    private static boolean parsesToObjectOrMalformed(String s) {
-        try {
-            JsonElement root = PARSE_FILTER.parse(s);
-            if (!root.isJsonObject()) {
-                return false;
-            }
-        } catch (JsonParseException e) {
-            // malformed under the lenient parser; strict path decides below
-        }
-        try {
-            Object strict = GSON.fromJson(s, Object.class);
-            return strict instanceof java.util.Map;
-        } catch (JsonSyntaxException e) {
-            return true; // malformed under the strict path too — fails closed everywhere
-        } catch (RuntimeException e) {
-            return false; // strict path fails open (raw NFE etc.) — not corpus-safe
-        }
     }
 }
