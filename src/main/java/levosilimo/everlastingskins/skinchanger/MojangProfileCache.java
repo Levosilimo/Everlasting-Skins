@@ -10,7 +10,10 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Small TTL + cap cache for Mojang profile lookups. Keyed by lower-case
  * username; a hit avoids the (slow, rate-limited) Mojang HTTP chain entirely.
@@ -28,7 +31,7 @@ public class MojangProfileCache {
         }
     }
 
-    private final ConcurrentHashMap<String, CacheEntry> entries = new ConcurrentHashMap<>();
+    private final LinkedHashMap<String, CacheEntry> entries = new LinkedHashMap<>(16, 0.75f, true);
     private final long ttlMs;
     private final int maxEntries;
 
@@ -42,7 +45,7 @@ public class MojangProfileCache {
     }
 
     /** Returns the cached skin for the username, or null when absent/expired. */
-    public CustomSkinProperty get(String username) {
+    public synchronized CustomSkinProperty get(String username) {
         if (username == null) return null;
         String key = username.toLowerCase();
         CacheEntry entry = entries.get(key);
@@ -59,27 +62,29 @@ public class MojangProfileCache {
         return entry.property;
     }
 
-    /** Stores a fetched skin, evicting the oldest entry when over capacity. */
-    public void put(String username, CustomSkinProperty property) {
+    /** Stores a fetched skin, evicting the least-recently-used entry when over capacity. */
+    public synchronized void put(String username, CustomSkinProperty property) {
         if (username == null || property == null) return;
         String key = username.toLowerCase();
         if (entries.containsKey(key)) {
             entries.put(key, new CacheEntry(property, System.currentTimeMillis()));
             return;
         }
+        // The map is in access order, so the head is the least-recently-used
+        // entry and eviction is O(1) instead of an O(n) scan for the oldest.
         while (entries.size() >= maxEntries && !entries.isEmpty()) {
-            entries.entrySet().stream()
-                .min((a, b) -> Long.compare(a.getValue().fetchedAtMs, b.getValue().fetchedAtMs))
-                .ifPresent(oldest -> entries.remove(oldest.getKey(), oldest.getValue()));
+            Iterator<Map.Entry<String, CacheEntry>> it = entries.entrySet().iterator();
+            it.next();
+            it.remove();
         }
         entries.put(key, new CacheEntry(property, System.currentTimeMillis()));
     }
 
-    public int size() {
+    public synchronized int size() {
         return entries.size();
     }
 
-    public void clear() {
+    public synchronized void clear() {
         entries.clear();
     }
 }
