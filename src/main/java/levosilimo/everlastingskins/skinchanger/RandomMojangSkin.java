@@ -124,9 +124,7 @@ public class RandomMojangSkin {
 
     private static boolean hasCape(String username) {
         try {
-            String decodedSTR = getDecodedStringForUsername(username);
-            JsonObject decodedJSON = JsonUtils.parseJson(decodedSTR);
-            return decodedJSON.getAsJsonObject("textures").has("CAPE");
+            return hasCapeInDecoded(getDecodedStringForUsername(username));
         } catch (IOException e) {
             EverlastingSkins.logger.error("Failed to check cape for {}", username, e);
             return false;
@@ -135,13 +133,28 @@ public class RandomMojangSkin {
 
     private static boolean isSlim(String username) {
         try {
-            String decodedSTR = getDecodedStringForUsername(username);
-            JsonObject decodedJSON = JsonUtils.parseJson(decodedSTR);
-            return decodedJSON.getAsJsonObject("textures").getAsJsonObject("SKIN").has("metadata");
+            return isSlimInDecoded(getDecodedStringForUsername(username));
         } catch (IOException e) {
             EverlastingSkins.logger.error("Failed to check slim variant for {}", username, e);
             return false;
         }
+    }
+
+    /**
+     * Test seam: cape check on an already-decoded textures payload, so tests
+     * exercise the JSON interpretation without a live skin lookup.
+     */
+    static boolean hasCapeInDecoded(String decodedJson) {
+        JsonObject decodedJSON = JsonUtils.parseJson(decodedJson);
+        return decodedJSON.getAsJsonObject("textures").has("CAPE");
+    }
+
+    /**
+     * Test seam: slim check on an already-decoded textures payload.
+     */
+    static boolean isSlimInDecoded(String decodedJson) {
+        JsonObject decodedJSON = JsonUtils.parseJson(decodedJson);
+        return decodedJSON.getAsJsonObject("textures").getAsJsonObject("SKIN").has("metadata");
     }
 
     private static String getDecodedStringForUsername(String username) throws IOException {
