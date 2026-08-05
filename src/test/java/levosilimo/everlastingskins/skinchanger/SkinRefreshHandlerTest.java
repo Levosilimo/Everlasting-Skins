@@ -563,7 +563,7 @@ class SkinRefreshHandlerTest {
         return new CommonPlayerSpawnInfo(
                 mock(Holder.class), level.dimension(), 0L,
                 GameType.SURVIVAL, GameType.SURVIVAL,
-                false, false, Optional.empty(), 0);
+                false, false, Optional.empty(), 0, 0);
     }
 
     private static void assertCascadeOrder(List<Object> stream) {
