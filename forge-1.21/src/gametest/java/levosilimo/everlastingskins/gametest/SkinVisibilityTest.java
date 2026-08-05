@@ -28,10 +28,9 @@ import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraftforge.gametest.GameTest;
+import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.Connection;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -53,7 +52,6 @@ import net.minecraft.world.level.Level;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.gametest.GameTestNamespace;
 
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -81,25 +79,24 @@ import java.util.UUID;
  * tests share mod static state (SkinCommand provider, SkinStorage map, player
  * list), so one batch per test keeps execution sequential and deterministic.
  */
-@GameTestNamespace("everlastingskins")
 public class SkinVisibilityTest {
 
     private static final String TEST_TEXTURE_VALUE = "eyJ0aW1lc3RhbXAiOjE3MTk4NDY0MDAsInByb2ZpbGVJZCI6IjA2OWE3OWY0NDRlOTQ3MjZhNWJlZmNhOTBlMzhhYWY1IiwicHJvZmlsZU5hbWUiOiJOb3RjaCIsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9iYmIxIn19fQ==";
     private static final String TEST_SIGNATURE = "ZmFrZVNpZ25hdHVyZUZvclRlc3Rpbmc9PQ==";
     private static final UUID TEST_UUID = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinSetMojang_broadcastsTextureToAllClients(GameTestHelper helper) {
         // The vanilla GameTestServer never calls DedicatedServer.initServer, so
         // Forge's ServerStartingEvent does not fire and SkinRestorer never
         // initializes. Post it once so the real init path runs.
         SkinStorage storage = SkinRestorer.getSkinStorage();
         if (storage == null) {
-            ServerStartingEvent.BUS.post(new ServerStartingEvent(helper.getLevel().getServer()));
+            MinecraftForge.EVENT_BUS.post(new ServerStartingEvent(helper.getLevel().getServer()));
             storage = SkinRestorer.getSkinStorage();
         }
         if (storage == null) {
-            helper.fail(Component.literal("SkinRestorer storage is not initialized after ServerStartingEvent"));
+            helper.fail("SkinRestorer storage is not initialized after ServerStartingEvent");
             return;
         }
 
@@ -127,7 +124,7 @@ public class SkinVisibilityTest {
                     .findFirst()
                     .orElse(null);
             if (infoUpdate == null) {
-                helper.fail(Component.literal("ObserverPlayer received no ClientboundPlayerInfoUpdatePacket(ADD_PLAYER); channel contents: " + observerPackets));
+                helper.fail("ObserverPlayer received no ClientboundPlayerInfoUpdatePacket(ADD_PLAYER); channel contents: " + observerPackets);
                 return;
             }
 
@@ -136,7 +133,7 @@ public class SkinVisibilityTest {
                             && e.profile().getProperties().get("textures").stream()
                                     .anyMatch(property -> TEST_TEXTURE_VALUE.equals(property.value())));
             if (!hasTexture) {
-                helper.fail(Component.literal("ADD_PLAYER packet does not carry the expected textures property; entries: " + infoUpdate.entries()));
+                helper.fail("ADD_PLAYER packet does not carry the expected textures property; entries: " + infoUpdate.entries());
                 return;
             }
 
@@ -147,7 +144,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinCommand_setMojang_fullFlow(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -169,13 +166,13 @@ public class SkinVisibilityTest {
         helper.succeedWhen(() -> {
             CustomSkinProperty stored = storage.getSkin(playerId);
             if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                throw new GameTestAssertException(Component.literal("waiting for /skin set mojang Notch to store source="
+                throw new GameTestAssertException("waiting for /skin set mojang Notch to store source="
                         + SkinActionCommand.SOURCE_MOJANG + " (got "
-                        + (stored == null ? "null" : stored.getSource()) + ")"), helper.getTickAsInt());
+                        + (stored == null ? "null" : stored.getSource()) + ")");
             }
             Property textures = findTexturesFor(drain(observer), playerId);
             if (textures == null) {
-                throw new GameTestAssertException(Component.literal("waiting for observer to receive ADD_PLAYER with textures"), helper.getTickAsInt());
+                throw new GameTestAssertException("waiting for observer to receive ADD_PLAYER with textures");
             }
             assertTexturePayload(textures, helper);
             removeQuietly(server, playerA);
@@ -183,7 +180,7 @@ public class SkinVisibilityTest {
         });
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinCommand_permissionDenied(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -201,7 +198,7 @@ public class SkinVisibilityTest {
                 playerA.createCommandSourceStack(), helper);
         try {
             if (result != 0) {
-                helper.fail(Component.literal("non-OP dispatch must be rejected (return 0), got " + result));
+                helper.fail("non-OP dispatch must be rejected (return 0), got " + result);
                 return;
             }
 
@@ -210,15 +207,15 @@ public class SkinVisibilityTest {
                     .map(ClientboundSystemChatPacket.class::cast)
                     .anyMatch(p -> p.content().getString().contains("Permission denied"));
             if (!feedback) {
-                helper.fail(Component.literal("non-OP player received no 'Permission denied' failure feedback"));
+                helper.fail("non-OP player received no 'Permission denied' failure feedback");
                 return;
             }
             if (storage.getSkin(playerId) != null) {
-                helper.fail(Component.literal("permission-denied dispatch must not store a skin"));
+                helper.fail("permission-denied dispatch must not store a skin");
                 return;
             }
             if (findTexturesFor(drain(observer), playerId) != null) {
-                helper.fail(Component.literal("permission-denied dispatch must not broadcast textures"));
+                helper.fail("permission-denied dispatch must not broadcast textures");
                 return;
             }
             helper.succeed();
@@ -228,7 +225,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 60000)
     public void skinCommand_clear_removesTexture(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -256,25 +253,25 @@ public class SkinVisibilityTest {
         helper.succeedWhen(() -> {
             throwIfPastDeadline(deadlineNanos, "/skin clear to finish");
             if (storage.getSkin(playerId) != null) {
-                throw new GameTestAssertException(Component.literal("waiting for /skin clear to remove skin from storage"), helper.getTickAsInt());
+                throw new GameTestAssertException("waiting for /skin clear to remove skin from storage");
             }
             if (Files.exists(skinFile)) {
-                throw new GameTestAssertException(Component.literal("waiting for /skin clear to delete " + skinFile), helper.getTickAsInt());
+                throw new GameTestAssertException("waiting for /skin clear to delete " + skinFile);
             }
             try {
                 SkinRefreshHandler.task(playerA);
             } catch (RuntimeException e) {
-                throw new GameTestAssertException(Component.literal("task() must not throw on a cleared (null) skin: " + e), helper.getTickAsInt());
+                throw new GameTestAssertException("task() must not throw on a cleared (null) skin: " + e);
             }
             if (findTexturesFor(drain(observer), playerId) != null) {
-                throw new GameTestAssertException(Component.literal("task() on a cleared skin must not broadcast textures"), helper.getTickAsInt());
+                throw new GameTestAssertException("task() on a cleared skin must not broadcast textures");
             }
             removeQuietly(server, playerA);
             removeQuietly(server, observer);
         });
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinCommand_source_reportsCurrentSource(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -288,7 +285,7 @@ public class SkinVisibilityTest {
 
         int result = dispatch(server, "skin source TestPlayerA", playerA.createCommandSourceStack(), helper);
         if (result != 1) {
-            helper.fail(Component.literal("command should report 1 target, got " + result));
+            helper.fail("command should report 1 target, got " + result);
             return;
         }
         boolean reported = drain(playerA).stream()
@@ -296,14 +293,14 @@ public class SkinVisibilityTest {
                 .map(ClientboundSystemChatPacket.class::cast)
                 .anyMatch(p -> p.content().getString().contains("Notch"));
         if (!reported) {
-            helper.fail(Component.literal("player received no source feedback mentioning 'Notch'"));
+            helper.fail("player received no source feedback mentioning 'Notch'");
             return;
         }
         removeQuietly(server, playerA);
         helper.succeed();
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinRefresh_persistence_roundTrip(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -321,7 +318,7 @@ public class SkinVisibilityTest {
         // which SkinRestorer uses to save the skin to disk.
         server.getPlayerList().remove(playerA);
         if (!Files.exists(skinFile)) {
-            helper.fail(Component.literal("skin file not written on logout: " + skinFile));
+            helper.fail("skin file not written on logout: " + skinFile);
             return;
         }
 
@@ -330,7 +327,7 @@ public class SkinVisibilityTest {
         SkinStorage freshStorage = new SkinStorage(new SkinIO(server.getFile("EverlastingSkins")));
         CustomSkinProperty reloaded = freshStorage.getSkin(playerId);
         if (reloaded == null || !TEST_TEXTURE_VALUE.equals(reloaded.getOriginalProperty().value())) {
-            helper.fail(Component.literal("reloaded skin does not match the saved one: " + (reloaded == null ? "null" : reloaded.getOriginalProperty())));
+            helper.fail("reloaded skin does not match the saved one: " + (reloaded == null ? "null" : reloaded.getOriginalProperty()));
             return;
         }
 
@@ -341,14 +338,14 @@ public class SkinVisibilityTest {
         boolean applied = rejoined.getGameProfile().getProperties().get("textures").stream()
                 .anyMatch(p -> TEST_TEXTURE_VALUE.equals(p.value()));
         if (!applied) {
-            helper.fail(Component.literal("login did not re-apply the saved skin to the profile; textures=" + rejoined.getGameProfile().getProperties().get("textures")));
+            helper.fail("login did not re-apply the saved skin to the profile; textures=" + rejoined.getGameProfile().getProperties().get("textures"));
             return;
         }
         removeQuietly(server, rejoined);
         helper.succeed();
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinRefresh_broadcastExactCount(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -365,7 +362,7 @@ public class SkinVisibilityTest {
 
             long count = countAddPlayerUpdatesWithTextures(drain(observer), playerA.getUUID());
             if (count != 1) {
-                helper.fail(Component.literal("expected exactly 1 ADD_PLAYER textures packet on the observer channel, got " + count));
+                helper.fail("expected exactly 1 ADD_PLAYER textures packet on the observer channel, got " + count);
                 return;
             }
             helper.succeed();
@@ -375,7 +372,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinRefresh_negativeControl(GameTestHelper helper) {
         installFakeMojangAPI(true);
         ensureStorage(helper);
@@ -388,12 +385,12 @@ public class SkinVisibilityTest {
             drain(observer);
 
             if (!playerA.getGameProfile().getProperties().get("textures").isEmpty()) {
-                helper.fail(Component.literal("fresh player must not have textures without a stored skin; got "
-                        + playerA.getGameProfile().getProperties().get("textures")));
+                helper.fail("fresh player must not have textures without a stored skin; got "
+                        + playerA.getGameProfile().getProperties().get("textures"));
                 return;
             }
             if (findTexturesFor(drain(observer), playerA.getUUID()) != null) {
-                helper.fail(Component.literal("observer must not receive a textures ADD_PLAYER for a skin-less player"));
+                helper.fail("observer must not receive a textures ADD_PLAYER for a skin-less player");
                 return;
             }
             helper.succeed();
@@ -403,7 +400,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinRefresh_signaturePropagation(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -420,11 +417,11 @@ public class SkinVisibilityTest {
 
             Property textures = findTexturesFor(drain(observer), playerA.getUUID());
             if (textures == null) {
-                helper.fail(Component.literal("observer received no textures ADD_PLAYER for playerA"));
+                helper.fail("observer received no textures ADD_PLAYER for playerA");
                 return;
             }
             if (!TEST_SIGNATURE.equals(textures.signature())) {
-                helper.fail(Component.literal("signature mismatch: expected " + TEST_SIGNATURE + " got " + textures.signature()));
+                helper.fail("signature mismatch: expected " + TEST_SIGNATURE + " got " + textures.signature());
                 return;
             }
             assertTexturePayload(textures, helper);
@@ -435,7 +432,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinRefresh_propagatesToMultipleObservers(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -454,11 +451,11 @@ public class SkinVisibilityTest {
             SkinRefreshHandler.task(playerA);
 
             if (findTexturesFor(drain(observer1), playerA.getUUID()) == null) {
-                helper.fail(Component.literal("observer1 received no textures ADD_PLAYER for playerA"));
+                helper.fail("observer1 received no textures ADD_PLAYER for playerA");
                 return;
             }
             if (findTexturesFor(drain(observer2), playerA.getUUID()) == null) {
-                helper.fail(Component.literal("observer2 received no textures ADD_PLAYER for playerA"));
+                helper.fail("observer2 received no textures ADD_PLAYER for playerA");
                 return;
             }
             helper.succeed();
@@ -469,7 +466,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 60000)
     public void skinRefresh_runCommandSuccessPath(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -491,20 +488,20 @@ public class SkinVisibilityTest {
             throwIfPastDeadline(deadlineNanos, "skin set mojang to store skin");
             CustomSkinProperty stored = storage.getSkin(playerId);
             if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                throw new GameTestAssertException(Component.literal("waiting for /skin set mojang Notch TestPlayerA to store source="
+                throw new GameTestAssertException("waiting for /skin set mojang Notch TestPlayerA to store source="
                         + SkinActionCommand.SOURCE_MOJANG + " (got "
-                        + (stored == null ? "null" : stored.getSource()) + ")"), helper.getTickAsInt());
+                        + (stored == null ? "null" : stored.getSource()) + ")");
             }
             Property textures = findTexturesFor(drain(observer), playerId);
             if (textures == null) {
-                throw new GameTestAssertException(Component.literal("waiting for observer to receive ADD_PLAYER with textures"), helper.getTickAsInt());
+                throw new GameTestAssertException("waiting for observer to receive ADD_PLAYER with textures");
             }
             removeQuietly(server, playerA);
             removeQuietly(server, observer);
         });
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void wireSerializeInfoUpdate_updateDisplayName_omitsProfile(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -538,8 +535,8 @@ public class SkinVisibilityTest {
             boolean hasTexture = bytesAsString.contains("textures")
                     || bytesAsString.contains(TEST_TEXTURE_VALUE);
             if (hasTexture) {
-                helper.fail(Component.literal("UPDATE_DISPLAY_NAME wire bytes unexpectedly contain textures. "
-                        + "This contradicts vanilla serialization; hex=" + hex(bytes)));
+                helper.fail("UPDATE_DISPLAY_NAME wire bytes unexpectedly contain textures. "
+                        + "This contradicts vanilla serialization; hex=" + hex(bytes));
                 return;
             }
             helper.succeed();
@@ -548,7 +545,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void refreshBroadcastUsesAddPlayer_notUpdateDisplayName(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -579,11 +576,11 @@ public class SkinVisibilityTest {
                     .anyMatch(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME));
 
             if (!gotRemove || !gotAddWithTextures) {
-                helper.fail(Component.literal("observer must receive REMOVE + ADD_PLAYER(with textures); got " + packets));
+                helper.fail("observer must receive REMOVE + ADD_PLAYER(with textures); got " + packets);
                 return;
             }
             if (gotUpdateDisplayName) {
-                helper.fail(Component.literal("observer must NOT receive UPDATE_DISPLAY_NAME after the fix; got " + packets));
+                helper.fail("observer must NOT receive UPDATE_DISPLAY_NAME after the fix; got " + packets);
                 return;
             }
             helper.succeed();
@@ -593,7 +590,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void duplicateSendPlayerPermissionLevelRemoved(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -617,7 +614,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void redundantAbilitiesPacketRemoved(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -639,13 +636,13 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void dimensionTargetedBroadcast(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
         ServerLevel nether = server.getLevel(Level.NETHER);
         if (nether == null) {
-            helper.fail(Component.literal("nether level not available in game test server"));
+            helper.fail("nether level not available in game test server");
             return;
         }
         ServerPlayer playerA = mockPlayer(helper, "DimA");
@@ -673,7 +670,7 @@ public class SkinVisibilityTest {
                     .map(ClientboundPlayerInfoUpdatePacket.class::cast)
                     .anyMatch(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER));
             if (scopedGotRemove || scopedGotAdd) {
-                helper.fail(Component.literal("config ON: observer in another dimension must not receive the broadcast; got " + scoped));
+                helper.fail("config ON: observer in another dimension must not receive the broadcast; got " + scoped);
                 return;
             }
 
@@ -687,7 +684,7 @@ public class SkinVisibilityTest {
                     .map(ClientboundPlayerInfoUpdatePacket.class::cast)
                     .anyMatch(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER));
             if (!unscopedGotRemove || !unscopedGotAdd) {
-                helper.fail(Component.literal("config OFF: observer in another dimension must receive the broadcast; got " + unscoped));
+                helper.fail("config OFF: observer in another dimension must receive the broadcast; got " + unscoped);
                 return;
             }
 
@@ -699,7 +696,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void ioAsyncWriterSurvivesSecondShutdown(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -708,8 +705,8 @@ public class SkinVisibilityTest {
             placePlayer(helper, playerA);
             drain(playerA);
 
-            ServerStoppingEvent.BUS.post(new ServerStoppingEvent(server));
-            ServerStoppingEvent.BUS.post(new ServerStoppingEvent(server));
+            MinecraftForge.EVENT_BUS.post(new ServerStoppingEvent(server));
+            MinecraftForge.EVENT_BUS.post(new ServerStoppingEvent(server));
 
             // The lazy writer must be recreated after the shutdown; the join()
             // would throw if the executor were permanently dead.
@@ -726,7 +723,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void respawnFlagIsKeepAllData(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -744,7 +741,7 @@ public class SkinVisibilityTest {
                     .findFirst()
                     .orElse(null);
             if (respawn == null) {
-                helper.fail(Component.literal("no ClientboundRespawnPacket on target channel"));
+                helper.fail("no ClientboundRespawnPacket on target channel");
                 return;
             }
             helper.assertTrue(respawn.shouldKeep(ClientboundRespawnPacket.KEEP_ALL_DATA),
@@ -762,7 +759,7 @@ public class SkinVisibilityTest {
      * textures properties. This proves the FakeMojangAPI texture actually CAN
      * appear on the wire when the packet type carries profiles.
      */
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void wireSerializeInfoUpdate_addPlayer_includesProfile(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -791,8 +788,8 @@ public class SkinVisibilityTest {
             EverlastingSkins.logger.info("WIRE ADD_PLAYER: {} bytes, hex:\n{}", bytes.length, hex(bytes));
 
             if (!bytesAsString.contains("textures")) {
-                helper.fail(Component.literal("ADD_PLAYER wire bytes should contain the textures property name. "
-                        + "hex=" + hex(bytes)));
+                helper.fail("ADD_PLAYER wire bytes should contain the textures property name. "
+                        + "hex=" + hex(bytes));
                 return;
             }
             helper.succeed();
@@ -810,7 +807,7 @@ public class SkinVisibilityTest {
         return sb.toString();
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skipIfUnchanged(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -840,29 +837,29 @@ public class SkinVisibilityTest {
                 if (!phase[0]) {
                     CustomSkinProperty stored = storage.getSkin(uuidA);
                     if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG);
                     }
                     long count = SkinRefreshHandler.getRefreshTaskCount();
                     if (count < 1) {
-                        throw new GameTestAssertException(Component.literal("waiting for first task() to run, count=" + count), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first task() to run, count=" + count);
                     }
                     countAfterFirst[0] = count;
                     callsBeforeSecond[0] = fake.getSkinCalls();
                     int second = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
                     if (second != 1) {
-                        throw new GameTestAssertException(Component.literal("second dispatch must be accepted, got " + second), helper.getTickAsInt());
+                        throw new GameTestAssertException("second dispatch must be accepted, got " + second);
                     }
                     phase[0] = true;
-                    throw new GameTestAssertException(Component.literal("entering second-phase wait"), helper.getTickAsInt());
+                    throw new GameTestAssertException("entering second-phase wait");
                 }
                 if (fake.getSkinCalls() != callsBeforeSecond[0]) {
-                    throw new GameTestAssertException(Component.literal("identical request must not call the provider; before="
-                            + callsBeforeSecond[0] + " after=" + fake.getSkinCalls()), helper.getTickAsInt());
+                    throw new GameTestAssertException("identical request must not call the provider; before="
+                            + callsBeforeSecond[0] + " after=" + fake.getSkinCalls());
                 }
                 long count = SkinRefreshHandler.getRefreshTaskCount();
                 if (count != countAfterFirst[0] + 1) {
-                    throw new GameTestAssertException(Component.literal("A5 re-broadcast must run exactly once; before="
-                            + countAfterFirst[0] + " after=" + count), helper.getTickAsInt());
+                    throw new GameTestAssertException("A5 re-broadcast must run exactly once; before="
+                            + countAfterFirst[0] + " after=" + count);
                 }
                 removeQuietly(server, playerA);
             });
@@ -874,7 +871,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void debounceAfter100ms(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         MinecraftServer server = helper.getLevel().getServer();
@@ -901,23 +898,23 @@ public class SkinVisibilityTest {
             helper.succeedWhen(() -> {
                 if (!phase[0]) {
                     if (SkinRefreshHandler.getRefreshTaskCount() != 1) {
-                        throw new GameTestAssertException(Component.literal("waiting for first task() to run, count="
-                                + SkinRefreshHandler.getRefreshTaskCount()), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first task() to run, count="
+                                + SkinRefreshHandler.getRefreshTaskCount());
                     }
                     SkinActionCommand.getLastRefreshByPlayer().put(uuidA, System.currentTimeMillis());
                     int second = dispatch(server, "skin set mojang Jeb_", playerA.createCommandSourceStack(), helper);
                     if (second != 1) {
-                        throw new GameTestAssertException(Component.literal("second dispatch must be accepted, got " + second), helper.getTickAsInt());
+                        throw new GameTestAssertException("second dispatch must be accepted, got " + second);
                     }
                     phase[0] = true;
-                    throw new GameTestAssertException(Component.literal("entering second-phase wait"), helper.getTickAsInt());
+                    throw new GameTestAssertException("entering second-phase wait");
                 }
                 if (SkinActionCommand.getSkinCompletionsProcessed() < 2) {
-                    throw new GameTestAssertException(Component.literal("waiting for second completion to be processed"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for second completion to be processed");
                 }
                 long count = SkinRefreshHandler.getRefreshTaskCount();
                 if (count != 1) {
-                    throw new GameTestAssertException(Component.literal("second dispatch inside debounce window must be skipped; count=" + count), helper.getTickAsInt());
+                    throw new GameTestAssertException("second dispatch inside debounce window must be skipped; count=" + count);
                 }
                 removeQuietly(server, playerA);
             });
@@ -931,7 +928,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void debouncedRequest_keepsStoredEqualToApplied(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -966,50 +963,50 @@ public class SkinVisibilityTest {
                     fake.varyValue = true;
                     CustomSkinProperty stored = storage.getSkin(uuidA);
                     if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG);
                     }
                     if (SkinRefreshHandler.getRefreshTaskCount() != 1) {
-                        throw new GameTestAssertException(Component.literal("waiting for first task() to run, count="
-                                + SkinRefreshHandler.getRefreshTaskCount()), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first task() to run, count="
+                                + SkinRefreshHandler.getRefreshTaskCount());
                     }
                     firstTextureValue[0] = stored.getOriginalProperty().value();
                     SkinActionCommand.getLastRefreshByPlayer().put(uuidA, System.currentTimeMillis());
                     drain(playerA);
                     int second = dispatch(server, "skin set mojang Jeb_", playerA.createCommandSourceStack(), helper);
                     if (second != 1) {
-                        throw new GameTestAssertException(Component.literal("second dispatch must be accepted, got " + second), helper.getTickAsInt());
+                        throw new GameTestAssertException("second dispatch must be accepted, got " + second);
                     }
                     phase[0] = true;
-                    throw new GameTestAssertException(Component.literal("entering second-phase wait"), helper.getTickAsInt());
+                    throw new GameTestAssertException("entering second-phase wait");
                 }
                 if (SkinActionCommand.getSkinCompletionsProcessed() < 2) {
-                    throw new GameTestAssertException(Component.literal("waiting for second completion to be processed"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for second completion to be processed");
                 }
                 if (SkinRefreshHandler.getRefreshTaskCount() != 1) {
-                    throw new GameTestAssertException(Component.literal("second dispatch inside debounce window must not run a refresh; count="
-                            + SkinRefreshHandler.getRefreshTaskCount()), helper.getTickAsInt());
+                    throw new GameTestAssertException("second dispatch inside debounce window must not run a refresh; count="
+                            + SkinRefreshHandler.getRefreshTaskCount());
                 }
                 CustomSkinProperty stored = storage.getSkin(uuidA);
                 if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())
                         || !"Notch".equals(stored.getUsername())) {
-                    throw new GameTestAssertException(Component.literal("debounced request must not overwrite the stored skin (got source="
+                    throw new GameTestAssertException("debounced request must not overwrite the stored skin (got source="
                             + (stored == null ? "null" : stored.getSource()) + ", username="
-                            + (stored == null ? "null" : stored.getUsername()) + ")"), helper.getTickAsInt());
+                            + (stored == null ? "null" : stored.getUsername()) + ")");
                 }
                 if (!firstTextureValue[0].equals(stored.getOriginalProperty().value())) {
-                    throw new GameTestAssertException(Component.literal("debounced request must not overwrite the stored skin"), helper.getTickAsInt());
+                    throw new GameTestAssertException("debounced request must not overwrite the stored skin");
                 }
                 boolean applied = playerA.getGameProfile().getProperties().get("textures").stream()
                         .anyMatch(p -> firstTextureValue[0].equals(p.value()));
                 if (!applied) {
-                    throw new GameTestAssertException(Component.literal("debounced request must not change the applied GameProfile"), helper.getTickAsInt());
+                    throw new GameTestAssertException("debounced request must not change the applied GameProfile");
                 }
                 boolean claimedFulfilment = drain(playerA).stream()
                         .filter(ClientboundSystemChatPacket.class::isInstance)
                         .map(ClientboundSystemChatPacket.class::cast)
                         .anyMatch(p -> p.content().getString().contains("applied"));
                 if (claimedFulfilment) {
-                    throw new GameTestAssertException(Component.literal("debounced request must not claim fulfilment"), helper.getTickAsInt());
+                    throw new GameTestAssertException("debounced request must not claim fulfilment");
                 }
                 removeQuietly(server, playerA);
             });
@@ -1023,7 +1020,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void expiredDebounceWindow_appliesNormally(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1057,11 +1054,11 @@ public class SkinVisibilityTest {
                     fake.varyValue = true;
                     CustomSkinProperty stored = storage.getSkin(uuidA);
                     if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG);
                     }
                     if (SkinRefreshHandler.getRefreshTaskCount() != 1) {
-                        throw new GameTestAssertException(Component.literal("waiting for first task() to run, count="
-                                + SkinRefreshHandler.getRefreshTaskCount()), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first task() to run, count="
+                                + SkinRefreshHandler.getRefreshTaskCount());
                     }
                     SkinActionCommand.getLastRefreshByPlayer().put(uuidA, System.currentTimeMillis() - 10_000);
                     // GameTestRunner executes batches strictly sequentially (the
@@ -1073,34 +1070,34 @@ public class SkinVisibilityTest {
                     completedBefore[0] = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
                     int second = dispatch(server, "skin set mojang Jeb_", playerA.createCommandSourceStack(), helper);
                     if (second != 1) {
-                        throw new GameTestAssertException(Component.literal("second dispatch must be accepted, got " + second), helper.getTickAsInt());
+                        throw new GameTestAssertException("second dispatch must be accepted, got " + second);
                     }
                     phase[0] = true;
-                    throw new GameTestAssertException(Component.literal("entering second-phase wait"), helper.getTickAsInt());
+                    throw new GameTestAssertException("entering second-phase wait");
                 }
                 if (SkinActionCommand.getSkinCompletionsProcessed() < 2) {
-                    throw new GameTestAssertException(Component.literal("waiting for second completion to be processed"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for second completion to be processed");
                 }
                 CustomSkinProperty stored = storage.getSkin(uuidA);
                 if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                    throw new GameTestAssertException(Component.literal("request after the window must store the fetched Mojang skin (got "
-                            + (stored == null ? "null" : stored.getSource()) + ")"), helper.getTickAsInt());
+                    throw new GameTestAssertException("request after the window must store the fetched Mojang skin (got "
+                            + (stored == null ? "null" : stored.getSource()) + ")");
                 }
                 if (SkinRefreshHandler.getRefreshTaskCount() != 2) {
-                    throw new GameTestAssertException(Component.literal("request after the window must run a profile refresh; count="
-                            + SkinRefreshHandler.getRefreshTaskCount()), helper.getTickAsInt());
+                    throw new GameTestAssertException("request after the window must run a profile refresh; count="
+                            + SkinRefreshHandler.getRefreshTaskCount());
                 }
                 String jebValue = stored.getOriginalProperty().value();
                 boolean applied = playerA.getGameProfile().getProperties().get("textures").stream()
                         .anyMatch(p -> jebValue.equals(p.value()));
                 if (!applied) {
-                    throw new GameTestAssertException(Component.literal("request after the window must apply the new skin to the GameProfile"), helper.getTickAsInt());
+                    throw new GameTestAssertException("request after the window must apply the new skin to the GameProfile");
                 }
                 if (SkinMetrics.INSTANCE.snapshot().refreshesDebounced() != debouncedBefore[0]) {
-                    throw new GameTestAssertException(Component.literal("request after the window must not be recorded as debounced"), helper.getTickAsInt());
+                    throw new GameTestAssertException("request after the window must not be recorded as debounced");
                 }
                 if (SkinMetrics.INSTANCE.snapshot().refreshesCompleted() <= completedBefore[0]) {
-                    throw new GameTestAssertException(Component.literal("request after the window must record a completed refresh"), helper.getTickAsInt());
+                    throw new GameTestAssertException("request after the window must record a completed refresh");
                 }
                 removeQuietly(server, playerA);
             });
@@ -1114,7 +1111,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinClear_noProfile_clearsAppliedProfile(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1144,35 +1141,35 @@ public class SkinVisibilityTest {
                     Config.RATE_LIMIT_ENABLED.set(false);
                     CustomSkinProperty stored = storage.getSkin(uuidA);
                     if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG);
                     }
                     appliedValue[0] = stored.getOriginalProperty().value();
                     boolean applied = playerA.getGameProfile().getProperties().get("textures").stream()
                             .anyMatch(p -> appliedValue[0].equals(p.value()));
                     if (!applied) {
-                        throw new GameTestAssertException(Component.literal("waiting for the first skin to be applied to the GameProfile"), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for the first skin to be applied to the GameProfile");
                     }
                     drain(observer);
                     SkinActionCommand.resetSkinCompletionsProcessed();
                     fake.fail = true;
                     int second = dispatch(server, "skin clear", playerA.createCommandSourceStack(), helper);
                     if (second != 1) {
-                        throw new GameTestAssertException(Component.literal("clear dispatch must be accepted, got " + second), helper.getTickAsInt());
+                        throw new GameTestAssertException("clear dispatch must be accepted, got " + second);
                     }
                     phase[0] = true;
-                    throw new GameTestAssertException(Component.literal("entering second-phase wait"), helper.getTickAsInt());
+                    throw new GameTestAssertException("entering second-phase wait");
                 }
                 if (SkinActionCommand.getSkinCompletionsProcessed() < 1) {
-                    throw new GameTestAssertException(Component.literal("waiting for clear completion to be processed"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for clear completion to be processed");
                 }
                 if (storage.getSkin(uuidA) != null) {
-                    throw new GameTestAssertException(Component.literal("waiting for /skin clear to remove the stored skin"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for /skin clear to remove the stored skin");
                 }
                 if (!playerA.getGameProfile().getProperties().get("textures").isEmpty()) {
-                    throw new GameTestAssertException(Component.literal("clear with no Mojang profile must drop the applied textures property"), helper.getTickAsInt());
+                    throw new GameTestAssertException("clear with no Mojang profile must drop the applied textures property");
                 }
                 if (findTexturesFor(drain(observer), uuidA) != null) {
-                    throw new GameTestAssertException(Component.literal("clear must not broadcast stale textures to observers"), helper.getTickAsInt());
+                    throw new GameTestAssertException("clear must not broadcast stale textures to observers");
                 }
                 removeQuietly(server, playerA);
                 removeQuietly(server, observer);
@@ -1185,7 +1182,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void rateLimitAfterCooldown(GameTestHelper helper) {
         installFakeMojangAPI(true);
         ensureStorage(helper);
@@ -1212,7 +1209,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void rateLimitBypassedForOps(GameTestHelper helper) {
         installFakeMojangAPI(true);
         ensureStorage(helper);
@@ -1238,7 +1235,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skin_metrics_command_printsHumanReadable(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -1251,7 +1248,7 @@ public class SkinVisibilityTest {
 
             int result = dispatch(server, "skin metrics", playerA.createCommandSourceStack(), helper);
             if (result != 1) {
-                helper.fail(Component.literal("skin metrics should return 1, got " + result));
+                helper.fail("skin metrics should return 1, got " + result);
                 return;
             }
             String message = drain(playerA).stream()
@@ -1260,7 +1257,7 @@ public class SkinVisibilityTest {
                     .map(p -> p.content().getString())
                     .reduce("", (a, b) -> a + b);
             if (!message.contains("refreshes:") || !message.contains("latencies (ms)")) {
-                helper.fail(Component.literal("human metrics output missing expected sections; got: " + message));
+                helper.fail("human metrics output missing expected sections; got: " + message);
                 return;
             }
             helper.succeed();
@@ -1269,7 +1266,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skin_metrics_json_command_printsJson(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -1280,7 +1277,7 @@ public class SkinVisibilityTest {
 
             int result = dispatch(server, "skin metrics json", playerA.createCommandSourceStack(), helper);
             if (result != 1) {
-                helper.fail(Component.literal("skin metrics json should return 1, got " + result));
+                helper.fail("skin metrics json should return 1, got " + result);
                 return;
             }
             String message = drain(playerA).stream()
@@ -1289,7 +1286,7 @@ public class SkinVisibilityTest {
                     .map(p -> p.content().getString())
                     .reduce("", (a, b) -> a + b);
             if (!message.startsWith("{") || !message.contains("\"refreshes\":{\"initiated\"")) {
-                helper.fail(Component.literal("json metrics output is not a metrics JSON object; got: " + message));
+                helper.fail("json metrics output is not a metrics JSON object; got: " + message);
                 return;
             }
             helper.succeed();
@@ -1298,7 +1295,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skin_metrics_players_top10ByCount(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -1314,7 +1311,7 @@ public class SkinVisibilityTest {
 
             int result = dispatch(server, "skin metrics players", playerA.createCommandSourceStack(), helper);
             if (result != 1) {
-                helper.fail(Component.literal("skin metrics players should return 1, got " + result));
+                helper.fail("skin metrics players should return 1, got " + result);
                 return;
             }
             String message = drain(playerA).stream()
@@ -1323,7 +1320,7 @@ public class SkinVisibilityTest {
                     .map(p -> p.content().getString())
                     .reduce("", (a, b) -> a + b);
             if (!message.contains(seeded.toString())) {
-                helper.fail(Component.literal("players list missing the seeded top player " + seeded + "; got: " + message));
+                helper.fail("players list missing the seeded top player " + seeded + "; got: " + message);
                 return;
             }
             helper.succeed();
@@ -1332,7 +1329,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void metrics_json_showsNewCounters(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -1347,7 +1344,7 @@ public class SkinVisibilityTest {
 
             int result = dispatch(server, "skin metrics json", playerA.createCommandSourceStack(), helper);
             if (result != 1) {
-                helper.fail(Component.literal("skin metrics json should return 1, got " + result));
+                helper.fail("skin metrics json should return 1, got " + result);
                 return;
             }
             String message = drain(playerA).stream()
@@ -1360,7 +1357,7 @@ public class SkinVisibilityTest {
                     "\"ioFailuresByType\":", "\"coalesced\":", "\"realWrites\":"};
             for (String field : expected) {
                 if (!message.contains(field)) {
-                    helper.fail(Component.literal("json metrics missing field " + field + "; got: " + message));
+                    helper.fail("json metrics missing field " + field + "; got: " + message);
                     return;
                 }
             }
@@ -1370,7 +1367,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void metrics_withProviderCache_avoidsHttp(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         ensureStorage(helper);
@@ -1393,24 +1390,24 @@ public class SkinVisibilityTest {
             helper.succeedWhen(() -> {
                 if (!phase[0]) {
                     if (SkinRestorer.getSkinStorage().getSkin(uuidA) == null) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store the skin"), helper.getTickAsInt());
+                        throw new GameTestAssertException("waiting for first dispatch to store the skin");
                     }
                     callsBefore[0] = fake.getSkinCalls();
                     skippedBefore[0] = SkinMetrics.INSTANCE.snapshot().refreshesSkippedStored();
                     int second = dispatch(server, "skin set mojang Notch", playerA.createCommandSourceStack(), helper);
                     if (second != 1) {
-                        throw new GameTestAssertException(Component.literal("second dispatch must be accepted, got " + second), helper.getTickAsInt());
+                        throw new GameTestAssertException("second dispatch must be accepted, got " + second);
                     }
                     phase[0] = true;
-                    throw new GameTestAssertException(Component.literal("entering second-phase wait"), helper.getTickAsInt());
+                    throw new GameTestAssertException("entering second-phase wait");
                 }
                 if (fake.getSkinCalls() != callsBefore[0]) {
-                    throw new GameTestAssertException(Component.literal("stored-source match must skip the provider fetch; before="
-                            + callsBefore[0] + " after=" + fake.getSkinCalls()), helper.getTickAsInt());
+                    throw new GameTestAssertException("stored-source match must skip the provider fetch; before="
+                            + callsBefore[0] + " after=" + fake.getSkinCalls());
                 }
                 if (SkinMetrics.INSTANCE.snapshot().refreshesSkippedStored() != skippedBefore[0] + 1) {
-                    throw new GameTestAssertException(Component.literal("stored-source match must record exactly one skippedStored; before="
-                            + skippedBefore[0] + " after=" + SkinMetrics.INSTANCE.snapshot().refreshesSkippedStored()), helper.getTickAsInt());
+                    throw new GameTestAssertException("stored-source match must record exactly one skippedStored; before="
+                            + skippedBefore[0] + " after=" + SkinMetrics.INSTANCE.snapshot().refreshesSkippedStored());
                 }
                 removeQuietly(server, playerA);
             });
@@ -1422,7 +1419,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void serverStoppingEvent_bulkSave(GameTestHelper helper) {
         ensureStorage(helper);
         SkinStorage storage = SkinRestorer.getSkinStorage();
@@ -1439,7 +1436,7 @@ public class SkinVisibilityTest {
             storage.setSkin(uuidA, new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Notch"));
             storage.setSkin(uuidB, new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "Jeb_"));
 
-            ServerStoppingEvent.BUS.post(new ServerStoppingEvent(server));
+            MinecraftForge.EVENT_BUS.post(new ServerStoppingEvent(server));
 
             Path fileA = server.getFile("EverlastingSkins").resolve(uuidA + ".json");
             Path fileB = server.getFile("EverlastingSkins").resolve(uuidB + ".json");
@@ -1452,7 +1449,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 60000)
     public void concurrentSkinSet_twoPlayers(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1504,25 +1501,25 @@ public class SkinVisibilityTest {
             helper.succeedWhen(() -> {
                 throwIfPastDeadline(deadlineNanos, "concurrent skin set");
                 if (!futureA.isDone() || !futureB.isDone()) {
-                    throw new GameTestAssertException(Component.literal("waiting for concurrent dispatches to complete"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for concurrent dispatches to complete");
                 }
                 CustomSkinProperty skinA = storage.getSkin(uuidA);
                 CustomSkinProperty skinB = storage.getSkin(uuidB);
                 if (skinA == null || !SkinActionCommand.SOURCE_MOJANG.equals(skinA.getSource())) {
-                    throw new GameTestAssertException(Component.literal("waiting for playerA to store the Mojang skin (got "
-                            + (skinA == null ? "null" : skinA.getSource()) + ")"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for playerA to store the Mojang skin (got "
+                            + (skinA == null ? "null" : skinA.getSource()) + ")");
                 }
                 if (skinB == null || !SkinActionCommand.SOURCE_MOJANG.equals(skinB.getSource())) {
-                    throw new GameTestAssertException(Component.literal("waiting for playerB to store the Mojang skin (got "
-                            + (skinB == null ? "null" : skinB.getSource()) + ")"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for playerB to store the Mojang skin (got "
+                            + (skinB == null ? "null" : skinB.getSource()) + ")");
                 }
                 long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
                 long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
                 if (obsCountA != 1) {
-                    throw new GameTestAssertException(Component.literal("observerA expected 1 packet, got " + obsCountA), helper.getTickAsInt());
+                    throw new GameTestAssertException("observerA expected 1 packet, got " + obsCountA);
                 }
                 if (obsCountB != 1) {
-                    throw new GameTestAssertException(Component.literal("observerB expected 1 packet, got " + obsCountB), helper.getTickAsInt());
+                    throw new GameTestAssertException("observerB expected 1 packet, got " + obsCountB);
                 }
                 removeQuietly(server, playerA);
                 removeQuietly(server, playerB);
@@ -1538,7 +1535,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", maxTicks = 200)
+    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
     public void skinSet_selfReceivesBroadcast(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1558,12 +1555,12 @@ public class SkinVisibilityTest {
             helper.succeedWhen(() -> {
                 CustomSkinProperty stored = storage.getSkin(playerId);
                 if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                    throw new GameTestAssertException(Component.literal("waiting for source=" + SkinActionCommand.SOURCE_MOJANG + " (got "
-                            + (stored == null ? "null" : stored.getSource()) + ")"), helper.getTickAsInt());
+                    throw new GameTestAssertException("waiting for source=" + SkinActionCommand.SOURCE_MOJANG + " (got "
+                            + (stored == null ? "null" : stored.getSource()) + ")");
                 }
                 long selfCount = countAddPlayerUpdatesWithTextures(drain(playerA), playerId);
                 if (selfCount < 1) {
-                    throw new GameTestAssertException(Component.literal("target player must receive at least 1 ADD_PLAYER (self-reception), got " + selfCount), helper.getTickAsInt());
+                    throw new GameTestAssertException("target player must receive at least 1 ADD_PLAYER (self-reception), got " + selfCount);
                 }
                 removeQuietly(server, playerA);
             });
@@ -1655,12 +1652,12 @@ public class SkinVisibilityTest {
     private static SkinStorage ensureStorage(GameTestHelper helper) {
         SkinStorage storage = SkinRestorer.getSkinStorage();
         if (storage == null) {
-            ServerStartingEvent.BUS.post(new ServerStartingEvent(helper.getLevel().getServer()));
+            MinecraftForge.EVENT_BUS.post(new ServerStartingEvent(helper.getLevel().getServer()));
             storage = SkinRestorer.getSkinStorage();
         }
         if (storage == null) {
-            helper.fail(Component.literal("SkinRestorer storage is not initialized after ServerStartingEvent"));
-            throw new GameTestAssertException(Component.literal("storage not initialized"), helper.getTickAsInt());
+            helper.fail("SkinRestorer storage is not initialized after ServerStartingEvent");
+            throw new GameTestAssertException("storage not initialized");
         }
         return storage;
     }
@@ -1678,8 +1675,8 @@ public class SkinVisibilityTest {
         try {
             return server.getCommands().getDispatcher().execute(command, source);
         } catch (CommandSyntaxException e) {
-            helper.fail(Component.literal("command dispatch failed: " + command + " -> " + e.getMessage()));
-            throw new GameTestAssertException(Component.literal("dispatch failed: " + e.getMessage()), helper.getTickAsInt());
+            helper.fail("command dispatch failed: " + command + " -> " + e.getMessage());
+            throw new GameTestAssertException("dispatch failed: " + e.getMessage());
         }
     }
 
@@ -1729,7 +1726,7 @@ public class SkinVisibilityTest {
 
     private static void throwIfPastDeadline(long deadlineNanos, String what) {
         if (System.nanoTime() > deadlineNanos) {
-            throw new GameTestAssertException(Component.literal("timed out after 20s wall-clock waiting for " + what), 0);
+            throw new GameTestAssertException("timed out after 20s wall-clock waiting for " + what);
         }
     }
 
@@ -1799,10 +1796,10 @@ public class SkinVisibilityTest {
             String url = skin.has("url") ? skin.get("url").getAsString() : null;
             String profileName = json.has("profileName") ? json.get("profileName").getAsString() : null;
             if (url == null || url.isEmpty() || !"Notch".equals(profileName)) {
-                helper.fail(Component.literal("decoded textures payload missing non-empty SKIN.url or profileName=Notch: " + json));
+                helper.fail("decoded textures payload missing non-empty SKIN.url or profileName=Notch: " + json);
             }
         } catch (RuntimeException e) {
-            helper.fail(Component.literal("textures payload is not valid base64 JSON: " + e.getMessage()));
+            helper.fail("textures payload is not valid base64 JSON: " + e.getMessage());
         }
     }
 }
