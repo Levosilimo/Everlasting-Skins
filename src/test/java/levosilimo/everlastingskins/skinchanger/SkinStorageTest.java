@@ -19,6 +19,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -275,6 +277,65 @@ class SkinStorageTest {
 
             assertFalse(Files.exists(tempDir.resolve(u + ".json")),
                     "Purged write must not be resurrected by the deferred drain");
+        }
+        @Test
+        @DisplayName("saveSkinAsync returns a stage that completes on merge; the payload reaches disk after flush")
+        void saveSkinAsync_persistsAndReturnsCompletionStage() throws Exception {
+            UUID u = UUID.randomUUID();
+
+            CompletableFuture<Void> stage = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+
+            assertNotNull(stage, "saveSkinAsync must return a completion stage");
+            stage.get(5, TimeUnit.SECONDS); // completes once the payload has been merged
+            storage.flushPending();
+
+            assertTrue(Files.exists(tempDir.resolve(u + ".json")),
+                    "async save must persist once the drain has been flushed");
+            CustomSkinProperty loaded = skinIO.loadSkin(u);
+            assertNotNull(loaded, "the persisted payload must load back");
+            assertEquals("src", loaded.getSource());
+        }
+
+        @Test
+        @DisplayName("flushPending blocks until queued writes have landed on disk")
+        void flushPending_waitsForPendingWrites_toFinish() throws Exception {
+            UUID u = UUID.randomUUID();
+            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+            assertTrue(storage.hasPendingWrites(), "payload must be queued right after saveSkinAsync");
+
+            storage.flushPending();
+
+            assertFalse(storage.hasPendingWrites(), "flush must drain the queue");
+            assertTrue(Files.exists(tempDir.resolve(u + ".json")),
+                    "flush must have landed the write on disk before returning");
+        }
+
+        @Test
+        @DisplayName("delete after a queued async save: the deferred drain cannot resurrect the file")
+        void writeAfterDelete_doesNotResurrect() throws Exception {
+            UUID u = UUID.randomUUID();
+            Path target = tempDir.resolve(u + ".json");
+            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+            assertTrue(storage.hasPendingWrites(), "payload must be queued before the delete");
+
+            storage.removeSkin(u); // purges the deferred payload, serializes the delete
+            storage.flushPending();
+
+            assertFalse(Files.exists(target),
+                    "the deferred drain must not resurrect a deleted file (write-after-delete guard)");
+        }
+
+        @Test
+        @DisplayName("hasPendingWrites reflects the background queue until flushed")
+        void hasPendingWrites_reflectsBackgroundQueue() throws Exception {
+            UUID u = UUID.randomUUID();
+            assertFalse(storage.hasPendingWrites(), "no queue before any save");
+
+            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+            assertTrue(storage.hasPendingWrites(), "queue must be non-empty right after an async save");
+
+            storage.flushPending();
+            assertFalse(storage.hasPendingWrites(), "queue must be empty after the flush barrier");
         }
     }
     /** Polls for a file to appear (50ms debounce + load headroom, bounded 2s). */
