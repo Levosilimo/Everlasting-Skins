@@ -91,6 +91,20 @@ class RandomCapeSourceTest {
         }
 
         @Test
+        @DisplayName("filters out players whose cape is OptiFine-only, keeping official cape bearers")
+        void filters_out_optifine_capebearer() throws Exception {
+            httpClient.addResponse(pageUri(1), 200, htmlOf("Notch", "Dinnerbone"));
+            cosmetica.withOptifineCape("Notch", CAPE_TEXTURE);
+            cosmetica.withCape("Dinnerbone", CAPE_TEXTURE);
+
+            List<RandomCapeSource.CapeCandidate> candidates = source.findCapeBearers();
+
+            assertEquals(1, candidates.size());
+            assertEquals("Dinnerbone", candidates.get(0).username());
+            assertEquals(CAPE_TEXTURE, candidates.get(0).capeTextureUrl());
+        }
+
+        @Test
         @DisplayName("keeps players with an external cape and carries the texture URL")
         void keeps_players_with_external_cape() throws Exception {
             httpClient.addResponse(pageUri(1), 200, htmlOf("Notch"));
@@ -261,6 +275,12 @@ class RandomCapeSourceTest {
         }
 
         void withCape(String username, String texture) {
+            players.put(username, new CosmeticaPlayer(false,
+                    new Account(null, username, new ExternalCape("cap-" + username, "official", texture, true), null),
+                    null));
+        }
+
+        void withOptifineCape(String username, String texture) {
             players.put(username, new CosmeticaPlayer(false,
                     new Account(null, username, new ExternalCape("cap-" + username, "optifine", texture, true), null),
                     null));

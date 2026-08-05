@@ -51,7 +51,7 @@ class CosmeticaApiTest {
                     "{\"isUser\":false,\"player\":{\"uuid\":\"069a79f4-44e9-4726-a5be-fca90e38aaf5\","
                             + "\"username\":\"Notch\",\"type\":\"player\","
                             + "\"externalCape\":{\"id\":\"578631b3-4049-42bd-a205-3971f0965c5f\","
-                            + "\"service\":\"optifine\",\"serviceName\":\"OptiFine\",\"texture\":\"" + CAPE_TEXTURE + "\","
+                            + "\"service\":\"official\",\"serviceName\":\"Mojang\",\"texture\":\"" + CAPE_TEXTURE + "\","
                             + "\"hasElytra\":true,\"active\":true,\"frames\":1}}}");
 
             CosmeticaApi.CosmeticaPlayer player = api.getPlayer("Notch");
@@ -64,7 +64,7 @@ class CosmeticaApiTest {
             assertEquals(CAPE_TEXTURE, player.capeTextureUrl());
             assertNotNull(player.account().externalCape());
             assertEquals("578631b3-4049-42bd-a205-3971f0965c5f", player.account().externalCape().id());
-            assertEquals("optifine", player.account().externalCape().service());
+            assertEquals("official", player.account().externalCape().service());
             assertTrue(player.account().externalCape().hasElytra());
         }
 
@@ -83,8 +83,8 @@ class CosmeticaApiTest {
         }
 
         @Test
-        @DisplayName("parses a player with an internal Cosmetica cape")
-        void parses_player_with_internal_cape() {
+        @DisplayName("parses an internal Cosmetica cape (not vanilla-visible)")
+        void hasCape_ignores_internalCape() {
             httpClient.addResponse(playerUri("InternalCapeLad"), 200,
                     "{\"isUser\":false,\"player\":{\"username\":\"InternalCapeLad\",\"type\":\"player\","
                             + "\"internalCape\":{\"id\":\"cap-1\",\"texture\":\"https://assets.namet.ag/internal.png\","
@@ -93,15 +93,16 @@ class CosmeticaApiTest {
             CosmeticaApi.CosmeticaPlayer player = api.getPlayer("InternalCapeLad");
 
             assertNotNull(player);
-            assertTrue(player.hasCape());
-            assertEquals("https://assets.namet.ag/internal.png", player.capeTextureUrl());
+            assertNotNull(player.account().internalCape());
+            assertEquals("cap-1", player.account().internalCape().id());
+            assertFalse(player.hasCape());
+            assertNull(player.capeTextureUrl());
         }
     }
 
     @Nested
     @DisplayName("Cosmetica user account variant (isUser=true)")
     class UserVariant {
-
         @Test
         @DisplayName("parses a Cosmetica user with an external cape")
         void parses_user_with_external_cape() {
@@ -118,6 +119,72 @@ class CosmeticaApiTest {
             assertTrue(player.hasCape());
             assertEquals(CAPE_TEXTURE, player.capeTextureUrl());
             assertEquals("CapeLad", player.account().username());
+        }
+    }
+
+    @Nested
+    @DisplayName("Service filter: only official capes are vanilla-visible")
+    class ServiceFilter {
+
+        private String externalCapePayload(String service) {
+            return "{\"isUser\":false,\"player\":{\"username\":\"CapeLad\",\"type\":\"player\","
+                    + "\"externalCape\":{\"id\":\"cap-1\",\"service\":\"" + service + "\","
+                    + "\"texture\":\"" + CAPE_TEXTURE + "\",\"hasElytra\":true}}}";
+        }
+
+        @Test
+        @DisplayName("hasCape is false for an OptiFine external cape")
+        void hasCape_returns_false_for_optifine_externalCape() {
+            httpClient.addResponse(playerUri("CapeLad"), 200, externalCapePayload("optifine"));
+
+            CosmeticaApi.CosmeticaPlayer player = api.getPlayer("CapeLad");
+
+            assertNotNull(player);
+            assertFalse(player.hasCape());
+        }
+
+        @Test
+        @DisplayName("hasCape is false for a MinecraftCapes external cape")
+        void hasCape_returns_false_for_minecraftCapes_externalCape() {
+            httpClient.addResponse(playerUri("CapeLad"), 200, externalCapePayload("minecraft-capes"));
+
+            CosmeticaApi.CosmeticaPlayer player = api.getPlayer("CapeLad");
+
+            assertNotNull(player);
+            assertFalse(player.hasCape());
+        }
+
+        @Test
+        @DisplayName("hasCape is true for an official external cape")
+        void hasCape_returns_true_for_official_externalCape() {
+            httpClient.addResponse(playerUri("CapeLad"), 200, externalCapePayload("official"));
+
+            CosmeticaApi.CosmeticaPlayer player = api.getPlayer("CapeLad");
+
+            assertNotNull(player);
+            assertTrue(player.hasCape());
+        }
+
+        @Test
+        @DisplayName("capeTextureUrl is null for an OptiFine cape")
+        void capeTextureUrl_returns_null_for_optifine() {
+            httpClient.addResponse(playerUri("CapeLad"), 200, externalCapePayload("optifine"));
+
+            CosmeticaApi.CosmeticaPlayer player = api.getPlayer("CapeLad");
+
+            assertNotNull(player);
+            assertNull(player.capeTextureUrl());
+        }
+
+        @Test
+        @DisplayName("capeTextureUrl carries the official cape texture for the official service")
+        void capeTextureUrl_returns_official_texture_for_official_service() {
+            httpClient.addResponse(playerUri("CapeLad"), 200, externalCapePayload("official"));
+
+            CosmeticaApi.CosmeticaPlayer player = api.getPlayer("CapeLad");
+
+            assertNotNull(player);
+            assertEquals(CAPE_TEXTURE, player.capeTextureUrl());
         }
     }
 
