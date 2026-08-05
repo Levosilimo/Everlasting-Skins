@@ -56,7 +56,7 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
 
     private void broadcastInternal(ServerPlayer target, ServerPlayer[] explicitObservers) {
         PlayerList playerlist = target.getServer().getPlayerList();
-        ServerLevel serverLevel = target.level();
+        ServerLevel serverLevel = target.serverLevel();
         ResourceKey<Level> dimension = serverLevel.dimension();
         Packet<ClientGamePacketListener> removePacket =
             new ClientboundPlayerInfoRemovePacket(List.of(target.getUUID()));
