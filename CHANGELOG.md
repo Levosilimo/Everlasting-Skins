@@ -1,8 +1,19 @@
 # Changelog
 
-## 2.1.0-rc.1 (2026-08-02)
+## 2.1.0-rc.1 (2026-08-05)
 
 ### Added
+- **Storage durability — Tier 1 fsync** (#222): the parent directory is fsynced after each atomic skin-file rename, so a rename that survives a crash now guarantees durable contents (atomicity backed by a real durability barrier).
+- **Storage durability — Tier 2 CRC** (#223, #226): every persisted skin carries a per-record SHA-256 checksum envelope; reads verify it in-band and quarantine bit-rotten files; a startup integrity sweep audits all persisted records and logs legacy un-checksummed ones; the digest is cached in a ThreadLocal for throughput (#228).
+- **Observability — read metrics** (#234): `readDiskLatency` histogram, `readsSubmitted/Completed/Failed` counters, and end-to-end load latency; rounds out the write-side surface (`saveDiskLatency`, `savesSubmitted/Completed/Coalesced`, `realWrites`, `ioFailuresByType`) for full read+write visibility.
+- **Fail-closed HTTP parsers** (#240): `MojangApiHttpImpl` and `MineSkinApiHttpImpl` fail closed on Gson `NumberFormatException`/`IllegalStateException` parse escapes, and `JsonUtils.parseJson` normalizes internal Gson failures to `JsonParseException`; hostile payloads are inert across the Mojang UUID/profile/session and MineSkin v1/v2/rate-limit parsers (malformed-byte fuzz corpus).
+- **Broadcast broker seam** (#220): new `SkinBroadcaster` seam with `VanillaSkinBroadcaster`; `SkinRefreshHandler` broadcasts through it and handler tests use a `FakeSkinBroadcaster`.
+- **Tab completion** (#242): shared `CompletionSources` service + `MojangProfileCache.snapshot()` power permission-aware `/skin` tab completion.
+- **Cape source** (#245, #247): `CosmeticaApi` cape lookup + `RandomCapeSource` back `/skin set random cape`; cape sources are filtered to `service="official"` only.
+- **Cross-version schema pins** (#232): skin-file schema (username + checksum) pinned across the 1.21 and mc1.12.2 branches.
+- **CI quality gate** (#230): aislop gate enforced in CI on every PR and push.
+
+### First-wave (2026-08-02)
 - **Default skins list** (#147): Configurable list with `<random>` token + `applyForPremium` flag.
 - **URL domain allowlist** (#148): Same as 1.21 — 9 default domains, eTLD+1 suffix match.
 - **Per-player locale via Access Transformer** (#149): Forge AT exposes `EntityPlayerMP.field_71148_cg # language` (no Mixin, no extra runtime deps). New `I18nUtils.getLocalizedString(key, EntityPlayerMP)` overload with `Config.LANGUAGE` fallback. AT file `everlastingskins_at.cfg` + `FMLAT` manifest attribute.
@@ -15,12 +26,17 @@
 - **Resource lang files**: `src/main/resources/assets/everlastingskins/lang/{en,ru,uk}.properties` shipped with the mod (not just runtime-writeable config dir).
 
 ### Fixed
+- Cache eviction correctness (#211)
+- Refresh-cascade atomicity and ordering contracts (#213, #215)
 - All lib-17 + lib-49 fixes ported from 1.21.
 - **Translation drift** (#167): `ru`/`uk` properties realigned with the 1.21 canonical translations.
 - **ObserverPacketIT race** (#177): await respawn cascade before ordering assertion (line 92).
 - Dead lang key `fulfilled_force` removed from mc1.12.2 lang properties (#184).
 
 ### Tests added
+- Malformed-JSON/HTML fuzz corpus (`MalformedJsonCorpus`) with `MojangApiFuzzTest`, `MineSkinApiFuzzTest`, `JsonUtilsFuzzTest`, `RandomMojangSkinFuzzTest` (#240)
+- `SkinBroadcaster` contract tests + `FakeSkinBroadcaster` handler tests (#220)
+- Metamorphic restart-equivalence, fsync, and CRC durability tests (#223, #226)
 - `UrlAllowlistTest` (8 cases)
 - `DefaultSkinResolverTest` (11 cases)
 - `PlayerLanguageTest` (3 cases)
