@@ -17,6 +17,8 @@ plugins {
     `java-library`
     `maven-publish`
     jacoco
+    // no-mixin gate (buildSrc): registers verifyNoMixin, wired into `build`.
+    id("no-mixin")
 }
 
 val minecraftVersion: String = requireNotNull(project.findProperty("minecraft_version")?.toString()) {
