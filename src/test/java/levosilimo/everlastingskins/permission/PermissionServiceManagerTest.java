@@ -16,6 +16,11 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * M2 step 5: PermissionServiceManager now comes from /common as a
+ * registration-based, fail-closed registry (no init() candidate discovery —
+ * the per-version bootstrap registers its own services).
+ */
 class PermissionServiceManagerTest {
 
     private static final UUID TEST_UUID = UUID.randomUUID();
@@ -27,16 +32,16 @@ class PermissionServiceManagerTest {
     }
 
     @Test
-    @DisplayName("Init selects Vanilla backend when no LuckPerms available")
-    void initSelectsVanilla() {
-        PermissionServiceManager.init();
+    @DisplayName("Registering Vanilla selects it as the active backend")
+    void registerVanilla_becomesActive() {
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         assertTrue(PermissionServiceManager.getActiveBackendName().startsWith("Vanilla"));
     }
 
     @Test
-    @DisplayName("Backend name is not empty after init")
+    @DisplayName("Backend name is not empty after registration")
     void backendNameNotEmpty() {
-        PermissionServiceManager.init();
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         assertNotNull(PermissionServiceManager.getActiveBackendName());
         assertFalse(PermissionServiceManager.getActiveBackendName().isEmpty());
     }
@@ -44,7 +49,7 @@ class PermissionServiceManagerTest {
     @Test
     @DisplayName("Registering higher-priority service replaces active backend")
     void registerService_higherPriority_replacesActive() {
-        PermissionServiceManager.init();
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         IPermissionService mockForge = mock(IPermissionService.class);
         when(mockForge.getPriority()).thenReturn(10);
         when(mockForge.getActiveBackendName()).thenReturn("Forge");
@@ -55,7 +60,7 @@ class PermissionServiceManagerTest {
     @Test
     @DisplayName("Registering lower-priority service does not replace active")
     void registerService_lowerPriority_doesNotReplace() {
-        PermissionServiceManager.init();
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         IPermissionService mockLow = mock(IPermissionService.class);
         when(mockLow.getPriority()).thenReturn(-1);
         when(mockLow.getActiveBackendName()).thenReturn("LowPriority");
@@ -64,23 +69,30 @@ class PermissionServiceManagerTest {
     }
 
     @Test
-    @DisplayName("hasPermission before init falls back to Vanilla")
-    void hasPermission_beforeInit_returnsFallback() {
+    @DisplayName("hasPermission before any registration fails closed")
+    void hasPermission_beforeRegistration_failsClosed() {
         PermissionServiceManager.reset();
-        PermissionContext ctx = PermissionContext.of(TEST_UUID, 2);
-        assertTrue(PermissionServiceManager.hasPermission(ctx, "any.node"));
+        assertFalse(PermissionServiceManager.hasPermission(TEST_UUID, 2, "any.node"));
     }
 
     @Test
-    @DisplayName("registerService throws before init")
-    void registerService_beforeInit_throws() {
-        PermissionServiceManager.reset();
-        assertThrows(IllegalStateException.class,
-            () -> PermissionServiceManager.registerService(mock(IPermissionService.class)));
+    @DisplayName("hasPermission delegates to the registered backend")
+    void hasPermission_delegatesToRegisteredBackend() {
+        PermissionServiceManager.registerService(new VanillaPermissionService());
+        assertTrue(PermissionServiceManager.hasPermission(TEST_UUID, 0, "any.node"));
+        assertFalse(PermissionServiceManager.hasPermission(TEST_UUID, 0,
+            "everlastingskins.command.metrics"));
     }
 
     @Test
-    @DisplayName("getActiveBackendName returns placeholder before init")
+    @DisplayName("registerService ignores null")
+    void registerService_null_isIgnored() {
+        PermissionServiceManager.registerService(null);
+        assertEquals("Not initialized", PermissionServiceManager.getActiveBackendName());
+    }
+
+    @Test
+    @DisplayName("getActiveBackendName returns placeholder before registration")
     void backendNameBeforeInit() {
         PermissionServiceManager.reset();
         assertEquals("Not initialized", PermissionServiceManager.getActiveBackendName());

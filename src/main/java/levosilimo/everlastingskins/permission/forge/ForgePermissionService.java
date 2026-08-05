@@ -7,7 +7,6 @@
 package levosilimo.everlastingskins.permission.forge;
 
 import levosilimo.everlastingskins.permission.IPermissionService;
-import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -48,13 +47,13 @@ public class ForgePermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(PermissionContext context, String permissionNode) {
+    public boolean hasPermission(UUID uuid, int opLevel, String permissionNode) {
         if (permissionNode.endsWith(".source")) return true;
-        EntityPlayerMP player = resolvePlayer(context.uuid());
+        EntityPlayerMP player = resolvePlayer(uuid);
         if (player == null) {
             // No server/player context (e.g. unit tests, pre-boot): keep the
             // vanilla per-node op levels instead of failing closed.
-            return new VanillaPermissionService().hasPermission(context, permissionNode);
+            return new VanillaPermissionService().hasPermission(uuid, opLevel, permissionNode);
         }
         return PermissionAPI.hasPermission(player, permissionNode);
     }

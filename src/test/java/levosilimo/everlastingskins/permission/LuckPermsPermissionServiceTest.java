@@ -70,14 +70,14 @@ class LuckPermsPermissionServiceTest {
     @DisplayName("hasPermission returns true for granted node")
     void hasPermission_granted_returnsTrue() {
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
-        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin"));
+        assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
     }
 
     @Test
     @DisplayName("hasPermission returns false for denied node")
     void hasPermission_denied_returnsFalse() {
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
-        assertFalse(service.hasPermission(ctx, "other.node"));
+        assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "other.node"));
     }
 
     @Test
