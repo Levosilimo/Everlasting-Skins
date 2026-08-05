@@ -46,51 +46,51 @@ class VanillaPermissionServiceTest {
     @DisplayName("opLevel 0 meets required level 0 (mojang node default)")
     void opLevel0_required0_granted() {
         PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 0);
-        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin"));
+        assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
     }
 
     @Test
     @DisplayName("opLevel 0 lacks required level 2 (metrics node default)")
     void opLevel0_required2_denied() {
         PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 0);
-        assertFalse(service.hasPermission(ctx, "everlastingskins.command.metrics"));
+        assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.metrics"));
     }
 
     @Test
     @DisplayName("opLevel 2 meets required level 2")
     void opLevel2_required2_granted() {
         PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 2);
-        assertTrue(service.hasPermission(ctx, "everlastingskins.command.metrics"));
+        assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.metrics"));
     }
 
     @Test
     @DisplayName("opLevel 4 meets required level 2")
     void opLevel4_required2_granted() {
         PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 4);
-        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.other"));
+        assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin.other"));
     }
 
     @Test
     @DisplayName("Source node is always granted regardless of op level")
     void hasPermission_sourceNode_returnsTrueForNonOp() {
         PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 0);
-        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.source"));
+        assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin.source"));
     }
 
     @Test
     @DisplayName("Bypass cooldown node requires op level 2")
     void bypassCooldown_requiresOpLevel2() {
-        assertTrue(service.hasPermission(PermissionContext.of(UUID.randomUUID(), 2),
-                "everlastingskins.bypass.cooldown"));
-        assertFalse(service.hasPermission(PermissionContext.of(UUID.randomUUID(), 0),
-                "everlastingskins.bypass.cooldown"));
+        PermissionContext op2 = PermissionContext.of(UUID.randomUUID(), 2);
+        PermissionContext op0 = PermissionContext.of(UUID.randomUUID(), 0);
+        assertTrue(service.hasPermission(op2.uuid(), op2.opLevel(), "everlastingskins.bypass.cooldown"));
+        assertFalse(service.hasPermission(op0.uuid(), op0.opLevel(), "everlastingskins.bypass.cooldown"));
     }
 
     @Test
     @DisplayName("Unknown nodes default to required level 0")
     void unknownNode_defaultsToAll() {
         PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 0);
-        assertTrue(service.hasPermission(ctx, "any.node"));
+        assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "any.node"));
     }
 
     @Test

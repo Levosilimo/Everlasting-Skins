@@ -11,7 +11,9 @@ import com.google.common.collect.Lists;
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.metrics.MetricsDumper;
 import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
+import levosilimo.everlastingskins.permission.LuckPermsPermissionService;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.util.I18nUtils;
@@ -45,7 +47,12 @@ public class EverlastingSkins {
 
     public EverlastingSkins() {
         I18nUtils.loadAll();
-        PermissionServiceManager.init();
+        // M2 step 5: PermissionServiceManager lives in /common as a
+        // registration registry; the hardcoded init() candidate discovery
+        // (vanilla + LuckPerms, highest priority wins) is now this bootstrap.
+        // ForgePermissionService.registerNodes() self-registers (priority 10),
+        // so the active backend is LuckPerms (20) > Forge (10) > Vanilla (0).
+        registerPermissionBackends();
         ForgePermissionService.registerNodes();
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
         TickEvent.ServerTickEvent.BUS.addListener(new MetricsDumper()::onServerTick);
@@ -53,6 +60,19 @@ public class EverlastingSkins {
         PermissionGatherEvent.Nodes.BUS.addListener(ForgePermissionService::onPermissionGather);
         ConnectionStartEvent.BUS.addListener(EverlastingSkins::onConnectionStart);
         PlaceholderApiHook.tryRegister();
+    }
+
+    /**
+     * M2 step 5: registers the /common-managed permission backends. Vanilla is
+     * always registered; LuckPerms self-detects and wins on priority. Forge
+     * self-registers via {@link ForgePermissionService#registerNodes()}.
+     */
+    private static void registerPermissionBackends() {
+        PermissionServiceManager.registerService(new VanillaPermissionService());
+        LuckPermsPermissionService lp = LuckPermsPermissionService.tryCreate();
+        if (lp != null) {
+            PermissionServiceManager.registerService(lp);
+        }
     }
 
     /**
@@ -73,7 +93,9 @@ public class EverlastingSkins {
         @SubscribeEvent
         public static void onServerAboutToStart(ServerAboutToStartEvent event) {
             I18nUtils.loadAll();
-            PermissionServiceManager.init();
+            // Re-run the bootstrap: registration is idempotent and re-picks up
+            // LuckPerms once the server (and its plugins) are actually loaded.
+            registerPermissionBackends();
         }
 
         @SubscribeEvent

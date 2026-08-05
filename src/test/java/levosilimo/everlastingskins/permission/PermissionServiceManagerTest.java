@@ -19,6 +19,11 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * M2 step 5: PermissionServiceManager now comes from /common as a
+ * registration-based, fail-closed registry (no init() candidate discovery —
+ * the per-version bootstrap in EverlastingSkins registers its own services).
+ */
 class PermissionServiceManagerTest {
 
     @BeforeAll
@@ -33,20 +38,20 @@ class PermissionServiceManagerTest {
     }
 
     /* ================================================================== */
-    /*  Basic init / backend name                                         */
+    /*  Basic registration / backend name                                 */
     /* ================================================================== */
 
     @Test
-    @DisplayName("Init selects Vanilla backend when no LuckPerms available")
-    void initSelectsVanilla() {
-        PermissionServiceManager.init();
+    @DisplayName("Registering Vanilla selects it as the active backend")
+    void registerVanilla_becomesActive() {
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         assertTrue(PermissionServiceManager.getActiveBackendName().startsWith("Vanilla"));
     }
 
     @Test
-    @DisplayName("Backend name is not empty after init")
+    @DisplayName("Backend name is not empty after registration")
     void backendNameNotEmpty() {
-        PermissionServiceManager.init();
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         assertNotNull(PermissionServiceManager.getActiveBackendName());
         assertFalse(PermissionServiceManager.getActiveBackendName().isEmpty());
     }
@@ -62,7 +67,7 @@ class PermissionServiceManagerTest {
         @Test
         @DisplayName("Registering higher-priority service replaces active backend")
         void registerService_higherPriority_replacesActive() {
-            PermissionServiceManager.init();
+            PermissionServiceManager.registerService(new VanillaPermissionService());
             IPermissionService mockForge = mock(IPermissionService.class);
             when(mockForge.getPriority()).thenReturn(10);
             when(mockForge.getActiveBackendName()).thenReturn("Forge");
@@ -73,7 +78,7 @@ class PermissionServiceManagerTest {
         @Test
         @DisplayName("Registering lower-priority service does not replace active")
         void registerService_lowerPriority_doesNotReplace() {
-            PermissionServiceManager.init();
+            PermissionServiceManager.registerService(new VanillaPermissionService());
             IPermissionService mockLow = mock(IPermissionService.class);
             when(mockLow.getPriority()).thenReturn(-1);
             when(mockLow.getActiveBackendName()).thenReturn("LowPriority");
@@ -84,7 +89,7 @@ class PermissionServiceManagerTest {
         @Test
         @DisplayName("Multiple registrations: highest priority wins")
         void multipleRegistrations_highestWins() {
-            PermissionServiceManager.init();
+            PermissionServiceManager.registerService(new VanillaPermissionService());
 
             IPermissionService svc10 = mock(IPermissionService.class);
             when(svc10.getPriority()).thenReturn(10);
@@ -111,7 +116,7 @@ class PermissionServiceManagerTest {
         @Test
         @DisplayName("Same-priority service does not replace (strict gt)")
         void samePriority_doesNotReplace() {
-            PermissionServiceManager.init();
+            PermissionServiceManager.registerService(new VanillaPermissionService());
 
             // Upgrade to priority 10 first
             IPermissionService prio10 = mock(IPermissionService.class);
@@ -137,7 +142,7 @@ class PermissionServiceManagerTest {
     @Test
     @DisplayName("Reset clears registered services and initialized flag")
     void reset_clearsState() {
-        PermissionServiceManager.init();
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         IPermissionService mockSvc = mock(IPermissionService.class);
         when(mockSvc.getPriority()).thenReturn(10);
         when(mockSvc.getActiveBackendName()).thenReturn("MockSvc");
@@ -147,7 +152,7 @@ class PermissionServiceManagerTest {
         PermissionServiceManager.reset();
 
         assertEquals("Not initialized", PermissionServiceManager.getActiveBackendName());
-        PermissionServiceManager.init();
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         assertTrue(PermissionServiceManager.getActiveBackendName().startsWith("Vanilla"));
     }
 
@@ -162,7 +167,7 @@ class PermissionServiceManagerTest {
         @Test
         @DisplayName("No unregister API: downgrade not supported")
         void noUnregister_noDowngrade() {
-            PermissionServiceManager.init();
+            PermissionServiceManager.registerService(new VanillaPermissionService());
             IPermissionService high = mock(IPermissionService.class);
             when(high.getPriority()).thenReturn(30);
             when(high.getActiveBackendName()).thenReturn("high");
@@ -178,27 +183,34 @@ class PermissionServiceManagerTest {
     }
 
     /* ================================================================== */
-    /*  hasPermission before init (Vanilla fallback)                       */
+    /*  hasPermission before registration (fail closed)                    */
     /* ================================================================== */
 
     @Test
-    @DisplayName("hasPermission before init falls back to Vanilla")
-    void hasPermission_beforeInit_returnsFallback() {
+    @DisplayName("hasPermission before any registration fails closed")
+    void hasPermission_beforeRegistration_failsClosed() {
         PermissionServiceManager.reset();
-        PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 2);
-        assertTrue(PermissionServiceManager.hasPermission(ctx, "any.node"));
+        assertFalse(PermissionServiceManager.hasPermission(UUID.randomUUID(), 2, "any.node"));
     }
 
     @Test
-    @DisplayName("registerService throws before init")
-    void registerService_beforeInit_throws() {
-        PermissionServiceManager.reset();
-        assertThrows(IllegalStateException.class,
-            () -> PermissionServiceManager.registerService(mock(IPermissionService.class)));
+    @DisplayName("hasPermission delegates to the registered backend")
+    void hasPermission_delegatesToRegisteredBackend() {
+        PermissionServiceManager.registerService(new VanillaPermissionService());
+        assertTrue(PermissionServiceManager.hasPermission(UUID.randomUUID(), 0, "any.node"));
+        assertFalse(PermissionServiceManager.hasPermission(UUID.randomUUID(), 0,
+            "everlastingskins.command.metrics"));
     }
 
     @Test
-    @DisplayName("getActiveBackendName returns placeholder before init")
+    @DisplayName("registerService ignores null")
+    void registerService_null_isIgnored() {
+        PermissionServiceManager.registerService(null);
+        assertEquals("Not initialized", PermissionServiceManager.getActiveBackendName());
+    }
+
+    @Test
+    @DisplayName("getActiveBackendName returns placeholder before registration")
     void backendNameBeforeInit() {
         PermissionServiceManager.reset();
         assertEquals("Not initialized", PermissionServiceManager.getActiveBackendName());
@@ -215,27 +227,31 @@ class PermissionServiceManagerTest {
         @Test
         @DisplayName("Non-op lacks permission on level-2 node")
         void nonOp_nonSource_denied() {
-            PermissionServiceManager.init();
+            PermissionServiceManager.registerService(new VanillaPermissionService());
             PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 0);
-            assertFalse(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics"));
+            assertFalse(PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(),
+                "everlastingskins.command.metrics"));
         }
 
         @Test
         @DisplayName("Op has permission on non-source node")
         void op_nonSource_granted() {
-            PermissionServiceManager.init();
+            PermissionServiceManager.registerService(new VanillaPermissionService());
             PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 2);
-            assertTrue(PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin"));
+            assertTrue(PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(),
+                "everlastingskins.command.skin"));
         }
 
         @Test
         @DisplayName("Source node always granted regardless of op status")
         void sourceNode_alwaysGranted() {
-            PermissionServiceManager.init();
+            PermissionServiceManager.registerService(new VanillaPermissionService());
             PermissionContext nonOp = PermissionContext.of(UUID.randomUUID(), 0);
             PermissionContext op = PermissionContext.of(UUID.randomUUID(), 2);
-            assertTrue(PermissionServiceManager.hasPermission(nonOp, "everlastingskins.command.skin.source"));
-            assertTrue(PermissionServiceManager.hasPermission(op, "everlastingskins.command.skin.source"));
+            assertTrue(PermissionServiceManager.hasPermission(nonOp.uuid(), nonOp.opLevel(),
+                "everlastingskins.command.skin.source"));
+            assertTrue(PermissionServiceManager.hasPermission(op.uuid(), op.opLevel(),
+                "everlastingskins.command.skin.source"));
         }
     }
 }

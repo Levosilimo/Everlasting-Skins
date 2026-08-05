@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.integration.discordsrv;
 
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
@@ -23,6 +24,10 @@ public final class DiscordSrvHook {
     private static final String DISCORDSRV_CLASS = "github.scarsz.discordsrv.DiscordSRV";
 
     public static void announceSkinChange(ServerPlayer player, String skinSource) {
+        // M2 step 5: DiscordSrvConfig lives in /common decoupled from the
+        // per-version Config; inject this version's values at the point of use
+        // (config is loaded by then) so announcements keep following the config.
+        DiscordSrvConfig.configure(Config.DISCORDSRV_ENABLED.get(), Config.DISCORDSRV_CHANNEL_ID.get());
         try {
             Class<?> dsClass = Class.forName(DISCORDSRV_CLASS);
             Object plugin = dsClass.getMethod("getPlugin").invoke(null);

@@ -10,9 +10,11 @@ package levosilimo.everlastingskins.skinchanger;
 import com.google.gson.JsonObject;
 import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
+import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.skinchanger.responses.profile.PropertyResponse;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.HttpClient;
 import levosilimo.everlastingskins.util.JsonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +22,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -482,5 +486,40 @@ class MojangApiHttpImplTest {
 
     private static String profileMineToolsBody(String value, String signature) {
         return "{\"raw\":{\"id\":\"x\",\"name\":\"x\",\"status\":\"OK\",\"properties\":[{\"name\":\"textures\",\"value\":\"" + value + "\",\"signature\":\"" + signature + "\"}]}}";
+    }
+
+    /**
+     * M2 step 5: the Config-gated cache disable moved out of MojangProfileCache
+     * (decoupled in /common) into the impl's {@code profileCacheEnabled} ctor
+     * flag — the cache is never consulted or populated when it is false.
+     */
+    @Test
+    @DisplayName("profileCacheEnabled=false re-runs the full lookup chain on every call")
+    void disabledCache_fullLookupOnEveryCall() throws Exception {
+        CountingHttpClient counting = new CountingHttpClient();
+        counting.delegate.addResponse(mojangUuidUri, 200,
+                "{\"name\":\"" + PLAYER_NAME + "\",\"id\":\"" + NO_DASH_UUID + "\"}");
+        counting.delegate.addResponse(mojangProfileUri, 200, profileMojangBody("val", "sig"));
+
+        MojangApiHttpImpl disabledApi = new MojangApiHttpImpl(TEST_ENDPOINTS, counting, false);
+        assertTrue(disabledApi.getSkin(PLAYER_NAME).isPresent(), "first lookup must succeed");
+        int afterFirst = counting.total;
+        assertTrue(disabledApi.getSkin(PLAYER_NAME).isPresent(), "repeat lookup must succeed");
+        assertEquals(afterFirst, counting.total - afterFirst,
+                "a disabled cache must not skip the profile chain on repeat lookups");
+    }
+
+    /** Delegating client that counts every execute() call. */
+    private static final class CountingHttpClient implements HttpClient {
+        private final FakeHttpClient delegate = new FakeHttpClient();
+        private int total = 0;
+
+        @Override
+        public HttpResponse execute(URI uri, RequestBody requestBody, HttpType accepts,
+                                    String userAgent, HttpMethod method,
+                                    Map<String, String> headers, int timeout) throws IOException {
+            total++;
+            return delegate.execute(uri, requestBody, accepts, userAgent, method, headers, timeout);
+        }
     }
 }

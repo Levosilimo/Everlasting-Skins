@@ -155,15 +155,16 @@ class ConfigTest {
         }
 
         @Test
-        @DisplayName("API key is read at construction time (not lazily)")
+        @DisplayName("API key is injected at construction (not lazily)")
         void apiKeyReadAtConstruction() {
             ForgeConfigSpec.ConfigValue<String> keySpec = Config.MINESKIN_API_KEY;
             String original = keySpec.get();
             try {
                 keySpec.set("key-from-config");
-                // Construct a new instance using the 1-arg constructor (reads Config directly)
+                // M2 step 5: the /common impl is decoupled from Config — the
+                // key is injected explicitly (SkinCommand wires Config.MINESKIN_API_KEY).
                 var httpClient = new FakeHttpClient();
-                var api = new MineSkinApiHttpImpl(httpClient);
+                var api = new MineSkinApiHttpImpl(httpClient, keySpec.get());
 
                 httpClient.addResponse(
                         levosilimo.everlastingskins.util.EndpointsConfig.getURI("endpoint.mineskin.generate"),

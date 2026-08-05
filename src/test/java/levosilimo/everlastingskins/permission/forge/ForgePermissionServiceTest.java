@@ -52,7 +52,7 @@ class ForgePermissionServiceTest {
             api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.SKIN_NODE)))
                .thenReturn(true);
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin"));
+            assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
         }
     }
 
@@ -65,7 +65,7 @@ class ForgePermissionServiceTest {
             api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.SKIN_NODE)))
                .thenReturn(false);
             ForgePermissionService service = new ForgePermissionService();
-            assertFalse(service.hasPermission(ctx, "everlastingskins.command.skin"));
+            assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
         }
     }
 
@@ -78,7 +78,7 @@ class ForgePermissionServiceTest {
             api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.SKIN_OTHER_NODE)))
                .thenReturn(true);
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.other"));
+            assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin.other"));
         }
     }
 
@@ -87,7 +87,7 @@ class ForgePermissionServiceTest {
     void hasPermission_sourceNode_returnsTrue() {
         ForgePermissionService service = new ForgePermissionService();
         PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 0);
-        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.source"));
+        assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin.source"));
     }
 
     @Test
@@ -98,7 +98,8 @@ class ForgePermissionServiceTest {
             api.when(() -> PermissionAPI.getOfflinePermission(eq(uuid), eq(ForgePermissionService.BYPASS_COOLDOWN_NODE)))
                .thenReturn(true);
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(PermissionContext.of(uuid, 0), "everlastingskins.bypass.cooldown"));
+            PermissionContext bypassCtx = PermissionContext.of(uuid, 0);
+            assertTrue(service.hasPermission(bypassCtx.uuid(), bypassCtx.opLevel(), "everlastingskins.bypass.cooldown"));
         }
     }
 
@@ -125,8 +126,10 @@ class ForgePermissionServiceTest {
         try (MockedStatic<ServerLifecycleHooks> hooks = mockStatic(ServerLifecycleHooks.class)) {
             hooks.when(ServerLifecycleHooks::getCurrentServer).thenReturn(null);
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, 2), "everlastingskins.command.metrics"));
-            assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, 0), "everlastingskins.command.metrics"));
+            PermissionContext op2 = PermissionContext.of(TEST_UUID, 2);
+            PermissionContext op0 = PermissionContext.of(TEST_UUID, 0);
+            assertTrue(service.hasPermission(op2.uuid(), op2.opLevel(), "everlastingskins.command.metrics"));
+            assertFalse(service.hasPermission(op0.uuid(), op0.opLevel(), "everlastingskins.command.metrics"));
         }
     }
 
@@ -139,7 +142,8 @@ class ForgePermissionServiceTest {
             api.when(() -> PermissionAPI.getOfflinePermission(eq(TEST_UUID), eq(ForgePermissionService.SKIN_NODE)))
                .thenReturn(false);
             ForgePermissionService service = new ForgePermissionService();
-            assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, 0),
+            PermissionContext ctx = PermissionContext.of(TEST_UUID, 0);
+            assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(),
                     "everlastingskins.command.skin"));
             api.verify(() -> PermissionAPI.getPermission(any(), any()), never());
         }
@@ -154,9 +158,11 @@ class ForgePermissionServiceTest {
             api.when(() -> PermissionAPI.getOfflinePermission(eq(TEST_UUID), eq(ForgePermissionService.METRICS_NODE)))
                .thenThrow(new RuntimeException("api unavailable"));
             ForgePermissionService service = new ForgePermissionService();
-            assertTrue(service.hasPermission(PermissionContext.of(TEST_UUID, 2),
+            PermissionContext op2 = PermissionContext.of(TEST_UUID, 2);
+            PermissionContext op0 = PermissionContext.of(TEST_UUID, 0);
+            assertTrue(service.hasPermission(op2.uuid(), op2.opLevel(),
                     "everlastingskins.command.metrics"));
-            assertFalse(service.hasPermission(PermissionContext.of(TEST_UUID, 0),
+            assertFalse(service.hasPermission(op0.uuid(), op0.opLevel(),
                     "everlastingskins.command.metrics"));
         }
     }
@@ -192,10 +198,10 @@ class ForgePermissionServiceTest {
                 ForgePermissionService service = new ForgePermissionService();
 
                 PermissionContext opCtx = PermissionContext.of(uuid, 2);
-                assertTrue(service.hasPermission(opCtx, "everlastingskins.command.metrics"));
+                assertTrue(service.hasPermission(opCtx.uuid(), opCtx.opLevel(), "everlastingskins.command.metrics"));
 
                 PermissionContext nonOpCtx = PermissionContext.of(uuid, 0);
-                assertFalse(service.hasPermission(nonOpCtx, "everlastingskins.command.metrics"));
+                assertFalse(service.hasPermission(nonOpCtx.uuid(), nonOpCtx.opLevel(), "everlastingskins.command.metrics"));
             }
         }
 
@@ -210,10 +216,10 @@ class ForgePermissionServiceTest {
                 ForgePermissionService service = new ForgePermissionService();
 
                 PermissionContext opCtx = PermissionContext.of(uuid, 2);
-                assertTrue(service.hasPermission(opCtx, "everlastingskins.command.skin.other"));
+                assertTrue(service.hasPermission(opCtx.uuid(), opCtx.opLevel(), "everlastingskins.command.skin.other"));
 
                 PermissionContext nonOpCtx = PermissionContext.of(uuid, 0);
-                assertFalse(service.hasPermission(nonOpCtx, "everlastingskins.command.skin.other"));
+                assertFalse(service.hasPermission(nonOpCtx.uuid(), nonOpCtx.opLevel(), "everlastingskins.command.skin.other"));
             }
         }
 
@@ -222,7 +228,7 @@ class ForgePermissionServiceTest {
         void sourceNode_alwaysTrue_regardlessOfApi() {
             ForgePermissionService service = new ForgePermissionService();
             PermissionContext ctx = PermissionContext.of(UUID.randomUUID(), 0);
-            assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin.source"));
+            assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin.source"));
         }
     }
 }

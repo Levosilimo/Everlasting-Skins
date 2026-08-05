@@ -44,12 +44,11 @@ public class LuckPermsPermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(PermissionContext context, String permissionNode) {
+    public boolean hasPermission(UUID uuid, int opLevel, String permissionNode) {
         if (luckPermsApi == null || userManager == null) {
             return false;
         }
         try {
-            UUID uuid = context.uuid();
             Method isLoadedMethod = userManager.getClass().getMethod("isLoaded", UUID.class);
             Boolean isLoaded = (Boolean) isLoadedMethod.invoke(userManager, uuid);
             Object user = null;
@@ -58,11 +57,11 @@ public class LuckPermsPermissionService implements IPermissionService {
                 user = getUserMethod.invoke(userManager, uuid);
             } else {
                 LOGGER.debug("LP user {} not pre-loaded, falling back to vanilla per-node levels", uuid);
-                return vanillaFallback(context, permissionNode);
+                return vanillaFallback(uuid, opLevel, permissionNode);
             }
             if (user == null) {
                 LOGGER.warn("LP user {} returned null from getUser, falling back to vanilla per-node levels", uuid);
-                return vanillaFallback(context, permissionNode);
+                return vanillaFallback(uuid, opLevel, permissionNode);
             }
 
             Method getCachedDataMethod = user.getClass().getMethod("getCachedData");
@@ -89,8 +88,8 @@ public class LuckPermsPermissionService implements IPermissionService {
         }
     }
 
-    private boolean vanillaFallback(PermissionContext context, String permissionNode) {
-        return new VanillaPermissionService().hasPermission(context, permissionNode);
+    private boolean vanillaFallback(UUID uuid, int opLevel, String permissionNode) {
+        return new VanillaPermissionService().hasPermission(uuid, opLevel, permissionNode);
     }
 
     @Override

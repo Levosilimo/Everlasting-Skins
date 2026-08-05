@@ -23,6 +23,13 @@
 - `gradle.properties` contains stale metadata (`minecraft_version_range`, `curse_versions`, placeholder description, broad loader/Forge ranges). Treat executable dependency coordinates in `build.gradle` as authoritative until metadata is reconciled.
 - The local Qartez index currently points at another workspace. If Qartez returns paths such as `neodeal/` or `ik_llama.cpp`, stop and re-index this repository rather than trusting impact or dependency results.
 
+## Shared /common module
+
+- This branch consumes the pure-Java `/common` module via a filePath `sourceSet`: `build.gradle` compiles `../common/src/main/java` (or `../../../common/src/main/java` from an isolated `.trees/<branch>` worktree) directly into this jar. `/common` updates flow automatically here — no mavenLocal sequencing, no version bumps.
+- The `/common` module lives at `/home/levosilimo/code/Everlasting-Skins/common` (sibling of this checkout; standalone Gradle project, `--release 8`, its own 306-test suite run via `cd ../common && ./gradlew test`).
+- Duplicated per-version copies of the lifted classes are gone; only MC-bound code stays in `src/main/java` (config, commands, Forge services, broadcast, metrics dumpers, `PermissionContext`, `JavaHttpClient`). `PermissionServiceManager` (from /common) is a registration-based, fail-closed registry — the per-version bootstrap in `EverlastingSkins` registers Vanilla/LuckPerms/Forge services. `DiscordSrvConfig` (from /common) is decoupled from Config; `DiscordSrvHook` injects this version's values via `configure(...)`.
+- The /common module is not tracked on this branch, so CI (which checks out the branch alone) cannot compile it; the CI `Build (1.21)` job therefore requires `/common` to be materialized in the runner (see the M2 step-5 PR notes).
+
 ## Verification direction
 
 - Start with pure Java tests for provider fallback, HTTP outcomes, texture decoding, persistence, and cache behavior. Use a local fake HTTP server; never use live Mojang or MineSkin responses as deterministic tests.

@@ -168,9 +168,9 @@ public class SkinVisibilityTest {
 
         helper.succeedWhen(() -> {
             CustomSkinProperty stored = storage.getSkin(playerId);
-            if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
+            if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())) {
                 throw new GameTestAssertException(Component.literal("waiting for /skin set mojang Notch to store source="
-                        + SkinActionCommand.SOURCE_MOJANG + " (got "
+                        + MojangAPI.SOURCE_MOJANG + " (got "
                         + (stored == null ? "null" : stored.getSource()) + ")"), helper.getTickAsInt());
             }
             Property textures = findTexturesFor(drain(observer), playerId);
@@ -490,9 +490,9 @@ public class SkinVisibilityTest {
         helper.succeedWhen(() -> {
             throwIfPastDeadline(deadlineNanos, "skin set mojang to store skin");
             CustomSkinProperty stored = storage.getSkin(playerId);
-            if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
+            if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())) {
                 throw new GameTestAssertException(Component.literal("waiting for /skin set mojang Notch TestPlayerA to store source="
-                        + SkinActionCommand.SOURCE_MOJANG + " (got "
+                        + MojangAPI.SOURCE_MOJANG + " (got "
                         + (stored == null ? "null" : stored.getSource()) + ")"), helper.getTickAsInt());
             }
             Property textures = findTexturesFor(drain(observer), playerId);
@@ -839,8 +839,8 @@ public class SkinVisibilityTest {
             helper.succeedWhen(() -> {
                 if (!phase[0]) {
                     CustomSkinProperty stored = storage.getSkin(uuidA);
-                    if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG), helper.getTickAsInt());
+                    if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())) {
+                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + MojangAPI.SOURCE_MOJANG), helper.getTickAsInt());
                     }
                     long count = SkinRefreshHandler.getRefreshTaskCount();
                     if (count < 1) {
@@ -965,8 +965,8 @@ public class SkinVisibilityTest {
                     Config.RATE_LIMIT_ENABLED.set(false);
                     fake.varyValue = true;
                     CustomSkinProperty stored = storage.getSkin(uuidA);
-                    if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG), helper.getTickAsInt());
+                    if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())) {
+                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + MojangAPI.SOURCE_MOJANG), helper.getTickAsInt());
                     }
                     if (SkinRefreshHandler.getRefreshTaskCount() != 1) {
                         throw new GameTestAssertException(Component.literal("waiting for first task() to run, count="
@@ -990,7 +990,7 @@ public class SkinVisibilityTest {
                             + SkinRefreshHandler.getRefreshTaskCount()), helper.getTickAsInt());
                 }
                 CustomSkinProperty stored = storage.getSkin(uuidA);
-                if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())
+                if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())
                         || !"Notch".equals(stored.getUsername())) {
                     throw new GameTestAssertException(Component.literal("debounced request must not overwrite the stored skin (got source="
                             + (stored == null ? "null" : stored.getSource()) + ", username="
@@ -1056,8 +1056,8 @@ public class SkinVisibilityTest {
                     Config.RATE_LIMIT_ENABLED.set(false);
                     fake.varyValue = true;
                     CustomSkinProperty stored = storage.getSkin(uuidA);
-                    if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG), helper.getTickAsInt());
+                    if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())) {
+                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + MojangAPI.SOURCE_MOJANG), helper.getTickAsInt());
                     }
                     if (SkinRefreshHandler.getRefreshTaskCount() != 1) {
                         throw new GameTestAssertException(Component.literal("waiting for first task() to run, count="
@@ -1082,7 +1082,7 @@ public class SkinVisibilityTest {
                     throw new GameTestAssertException(Component.literal("waiting for second completion to be processed"), helper.getTickAsInt());
                 }
                 CustomSkinProperty stored = storage.getSkin(uuidA);
-                if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
+                if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())) {
                     throw new GameTestAssertException(Component.literal("request after the window must store the fetched Mojang skin (got "
                             + (stored == null ? "null" : stored.getSource()) + ")"), helper.getTickAsInt());
                 }
@@ -1143,8 +1143,8 @@ public class SkinVisibilityTest {
                 if (!phase[0]) {
                     Config.RATE_LIMIT_ENABLED.set(false);
                     CustomSkinProperty stored = storage.getSkin(uuidA);
-                    if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + SkinActionCommand.SOURCE_MOJANG), helper.getTickAsInt());
+                    if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())) {
+                        throw new GameTestAssertException(Component.literal("waiting for first dispatch to store source=" + MojangAPI.SOURCE_MOJANG), helper.getTickAsInt());
                     }
                     appliedValue[0] = stored.getOriginalProperty().value();
                     boolean applied = playerA.getGameProfile().getProperties().get("textures").stream()
@@ -1508,11 +1508,11 @@ public class SkinVisibilityTest {
                 }
                 CustomSkinProperty skinA = storage.getSkin(uuidA);
                 CustomSkinProperty skinB = storage.getSkin(uuidB);
-                if (skinA == null || !SkinActionCommand.SOURCE_MOJANG.equals(skinA.getSource())) {
+                if (skinA == null || !MojangAPI.SOURCE_MOJANG.equals(skinA.getSource())) {
                     throw new GameTestAssertException(Component.literal("waiting for playerA to store the Mojang skin (got "
                             + (skinA == null ? "null" : skinA.getSource()) + ")"), helper.getTickAsInt());
                 }
-                if (skinB == null || !SkinActionCommand.SOURCE_MOJANG.equals(skinB.getSource())) {
+                if (skinB == null || !MojangAPI.SOURCE_MOJANG.equals(skinB.getSource())) {
                     throw new GameTestAssertException(Component.literal("waiting for playerB to store the Mojang skin (got "
                             + (skinB == null ? "null" : skinB.getSource()) + ")"), helper.getTickAsInt());
                 }
@@ -1557,8 +1557,8 @@ public class SkinVisibilityTest {
 
             helper.succeedWhen(() -> {
                 CustomSkinProperty stored = storage.getSkin(playerId);
-                if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
-                    throw new GameTestAssertException(Component.literal("waiting for source=" + SkinActionCommand.SOURCE_MOJANG + " (got "
+                if (stored == null || !MojangAPI.SOURCE_MOJANG.equals(stored.getSource())) {
+                    throw new GameTestAssertException(Component.literal("waiting for source=" + MojangAPI.SOURCE_MOJANG + " (got "
                             + (stored == null ? "null" : stored.getSource()) + ")"), helper.getTickAsInt());
                 }
                 long selfCount = countAddPlayerUpdatesWithTextures(drain(playerA), playerId);
@@ -1617,7 +1617,7 @@ public class SkinVisibilityTest {
             if (fail) return Optional.empty();
             return Optional.of(new MojangSkinDataResult(
                     UUID.nameUUIDFromBytes(nameOrUniqueId.getBytes(StandardCharsets.UTF_8)),
-                    new CustomSkinProperty("textures", valueFor(nameOrUniqueId), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, nameOrUniqueId)));
+                    new CustomSkinProperty("textures", valueFor(nameOrUniqueId), TEST_SIGNATURE, MojangAPI.SOURCE_MOJANG, nameOrUniqueId)));
         }
 
         @Override
@@ -1631,7 +1631,7 @@ public class SkinVisibilityTest {
         public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
             maybeSlow();
             if (fail) return Optional.empty();
-            return Optional.of(new CustomSkinProperty("textures", valueFor(lookup.username()), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, lookup.username()));
+            return Optional.of(new CustomSkinProperty("textures", valueFor(lookup.getUsername()), TEST_SIGNATURE, MojangAPI.SOURCE_MOJANG, lookup.getUsername()));
         }
     }
 

@@ -7,8 +7,9 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
-import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.metrics.PlayerSnapshot;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.metrics.Snapshot;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import org.junit.jupiter.api.BeforeAll;
@@ -99,26 +100,9 @@ class MojangProfileCacheTest {
         cache.get(USERNAME);   // hit
         cache.get("missing");  // miss
 
-        SkinMetrics.Snapshot s = SkinMetrics.INSTANCE.snapshot();
+        Snapshot s = SkinMetrics.INSTANCE.snapshot();
         assertEquals(2, s.cacheHits());
         assertEquals(1, s.cacheMisses());
-    }
-
-    @Test
-    @DisplayName("a cache disabled via config never serves or stores entries")
-    void disabledCache_returnsNull() {
-        boolean original = Config.MOJANG_CACHE_ENABLED.get();
-        try {
-            Config.MOJANG_CACHE_ENABLED.set(false);
-            MojangProfileCache cache = new MojangProfileCache();
-            cache.put(USERNAME, SKIN);
-
-            assertFalse(cache.isEnabled());
-            assertNull(cache.get(USERNAME));
-            assertEquals(0, cache.size());
-        } finally {
-            Config.MOJANG_CACHE_ENABLED.set(original);
-        }
     }
 
     @Test
@@ -138,19 +122,13 @@ class MojangProfileCacheTest {
     }
 
     @Test
-    @DisplayName("the configured max size is honored by the default constructor")
+    @DisplayName("the explicit max size is honored by the parameterized constructor")
     void configuredMaxSize_isHonored() {
-        int original = Config.MOJANG_CACHE_MAX_SIZE.get();
-        try {
-            Config.MOJANG_CACHE_MAX_SIZE.set(1);
-            MojangProfileCache cache = new MojangProfileCache();
-            cache.put("a", SKIN);
-            cache.put("b", SKIN);
+        MojangProfileCache cache = new MojangProfileCache(TimeUnit.HOURS.toMillis(1), 1);
+        cache.put("a", SKIN);
+        cache.put("b", SKIN);
 
-            assertEquals(1, cache.size());
-        } finally {
-            Config.MOJANG_CACHE_MAX_SIZE.set(original);
-        }
+        assertEquals(1, cache.size());
     }
 
     @Test
