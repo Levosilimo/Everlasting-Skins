@@ -6,6 +6,12 @@ First 1.21.1 point-release build of the 2.1.0-rc.1 feature set: identical code t
 build, re-targeted at Minecraft 1.21.1 / Forge 52.1.16 (ForgeGradle 7.0.x, Gradle 9.3.1).
 Configuration-only port — no logic deltas vs. the 1.21 branch.
 
+### Fixed
+- **Build with Gradle 9.3.1** (#251): dropped the Mixin Gradle plugin (mixingradle 0.7.x,
+  incompatible with Gradle 9.3.1 — missing `org/gradle/util/VersionNumber`); Mixin is now
+  annotation-processor only (`org.spongepowered:mixin:0.8.7:processor`), mirroring the
+  1.21.4/1.21.8 ports.
+
 ## 2.1.0-rc.1 (2026-08-02)
 
 ### Added

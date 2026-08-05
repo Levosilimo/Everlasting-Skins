@@ -11,17 +11,17 @@ buildscript {
     }
     dependencies {
         classpath group: 'net.minecraftforge', name: 'forgegradle', version: '[7.0.3,8)', changing: true
-        classpath 'org.spongepowered:mixingradle:0.7.+'
         classpath 'org.apache.httpcomponents:httpclient:4.5.13'
     }
 }
 
 plugins {
+    id 'java'
+    id 'base'
     id 'eclipse'
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[7.0.3,8)'
-    id 'org.spongepowered.mixin' version '0.7.+'
     id 'jacoco'
 }
 
@@ -30,6 +30,9 @@ jacoco {
 }
 
 repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
     maven {
         // location of a maven mirror for JEI files, as a fallback
         name = "ModMaven"
@@ -103,60 +106,45 @@ configurations {
 minecraft {
 
     mappings channel: 'official', version: "${minecraft_version}".toString()
-    reobf = false
 
-    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
-    copyIdeResources = true
-	
+    accessTransformer = true
+
     runs {
 
         configureEach {
-            workingDirectory project.file(project.findProperty('mc.runDir') ?: 'run')
-            property 'forge.logging.console.level', 'debug'
-            property 'fml.earlyprogresswindow', 'false'
-            property 'mixin.env.disableRefMap', 'true'
-
-            mods {
-                "everlastingskins" {
-                    source sourceSets.main
-                }
-            }
+            workingDir = layout.projectDirectory.dir(project.findProperty('mc.runDir') ?: 'run')
+            systemProperty 'forge.logging.console.level', 'debug'
+            systemProperty 'fml.earlyprogresswindow', 'false'
+            systemProperty 'mixin.env.disableRefMap', 'true'
         }
 
         client {
-            properties 'mixin.env.remapRefMap': 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
+            systemProperty 'mixin.env.remapRefMap', 'true'
+            systemProperty 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
 
-            property 'forge.logging.markers', 'REGISTRYDUMP'
+            systemProperty 'forge.logging.markers', 'REGISTRYDUMP'
         }
 
         server {
-            workingDirectory project.file('server')
-            property 'mixin.env.disableRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
-            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            workingDir = layout.projectDirectory.dir('server')
+            systemProperty 'mixin.env.disableRefMap', 'true'
+            systemProperty 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
+            systemProperty 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
         }
 
         client2 {
-            parent runs.client
-            taskName 'runClient2'
-            workingDirectory project.file(project.findProperty('mc.runDir2') ?: 'run2')
+            workingDir = layout.projectDirectory.dir(project.findProperty('mc.runDir2') ?: 'run2')
             args '--username', 'PlayerB'
             args '--uuid', 'd1b05a3e-9909-3e16-95e5-7eef2d6c713b'
-            mods {
-                everlastingskins {
-                    source sourceSets.main
-                }
-            }
         }
 
         // Forge ships a built-in gameTestServer run definition (launchTarget
         // forge_userdev_server_gametest); ForgeGradle names the task
-        // runGameTestServer. The gametest source set must be part of the mod so
-        // its @GameTestHolder classes are scanned and its structure templates
-        // are loaded from the dev mod jar's datapack.
+        // runGameTestServer. FG7 auto-includes every project source set
+        // (main + gametest) in dev runs, so the @GameTestHolder classes are
+        // scanned and structure templates load from the dev mod datapack.
         gameTestServer {
-            property 'forge.enabledGameTestNamespaces', project.findProperty('gametestNamespace') ?: 'everlastingskins'
+            systemProperty 'forge.enabledGameTestNamespaces', project.findProperty('gametestNamespace') ?: 'everlastingskins'
             // Netty 4.1 needs reflective access into the JDK on Java 21
             // (GameTest job failed with "Reflective setAccessible(true)
             // disabled" / module exports). Applied to the forked GameTest
@@ -198,12 +186,6 @@ minecraft {
                 '--add-exports=java.base/jdk.internal.misc=io.netty.resolver',
                 '-Dio.netty.tryReflectionSetAccessible=false'
             )
-            mods {
-                everlastingskins {
-                    source sourceSets.main
-                    source sourceSets.gametest
-                }
-            }
         }
     }
 }
@@ -214,6 +196,12 @@ minecraft {
 // the GameTest server starts clean (vanilla defaults; the server rewrites
 // the file on shutdown anyway).
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    // FG7 removed the FG6 `mods {}` wiring that put the gametest source set
+    // into the dev mod; put its output (classes + structure-template datapack
+    // resources) on the run classpath so @GameTestHolder classes are scanned
+    // and the empty.nbt template loads.
+    classpath += sourceSets.gametest.output
+
     doFirst {
         def runDir = project.file(project.findProperty('mc.runDir') ?: 'run')
         runDir.mkdirs()
@@ -227,15 +215,10 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     }
 }
 
-mixin {
-    add sourceSets.main, "everlastingskins.refmap.json"
-    config 'everlastingskins.mixins.json'
-}
-
 dependencies {
     implementation 'org.apache.httpcomponents:httpclient:4.5.13'
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-    annotationProcessor "org.spongepowered:mixin:0.8.5:processor"
+    implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${forge_version}")
+    annotationProcessor "org.spongepowered:mixin:0.8.7:processor"
     // Hack fix for now, force jopt-simple to be exactly 5.0.4 because Mojang ships that version, but some transitive dependencies request 6.0+
     implementation('net.sf.jopt-simple:jopt-simple:5.0.4') { version { strictly '5.0.4' } }
 
