@@ -159,7 +159,7 @@ class VanillaSkinBroadcasterTest {
             ResourceKey<Level> dim = inv.getArgument(1);
             globalSink.add(packet);
             for (ServerPlayer onlinePlayer : online) {
-                if (onlinePlayer.serverLevel().dimension().equals(dim)) {
+                if (onlinePlayer.level().dimension().equals(dim)) {
                     streamFor(onlinePlayer).add(packet);
                 }
             }
@@ -350,13 +350,13 @@ class VanillaSkinBroadcasterTest {
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getUUID()).thenReturn(uuid);
         when(player.getGameProfile()).thenReturn(new GameProfile(uuid, name));
-        when(player.serverLevel()).thenReturn(level);
+        when(player.level()).thenReturn(level);
         when(player.level()).thenReturn(level);
         when(player.getTabListDisplayName()).thenReturn(null);
         when(player.getChatSession()).thenReturn(null);
         ServerGamePacketListenerImpl connection = mock(ServerGamePacketListenerImpl.class);
         setField(player, "connection", connection);
-        setField(player, "server", server);
+        when(player.getServer()).thenReturn(server);
         // ClientboundPlayerInfoUpdatePacket's Entry constructor reads
         // p_252094_.gameMode.getGameModeForPlayer(); field-back it with a
         // mock that returns SURVIVAL.

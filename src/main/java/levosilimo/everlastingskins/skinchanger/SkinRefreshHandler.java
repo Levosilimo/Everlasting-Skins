@@ -175,8 +175,8 @@ public class SkinRefreshHandler {
      * == (byte) 3 in 1.21 (1/2/3 flags) — preserves the client-side inventory.
      */
     private static void recordCascade(ServerPlayer player) {
-        ServerLevel serverLevel = player.serverLevel();
-        PlayerList playerlist = player.server.getPlayerList();
+        ServerLevel serverLevel = player.level();
+        PlayerList playerlist = player.getServer().getPlayerList();
         double x = player.position().x;
         double y = player.position().y;
         double z = player.position().z;
@@ -185,7 +185,9 @@ public class SkinRefreshHandler {
         long start = System.nanoTime();
 
         player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), ClientboundRespawnPacket.KEEP_ALL_DATA));
-        player.absMoveTo(x, y, z, yaw, pitch);
+        player.setPos(x, y, z);
+        player.setYRot(yaw);
+        player.setXRot(pitch);
         player.connection.send(new ClientboundPlayerPositionPacket(0, new PositionMoveRotation(new Vec3(x, y, z), Vec3.ZERO, yaw, pitch), Collections.emptySet()));
         playerlist.sendLevelInfo(player, serverLevel);
         playerlist.sendPlayerPermissionLevel(player);

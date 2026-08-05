@@ -39,6 +39,6 @@ public record PermissionContext(UUID uuid, int opLevel) {
 
     private static int effectiveOpLevel(ServerPlayer player) {
         if (player == null) return 0;
-        return player.server.getProfilePermissions(player.getGameProfile());
+        return player.getServer().getProfilePermissions(player.getGameProfile());
     }
 }

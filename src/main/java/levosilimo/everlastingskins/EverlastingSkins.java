@@ -19,8 +19,9 @@ import net.minecraft.network.Connection;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.network.ConnectionStartEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -46,11 +47,11 @@ public class EverlastingSkins {
         I18nUtils.loadAll();
         PermissionServiceManager.init();
         ForgePermissionService.registerNodes();
-        MinecraftForge.EVENT_BUS.addListener(ForgePermissionService::onPermissionGather);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
-        MinecraftForge.EVENT_BUS.register(new MetricsDumper());
-        MinecraftForge.EVENT_BUS.addListener(EverlastingSkins::onConnectionStart);
+        TickEvent.ServerTickEvent.BUS.addListener(new MetricsDumper()::onServerTick);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
+        PermissionGatherEvent.Nodes.BUS.addListener(ForgePermissionService::onPermissionGather);
+        ConnectionStartEvent.BUS.addListener(EverlastingSkins::onConnectionStart);
         PlaceholderApiHook.tryRegister();
     }
 
