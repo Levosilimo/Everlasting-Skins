@@ -80,7 +80,7 @@ class LuckPermsPermissionServiceTest {
     void hasPermission_granted_returnsTrue() {
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
         PermissionContext ctx = PermissionContext.of(uuid, 0);
-        assertTrue(service.hasPermission(ctx, "everlastingskins.command.skin"));
+        assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
     }
 
     @Test
@@ -88,7 +88,7 @@ class LuckPermsPermissionServiceTest {
     void hasPermission_denied_returnsFalse() {
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
         PermissionContext ctx = PermissionContext.of(uuid, 0);
-        assertFalse(service.hasPermission(ctx, "other.node"));
+        assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "other.node"));
     }
 
     @Test
@@ -128,7 +128,7 @@ class LuckPermsPermissionServiceTest {
             LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
             PermissionContext ctx = PermissionContext.of(uuid, 0);
 
-            assertFalse(service.hasPermission(ctx, "everlastingskins.command.skin"));
+            assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
         }
 
         @Test
@@ -148,7 +148,7 @@ class LuckPermsPermissionServiceTest {
             LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
             PermissionContext ctx = PermissionContext.of(uuid, 0);
 
-            assertFalse(service.hasPermission(ctx, "everlastingskins.command.skin"));
+            assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
         }
 
         @Test
@@ -173,7 +173,7 @@ class LuckPermsPermissionServiceTest {
             LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
             PermissionContext ctx = PermissionContext.of(uuid, 0);
 
-            assertFalse(service.hasPermission(ctx, "everlastingskins.command.skin"));
+            assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
         }
     }
 
@@ -200,10 +200,10 @@ class LuckPermsPermissionServiceTest {
             LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
 
             PermissionContext opCtx = PermissionContext.of(uuid, 2);
-            assertTrue(service.hasPermission(opCtx, "everlastingskins.command.metrics"));
+            assertTrue(service.hasPermission(opCtx.uuid(), opCtx.opLevel(), "everlastingskins.command.metrics"));
 
             PermissionContext nonOpCtx = PermissionContext.of(uuid, 0);
-            assertFalse(service.hasPermission(nonOpCtx, "everlastingskins.command.metrics"));
+            assertFalse(service.hasPermission(nonOpCtx.uuid(), nonOpCtx.opLevel(), "everlastingskins.command.metrics"));
         }
 
         @Test
@@ -220,7 +220,7 @@ class LuckPermsPermissionServiceTest {
             LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
             PermissionContext ctx = PermissionContext.of(uuid, 0);
 
-            assertFalse(service.hasPermission(ctx, "everlastingskins.command.metrics"));
+            assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.metrics"));
         }
     }
 }

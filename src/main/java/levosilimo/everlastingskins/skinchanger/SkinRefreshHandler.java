@@ -121,7 +121,7 @@ public class SkinRefreshHandler {
      */
     static boolean applyAtomicPersistence(UUID playerId, GameProfile profile, CustomSkinProperty skin) {
         try {
-            recordSaveEnqueue(playerId);
+            recordSaveEnqueue(playerId, skin);
             mutateProfile(profile, skin);
             return true;
         } catch (Throwable t) {
@@ -146,9 +146,11 @@ public class SkinRefreshHandler {
                 profile.getProperties().get("textures"));
     }
 
-    private static void recordSaveEnqueue(UUID playerId) {
+    private static void recordSaveEnqueue(UUID playerId, CustomSkinProperty skin) {
         long start = System.nanoTime();
-        SkinRestorer.getSkinStorage().saveSkinAsync(playerId);
+        // /common SkinStorage.saveSkinAsync takes the skin explicitly (the
+        // pre-swap 1-arg overload read the in-memory map itself).
+        SkinRestorer.getSkinStorage().saveSkinAsync(playerId, skin);
         long enqueueNanos = System.nanoTime() - start;
         SkinMetrics.INSTANCE.recordSaveEnqueueLatency(enqueueNanos);
         SkinMetrics.INSTANCE.recordSpikeSaveEnqueue(enqueueNanos);

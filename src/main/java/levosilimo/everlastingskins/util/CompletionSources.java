@@ -107,6 +107,6 @@ public final class CompletionSources {
         ServerPlayer player = source == null ? null : source.getPlayer();
         if (player == null) return true; // console senders bypass the gate
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
-        return PermissionServiceManager.hasPermission(ctx, METRICS_RESET_PERMISSION);
+        return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), METRICS_RESET_PERMISSION);
     }
 }

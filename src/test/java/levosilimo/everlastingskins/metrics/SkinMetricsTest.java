@@ -45,13 +45,13 @@ class SkinMetricsTest {
 
         m.recordRefreshCompleted(uuid, System.nanoTime(), 1_000_000L, 200_000L, 500_000L);
 
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         assertEquals(1, s.refreshesCompleted());
         assertTrue(s.fetchPercentiles().get("p50") >= 1_000);
         assertTrue(s.saveEnqueuePercentiles().get("p50") >= 100);
         assertTrue(s.broadcastPercentiles().get("p50") >= 500);
         assertTrue(s.commandTotalPercentiles().get("p50") >= 0);
-        SkinMetrics.PlayerSnapshot ps = s.perPlayer().get(uuid);
+        PlayerSnapshot ps = s.perPlayer().get(uuid);
         assertNotNull(ps);
         assertEquals(1, ps.refreshCount());
         assertTrue(ps.lastRefreshAtMs() > 0);
@@ -105,7 +105,7 @@ class SkinMetricsTest {
                 fail("interrupted while joining recorder threads");
             }
         }
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         assertEquals(8_000, s.refreshesInitiated());
         assertEquals(8_000, s.refreshesCompleted());
     }
@@ -121,7 +121,7 @@ class SkinMetricsTest {
         m.recordRefreshDebounced(uuid);
         m.recordRateLimited(uuid);
 
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         assertEquals(2, s.refreshesSkipped());
         assertEquals(1, s.refreshesDebounced());
         assertEquals(1, s.refreshesRateLimited());
@@ -151,7 +151,7 @@ class SkinMetricsTest {
         m.recordNetworkDelta(512, 128);
 
         m.reset();
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         assertEquals(0, s.refreshesInitiated());
         assertEquals(0, s.refreshesCompleted());
         assertEquals(0, s.refreshesFailed());
@@ -185,7 +185,7 @@ class SkinMetricsTest {
         m.recordRefreshCompleted(uuid, System.nanoTime(), 100_000L, 0, 0);  // sub-ms command span
         m.recordTaskDuration(TimeUnit.MILLISECONDS.toNanos(200));           // 200ms task
 
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         // Command span elapsed only microseconds; task duration landed in the 200ms band.
         assertTrue(s.commandTotalPercentiles().get("max") < 100_000L);
         assertEquals(250_000L, s.taskDurationPercentiles().get("max"));  // 200ms lands in the 250ms bucket
@@ -201,7 +201,7 @@ class SkinMetricsTest {
         m.recordTimedOut(uuid);
         m.recordTimedOut(uuid);
 
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         assertEquals(1, s.refreshesFailed());
         assertEquals(2, s.refreshesTimedOut());
     }
@@ -217,7 +217,7 @@ class SkinMetricsTest {
         m.recordProviderStatus(403);
         m.recordProviderException();
 
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         assertEquals(2, s.providerHttp429());
         assertEquals(1, s.providerHttp5xx());
         assertEquals(1, s.providerHttp4xxOther());
@@ -233,7 +233,7 @@ class SkinMetricsTest {
         m.recordCacheHit();
         m.recordCacheMiss();
 
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         assertEquals(2, s.cacheHits());
         assertEquals(1, s.cacheMisses());
     }
@@ -249,7 +249,7 @@ class SkinMetricsTest {
         m.recordSpikeSaveEnqueue(TimeUnit.MILLISECONDS.toNanos(55));
         m.recordSpikeBroadcast(10_000L);  // sub-threshold, must not count
 
-        SkinMetrics.Snapshot s = m.snapshot();
+        Snapshot s = m.snapshot();
         assertEquals(1, s.tickSpikes());
         assertEquals(1, s.tickSpikesBroadcast());
         assertEquals(1, s.tickSpikesCascade());

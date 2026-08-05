@@ -376,7 +376,7 @@ class SkinRefreshHandlerTest {
         SkinStorage failing = mock(SkinStorage.class);
         when(failing.getSkin(any(UUID.class))).thenReturn(NEW_SKIN);
         doThrow(new RuntimeException("simulated disk enqueue failure"))
-                .when(failing).saveSkinAsync(any(UUID.class));
+                .when(failing).saveSkinAsync(any(UUID.class), any(CustomSkinProperty.class));
         setStaticField(SkinRestorer.class, "skinStorage", failing);
 
         long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();

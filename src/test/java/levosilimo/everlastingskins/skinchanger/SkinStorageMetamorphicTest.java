@@ -174,7 +174,7 @@ class SkinStorageMetamorphicTest {
                     UUID uuid = UUID.randomUUID();
                     model.put(uuid, value);
                     storage.setSkin(uuid, skin(value));
-                    storage.saveSkinAsync(uuid);
+                    storage.saveSkinAsync(uuid, skin(value));
                 }
                 io.flushPending();
                 assertEquals(model.size(),
@@ -211,7 +211,7 @@ class SkinStorageMetamorphicTest {
                 SkinStorage storage = new SkinStorage(io);
                 UUID uuid = UUID.randomUUID();
                 storage.setSkin(uuid, skin(value));
-                storage.saveSkinAsync(uuid);
+                storage.saveSkinAsync(uuid, skin(value));
                 io.flushPending();
                 storage.removeSkin(uuid);
 
@@ -243,7 +243,7 @@ class SkinStorageMetamorphicTest {
                 UUID uuid = UUID.randomUUID();
                 for (String value : sequence) {
                     storage.setSkin(uuid, skin(value));
-                    storage.saveSkinAsync(uuid);
+                    storage.saveSkinAsync(uuid, skin(value));
                 }
                 io.flushPending();
                 assertLoadedEquals(dir, uuid, sequence.get(sequence.size() - 1));
@@ -272,7 +272,7 @@ class SkinStorageMetamorphicTest {
                 SkinIO io = new SkinIO(dir);
                 SkinStorage storage = new SkinStorage(io);
                 storage.setSkin(op.uuid, skin(op.value));
-                storage.saveSkinAsync(op.uuid);
+                storage.saveSkinAsync(op.uuid, skin(op.value));
                 storage.removeSkin(op.uuid);
                 io.flushPending();
 

@@ -51,3 +51,7 @@ test-infrastructure/headlessmc/
 
 # Agent artifacts
 IMPLEMENTATION_PLAN.md
+
+# Vendored /common module (build artifacts; see common/.gitignore)
+common/build/
+common/.gradle/

@@ -6,6 +6,8 @@ package levosilimo.everlastingskins.skinchanger;
 import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
+import levosilimo.everlastingskins.skinchanger.MineSkinAPI;
+import levosilimo.everlastingskins.skinchanger.MojangAPI;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.MineSkinResponse;
@@ -156,8 +158,8 @@ class SkinActionStoredSourceSkipTest {
     @Test
     @DisplayName("discriminator values are pinned to what the providers store")
     void discriminatorValues_arePinned() {
-        assertEquals(PRODUCTION_MOJANG_SOURCE, SkinActionCommand.SOURCE_MOJANG);
-        assertEquals(PRODUCTION_MINESKIN_SOURCE, SkinActionCommand.SOURCE_MINESKIN);
+        assertEquals(PRODUCTION_MOJANG_SOURCE, MojangAPI.SOURCE_MOJANG);
+        assertEquals(PRODUCTION_MINESKIN_SOURCE, MineSkinAPI.SOURCE_MINESKIN);
     }
 
     @Test
@@ -172,7 +174,7 @@ class SkinActionStoredSourceSkipTest {
                 .getProfile(new ProfileLookup("Notch", UUID.fromString("12345678-1234-1234-1234-123456789abc")));
 
         assertTrue(result.isPresent());
-        assertEquals(SkinActionCommand.SOURCE_MOJANG, result.get().getSource());
+        assertEquals(MojangAPI.SOURCE_MOJANG, result.get().getSource());
         assertEquals("Notch", result.get().getUsername(),
                 "the username used for the lookup must be persisted on the skin");
     }
@@ -231,7 +233,7 @@ class SkinActionStoredSourceSkipTest {
         MineSkinResponse result = new MineSkinApiHttpImpl(client, "").genSkin("https://example.com/skin.png", SkinVariant.CLASSIC);
 
         assertNotNull(result);
-        assertEquals(SkinActionCommand.SOURCE_MINESKIN, result.property().getSource());
+        assertEquals(MineSkinAPI.SOURCE_MINESKIN, result.property().getSource());
         assertNull(result.property().getUsername(),
                 "MineSkin skins have no Mojang username to persist");
     }

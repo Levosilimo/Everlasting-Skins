@@ -1,0 +1,66 @@
+name: lint-no-mixin
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── No-Mixin gate: consumers must stay free of Mixin usage ─────
+  # Mixin policy: forge subprojects contain ZERO Mixin annotations and ZERO
+  # Mixin Gradle plugin usage (mixingradle was dropped — PR #251 — and the
+  # mixins/client/server arrays in everlastingskins.mixins.json are empty).
+  # Required check on the protected 1.21 branch.
+  lint-no-mixin:
+    name: No-Mixin gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - name: Run no-mixin assertion
+        run: |
+          if [ -f common/scripts/assert-no-mixin.sh ]; then
+            # Canonical gate once /common is vendored into this repo (Lane A).
+            bash common/scripts/assert-no-mixin.sh .
+          else
+            # /common is not vendored into this repo yet — mirror the script's
+            # checks inline so the gate is live immediately. Keep in sync with
+            # common/scripts/assert-no-mixin.sh until the vendored path exists.
+            set -u
+            ROOT="$(pwd)"
+            failures=""
+            build_scripts="$(
+              find "$ROOT" -type f \
+                \( -name 'build.gradle' -o -name 'build.gradle.kts' \
+                   -o -name 'settings.gradle' -o -name 'settings.gradle.kts' \
+                   -o -name 'gradle.properties' \) 2>/dev/null \
+                | grep -vE '/build/|/\.gradle/|/node_modules/|/buildSrc/'
+            )"
+            source_files="$(
+              find "$ROOT" -type f \
+                \( -name '*.java' -o -name '*.json' -o -name '*.properties' \) \
+                -path '*/src/*' 2>/dev/null \
+                | grep -vE '/build/|/\.gradle/|/node_modules/'
+            )"
+            fail() {
+              local label="$1" matches="$2"
+              [ -n "$matches" ] && failures="${failures}${label}:\n${matches}\n"
+            }
+            fail "mixingradle classpath reference" \
+              "$(grep -rnF 'org.spongepowered:mixingradle' $build_scripts /dev/null 2>/dev/null)"
+            fail "mixin Gradle plugin id" \
+              "$(grep -rnE "id[ (][\"']org\\.spongepowered\\.mixin" $build_scripts /dev/null 2>/dev/null)"
+            fail "mixin {} block" \
+              "$(grep -rnE '^[[:space:]]*mixin[[:space:]]*\{' $build_scripts /dev/null 2>/dev/null)"
+            fail "Mixin annotation in source" \
+              "$(grep -rnF '@Mixin' $source_files /dev/null 2>/dev/null)"
+            fail "everlastingskins.mixins.json bundling" \
+              "$(grep -rnF 'everlastingskins.mixins.json' $build_scripts $source_files /dev/null 2>/dev/null)"
+            if [ -n "$failures" ]; then
+              printf 'Mixin policy violated:\n%b' "$failures"
+              exit 1
+            fi
+            echo "Mixin check passed: zero @Mixin annotations, zero mixingradle references."
+          fi

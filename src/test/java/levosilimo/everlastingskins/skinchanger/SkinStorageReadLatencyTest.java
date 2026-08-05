@@ -7,7 +7,9 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.metrics.PlayerSnapshot;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.metrics.Snapshot;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,7 +56,7 @@ class SkinStorageReadLatencyTest {
         CustomSkinProperty result = storage.getSkin(uuid);
         assertNotNull(result);
 
-        SkinMetrics.Snapshot s = SkinMetrics.INSTANCE.snapshot();
+        Snapshot s = SkinMetrics.INSTANCE.snapshot();
         // One load-level read (SkinStorage.loadSkin) + one disk-level read (readSkinFile).
         assertEquals(2, s.readsSubmitted());
         assertEquals(2, s.readsCompleted());
@@ -72,7 +74,7 @@ class SkinStorageReadLatencyTest {
         storage.getSkin(uuid);
         storage.getSkin(uuid);
 
-        SkinMetrics.Snapshot s = SkinMetrics.INSTANCE.snapshot();
+        Snapshot s = SkinMetrics.INSTANCE.snapshot();
         assertEquals(0, s.readsSubmitted());
         assertEquals(0, s.readsCompleted());
         assertEquals(0, s.readFailures());

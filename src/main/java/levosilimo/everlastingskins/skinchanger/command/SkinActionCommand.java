@@ -16,6 +16,8 @@ import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.skinchanger.MineSkinAPI;
+import levosilimo.everlastingskins.skinchanger.MojangAPI;
 import levosilimo.everlastingskins.skinchanger.RandomCapeSource;
 import levosilimo.everlastingskins.skinchanger.RandomMojangSkin;
 import levosilimo.everlastingskins.skinchanger.SkinCommand;
@@ -52,10 +54,11 @@ import java.util.concurrent.TimeoutException;
  */
 public final class SkinActionCommand {
 
-    /** Provider-class discriminator stored by MojangApiHttpImpl on every skin it produces. */
-    public static final String SOURCE_MOJANG = "MojangAPI";
-    /** Provider-class discriminator stored by MineSkinApiHttpImpl on every skin it produces. */
-    public static final String SOURCE_MINESKIN = "MineSkin";
+    /**
+     * Provider-class discriminators persisted on skin properties live in
+     * /common with the providers: {@link MojangAPI#SOURCE_MOJANG},
+     * {@link MineSkinAPI#SOURCE_MINESKIN}.
+     */
 
     private static final String FEEDBACK_PREFIX = "§6[EverlastingSkins]§f";
     private static final ScheduledExecutorService skinCommandExecutor =
@@ -107,8 +110,8 @@ public final class SkinActionCommand {
             return 0;
         }
         boolean targetingOthers = targets.stream().anyMatch(t -> !t.equals(selfPlayer));
-        if (!PermissionServiceManager.hasPermission(
-                PermissionContext.of(selfPlayer.getUUID(), selfPlayer),
+        PermissionContext permissionCtx = PermissionContext.of(selfPlayer.getUUID(), selfPlayer);
+        if (!PermissionServiceManager.hasPermission(permissionCtx.uuid(), permissionCtx.opLevel(),
                 resolvePermissionNode(type, targetingOthers))) {
             context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", selfPlayer)));
             return 0;
@@ -161,8 +164,8 @@ public final class SkinActionCommand {
     /**
      * A5: whether the player's stored skin came from the same provider class
      * this username request will hit AND was fetched for the same username.
-     * Stored skins carry a provider-class discriminator (SOURCE_MOJANG /
-     * SOURCE_MINESKIN) plus the username used to fetch them, so the skip only
+     * Stored skins carry a provider-class discriminator (MojangAPI.SOURCE_MOJANG /
+     * MineSkinAPI.SOURCE_MINESKIN) plus the username used to fetch them, so the skip only
      * fires when both match; a Mojang-class skin fetched for a different
      * username is re-fetched (with feedback) instead of silently re-applied.
      * <p>
@@ -184,7 +187,7 @@ public final class SkinActionCommand {
     }
 
     private static boolean storedSourceMatches(@Nullable String storedSource, @Nullable String storedUsername, String requestedUsername) {
-        return SOURCE_MOJANG.equals(storedSource) && Objects.equals(storedUsername, requestedUsername);
+        return MojangAPI.SOURCE_MOJANG.equals(storedSource) && Objects.equals(storedUsername, requestedUsername);
     }
 
     /**
@@ -199,7 +202,7 @@ public final class SkinActionCommand {
         for (ServerPlayer player : targets) {
             SkinStorage storage = SkinRestorer.getSkinStorage();
             String storedUsername = storage.getUsername(player.getUUID());
-            if (SOURCE_MOJANG.equals(storage.getSource(player.getUUID()))
+            if (MojangAPI.SOURCE_MOJANG.equals(storage.getSource(player.getUUID()))
                     && storedUsername != null
                     && !storedUsername.equals(requestedUsername)) {
                 player.sendSystemMessage(Component.literal(FEEDBACK_PREFIX + " "
@@ -384,8 +387,9 @@ public final class SkinActionCommand {
     /** Per-player cooldown plus a sliding per-minute window. */
     private static boolean isRateLimited(ServerPlayer player, CommandContext<CommandSourceStack> context) {
         UUID playerUuid = player.getUUID();
+        PermissionContext permissionCtx = PermissionContext.of(player.getUUID(), player);
         if (player != null && PermissionServiceManager.hasPermission(
-                PermissionContext.of(player.getUUID(), player),
+                permissionCtx.uuid(), permissionCtx.opLevel(),
                 "everlastingskins.bypass.cooldown")) {
             return false;
         }
