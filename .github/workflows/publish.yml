@@ -11,9 +11,11 @@ on:
       - 'mc1.21.4-v*'
       - 'mc1.21.8-v*'
       - 'mc1.12.2-v*'
-      - 'mc1.20.1-v*'
-      - 'mc1.16.5-v*'
-      - 'mcneoforge-*'
+      # mc1.20.1 / mc1.16.5: re-enable tag triggers + matrix entries
+      # below after PR #261 merges (subprojects land in settings.gradle.kts).
+      # - 'mc1.20.1-v*'
+      # - 'mc1.16.5-v*'
+      # NOTE: NeoForge intentionally dropped — no mcneoforge lane.
 
 jobs:
   # ── Per-tag module routing: tag prefix -> Gradle subproject ────
@@ -41,14 +43,18 @@ jobs:
             module: forge-1.21.8
             game-version: "1.21.8"
             java: "21"
-          - prefix: "mc1.20.1-v"
-            module: forge-1.20.1
-            game-version: "1.20.1"
-            java: "17"
-          - prefix: "mc1.16.5-v"
-            module: forge-1.16.5
-            game-version: "1.16.5"
-            java: "8"
+          # NOTE: mc1.20.1 / mc1.16.5 matrix entries commented out —
+          # forge-1.20.1 and forge-1.16.5 are not in settings.gradle.kts
+          # at this PR's head (1.16.5 is on integration via #257;
+          # 1.20.1 lands with PR #261). Re-enable after #261 merges.
+          # - prefix: "mc1.20.1-v"
+          #   module: forge-1.20.1
+          #   game-version: "1.20.1"
+          #   java: "17"
+          # - prefix: "mc1.16.5-v"
+          #   module: forge-1.16.5
+          #   game-version: "1.16.5"
+          #   java: "8"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Set up JDK ${{ matrix.java }}
