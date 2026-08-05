@@ -96,27 +96,36 @@ public class CosmeticaApi {
             return player != null ? player : user;
         }
 
-        /** Whether either account variant carries an external or internal cape. */
+        /**
+         * Whether the account carries a Mojang {@code official} cape: only
+         * {@code externalCape.service == "official"} maps to a Mojang CAPE key
+         * visible in vanilla Forge 1.21 (verified against forgeSrc and the
+         * OptiFine source in lib-25). Other services (optifine,
+         * minecraft-capes, labymod, 5zig, tlauncher, skinmc) are client-mod
+         * only and invisible to vanilla players; {@code internalCape} requires
+         * the Cosmetica Forge mod on the viewing client and is excluded too.
+         */
         public boolean hasCape() {
             Account account = account();
             return account != null
-                    && (account.externalCape() != null || account.internalCape() != null);
+                    && account.externalCape() != null
+                    && "official".equalsIgnoreCase(account.externalCape().service());
         }
 
-        /** Direct cape texture URL (external preferred, then internal), or null. */
+        /**
+         * Direct cape texture URL when the account carries an official Mojang
+         * cape, or null otherwise: non-official services and internal capes
+         * are not visible to vanilla players, so they yield no texture for
+         * our purposes.
+         */
         @Nullable
         public String capeTextureUrl() {
             Account account = account();
-            if (account == null) {
+            if (account == null || account.externalCape() == null
+                    || !"official".equalsIgnoreCase(account.externalCape().service())) {
                 return null;
             }
-            if (account.externalCape() != null && account.externalCape().texture() != null) {
-                return account.externalCape().texture();
-            }
-            if (account.internalCape() != null && account.internalCape().texture() != null) {
-                return account.internalCape().texture();
-            }
-            return null;
+            return account.externalCape().texture();
         }
     }
 
