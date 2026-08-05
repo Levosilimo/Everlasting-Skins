@@ -116,6 +116,6 @@ public final class CompletionSources {
         if (!(sender instanceof EntityPlayerMP)) return true;
         EntityPlayerMP player = (EntityPlayerMP) sender;
         PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
-        return PermissionServiceManager.hasPermission(ctx, node);
+        return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), node);
     }
 }

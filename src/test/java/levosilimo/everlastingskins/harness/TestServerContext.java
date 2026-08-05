@@ -8,6 +8,8 @@ package levosilimo.everlastingskins.harness;
 
 import com.mojang.authlib.GameProfile;
 import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import net.minecraft.command.ServerCommandManager;
@@ -126,6 +128,12 @@ public class TestServerContext implements AutoCloseable {
         setMinecraftHome(tempDir);
         SkinRestorer.onServerStarting(new FMLServerStartingEvent(server));
         storage = SkinRestorer.getSkinStorage();
+        // M2 step 5: PermissionServiceManager (from /common) fails closed until
+        // a backend is registered; production registers vanilla + LuckPerms +
+        // Forge at init. Mirror the vanilla registration so command paths and
+        // permission gates behave like a booted server (idempotent: the
+        // highest-priority registered backend stays active).
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         // Existing tests issue rapid repeated /skin commands from one player;
         // the production cooldown and debounce would reject or skip them.
         Config.RATE_LIMIT_ENABLED = false;

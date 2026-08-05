@@ -9,7 +9,9 @@ package levosilimo.everlastingskins;
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.metrics.MetricsDumper;
 import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
+import levosilimo.everlastingskins.permission.LuckPermsPermissionService;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.util.I18nUtils;
@@ -51,7 +53,16 @@ public class EverlastingSkins {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
-        PermissionServiceManager.init();
+        // M2 step 5: PermissionServiceManager lives in /common as a
+        // registration registry; the hardcoded init() candidate discovery
+        // (vanilla + LuckPerms, highest priority wins) is now this bootstrap.
+        // ForgePermissionService.registerNodes() self-registers (priority 10),
+        // so the active backend is LuckPerms (20) > Forge (10) > Vanilla (0).
+        PermissionServiceManager.registerService(new VanillaPermissionService());
+        LuckPermsPermissionService lp = LuckPermsPermissionService.tryCreate();
+        if (lp != null) {
+            PermissionServiceManager.registerService(lp);
+        }
         ForgePermissionService.registerNodes(event);
     }
 

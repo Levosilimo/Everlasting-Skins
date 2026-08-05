@@ -18,6 +18,7 @@ import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CompletionSources;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
@@ -39,8 +40,12 @@ import java.util.UUID;
 public class SkinCommand extends CommandBase {
     static final String PREFIX = "§6[" + EverlastingSkins.MOD_NAME + "]§f ";
 
-    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
-    private static MojangAPI mojangAPI = new MojangApiHttpImpl();
+    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl(
+        new HttpsUrlConnectionHttpClient(), Config.MINESKIN_API_KEY);
+    // M2 step 5: the /common impls are decoupled from Config — the per-version
+    // wiring (MineSkin API key, Mojang profile-cache flag) is injected here.
+    private static MojangAPI mojangAPI = new MojangApiHttpImpl(
+        MojangEndpoints.DEFAULT, new HttpsUrlConnectionHttpClient(), Config.mojangProfileCacheEnabled);
 
     public static MineSkinAPI getMineSkinAPI() {
         return mineSkinAPI;
@@ -60,8 +65,10 @@ public class SkinCommand extends CommandBase {
     }
 
     static void resetAPIs() {
-        mojangAPI = new MojangApiHttpImpl();
-        mineSkinAPI = new MineSkinApiHttpImpl();
+        mojangAPI = new MojangApiHttpImpl(
+            MojangEndpoints.DEFAULT, new HttpsUrlConnectionHttpClient(), Config.mojangProfileCacheEnabled);
+        mineSkinAPI = new MineSkinApiHttpImpl(
+            new HttpsUrlConnectionHttpClient(), Config.MINESKIN_API_KEY);
     }
 
     @Override
@@ -273,7 +280,7 @@ public class SkinCommand extends CommandBase {
         if (sender instanceof EntityPlayerMP) {
             EntityPlayerMP player = (EntityPlayerMP) sender;
             PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
-            if (!PermissionServiceManager.hasPermission(ctx, node)) {
+            if (!PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), node)) {
                 sender.sendMessage(new TextComponentString(PREFIX
                     + I18nUtils.getLocalizedString("permission_denied", player)));
                 return false;
@@ -332,7 +339,7 @@ public class SkinCommand extends CommandBase {
         if (!(sender instanceof EntityPlayerMP)) return true; // console
         EntityPlayerMP player = (EntityPlayerMP) sender;
         PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
-        if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics")) {
+        if (!PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.metrics")) {
             sender.sendMessage(new TextComponentString(PREFIX
                 + I18nUtils.getLocalizedString("permission_denied", player)));
             return false;
@@ -344,7 +351,7 @@ public class SkinCommand extends CommandBase {
         if (!(sender instanceof EntityPlayerMP)) return true; // console
         EntityPlayerMP player = (EntityPlayerMP) sender;
         PermissionContext ctx = PermissionContext.of(player.getUniqueID(), player);
-        if (!PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics.reset")) {
+        if (!PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.metrics.reset")) {
             sender.sendMessage(new TextComponentString(PREFIX
                 + I18nUtils.getLocalizedString("permission_denied", player)));
             return false;

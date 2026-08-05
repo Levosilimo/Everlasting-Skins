@@ -87,8 +87,8 @@ class SkinActionStoredSourceSkipTest {
     @Test
     @DisplayName("discriminator values are pinned to what the providers store")
     void discriminatorValues_arePinned() {
-        assertEquals(PRODUCTION_MOJANG_SOURCE, SkinAction.SOURCE_MOJANG);
-        assertEquals(PRODUCTION_MINESKIN_SOURCE, SkinAction.SOURCE_MINESKIN);
+        assertEquals(PRODUCTION_MOJANG_SOURCE, MojangAPI.SOURCE_MOJANG);
+        assertEquals(PRODUCTION_MINESKIN_SOURCE, MineSkinAPI.SOURCE_MINESKIN);
     }
 
     @Test
@@ -135,12 +135,12 @@ class SkinActionStoredSourceSkipTest {
     void mineSkinClassSource_doesNotTriggerSkip() {
         CustomSkinProperty mineSkinShaped = new CustomSkinProperty("textures",
             TestProperties.NOTCH.getOriginalProperty().getValue(),
-            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MINESKIN);
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), MineSkinAPI.SOURCE_MINESKIN);
         fake.addSkin("Notch", mineSkinShaped);
         EntityPlayerMP alice = ctx.newPlayer("Alice");
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
-        assertTrue(AsyncSupport.await(5000, () -> SkinAction.SOURCE_MINESKIN.equals(sourceOf(alice))),
+        assertTrue(AsyncSupport.await(5000, () -> MineSkinAPI.SOURCE_MINESKIN.equals(sourceOf(alice))),
             "first dispatch must store the MineSkin-class skin");
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
@@ -171,9 +171,9 @@ class SkinActionStoredSourceSkipTest {
     void differentUsernameMojangSkin_fetchesFresh() {
         CustomSkinProperty mojangShapedNotch = new CustomSkinProperty("textures",
             TestProperties.NOTCH.getOriginalProperty().getValue(),
-            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MOJANG, "Notch");
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), MojangAPI.SOURCE_MOJANG, "Notch");
         CustomSkinProperty jebSkin = new CustomSkinProperty("textures", JEB_VALUE,
-            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MOJANG, "Jeb_");
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), MojangAPI.SOURCE_MOJANG, "Jeb_");
         fake.addSkin("Notch", mojangShapedNotch).addSkin("Jeb_", jebSkin);
         EntityPlayerMP alice = ctx.newPlayer("Alice");
 

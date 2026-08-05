@@ -48,10 +48,10 @@ final class SkinAction {
     static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(
         Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
 
-    /** Source-class discriminator persisted on Mojang-sourced skin properties. */
-    static final String SOURCE_MOJANG = "MojangAPI";
-    /** Source-class discriminator persisted on MineSkin-sourced skin properties. */
-    static final String SOURCE_MINESKIN = "MineSkin";
+    /**
+     * Source-class discriminators persisted on skin properties live in /common
+     * with the providers: MojangAPI.SOURCE_MOJANG, MineSkinAPI.SOURCE_MINESKIN.
+     */
 
     /** Per-UUID last refresh timestamps for the debounce window. */
     private static final ConcurrentHashMap<UUID, Long> lastRefreshByPlayer = new ConcurrentHashMap<>();
@@ -229,7 +229,7 @@ final class SkinAction {
      * would use AND was fetched for the same username, skip the fetch and
      * re-apply the stored skin.
      * <p>
-     * Providers persist a source-class discriminator ({@link #SOURCE_MOJANG})
+     * Providers persist a source-class discriminator ({@link MojangAPI#SOURCE_MOJANG})
      * plus the username used to fetch the skin, so the skip fires only when
      * both match the incoming request. A Mojang-class skin fetched for a
      * different username is re-fetched (with feedback) instead of silently
@@ -249,7 +249,7 @@ final class SkinAction {
             SkinStorage storage = SkinRestorer.getSkinStorage();
             CustomSkinProperty stored = storage.getSkin(p.getUniqueID());
             return stored != null
-                    && SOURCE_MOJANG.equals(stored.getSource())
+                    && MojangAPI.SOURCE_MOJANG.equals(stored.getSource())
                     && customSource.equals(stored.getUsername());
         });
     }
@@ -268,7 +268,7 @@ final class SkinAction {
         for (EntityPlayerMP p : targets) {
             CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(p.getUniqueID());
             if (stored != null
-                    && SOURCE_MOJANG.equals(stored.getSource())
+                    && MojangAPI.SOURCE_MOJANG.equals(stored.getSource())
                     && stored.getUsername() != null
                     && !customSource.equals(stored.getUsername())) {
                 p.sendMessage(new TextComponentString(SkinCommand.PREFIX
@@ -290,8 +290,8 @@ final class SkinAction {
 
     /** Per-player cooldown plus a sliding per-minute window. */
     private static boolean isRateLimited(EntityPlayerMP sender) {
-        if (PermissionServiceManager.hasPermission(
-                PermissionContext.of(sender.getUniqueID(), sender),
+        PermissionContext ctx = PermissionContext.of(sender.getUniqueID(), sender);
+        if (PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(),
                 "everlastingskins.bypass.cooldown")) {
             return false;
         }

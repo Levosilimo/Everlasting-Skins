@@ -182,7 +182,7 @@ class SkinActionGuardsIT {
         // skip must fire only when both match the request.
         CustomSkinProperty mojangShaped = new CustomSkinProperty("textures",
             TestProperties.NOTCH.getOriginalProperty().getValue(),
-            TestProperties.NOTCH.getOriginalProperty().getSignature(), SkinAction.SOURCE_MOJANG, "Notch");
+            TestProperties.NOTCH.getOriginalProperty().getSignature(), MojangAPI.SOURCE_MOJANG, "Notch");
         fake.addSkin("Notch", mojangShaped);
         EntityPlayerMP alice = ctx.newPlayer("Alice");
         List<Packet<?>> global = new CopyOnWriteArrayList<>();
@@ -192,7 +192,7 @@ class SkinActionGuardsIT {
         }).when(ctx.playerList).sendPacketToAllPlayers(any(Packet.class));
 
         ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
-        assertTrue(AsyncSupport.await(5000, () -> SkinAction.SOURCE_MOJANG.equals(sourceOf(alice))),
+        assertTrue(AsyncSupport.await(5000, () -> MojangAPI.SOURCE_MOJANG.equals(sourceOf(alice))),
             "first dispatch must store the skin");
         assertTrue(AsyncSupport.await(5000, () -> global.size() >= 2),
             "first dispatch must broadcast the REMOVE+ADD pair");
