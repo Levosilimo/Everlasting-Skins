@@ -239,7 +239,7 @@ class SkinCommandTabCompleteTest {
         when(player.getUUID()).thenReturn(PLAYER_UUID);
         MinecraftServer server = mock(MinecraftServer.class);
         when(server.getProfilePermissions(any())).thenReturn(opLevel);
-        setField(player, "server", server);
+        when(player.getServer()).thenReturn(server);
 
         CommandSourceStack source = mock(CommandSourceStack.class);
         when(source.getPlayer()).thenReturn(player);

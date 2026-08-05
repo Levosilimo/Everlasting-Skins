@@ -55,8 +55,8 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
     }
 
     private void broadcastInternal(ServerPlayer target, ServerPlayer[] explicitObservers) {
-        PlayerList playerlist = target.server.getPlayerList();
-        ServerLevel serverLevel = target.serverLevel();
+        PlayerList playerlist = target.getServer().getPlayerList();
+        ServerLevel serverLevel = target.level();
         ResourceKey<Level> dimension = serverLevel.dimension();
         Packet<ClientGamePacketListener> removePacket =
             new ClientboundPlayerInfoRemovePacket(List.of(target.getUUID()));
@@ -73,7 +73,7 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
             if (explicitObservers != null) {
                 for (ServerPlayer observer : explicitObservers) {
                     if (Config.DIMENSION_SCOPED_BROADCAST.get()
-                            && !observer.serverLevel().dimension().equals(dimension)) {
+                            && !observer.level().dimension().equals(dimension)) {
                         continue;
                     }
                     observer.connection.send(bundle);
@@ -86,7 +86,7 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
         } else if (explicitObservers != null) {
             for (ServerPlayer observer : explicitObservers) {
                 if (Config.DIMENSION_SCOPED_BROADCAST.get()
-                        && !observer.serverLevel().dimension().equals(dimension)) {
+                        && !observer.level().dimension().equals(dimension)) {
                     continue;
                 }
                 observer.connection.send(removePacket);

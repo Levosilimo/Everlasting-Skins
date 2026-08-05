@@ -512,7 +512,7 @@ class SkinRefreshHandlerTest {
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getUUID()).thenReturn(uuid);
         when(player.getGameProfile()).thenReturn(new GameProfile(uuid, name));
-        when(player.serverLevel()).thenReturn(level);
+        when(player.level()).thenReturn(level);
         when(player.level()).thenReturn(level);
         when(player.position()).thenReturn(Vec3.ZERO);
         when(player.getYRot()).thenReturn(0f);
@@ -530,7 +530,7 @@ class SkinRefreshHandlerTest {
         // because Mockito skips constructors).
         ServerGamePacketListenerImpl connection = mock(ServerGamePacketListenerImpl.class);
         setField(player, "connection", connection);
-        setField(player, "server", server);
+        when(player.getServer()).thenReturn(server);
         ServerPlayerGameMode gameMode = mock(ServerPlayerGameMode.class);
         when(gameMode.getGameModeForPlayer()).thenReturn(GameType.SURVIVAL);
         setField(player, "gameMode", gameMode);
@@ -563,7 +563,7 @@ class SkinRefreshHandlerTest {
         return new CommonPlayerSpawnInfo(
                 mock(Holder.class), level.dimension(), 0L,
                 GameType.SURVIVAL, GameType.SURVIVAL,
-                false, false, Optional.empty(), 0);
+                false, false, Optional.empty(), 0, 0);
     }
 
     private static void assertCascadeOrder(List<Object> stream) {
