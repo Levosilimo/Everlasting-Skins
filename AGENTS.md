@@ -1,65 +1,56 @@
-# EverlastingSkins agent guide
+# AGENTS.md — multi-module workflow
 
-## Product direction
+## Layout & build
 
-- Treat this as a small server-side Minecraft Forge mod, not a general platform.
-- The defensible niche is persistent custom skins on pure Forge legacy servers without a client mod. Validate that niche on Minecraft 1.12.2 before funding broader ports.
-- Preserve `1.21` as the behavioral and architectural reference. Do not compete broadly on modern loaders. Established modern skin mods already cover Forge, NeoForge, Fabric, and Quilt better.
-- Keep Mojang-name skins, MineSkin URL skins, persistence, clear/reset, and source reporting. Do not make the fragile `mskins.net` HTML scraper the product identity.
-- Do not start a cross-era multi-module build. Use one branch per materially different Minecraft era, annotated tags for releases, and worktrees for parallel local work. Add another supported branch only after measured demand.
-- Initial release tags should identify both targets, for example `mc1.12.2-v0.1.0-beta.1`.
+One Gradle root (9.3.1) for the Forge line. Modules:
 
-## Current branch
+- `:common` — version-independent core, `--release 8`. NEVER add a forge
+  binding here; never raise the release level. Consumer of last resort:
+  every `forge-*` module and (future) the 1.12.2 lane.
+- `:forge-1.21`, `:forge-1.21.1`, `:forge-1.21.4`, `:forge-1.21.8` —
+  thin binding layers applying `everlastingskins.forge-module`; MC/Forge
+  versions live in each subproject's `gradle.properties`.
+- `mc1.12.2/` — NOT a subproject (FG 2.3.4 needs Gradle 4.x + Java 8). It
+  stays on its own wrapper, builds out-of-band, consumes `:common` via
+  filePath when ported.
 
-- The checked-in code is the Forge 1.21 implementation. `EverlastingSkins` registers common config and `SkinRestorer`; `SkinRestorer` initializes per-server JSON storage; `SkinRefreshHandler` applies and saves skins; `CommandRegistrationHandler` registers `/skin` via `RegisterCommandsEvent`. There is no `MixinPlayerManager`; `mixin/server/MixinCommandManager.java` exists but is intentionally unused (command registration moved to events).
-- Skin refresh is server-only and relies on profile mutation plus version-specific reconnect-style packets. Do not replace it with an unverified packet shortcut. Real client/server testing is required.
-- Prefer stable Forge/FML lifecycle events over Mixins when the target version exposes the required timing. Use narrow Mixins when events cannot preserve behavior. Access transformers and reflection do not replace hook injection; raw ASM is the last fallback.
+## Convention plugins (`buildSrc/src/main/kotlin/`)
 
-## Build facts and traps
+- `everlastingskins.forge-module.gradle.kts` — FG 7.x + Java 21 toolchain.
+  All forge build logic lives here; subproject build scripts are just
+  `plugins { id("everlastingskins.forge-module") }`. Parameterization is via
+  gradle.properties, never via editing build scripts.
+- `everlastingskins.java8-forge-module.gradle.kts` — stub for 1.16.5/1.20.1
+  (Java 8 source, FG 5.1+/6.x). Reconcile its `minecraft {}` block against
+  the FG6 API when the port starts.
 
-- Current configuration targets Minecraft `1.21`, Forge `51.0.8`, Java 21, Gradle 8.8, ForgeGradle 6, official mappings, and Mixin `0.8.5` annotation processing.
-- Build with the repository wrapper. The current `gradlew` is LF-encoded and executable. Build with `./gradlew build`.
-- CI runs on every push to `1.21` and `mc1.12.2` branches: lint (yamllint) + build + unit tests (JUnit 5). 1.21 additionally runs GameTest (34 tests via `runGameTestServer`, mock-player + real packet assertions); mc1.12.2 additionally runs a bash server-log smoke E2E (`run-e2e.sh` + `assert-skin-property.sh`, Mojang endpoints stubbed with WireMock — no HeadlessMC scenarios).
-- `gradle.properties` contains stale metadata (`minecraft_version_range`, `curse_versions`, placeholder description, broad loader/Forge ranges). Treat executable dependency coordinates in `build.gradle` as authoritative until metadata is reconciled.
-- The local Qartez index currently points at another workspace. If Qartez returns paths such as `neodeal/` or `ik_llama.cpp`, stop and re-index this repository rather than trusting impact or dependency results.
+## Rules
 
-## Verification direction
+1. **No source edits in scaffold land.** Ports are separate PRs: move
+   version-independent classes into `:common`, keep bindings in the
+   `forge-*` module, then delete the moved copy from the module.
+2. **`:common` is frozen at `--release 8`** with `-Werror`. Compile it with
+   `./gradlew :common:build`; if it fails, fix it before touching forge
+   modules.
+3. **No mixingradle** anywhere. Mixins are annotation-processor + jar
+   manifest only.
+4. **No new dependencies without a lane decision** — same Maven deps as the
+   legacy 1.21/mc1.12.2 builds (gson, authlib, log4j-api arrive transitively
+   on Minecraft classpaths).
+5. **Point-release parity:** keep `forge-1.21.x` gradle.properties versions
+   in sync with the tags (`mc1.21.x-v2.1.0-rc1` etc.). Verify against git
+   history before changing.
+6. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
+   out-of-band; changes there are reviewed against the shared `:common`
+   contract, not against this build.
 
-- Start with pure Java tests for provider fallback, HTTP outcomes, texture decoding, persistence, and cache behavior. Use a local fake HTTP server; never use live Mojang or MineSkin responses as deterministic tests.
-- Minecraft GameTest is useful only on modern versions for server loading, commands, and server-side integration. It does not test authenticated login, skin rendering, client texture caching, or reconnect packet behavior.
-- The 1.12.2 viability gate is a real Forge server/client test: apply a skin, verify another client sees it, reconnect, restart the server, and verify persistence.
-- Keep per-player JSON unless measured requirements justify a database. Make writes atomic and handle corrupt records before changing storage technology.
+## Verification
 
-## Porting policy
+```bash
+./gradlew :common:build        # fast gate after :common changes
+./gradlew :forge-1.21:build    # full forge module (slow; downloads userdev)
+./gradlew build                # whole Forge line
+```
 
-- First target: `1.12.2`. Consider `1.7.10`, `1.16.5`, or `1.18.2` only after user demand and maintenance cost are measured.
-- Do not restore `1.13`-`1.15`, `1.17.1`, `1.19.x`, or `1.20.2` merely because historical branches exist.
-- Keep portable fixes in narrow commits and cherry-pick them between supported branches. Use `Backport-of: <commit>` when the implementation must differ.
-- Do not merge incompatible Minecraft-version branches. Their Java, Gradle, mappings, Forge APIs, packet classes, metadata, and Mixin targets differ.
-- Introduce shared modules or preprocessing only after at least two supported targets demonstrate enough repeated code and porting cost to justify it. Architectury solves modern loader portability, not legacy Minecraft-version compatibility.
-
-## Pre-commit quality gate
-
-- The repo uses `aislop` as a tracked pre-commit hook at `.githooks/pre-commit`, wired via `git config core.hooksPath .githooks`. After cloning, run `git config core.hooksPath .githooks` once to activate.
-- The hook runs `aislop scan --staged` and surfaces findings (god-files, god-functions, deeply nested branches, swallowed exceptions, narrative comments, hardcoded URLs/IDs, FizzBuzz-Enterprise-style overengineering) at commit time. Warnings do not block commits by default; treat them as review signals.
-- `aislop` is fetched on demand by `bunx` (fallback `npx`). No `package.json` or `node_modules` in the repo. If neither runner is on PATH, the hook logs and exits 0.
-- Use `aislop fix` to auto-apply mechanical fixes (unused imports, narrative comments, formatter drift). Use `aislop rules` for the full rule catalog. Use `git commit --no-verify` only when intentionally bypassing the gate.
-- CI enforces the same gate: job `aislop (1.21)` in `.github/workflows/ci.yml` runs `npx aislop ci --changes --base origin/1.21` on every PR and push, failing when the score drops below 100. Branch protection registration is pending: the gate fails PR CI but is not yet a required check; the local hook and the CI gate use the same scanner.
-
-## PR Verification Protocol
-
-- Never merge an implementation PR solely on the fixer's own completion report. A fixer's "merged" claim must be independently verified before it is trusted (a fixer once reported a test PR merged when it was only opened, and the tests verified framework mechanics instead of the real mod flow).
-- After a fixer reports a PR merged, verify independently:
-  1. `gh pr view <PR> --json state,merged` — confirm `state == "MERGED"`, not merely `closed`.
-  2. `git log origin/<branch> --oneline | head -5` — confirm the PR's commit SHA is actually on the protected branch.
-  3. Dispatch a separate librarian or oracle session to audit the implementation: what production code is actually exercised (vs bypassed), whether assertions verify behavior rather than framework mechanics, whether coverage matches stated intent, whether edge cases and error paths are covered, and whether claimed features (commands, integrations, scenarios) are real rather than stubs.
-- Only after the independent auditor finds no major gaps may the PR be merged.
-- Specifically for test PRs: tests must exercise the real mod flow (command dispatch, permission gating, async provider calls, persistence round-trip) — not just framework mechanics such as mock player creation, channel drain, and packet shape assertions.
-
-## Iterative fix-audit-refix-reaudit workflow
-
-- Plan implementation with non-overlapping lanes in isolated worktrees. Each lane owns a disjoint file set; no two lanes touch the same file.
-- One fixer per lane, with frequent logical commits and clear file ownership so lanes stay independently reviewable.
-- After each substantial implementation round, a read-only librarian audits the lane's changes. Findings are reconciled inside the originating lane by that lane's fixer — never by a different lane.
-- Re-audit the same scope after fixes; the lane is not done until the auditor gives an explicit "CLEAN".
-- Merge via GitHub merge commits in dependency order with strict checks. Never use `--admin` bypass, never delete branches, and never force push.
+CI (`ci.yml`) is still the old single-module workflow — rework into a
+per-module matrix is a tracked follow-up; do not rely on it for this branch.
