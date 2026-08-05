@@ -27,6 +27,14 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 public class SkinIO {
@@ -54,6 +62,31 @@ public class SkinIO {
     private static final int CHECKSUM_MISMATCH = 1;
     /** {@link #checksumStatus(String)} result: record carries no marker (legacy format). */
     private static final int CHECKSUM_ABSENT = 2;
+
+    /**
+     * Single-thread writer so per-UUID writes are serialized; latest payload
+     * per UUID wins (coalescing). Daemon thread so it never blocks shutdown.
+     * Lazily (re)created: a shutdown (e.g. ServerStoppingEvent in tests or a
+     * reload) must not permanently kill the writer for subsequent saves.
+     */
+    private static ScheduledExecutorService writer;
+
+    private static final long DRAIN_DEBOUNCE_MS = 50;
+    private static final AtomicBoolean drainScheduled = new AtomicBoolean();
+
+    private static synchronized ScheduledExecutorService writer() {
+        if (writer == null || writer.isShutdown()) {
+            writer = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "EverlastingSkins-IO");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        return writer;
+    }
+
+    /** Latest serialized payload per UUID awaiting the writer thread. */
+    private final ConcurrentHashMap<UUID, byte[]> pendingWrites = new ConcurrentHashMap<>();
 
     private final Path savePath;
 
@@ -92,23 +125,155 @@ public class SkinIO {
     }
 
     /**
-     * Deletes the skin file. Failures propagate so the caller can keep the
+     * Deletes the skin file, serialized through the single writer thread.
+     * The deferred payload is dropped first so a drain that has not started
+     * yet skips this UUID, and an in-flight drain that already pulled the
+     * payload completes its write BEFORE the delete runs (single writer
+     * thread) — a cleared skin can never be resurrected by a stale write
+     * landing after the delete (write-after-delete race). Blocks until the
+     * delete has landed. Failures propagate so the caller can keep the
      * in-memory state in lockstep with the disk instead of dropping the map
      * entry while the file survives (later reload resurrects the skin).
      */
     public void deleteSkin(UUID uuid) throws IOException {
+        pendingWrites.remove(uuid);
+        try {
+            writer().submit(() -> {
+                deleteSkinFile(uuid);
+                return null;
+            }).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException) {
+                throw (IOException) cause;
+            }
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new IOException("Skin delete of " + uuid + " failed", cause);
+        } catch (TimeoutException e) {
+            throw new IOException("Skin delete of " + uuid + " timed out after 5s", e);
+        }
+    }
+
+    private void deleteSkinFile(UUID uuid) throws IOException {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
         if (Files.deleteIfExists(target)) {
             EverlastingSkins.logger.info("Deleted skin file for {}", uuid);
         }
     }
 
+    /**
+     * Synchronous save for back-compat: merges the payload and blocks until
+     * the writer thread has drained it, so all writes are serialized through
+     * the single writer thread (no temp-file races).
+     */
     public void saveSkin(UUID uuid, CustomSkinProperty skin) {
-        saveSkin(uuid, JsonUtils.toJson(skin).getBytes(StandardCharsets.UTF_8));
+        merge(uuid, skin);
+        drainScheduled.set(false);
+        try {
+            writer().submit(this::drainPending).get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            EverlastingSkins.logger.warn("SkinIO save did not complete in time", e);
+        }
     }
 
     /**
-     * Atomic write of a pre-serialized payload from the SkinStorage async drain.
+     * Coalescing async save: merges the payload into the pending map and
+     * schedules a single drain after a 50ms debounce window, so burst updates
+     * for the same UUID collapse into one disk write. The returned future
+     * completes once the payload has been merged (the write itself happens on
+     * the writer thread).
+     */
+    public CompletableFuture<Void> saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
+        merge(uuid, skin);
+        scheduleDrain();
+        return CompletableFuture.completedFuture(null);
+    }
+
+    private void merge(UUID uuid, CustomSkinProperty skin) {
+        byte[] payload = JsonUtils.toJson(skin).getBytes(StandardCharsets.UTF_8);
+        boolean superseded = pendingWrites.put(uuid, payload) != null;
+        if (superseded) {
+            SkinMetrics.INSTANCE.recordSaveCoalesced();
+            SkinMetrics.INSTANCE.recordSaveCompleted();
+        }
+        SkinMetrics.INSTANCE.recordSaveSubmitted();
+    }
+
+    private void scheduleDrain() {
+        if (drainScheduled.getAndSet(true)) return;
+        try {
+            writer().schedule(this::drainPending, DRAIN_DEBOUNCE_MS, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            EverlastingSkins.logger.warn("SkinIO drain schedule failed", e);
+        }
+    }
+
+    /** Writes every pending payload once; superseded payloads were dropped at merge time. */
+    private void drainPending() {
+        try {
+            for (UUID uuid : pendingWrites.keySet()) {
+                byte[] payload = pendingWrites.remove(uuid);
+                if (payload == null) continue;
+                long start = System.nanoTime();
+                saveSkin(uuid, payload);
+                SkinMetrics.INSTANCE.recordSaveDiskLatency(System.nanoTime() - start);
+                SkinMetrics.INSTANCE.recordRealWrite();
+                SkinMetrics.INSTANCE.recordSaveCompleted();
+            }
+        } finally {
+            // Reset the latch so future saveSkinAsync calls schedule again. If new
+            // writes arrived during this drain, schedule the next drain immediately
+            // (covers the race between reset and the next saveSkinAsync).
+            drainScheduled.set(false);
+            if (!pendingWrites.isEmpty()) {
+                scheduleDrain();
+            }
+        }
+    }
+
+    /**
+     * Blocks until all queued writes have been drained. Called synchronously
+     * on logout and shutdown.
+     */
+    public void flushPending() {
+        drainScheduled.set(false);
+        try {
+            writer().submit(this::drainPending).get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            EverlastingSkins.logger.warn("SkinIO flush did not complete in time", e);
+        }
+    }
+
+    /**
+     * True while payloads are still queued for the drain-coalesce writer.
+     * Lets tests (and shutdown paths) wait for disk quiescence instead of
+     * racing the 50ms debounce window.
+     */
+    public boolean hasPendingWrites() {
+        return !pendingWrites.isEmpty();
+    }
+
+    /** Shuts down the writer thread, awaiting in-flight writes. The writer is
+     *  recreated on demand by the next save (see {@link #writer()}). */
+    public static void shutdown() {
+        if (writer == null) return;
+        writer.shutdown();
+        try {
+            writer.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        writer = null;
+    }
+
+    /**
+     * Atomic write of a pre-serialized payload. This is the drain's write
+     * hook: package-private so tests can substitute a blocking writer and
+     * hold a drain in flight deterministically.
      */
     void saveSkin(UUID uuid, byte[] payload) {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
