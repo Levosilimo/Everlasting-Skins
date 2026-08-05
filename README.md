@@ -61,7 +61,9 @@ cd mc1.12.2 && ./gradlew build   # Gradle 4.10.3 wrapper, Java 8
   (Lane B's in-flight lift; the two copies intentionally diverge until the
   port reconciles them).
 - **No mixingradle:** the convention plugin applies mixin annotation
-  processing + jar-manifest attributes only (Lane C).
+  processing + jar-manifest attributes only (Lane C). Enforced by the
+  `verifyNoMixin` gate in `buildSrc/` (`no-mixin.gradle.kts`, ported from the
+  parent's `common/build-logic`), which fails the build on any Mixin usage.
 - **CI:** `.github/workflows/` still targets the old single-module layout and
   is NOT green on this branch; the module-matrix CI rework is a follow-up
   (see AGENTS.md).

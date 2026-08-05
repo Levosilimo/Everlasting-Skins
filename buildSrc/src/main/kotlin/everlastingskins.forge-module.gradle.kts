@@ -18,6 +18,9 @@ plugins {
     `maven-publish`
     jacoco
     id("net.minecraftforge.gradle")
+    // no-mixin gate (buildSrc): registers verifyNoMixin, wired into `build`.
+    // Any subproject applying this convention gets the Mixin-usage gate.
+    id("no-mixin")
 }
 
 // NOTE: property reads here use project.findProperty (NOT

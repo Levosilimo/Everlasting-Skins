@@ -23,6 +23,12 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 - `everlastingskins.java8-forge-module.gradle.kts` — stub for 1.16.5/1.20.1
   (Java 8 source, FG 5.1+/6.x). Reconcile its `minecraft {}` block against
   the FG6 API when the port starts.
+- `no-mixin.gradle.kts` — the Mixin-usage gate (port from the parent's
+  `common/build-logic`, M2 step 2). Registers `verifyNoMixin` (fails the
+  build on `@Mixin` annotations, mixingradle, the mixin plugin id, `mixin {}`
+  blocks, or mixins.json bundling) and wires it into `build`. Applied by
+  `everlastingskins.forge-module`, `everlastingskins.java8-forge-module` and
+  `:common` itself; new forge convention plugins must apply it too.
 
 ## Rules
 
@@ -33,7 +39,8 @@ One Gradle root (9.3.1) for the Forge line. Modules:
    `./gradlew :common:build`; if it fails, fix it before touching forge
    modules.
 3. **No mixingradle** anywhere. Mixins are annotation-processor + jar
-   manifest only.
+   manifest only. Enforced by the `verifyNoMixin` gate (buildSrc
+   `no-mixin.gradle.kts`) on every forge module and `:common`.
 4. **No new dependencies without a lane decision** — same Maven deps as the
    legacy 1.21/mc1.12.2 builds (gson, authlib, log4j-api arrive transitively
    on Minecraft classpaths).
