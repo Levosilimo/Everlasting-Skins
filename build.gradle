@@ -34,18 +34,14 @@ minecraft {
 }
 
 // M2 step 5: compile the shared /common module's sources directly into this
-// jar (filePath sourceSet pattern, no mavenLocal sequencing) so /common
-// updates flow automatically. Resolution order: sibling of the main checkout
-// (../common), then sibling of an isolated worktree (../../../common, i.e.
-// .trees/<branch>/). The module lives at /home/levosilimo/code/Everlasting-Skins/common.
-def commonSourceDir = file('../common/src/main/java')
-if (!commonSourceDir.exists()) {
-    commonSourceDir = file('../../../common/src/main/java')
-}
+// jar (filePath sourceSet pattern, no mavenLocal sequencing). The module is
+// vendored in-branch under common/ (see common/README.md), so it resolves
+// relative to the checkout root and works in CI and isolated worktrees alike.
+def commonSourceDir = file('common/src/main/java')
 if (!commonSourceDir.exists()) {
     throw new GradleException(
-        'Common module sources not found: expected ../common/src/main/java or ' +
-        '../../../common/src/main/java (the /common module is a sibling directory; see common/README.md)')
+        'Common module sources not found: expected common/src/main/java ' +
+        '(the module is vendored in-branch under common/; see common/README.md)')
 }
 
 sourceSets {
