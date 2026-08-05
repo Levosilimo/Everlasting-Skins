@@ -95,10 +95,10 @@ public class ForgePermissionService implements IPermissionService {
         // Prefer the live permission of the online player (PermissionAPI consults
         // the registered handler, so non-op grants are honored — not just ops).
         ServerPlayer player = resolvePlayer(context.uuid());
-        if (player != null) {
-            return PermissionAPI.getPermission(player, node);
-        }
         try {
+            if (player != null) {
+                return PermissionAPI.getPermission(player, node);
+            }
             return PermissionAPI.getOfflinePermission(context.uuid(), node);
         } catch (Exception e) {
             return new VanillaPermissionService().hasPermission(context, permissionNode);
