@@ -11,8 +11,13 @@ on:
       - 'mc1.21.4-v*'
       - 'mc1.21.8-v*'
       - 'mc1.12.2-v*'
-      # mc1.20.1 / mc1.16.5: re-enable tag triggers + matrix entries
-      # below after PR #261 merges (subprojects land in settings.gradle.kts).
+      # mc1.20.1 / mc1.16.5: tag triggers + matrix entries stay commented
+      # until both lanes reach SOURCE-COMPLETE state. PR #261 landed the
+      # subprojects in settings.gradle.kts, but they are scaffold-only
+      # (no main-source carry-over): a publish run on these tags would fail
+      # :forge-1.20.1:build / :forge-1.16.5:build and ship no jar. ENABLE
+      # the tag triggers AND the matrix entries together, once those builds
+      # produce a real jar.
       # - 'mc1.20.1-v*'
       # - 'mc1.16.5-v*'
       # NOTE: NeoForge intentionally dropped — no mcneoforge lane.
@@ -43,10 +48,11 @@ jobs:
             module: forge-1.21.8
             game-version: "1.21.8"
             java: "21"
-          # NOTE: mc1.20.1 / mc1.16.5 matrix entries commented out —
-          # forge-1.20.1 and forge-1.16.5 are not in settings.gradle.kts
-          # at this PR's head (1.16.5 is on integration via #257;
-          # 1.20.1 lands with PR #261). Re-enable after #261 merges.
+          # mc1.20.1 / mc1.16.5 matrix entries stay commented: the
+          # subprojects are scaffold-only until the partial ports complete
+          # (main-source carry-over). Re-enable once :forge-1.20.1:build
+          # and :forge-1.16.5:build pass and produce a jar with mod
+          # classes — not just resources.
           # - prefix: "mc1.20.1-v"
           #   module: forge-1.20.1
           #   game-version: "1.20.1"
