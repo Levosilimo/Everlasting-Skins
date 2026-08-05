@@ -24,6 +24,8 @@ import net.minecraft.network.protocol.game.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.PlayerList;
+import net.minecraft.world.entity.PositionMoveRotation;
+import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -184,7 +186,7 @@ public class SkinRefreshHandler {
 
         player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), ClientboundRespawnPacket.KEEP_ALL_DATA));
         player.absMoveTo(x, y, z, yaw, pitch);
-        player.connection.send(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0));
+        player.connection.send(new ClientboundPlayerPositionPacket(0, new PositionMoveRotation(new Vec3(x, y, z), Vec3.ZERO, yaw, pitch), Collections.emptySet()));
         playerlist.sendLevelInfo(player, serverLevel);
         playerlist.sendPlayerPermissionLevel(player);
         playerlist.sendAllPlayerInfo(player);
@@ -193,7 +195,7 @@ public class SkinRefreshHandler {
         playerlist.sendActivePlayerEffects(player);
 
         SkinMetrics.INSTANCE.recordSpikeCascade(System.nanoTime() - start);
-        SkinMetrics.INSTANCE.recordBroadcast(wireSize(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0))
+        SkinMetrics.INSTANCE.recordBroadcast(wireSize(new ClientboundPlayerPositionPacket(0, new PositionMoveRotation(new Vec3(x, y, z), Vec3.ZERO, yaw, pitch), Collections.emptySet()))
                 + wireSize(new ClientboundPlayerAbilitiesPacket(player.getAbilities()))
                 + CASCADE_SEND_LEVEL_INFO_BYTES + CASCADE_SEND_PERMISSION_BYTES
                 + CASCADE_SEND_ALL_PLAYER_INFO_BYTES + CASCADE_SEND_EFFECTS_BYTES);
