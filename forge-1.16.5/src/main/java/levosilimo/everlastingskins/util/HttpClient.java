@@ -1,0 +1,44 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
+
+package levosilimo.everlastingskins.util;
+
+
+import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
+
+import java.io.IOException;
+import java.net.URI;
+import java.util.Map;
+
+public interface HttpClient {
+    HttpResponse execute(URI uri, RequestBody requestBody, HttpType accepts,
+                         String userAgent, HttpMethod method,
+                         Map<String, String> headers, int timeout) throws IOException;
+
+    enum HttpMethod {
+        GET,
+        POST,
+        PUT,
+        DELETE
+    }
+
+    enum HttpType {
+        JSON("application/json");
+        private final String contentType;
+
+        HttpType(String s) {
+            contentType = s;
+        }
+
+        public String getContentType() {
+            return contentType;
+        }
+    }
+
+    record RequestBody(String body, HttpType type) {
+    }
+}
