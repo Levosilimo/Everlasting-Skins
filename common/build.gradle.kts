@@ -3,6 +3,9 @@
 // implementation(project(":common")).
 plugins {
     `java-library`
+    // no-mixin gate (buildSrc): registers verifyNoMixin, wired into `build`.
+    // Same direct application as the parent's /common (build-logic M2 step 2).
+    id("no-mixin")
 }
 
 java {
