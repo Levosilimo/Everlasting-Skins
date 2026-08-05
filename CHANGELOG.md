@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0-rc.1 (2026-08-05) — Minecraft 1.21.1 port
+
+First 1.21.1 point-release build of the 2.1.0-rc.1 feature set: identical code to the 1.21
+build, re-targeted at Minecraft 1.21.1 / Forge 52.1.16 (ForgeGradle 7.0.x, Gradle 9.3.1).
+Configuration-only port — no logic deltas vs. the 1.21 branch.
+
 ## 2.1.0-rc.1 (2026-08-02)
 
 ### Added
