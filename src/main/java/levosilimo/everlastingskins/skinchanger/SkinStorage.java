@@ -9,40 +9,22 @@ package levosilimo.everlastingskins.skinchanger;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import levosilimo.everlastingskins.util.JsonUtils;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * In-memory skin cache in front of {@link SkinIO}. All persistence — the
+ * synchronous write path, the coalescing async drain, and the serialized
+ * delete — lives in {@link SkinIO} (single home for the async layer); this
+ * facade only keeps the map and delegates.
+ */
 public class SkinStorage {
-
-    private static final ScheduledExecutorService SAVE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "EverlastingSkins-SkinIO");
-        t.setDaemon(true);
-        return t;
-    });
-
-    /**
-     * Debounce window: burst saves for the same UUID collapse into one disk
-     * write. Port of the PR #121 A2 drain-coalesce writer.
-     */
-    private static final long DEBOUNCE_MS = 50;
-
-    /** Latest serialized payload per UUID awaiting the writer thread. */
-    private final ConcurrentHashMap<UUID, byte[]> pendingWrites = new ConcurrentHashMap<>();
-    /** Latch so only one drain is scheduled at a time. */
-    private final AtomicBoolean drainScheduled = new AtomicBoolean(false);
 
     private final CustomSkinProperty DEFAULT_SKIN;
     private static final ConcurrentHashMap<UUID, CustomSkinProperty> skinMap = new ConcurrentHashMap<>();
@@ -78,15 +60,7 @@ public class SkinStorage {
         try {
             CustomSkinProperty skin = skinIO.loadSkin(uuid);
             if (skin != null && skin.isEmpty()) {
-                pendingWrites.remove(uuid);
-                try {
-                    deleteSkinSerialized(uuid);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
-                } catch (IOException e) {
-                    throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
-                }
+                deleteSkinSerialized(uuid);
                 return null;
             }
             return skin;
@@ -130,73 +104,30 @@ public class SkinStorage {
 
     /**
      * Strict last-write-wins save: the in-memory value is written through the
-     * single writer thread and this call blocks until the write has landed.
-     * Submitting through SAVE_EXECUTOR (FIFO) orders the sync save after any
-     * in-flight drain write for the same UUID; purging the pending payload
-     * first keeps a not-yet-drained async write from overwriting it. Without
-     * the serialization the async drain could land a stale payload after the
-     * sync save (sync/async inversion).
+     * SkinIO writer thread and this call blocks until the write has landed.
+     * SkinIO merges the payload into the pending map (superseding any queued
+     * async payload for the same UUID) and submits a drain on the FIFO writer
+     * thread, so the sync save is ordered after any in-flight drain write for
+     * the same UUID — a stale async payload can never land after the sync
+     * save (sync/async inversion).
      */
     public void saveSkin(UUID uuid) {
         CustomSkinProperty skinProperty = skinMap.get(uuid);
         if (skinProperty == null) return;
-        pendingWrites.remove(uuid);
-        byte[] payload = JsonUtils.toJson(skinProperty).getBytes(StandardCharsets.UTF_8);
-        try {
-            SAVE_EXECUTOR.submit(() -> skinIO.saveSkin(uuid, payload)).get(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            EverlastingSkins.logger.warn("Sync skin save of {} interrupted", uuid, e);
-        } catch (ExecutionException | TimeoutException e) {
-            EverlastingSkins.logger.warn("Sync skin save of {} did not complete in 5s", uuid, e);
-        }
+        skinIO.saveSkin(uuid, skinProperty);
     }
 
     /**
-     * Coalescing async save: serializes the payload now, merges it into the
-     * pending map (later payloads for the same UUID supersede earlier ones),
-     * and schedules a single drain after a 50ms debounce window. Port of the
-     * PR #121 A2 drain-coalesce writer; superseded payloads never reach disk
-     * and count as savesCoalesced instead of realWrites.
+     * Coalescing async save: delegates to the SkinIO drain-coalesce writer.
+     * The payload is serialized now and merged into the pending map (later
+     * payloads for the same UUID supersede earlier ones); a single drain runs
+     * after a 50ms debounce window. The returned stage completes once the
+     * payload has been merged — the write itself happens on the writer
+     * thread, so callers that need the write on disk must await
+     * {@link #flushPending()}.
      */
-    public void saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
-        byte[] payload = JsonUtils.toJson(skin).getBytes(StandardCharsets.UTF_8);
-        boolean superseded = pendingWrites.put(uuid, payload) != null;
-        if (superseded) {
-            SkinMetrics.INSTANCE.recordSaveCoalesced();
-            SkinMetrics.INSTANCE.recordSaveCompleted();
-        }
-        SkinMetrics.INSTANCE.recordSaveSubmitted();
-        scheduleDrain();
-    }
-
-    private void scheduleDrain() {
-        if (drainScheduled.compareAndSet(false, true)) {
-            SAVE_EXECUTOR.schedule(this::drainPending, DEBOUNCE_MS, TimeUnit.MILLISECONDS);
-        }
-    }
-
-    /** Writes every pending payload once; superseded payloads were dropped at merge time. */
-    private void drainPending() {
-        try {
-            for (UUID uuid : pendingWrites.keySet()) {
-                byte[] payload = pendingWrites.remove(uuid);
-                if (payload == null) continue;
-                long start = System.nanoTime();
-                skinIO.saveSkin(uuid, payload);
-                SkinMetrics.INSTANCE.recordSaveDiskLatency(System.nanoTime() - start);
-                SkinMetrics.INSTANCE.recordRealWrite();
-                SkinMetrics.INSTANCE.recordSaveCompleted();
-            }
-        } finally {
-            // Race fix from PR #121 (7cc66cf): reset the latch at the END of the
-            // drain, and reschedule if new writes arrived while draining. Without
-            // this the latch sticks true and later saves silently defer to flush.
-            drainScheduled.set(false);
-            if (!pendingWrites.isEmpty()) {
-                scheduleDrain();
-            }
-        }
+    public CompletableFuture<Void> saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
+        return skinIO.saveSkinAsync(uuid, skin);
     }
 
     /**
@@ -204,14 +135,7 @@ public class SkinStorage {
      * shutdown so no payload is lost mid-session.
      */
     public void flushPending() {
-        drainScheduled.set(false);
-        try {
-            SAVE_EXECUTOR.submit(this::drainPending).get(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException | TimeoutException e) {
-            EverlastingSkins.logger.warn("Skin flush did not complete in time", e);
-        }
+        skinIO.flushPending();
     }
 
     /**
@@ -228,58 +152,34 @@ public class SkinStorage {
     }
 
     public CustomSkinProperty removeSkin(UUID uuid) {
-        // Purge the deferred payload so a drain that has not started yet skips
-        // this UUID, then delete the file before dropping the map entry:
-        // getSkin() reloads from disk on a map miss, so removing the entry
-        // before the file is gone would let a concurrent read resurrect the
-        // cleared skin into the map. A failed delete propagates instead of
-        // dropping the entry: the file and the map must move together.
-        pendingWrites.remove(uuid);
-        try {
-            deleteSkinSerialized(uuid);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
-        } catch (IOException e) {
-            throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
-        }
+        // Delete the file first (serialized through the SkinIO writer thread,
+        // which also purges any deferred payload) and only then drop the map
+        // entry: getSkin() reloads from disk on a map miss, so removing the
+        // entry before the file is gone would let a concurrent read resurrect
+        // the cleared skin into the map. A failed delete propagates instead
+        // of dropping the entry: the file and the map must move together.
+        deleteSkinSerialized(uuid);
         skinMap.remove(uuid);
         return null;
     }
 
     /**
-     * Runs the file deletion on the single writer thread so it is serialized
-     * against drain writes, and blocks until the delete has landed. An
-     * in-flight drain that already pulled this payload completes its write
-     * before the delete runs, so no stale write can land after the delete
-     * (write-after-delete race).
-     *
-     * <p>Failure is raised, never swallowed: the caller must not drop the
-     * in-memory entry while the file may still exist, or a later getSkin()
-     * reload resurrects the cleared skin. InterruptedException is re-thrown
-     * as-is; a timeout or writer failure surfaces as
-     * {@link DeleteFailedException}.
+     * Runs the file deletion through {@link SkinIO#deleteSkin(UUID)}, which
+     * serializes it on the single writer thread so it is ordered against
+     * drain writes and blocks until the delete has landed. Failure is raised
+     * as {@link DeleteFailedException}, never swallowed: the caller must not
+     * drop the in-memory entry while the file may still exist, or a later
+     * getSkin() reload resurrects the cleared skin.
      */
-    private void deleteSkinSerialized(UUID uuid) throws InterruptedException, IOException {
+    private void deleteSkinSerialized(UUID uuid) {
         try {
-            SAVE_EXECUTOR.submit(() -> {
-                skinIO.deleteSkin(uuid);
-                return null;
-            }).get(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw e;
-        } catch (TimeoutException e) {
-            EverlastingSkins.logger.warn("Skin delete of {} timed out after 5s", uuid);
-            throw new DeleteFailedException("Skin delete of " + uuid + " timed out after 5s", e);
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof IOException) {
-                EverlastingSkins.logger.warn("Failed to delete skin file for {}", uuid, cause);
-                throw (IOException) cause;
-            }
-            EverlastingSkins.logger.warn("Skin delete of {} failed", uuid, cause);
-            throw new DeleteFailedException("Skin delete of " + uuid + " failed", cause);
+            skinIO.deleteSkin(uuid);
+        } catch (IOException e) {
+            EverlastingSkins.logger.warn("Failed to delete skin file for {}", uuid, e);
+            throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
+        } catch (RuntimeException e) {
+            EverlastingSkins.logger.warn("Skin delete of {} failed", uuid, e);
+            throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
         }
     }
 
@@ -305,7 +205,7 @@ public class SkinStorage {
      * debounce window.
      */
     public boolean hasPendingWrites() {
-        return !pendingWrites.isEmpty();
+        return skinIO.hasPendingWrites();
     }
 
     /**
