@@ -139,10 +139,12 @@ public class RandomCapeSource {
     }
 
     /**
-     * Cosmetica verdict on a listing candidate: keep players with a cape
-     * (texture URL attached) and players Cosmetica does not know (null
-     * texture — the consumer decides); drop players Cosmetica knows to be
-     * cape-less.
+     * Cosmetica verdict on a listing candidate: keep players Cosmetica
+     * reports as bearing an {@code official} cape (only those map to a Mojang
+     * CAPE key visible in vanilla — OptiFine, MinecraftCapes, LabyMod and
+     * Cosmetica-internal capes are client-mod-only and are dropped) and
+     * players Cosmetica does not know (null texture — the consumer decides);
+     * drop everyone else.
      */
     @Nullable
     private CapeCandidate probeCape(String username) {
