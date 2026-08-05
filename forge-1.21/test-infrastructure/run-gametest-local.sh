@@ -8,7 +8,7 @@
 
 set -uo pipefail
 
-BRANCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BRANCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$BRANCH_DIR"
 
 NAMESPACE="${1:-everlastingskins}"
@@ -17,7 +17,7 @@ LOG_FILE="${TMPDIR:-/tmp}/gametest-output.log"
 echo "=== Running game test server (namespace: $NAMESPACE) ==="
 echo "=== Java: $(java -version 2>&1 | head -1) ==="
 
-./gradlew runGameTestServer \
+./gradlew :forge-1.21:runGameTestServer \
     -PgametestNamespace="$NAMESPACE" \
     --console=plain \
     --stacktrace \
