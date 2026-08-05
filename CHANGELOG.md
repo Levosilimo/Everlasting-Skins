@@ -1,8 +1,19 @@
 # Changelog
 
-## 2.1.0-rc.1 (2026-08-02)
+## 2.1.0-rc.1 (2026-08-05)
 
 ### Added
+- **Storage durability — Tier 1 fsync** (#221): the parent directory is fsynced after each atomic skin-file rename, so a rename that survives a crash now guarantees durable contents (atomicity backed by a real durability barrier).
+- **Storage durability — Tier 2 CRC** (#224, #225): every persisted skin carries a per-record SHA-256 checksum envelope; reads verify it in-band and quarantine bit-rotten files; a startup integrity sweep audits all persisted records and logs legacy un-checksummed ones; the digest is cached in a ThreadLocal for throughput (#227).
+- **Observability — read metrics** (#233): `readDiskLatency` histogram, `readsSubmitted/Completed/Failed` counters, and end-to-end `SkinStorage.loadSkin` latency; rounds out the write-side surface (`saveDiskLatency`, `savesSubmitted/Completed/Coalesced`, `realWrites`, `ioFailuresByType`) for full read+write visibility.
+- **Fail-closed HTTP parsers** (#239): `MojangApiHttpImpl` and `MineSkinApiHttpImpl` fail closed on Gson `NumberFormatException`/`IllegalStateException` parse escapes, and `JsonUtils.parseJson` normalizes internal Gson failures to `JsonParseException`; hostile payloads are inert across the Mojang UUID/profile/session and MineSkin v1/v2/rate-limit parsers (malformed-byte fuzz corpus).
+- **Broadcast broker seam** (#219): new `SkinBroadcaster` seam with `VanillaSkinBroadcaster`; `SkinRefreshHandler` broadcasts through it and handler tests use a `FakeSkinBroadcaster`.
+- **Tab completion** (#241): shared `CompletionSources` service + `MojangProfileCache.snapshot()` power permission-aware `/skin` tab completion.
+- **Cape source** (#244, #246): `CosmeticaApi` cape lookup + `RandomCapeSource` back `/skin set random cape`; cape sources are filtered to `service="official"` only.
+- **Cross-version schema pins** (#231): skin-file schema (username + checksum) pinned across the 1.21 and mc1.12.2 branches.
+- **CI quality gate** (#229): aislop gate enforced in CI on every PR and push.
+
+### First-wave (2026-08-02)
 - **MojangProfileCache config** (#143): `mojang_profile_cache_enabled/ttl_ms/max_size` — admins can tune cache lifetime and size to protect against Mojang rate limits (default 1h / 1000).
 - **Custom messages tree** (#144): 22 new message keys (e.g., `messages_change`, `messages_fulfilled`, `messages_timeout`, `messages_no_skin_found`, `messages_mineskin_rejected`) with per-server config defaults and per-locale overrides via existing I18nUtils.
 - **Default skins list** (#145): Configurable list of default skins with `<random>` token — random picks thread through `RandomMojangSkin.randomUsername()` then `MojangAPI.getSkin`. New `applyForPremium` flag controls whether defaults override premium players' saved custom skins.
@@ -19,6 +30,9 @@
 - **Discord announce fires only when a refresh actually runs** (#195): previously `/skin` announced every target to DiscordSRV regardless of outcome — including provider failures, unchanged-skin skips and debounced requests. Announcements now require a completed refresh, matching mc1.12.2 after #194.
 
 ### Fixed
+- Cache eviction correctness (#210)
+- Refresh-cascade atomicity and ordering contracts (#212, #214)
+- Narrowed exception catch scope in the refresh path (#218)
 - **Stored/applied divergence across the refresh debounce** (#195): a second `/skin` request inside the per-player debounce window previously overwrote the stored source/skin and sent a fulfilment message while the applied GameProfile still showed the earlier skin. The debounce now gates persistence, messaging and the Discord announce as well as the refresh: a debounced request is a completion no-op — the dispatch-time "Skin change queued" feedback is unchanged.
 - **`/skin clear` with no Mojang profile kept the old texture applied** (#195): storage was cleared but the applied GameProfile retained the previous textures until the next refresh (the legacy mc1.12.2 port scheduled a refresh task that was a no-op). The clear now drops the textures property from the applied profile and re-broadcasts, so stored (null) and applied stay consistent.
 - Login-time 3-provider HTTP chain offloaded to executor (no more 30s server freeze per login)
@@ -33,6 +47,9 @@
 - Dead lang key `fulfilled_force` removed from all 11 JSON locale files (#176)
 
 ### Tests added
+- Malformed-JSON/HTML fuzz corpus (`MalformedJsonCorpus`) with `MojangApiFuzzTest`, `MineSkinApiFuzzTest`, `JsonUtilsFuzzTest`, `RandomMojangSkinFuzzTest` (#239)
+- `SkinBroadcaster` contract tests + `FakeSkinBroadcaster` handler tests (#219)
+- Metamorphic restart-equivalence, fsync, and CRC durability tests (#224, #225)
 - `MojangProfileCacheTest` (8 cases)
 - `UrlAllowlistTest` (8 cases)
 - `DefaultSkinResolverTest` (11 cases)
