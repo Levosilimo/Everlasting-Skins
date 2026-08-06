@@ -2,7 +2,17 @@
 
 ## M2 (monorepo) — unreleased
 
-### consumeCommon gate removed
+### Missing CHANGELOG entries backfilled
+
+- **#266** — docs: sync monorepo README/AGENTS/CHANGELOG + add
+  common/AGENTS.md + supersede forge-1.21/AGENTS.md
+- **#275** — docs: sync README + CHANGELOG to reflect post-M2
+  SOURCE-COMPLETE state (modules Status column, post-#270/#274 markers)
+- **#277** — ci: add Build (forge-1.16.5) + Build (forge-1.20.1) +
+  dedicated publish-mc1_16_5/publish-mc1_20_1 jobs; uncomment
+  mc1.16.5-v*/mc1.20.1-v* tag triggers
+
+### #276 — consumeCommon gate removed
 
 The `consumeCommon=false` opt-out gate in
 `buildSrc/.../everlastingskins.forge-module.gradle.kts` is gone: every
@@ -13,7 +23,7 @@ relocation to `forge21.*` (#268) resolved the conflict — no module ever
 sets `consumeCommon=false`. Docs updated (root AGENTS.md Rule 6,
 common/AGENTS.md, README.md).
 
-### FG lane separation: forge-1.16.5 / forge-1.20.1 go out-of-band
+### #267 — FG lane separation: forge-1.16.5 / forge-1.20.1 go out-of-band
 
 ForgeGradle 5.1.x hard-rejects Gradle 8.0+ and ForgeGradle 6.0.x
 hard-rejects Gradle 9.0+ (verified empirically 2026-08-06 against
@@ -33,10 +43,10 @@ from the lane dir: `cd forge-1.16.5 && ./gradlew build`.
   `everlastingskins.fg6-forge-module` and unused
   `everlastingskins.java8-forge-module` buildSrc convention plugins
   (the lanes can no longer use buildSrc).
-- Follow-ups: CI wiring for the lane wrappers (publish.yml entries stay
-  commented out until the lanes reach SOURCE-COMPLETE) and the actual
-  userdev pipeline runs (prepareRuns/runClient/runServer, reobfJar) —
-  configuration now uses the real FG 5.1/6.0 for the first time.
+- Follow-ups: the actual userdev pipeline runs
+  (prepareRuns/runClient/runServer, reobfJar) — configuration now uses
+  the real FG 5.1/6.0 for the first time. CI wiring for the lane
+  wrappers is done (dedicated Build + publish jobs).
 
 ### step 2: multi-module scaffold
 
@@ -117,8 +127,5 @@ Mixin gate, CI matrix, and forge-1.21 compat fixes.
 
 - Port the 1.21.1 / 1.21.4 / 1.21.8 point-release sources (currently
   placeholders; source carries over separately, same shape as #273).
-- Wire the CI matrix for the out-of-band 1.16.5 / 1.20.1 lanes
-  (publish.yml entries stay commented out until lane verification).
-- Fix `forge-1.21/src/main/resources/pack.mcmeta` staleness: `pack_format`
-  is still 6 (a 1.16.2-era value; 1.21 needs 15+) and the `_comment` is
-  stale.
+- Run the lane userdev pipelines end-to-end on the out-of-band
+  1.16.5 / 1.20.1 wrappers (prepareRuns/runClient/runServer, reobfJar).

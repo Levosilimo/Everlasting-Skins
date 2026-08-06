@@ -65,20 +65,22 @@ canonical copy; no JPMS on Java 8).
 ## Notes / known state
 
 - **Source layout (post-M2):** `:common` is the single canonical copy of
-  shared code; every forge module consumes it (`consumeCommon` on for all,
-  post-#268), and the out-of-band lanes share it as an extra source dir.
+  shared code; every forge module consumes it unconditionally (the
+  `consumeCommon` gate is gone, post-#276), and the out-of-band lanes
+  share it as an extra source dir.
   The legacy lanes are SOURCE-COMPLETE; the 1.21.x point-release
   subprojects are placeholders whose sources port over separately.
 - **No mixingradle:** the convention plugin applies mixin annotation
   processing + jar-manifest attributes only (Lane C). Enforced by the
   `verifyNoMixin` gate in `buildSrc/` (`no-mixin.gradle.kts`, ported from the
   parent's `common/build-logic`), which fails the build on any Mixin usage.
-- **CI:** `.github/workflows/ci.yml` is a per-module matrix (PR #260):
-  lint-yaml, then `build` over `:common` + the four 1.21.x modules, an
-  out-of-band mc1.12.2 build (own wrapper, JDK 8), and the `E2E (mc1.12.2)`
-  required-check placeholder. `publish.yml` was reworked in the same PR.
-  The out-of-band 1.16.5 / 1.20.1 lanes are not in the matrix yet
-  (publish.yml entries stay commented out until lane verification).
+- **CI:** `.github/workflows/ci.yml` is a per-module matrix (PR #260,
+  extended by #277): lint-yaml, then `build` over `:common` + the four
+  1.21.x modules, out-of-band builds for mc1.12.2 / forge-1.16.5 /
+  forge-1.20.1 (own wrappers), and the `E2E (mc1.12.2)` required-check
+  placeholder. `publish.yml` gained dedicated `publish-mc1_16_5` /
+  `publish-mc1_20_1` jobs in #277, with the `mc1.16.5-v*` /
+  `mc1.20.1-v*` tag triggers uncommented.
 - **Artifact naming:** `everlastingskins-<mc>` (was `EverlastingSkins-<mc>`).
 - `mc1.12.2/` is imported from the parent checkout's history and builds
   out-of-band with its own wrapper (Gradle 4.10.3 + FG 2.3.4 + Java 8). Its
@@ -115,7 +117,14 @@ canonical copy; no JPMS on Java 8).
   (SOURCE-COMPLETE).
 - **#274** — `forge-1.16.5` SOURCE-COMPLETE (version-shape errors fixed for
   Java 8).
+- **#275** — docs sync: README + CHANGELOG reflect the post-M2
+  SOURCE-COMPLETE state (modules Status column, post-#270/#274 markers).
+- **#276** — `consumeCommon` gate removed: every forge-* subproject
+  consumes `:common` unconditionally.
+- **#277** — CI: `Build (forge-1.16.5)` / `Build (forge-1.20.1)` jobs +
+  dedicated `publish-mc1_16_5` / `publish-mc1_20_1` jobs;
+  `mc1.16.5-v*` / `mc1.20.1-v*` tag triggers uncommented.
 
-Still ahead: source ports for the 1.21.x point-release placeholders, CI
-wiring for the out-of-band lanes, and the `pack.mcmeta` format bump (see
-CHANGELOG).
+Still ahead: source ports for the 1.21.x point-release placeholders. CI
+wiring for the out-of-band lanes (#277) and the `pack.mcmeta` format bump
+are DONE (see CHANGELOG).
