@@ -65,10 +65,14 @@ settings.gradle.kts does not include them.
    in sync with the tags (`mc1.21.x-v2.1.0-rc1` etc.). Verify against git
    history before changing.
 6. **`consumeCommon` gate:** each forge module opts into the `:common`
-   dependency unless `consumeCommon=false` in its `gradle.properties`.
-   `forge-1.21` currently sets it `false` — it still ships its own copies of
-   every `:common` class, and pulling the jar in would create a JPMS split
-   package. When the source port reconciles the duplicates, flip it back.
+   dependency unless `consumeCommon=false` in its `gradle.properties`; the
+   default is to consume. No module currently sets it `false` — `forge-1.21`
+   was flipped on by #268 (the JPMS split-package that forced the old
+   opt-out was resolved by the #268 dedup), so every forge-* module consumes
+   `:common`. The gate is kept as a safety valve: if a future forge-*
+   subproject requires vendored copies, `consumeCommon=false` is the
+   documented escape hatch and may need to be re-added there. (The dead
+   plugin-era gate was deleted in #267.)
 7. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
    out-of-band (`cd mc1.12.2 && ./gradlew build` with Java 8); changes there
    are reviewed against the shared `:common` contract, not against this build.

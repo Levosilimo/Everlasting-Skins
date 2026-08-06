@@ -23,9 +23,9 @@ SkinStorage), utils (JsonUtils, CustomSkinProperty, HttpClient).
 ## Consumption
 
 Every `forge-*` module depends on `:common` via
-`implementation(project(":common"))` unless it opts out with
-`consumeCommon=false` in its `gradle.properties` (currently only
-`forge-1.21`, which still ships duplicate copies until the source port).
+`implementation(project(":common"))` — `:common` is unconditionally consumed.
+The `consumeCommon=false` opt-out in `gradle.properties` exists but is
+currently unused by every forge module (post-#268).
 
 The union of `:common` + each per-version binding layer covers the full mod.
 
