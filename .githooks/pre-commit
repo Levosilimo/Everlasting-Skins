@@ -1,34 +1,28 @@
 #!/usr/bin/env bash
-# Pre-commit quality gate for EverlastingSkins.
-# Runs aislop against staged files to catch AI-slop patterns:
-# god-files, god-functions, narrative comments, swallowed exceptions,
-# FizzBuzz-Enterprise-style overengineering, etc.
+# Pre-commit quality gate for EverlastingSkins (fail-fast tier, <30s).
+# Sequential order: aislop staged scan -> test-count gate -> verifyNoMixin ->
+# offline parallel compile. Heavier checks live in .githooks/pre-push.
 #
-# Requires: bunx (bun) or npx on PATH. aislop is fetched on demand.
+# Requires: bunx (bun) or npx on PATH; JVM 17+ for the root gradlew.
 # Setup: git config core.hooksPath .githooks
 
 set -euo pipefail
-
-if ! command -v bunx >/dev/null 2>&1 && ! command -v npx >/dev/null 2>&1; then
-  echo "[aislop] neither bunx nor npx found on PATH; skipping scan" >&2
-  exit 0
-fi
 
 if [ -z "$(git diff --cached --name-only --diff-filter=ACMR | head -n1)" ]; then
   exit 0
 fi
 
-echo "[aislop] scanning staged files..."
-
-if command -v bunx >/dev/null 2>&1; then
-  RUNNER=bunx
-else
-  RUNNER=npx
-fi
-
-# shellcheck disable=SC2086
-if ! $RUNNER aislop scan --staged; then
-  cat >&2 <<'EOF'
+# 1. aislop scan of staged files (skipped if no runner on PATH)
+if command -v bunx >/dev/null 2>&1 || command -v npx >/dev/null 2>&1; then
+  if command -v bunx >/dev/null 2>&1; then
+    RUNNER=bunx
+  else
+    RUNNER=npx
+  fi
+  echo "[aislop] scanning staged files..."
+  # shellcheck disable=SC2086
+  if ! $RUNNER aislop scan --staged; then
+    cat >&2 <<'EOF'
 
 aislop reported findings on staged files.
 
@@ -40,5 +34,19 @@ Common fixes:
 Disable this hook for a single commit with: git commit --no-verify
 Re-enable per the project setup note in AGENTS.md.
 EOF
-  exit 1
+    exit 1
+  fi
+else
+  echo "[aislop] neither bunx nor npx found on PATH; skipping scan" >&2
 fi
+
+# 2. test-count gate (mirrors ci.yml "Verify test count meets minimum")
+bash scripts/test-count-gate.sh
+
+# 3. verifyNoMixin on :common and :forge-1.21
+echo "[gradle] verifyNoMixin..."
+./gradlew --no-daemon --offline :common:verifyNoMixin :forge-1.21:verifyNoMixin
+
+# 4. fast compile (offline, parallel)
+echo "[gradle] compile..."
+./gradlew --no-daemon --offline :common:compileJava :forge-1.21:compileJava --parallel

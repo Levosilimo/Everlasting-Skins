@@ -120,6 +120,55 @@ Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), and the 1.21.1 / 1.21.4 / 1.21.8 point releases
 (post-#278 / #280 / #281).
 
+### Fail-fast hooks
+
+Tiered local gates mirroring CI (see `.githooks/` and `lefthook.yml`):
+
+- **pre-commit** (<30s, sequential): aislop staged scan → test-count gate →
+  `verifyNoMixin` → offline parallel compile. Active via
+  `git config core.hooksPath .githooks` (already set in this repo).
+- **pre-push** (5-10 min, heavy): full unit test suite → GameTest (1.21) via
+  `forge-1.21/test-infrastructure/run-gametest-local.sh` → `aislop ci
+  --changes` (mirrors CI's `aislop (M2)` job). Skip once with
+  `git push --no-verify`.
+- `scripts/test-count-gate.sh` mirrors ci.yml's `@Test >= 150` floor: counts
+  `@Test` + `@ParameterizedTest` in `common/src` + `forge-1.21/src`.
+
+The root `gradlew` requires JVM 17+ (the mc1.12.2 lane keeps its own JDK 8
+wrapper). Hooks pass `--offline`; a first run needs a prior online build to
+populate `~/.gradle`.
+
+Local dev should set `~/.gradle/gradle.properties` (operational, not
+committed) to:
+
+```properties
+org.gradle.daemon=true
+org.gradle.parallel=true
+org.gradle.caching=true
+```
+
+`lefthook.yml` documents the intended lefthook adoption (Go binary, parallel
+pre-push); `.githooks/` stays active until lefthook is installed and
+`core.hooksPath` unset.
+
+### Local CI validation with act
+
+Validate workflow syntax locally with [act](https://github.com/nektos/act);
+`--dryrun` parses the workflow without Docker:
+
+```bash
+brew install act   # or: curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+act --dryrun --workflows .github/workflows/ci.yml     # syntax gate (no Docker)
+act --self-hosted -j lint-yaml -j aislop               # cheap jobs on the host runner
+```
+
+Use it for any `.github/workflows/*.yml` change, especially during GitHub
+outages (the ci.yml trigger fix, #286, sat blocked by one). `--self-hosted`
+runs the cheap `lint-yaml` / `aislop` jobs on the host runner; the Forge build
+matrix is not reliable under act (Docker JDK image fragility) — treat `act` as
+a syntax gate, not a build substitute.
+
+
 ## Required checks (integration/m2-monorepo branch protection)
 
 Enforced via the gh API — do not edit branch protection in-repo. `Build
