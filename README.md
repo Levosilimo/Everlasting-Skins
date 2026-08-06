@@ -103,6 +103,9 @@ canonical copy; no JPMS on Java 8).
 - **#268** — dedup of `forge-1.21` / `forge-1.16.5` against `:common`;
   JPMS split-package resolved (Option B1, 12 survivors relocated to
   `forge21.*`); `consumeCommon` flipped on for the forge modules.
+- **#269** — feat(monorepo): integrate mc1.12.2 lane + source-dir share
+  `:common` (#269) — 162 files, 514 tests pass; mc1.12.2 now lives in the
+  monorepo as per-lane wrapper directory.
 
 Still ahead: source carry-over onto `:common` for the legacy lanes and the
 `pack.mcmeta` format bump (see CHANGELOG).
