@@ -34,7 +34,7 @@ public final class CompletionSources {
     private static final String METRICS_RESET_PERMISSION = "everlastingskins.command.metrics.reset";
 
     /** View subcommands every metrics-authorized sender may complete. */
-    private static final List<String> METRICS_VIEW_SUBCOMMANDS = List.of("json", "players");
+    private static final List<String> METRICS_VIEW_SUBCOMMANDS = Collections.unmodifiableList(Arrays.asList("json", "players"));
 
     private static volatile MojangProfileCache profileCache = new MojangProfileCache();
 
@@ -80,7 +80,7 @@ public final class CompletionSources {
 
     /** Providers for {@code set <provider>}; web is always available on 1.21. */
     public static List<String> providerNames() {
-        return Collections.unmodifiableList(List.of("mojang", "random", "web"));
+        return Collections.unmodifiableList(Arrays.asList("mojang", "random", "web"));
     }
 
     /** Names of every player currently online on the server. */

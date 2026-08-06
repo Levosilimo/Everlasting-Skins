@@ -9,6 +9,8 @@ package levosilimo.everlastingskins;
 
 import net.minecraftforge.common.ForgeConfigSpec;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class Config {
@@ -159,17 +161,17 @@ public class Config {
             .define("applyForPremium", false);
         DEFAULT_SKINS_LIST = builder.comment("Default skins list: Mojang usernames or the literal '<random>' token"
                 + " (random Mojang username on each login)")
-            .defineList("list", List.of("Steve", "<random>"), o -> o instanceof String);
+            .defineList("list", Collections.unmodifiableList(Arrays.asList("Steve", "<random>")), o -> o instanceof String);
         builder.pop();
         builder.push("Security");
         URL_ALLOWLIST_ENABLED = builder.comment("Enable URL domain allowlist for /skin set web (empty list = deny all)")
             .define("urlAllowlistEnabled", false);
         URL_ALLOWLIST_DOMAINS = builder.comment("Domains allowed for /skin set web (eTLD+1 suffix match; one entry covers all subdomains)")
-            .defineList("urlAllowlistDomains", List.of(
+            .defineList("urlAllowlistDomains", Collections.unmodifiableList(Arrays.asList(
                 "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
                 "textures.minecraft.net", "namemc.com", "crafatar.com",
                 "mc-heads.net", "githubusercontent.com", "minecraftskins.com"
-            ), o -> o instanceof String);
+            )), o -> o instanceof String);
         builder.pop();
         builder.push("Permissions");
         PERMISSIONS_OP_LEVEL_MOJANG = builder.comment("Required op level for /skin set <mojang>")

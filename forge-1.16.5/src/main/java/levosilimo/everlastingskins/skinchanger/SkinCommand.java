@@ -62,13 +62,32 @@ public class SkinCommand {
         mojangAPIInstance = null;
     }
 
-    public record SkinActionParameters(
-            Collection<ServerPlayer> targets,
-            SkinActionType type,
-            SkinVariant variant,
-            boolean withCape,
-            @Nullable String customSource
-    ) {}
+    public static final class SkinActionParameters {
+        private final Collection<ServerPlayer> targets;
+        private final SkinActionType type;
+        private final SkinVariant variant;
+        private final boolean withCape;
+        private final String customSource;
+
+        public SkinActionParameters(Collection<ServerPlayer> targets, SkinActionType type,
+                                    SkinVariant variant, boolean withCape, @Nullable String customSource) {
+            this.targets = targets;
+            this.type = type;
+            this.variant = variant;
+            this.withCape = withCape;
+            this.customSource = customSource;
+        }
+
+        public Collection<ServerPlayer> targets() { return targets; }
+
+        public SkinActionType type() { return type; }
+
+        public SkinVariant variant() { return variant; }
+
+        public boolean withCape() { return withCape; }
+
+        public String customSource() { return customSource; }
+    }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralArgumentBuilder<CommandSourceStack> skinCommand = Commands.literal("skin")

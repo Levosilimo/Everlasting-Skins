@@ -127,6 +127,9 @@ dependencies {
     compileOnly("org.apache.logging.log4j:log4j-api:2.8.1")
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
 
+    // Apache HttpClient 4.5.13 (previously vendored under src/main/java/.../libs/).
+    implementation("org.apache.httpcomponents:httpclient:4.5.13")
+
     // --- tests ---
     testImplementation(platform("org.junit:junit-bom:5.10.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -151,16 +154,16 @@ tasks.withType<Test>().configureEach {
 // Mixin policy: this lane contains ZERO Mixin annotations and ZERO Mixin
 // Gradle plugin usage. The gate scans this project's build files + all
 // source roots (including the shared :common sources) and fails `build` on
-// any violation. Banned strings are written in escaped-regex form on
-// purpose so this file never contains the literal strings it scans for.
+// any violation. Banned strings are assembled from parts below so this file
+// never contains the literal strings it scans for.
 val bannedLiterals = listOf(
-    "mixingradle coordinate" to "org.spongepowered:mixingradle",
-    "mixin plugin id" to "org.spongepowered.mixin",
-    "mixin config bundling" to "everlastingskins.mixins.json",
+    "mixingradle coordinate" to "org.spongepowered" + ":mixingradle",
+    "mixin plugin id" to "org.spongepowered" + ".mixin",
+    "mixin config bundling" to "everlastingskins" + ".mixins.json",
 )
 
 val bannedPatterns = listOf(
-    "Mixin annotation" to Regex("@Mixin\\b"),
+    "Mixin annotation" to Regex("@" + "Mixin\\b"),
     "mixin block" to Regex("^\\s*mixin\\s*\\{"),
 )
 
