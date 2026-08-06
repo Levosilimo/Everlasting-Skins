@@ -62,6 +62,11 @@ cd mc1.12.2 && ./gradlew build   # own Gradle 4.10.3 wrapper, Java 8, FG 2.3.4
 so the lane compiles the same `:common` sources as the Forge line (single
 canonical copy; no JPMS on Java 8).
 
+### Local validation
+
+`act --dryrun --workflows .github/workflows/ci.yml` validates workflow syntax
+locally with no Docker. See AGENTS.md → "Local CI validation with act".
+
 ## Notes / known state
 
 - **Source layout (post-M2):** `:common` is the single canonical copy of

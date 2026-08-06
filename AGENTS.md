@@ -120,7 +120,7 @@ Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), and the 1.21.1 / 1.21.4 / 1.21.8 point releases
 (post-#278 / #280 / #281).
 
-## Fail-fast hooks
+### Fail-fast hooks
 
 Tiered local gates mirroring CI (see `.githooks/` and `lefthook.yml`):
 
@@ -147,11 +147,27 @@ org.gradle.parallel=true
 org.gradle.caching=true
 ```
 
-Validate `ci.yml` changes locally with `act --dryrun` before pushing.
-
 `lefthook.yml` documents the intended lefthook adoption (Go binary, parallel
 pre-push); `.githooks/` stays active until lefthook is installed and
 `core.hooksPath` unset.
+
+### Local CI validation with act
+
+Validate workflow syntax locally with [act](https://github.com/nektos/act);
+`--dryrun` parses the workflow without Docker:
+
+```bash
+brew install act   # or: curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+act --dryrun --workflows .github/workflows/ci.yml     # syntax gate (no Docker)
+act --self-hosted -j lint-yaml -j aislop               # cheap jobs on the host runner
+```
+
+Use it for any `.github/workflows/*.yml` change, especially during GitHub
+outages (the ci.yml trigger fix, #286, sat blocked by one). `--self-hosted`
+runs the cheap `lint-yaml` / `aislop` jobs on the host runner; the Forge build
+matrix is not reliable under act (Docker JDK image fragility) — treat `act` as
+a syntax gate, not a build substitute.
+
 
 ## Required checks (integration/m2-monorepo branch protection)
 
