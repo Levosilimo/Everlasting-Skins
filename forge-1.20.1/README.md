@@ -1,13 +1,36 @@
-# forge-1.20.1 (reserved)
+# forge-1.20.1 (standalone build — out-of-band lane)
 
-Future subproject for the Minecraft 1.20.1 lane (Java 8 source, ForgeGradle
-6.x). NOT yet included in `settings.gradle.kts` — when this port starts:
+Minecraft 1.20.1 lane: Java 17 bytecode, official Mojang mappings (lib-35),
+ForgeGradle **6.0.54** — running on its **own Gradle wrapper (8.7, Java 21)**.
 
-1. `include("forge-1.20.1")` in the root settings.
-2. Add `minecraft_version` / `forge_version` here (apply
-   `everlastingskins.java8-forge-module` from `buildSrc/`).
-3. Port the binding layer; lift shared code into `:common` (it already
-   compiles `--release 8` and runs on 1.12.2+).
+This lane is deliberately NOT part of the monorepo root's Gradle build
+(lib-34 lane separation): ForgeGradle 6.0.x hard-rejects Gradle 9.0+, so it
+cannot run inside the root's Gradle 9.3.1 — not as a subproject, not as an
+included build (included builds run under the root's Gradle version).
 
-The current `common/` sources are the version-independent core this module
-will consume via `implementation(project(":common"))`.
+## Build
+
+```bash
+cd forge-1.20.1
+JAVA_HOME=/path/to/jdk21 ./gradlew build   # Gradle 8.7 daemon on Java 21
+```
+
+The compile toolchain is Java 17 (Forge 47's runtime level); on machines
+without a local JDK 17 the foojay resolver in `settings.gradle.kts`
+auto-provisions one.
+
+Useful tasks: `tasks`, `runClient`, `runServer`, `prepareRuns`,
+`reobfJar`, `verifyNoMixin` (wired into `build`).
+
+## Layout notes
+
+- `build.gradle.kts` applies FG 6.0.54 via the buildscript classpath (the
+  1.20.1 MDK pattern) and inlines the scaffolding the deleted buildSrc
+  convention plugin used to provide (Java 17, archives name, repos, JUnit,
+  jacoco, no-mixin gate).
+- `:common` (the shared version-independent core) is consumed by
+  source-dir sharing (`../common/src/{main,test}` dirs added to this
+  build's source sets), since a standalone build cannot use
+  `project(":common")`.
+- Versions live in `gradle.properties` (`minecraft_version`,
+  `forge_version`).
