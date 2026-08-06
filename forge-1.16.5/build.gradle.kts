@@ -56,6 +56,11 @@ repositories {
     // for the official channel).
     maven("https://maven.minecraftforge.net/") { name = "Forge" }
     maven("https://libraries.minecraft.net/") { name = "Minecraft" }
+    // Soft-integration deps (mirror the root buildSrc convention plugin):
+    // PlaceholderAPI for the expansion; PAPI 2.12.3 ships Java 8 bytecode
+    // so javac 8 can read it (verified class file version 52).
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/") { name = "PlaceholderAPI" }
+    maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/") { name = "Spigot" }
     mavenCentral()
 }
 
@@ -126,6 +131,17 @@ dependencies {
     compileOnly("com.mojang:authlib:1.5.25")
     compileOnly("org.apache.logging.log4j:log4j-api:2.8.1")
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
+
+    // Soft integration: the PlaceholderAPI expansion compiles against the
+    // PAPI API (compileOnly; runtime presence is optional and detected
+    // reflectively by PlaceholderApiHook). Same version as the root
+    // convention plugin; verified Java-8 bytecode.
+    compileOnly("me.clip:placeholderapi:2.12.3")
+    // org.bukkit.* (OfflinePlayer) inside the expansion comes from the
+    // Spigot API; 1.16.5-era API targets Java 8.
+    compileOnly("org.spigotmc:spigot-api:1.16.5-R0.1-SNAPSHOT")
+    // @NotNull on the expansion's overrides (jetbrains annotations).
+    compileOnly("org.jetbrains:annotations:23.0.0")
 
     // Apache HttpClient 4.5.13 (previously vendored under src/main/java/.../libs/).
     implementation("org.apache.httpcomponents:httpclient:4.5.13")

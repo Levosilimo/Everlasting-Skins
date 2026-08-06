@@ -8,7 +8,6 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import com.mojang.authlib.GameProfile;
-import io.netty.buffer.Unpooled;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
@@ -19,13 +18,14 @@ import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataRe
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.I18nUtils;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.protocol.game.*;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.players.PlayerList;
-import net.minecraft.world.entity.PositionMoveRotation;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.network.IPacket;
+import net.minecraft.network.PacketBuffer;
+import net.minecraft.network.play.server.SPlayerAbilitiesPacket;
+import net.minecraft.network.play.server.SPlayerPositionLookPacket;
+import net.minecraft.network.play.server.SRespawnPacket;
+import net.minecraft.server.management.PlayerList;
+import net.minecraft.world.server.ServerWorld;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -68,7 +68,7 @@ public class SkinRefreshHandler {
         return I18nUtils.getLocalizedString(key, Config.LANGUAGE.get());
     }
 
-    public static void task(ServerPlayer player) {
+    public static void task(ServerPlayerEntity player) {
         refreshTaskCount++;
         CustomSkinProperty skin = SkinRestorer.getSkinStorage().getSkin(player.getUUID());
         if (skin == null || skin.isEmpty()) {
@@ -121,7 +121,7 @@ public class SkinRefreshHandler {
      */
     static boolean applyAtomicPersistence(UUID playerId, GameProfile profile, CustomSkinProperty skin) {
         try {
-            recordSaveEnqueue(playerId);
+            recordSaveEnqueue(playerId, skin);
             mutateProfile(profile, skin);
             return true;
         } catch (Throwable t) {
@@ -146,9 +146,9 @@ public class SkinRefreshHandler {
                 profile.getProperties().get("textures"));
     }
 
-    private static void recordSaveEnqueue(UUID playerId) {
+    private static void recordSaveEnqueue(UUID playerId, CustomSkinProperty skin) {
         long start = System.nanoTime();
-        SkinRestorer.getSkinStorage().saveSkinAsync(playerId);
+        SkinRestorer.getSkinStorage().saveSkinAsync(playerId, skin);
         long enqueueNanos = System.nanoTime() - start;
         SkinMetrics.INSTANCE.recordSaveEnqueueLatency(enqueueNanos);
         SkinMetrics.INSTANCE.recordSpikeSaveEnqueue(enqueueNanos);
@@ -164,7 +164,7 @@ public class SkinRefreshHandler {
      * config-flag tests can swap in a recording fake without rebuilding
      * the REMOVE+ADD+cascade pipeline.
      */
-    private static void recordObserverBroadcast(ServerPlayer player, CustomSkinProperty skin) {
+    private static void recordObserverBroadcast(ServerPlayerEntity player, CustomSkinProperty skin) {
         broadcaster.broadcastProfileChange(player.getGameProfile(), player);
         broadcaster.trackerUntrackRetrack(player);
     }
@@ -174,69 +174,70 @@ public class SkinRefreshHandler {
      * client rebuilds its own player model with the new textures. KEEP_ALL_DATA
      * == (byte) 3 in 1.21 (1/2/3 flags) — preserves the client-side inventory.
      */
-    private static void recordCascade(ServerPlayer player) {
-        ServerLevel serverLevel = player.level();
+    private static void recordCascade(ServerPlayerEntity player) {
+        ServerWorld serverLevel = player.getLevel();
         PlayerList playerlist = player.getServer().getPlayerList();
         double x = player.position().x;
         double y = player.position().y;
         double z = player.position().z;
-        float yaw = player.getYRot();
-        float pitch = player.getXRot();
+        float yaw = player.yRot;
+        float pitch = player.xRot;
         long start = System.nanoTime();
 
-        player.connection.send(new ClientboundRespawnPacket(player.createCommonSpawnInfo(serverLevel), ClientboundRespawnPacket.KEEP_ALL_DATA));
+        // 1.16.5 respawn packet (SRespawnPacket): no KEEP_ALL_DATA constant —
+        // the last ctor boolean is keepAllPlayerData (added in 1.16.2), the
+        // 1.16.5 equivalent of 1.21's KEEP_ALL_DATA. Argument order mirrors
+        // vanilla PlayerList#respawn (verified against 36.2.34 bytecode).
+        player.connection.send(new SRespawnPacket(
+                serverLevel.dimensionType(),
+                serverLevel.dimension(),
+                serverLevel.getSeed(),
+                player.gameMode.getGameModeForPlayer(),
+                player.gameMode.getPreviousGameModeForPlayer(),
+                serverLevel.isDebug(),
+                serverLevel.isFlat(),
+                true));
         player.setPos(x, y, z);
-        player.setYRot(yaw);
-        player.setXRot(pitch);
-        player.connection.send(new ClientboundPlayerPositionPacket(0, new PositionMoveRotation(new Vec3(x, y, z), Vec3.ZERO, yaw, pitch), Collections.emptySet()));
+        player.yRot = yaw;
+        player.xRot = pitch;
+        // Vanilla respawn path: ServerPlayNetHandler#teleport sends the
+        // SPlayerPositionLookPacket (absolute, empty relative set, id 0).
+        player.connection.teleport(x, y, z, yaw, pitch);
         playerlist.sendLevelInfo(player, serverLevel);
         playerlist.sendPlayerPermissionLevel(player);
         playerlist.sendAllPlayerInfo(player);
-        // 1.21 sendAllPlayerInfo does NOT include abilities — send explicitly.
-        player.connection.send(new ClientboundPlayerAbilitiesPacket(player.getAbilities()));
-        playerlist.sendActivePlayerEffects(player);
+        // 1.16.5 sendAllPlayerInfo does NOT include abilities — send explicitly.
+        player.connection.send(new SPlayerAbilitiesPacket(player.abilities));
+        // 1.21's sendActivePlayerEffects does not exist on 1.16.5 (1.17+
+        // addition); active effects re-sync on the next effect change.
 
         SkinMetrics.INSTANCE.recordSpikeCascade(System.nanoTime() - start);
-        SkinMetrics.INSTANCE.recordBroadcast(wireSize(new ClientboundPlayerPositionPacket(0, new PositionMoveRotation(new Vec3(x, y, z), Vec3.ZERO, yaw, pitch), Collections.emptySet()))
-                + wireSize(new ClientboundPlayerAbilitiesPacket(player.getAbilities()))
+        SkinMetrics.INSTANCE.recordBroadcast(wireSize(new SPlayerPositionLookPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0))
+                + wireSize(new SPlayerAbilitiesPacket(player.abilities))
                 + CASCADE_SEND_LEVEL_INFO_BYTES + CASCADE_SEND_PERMISSION_BYTES
-                + CASCADE_SEND_ALL_PLAYER_INFO_BYTES + CASCADE_SEND_EFFECTS_BYTES);
+                + CASCADE_SEND_ALL_PLAYER_INFO_BYTES);
     }
 
     /** Approximations for the player-list helper sends in the cascade (per call). */
     private static final int CASCADE_SEND_LEVEL_INFO_BYTES = 256;
     private static final int CASCADE_SEND_PERMISSION_BYTES = 128;
     private static final int CASCADE_SEND_ALL_PLAYER_INFO_BYTES = 192;
-    private static final int CASCADE_SEND_EFFECTS_BYTES = 96;
 
     private static final long TICK_SPIKE_THRESHOLD_NANOS = 50_000_000;
 
-    /** Serialized byte size of the cascade packets, measured with their stream codecs. */
-    private static int wireSize(net.minecraft.network.protocol.Packet<?> packet) {
+    /** Serialized byte size of a packet, measured by writing it to a buffer
+     *  (1.16.5 has no stream codecs; every IPacket serializes via write). */
+    private static int wireSize(IPacket<?> packet) {
         try {
-            if (packet instanceof ClientboundPlayerPositionPacket) {
-                return encodeSize((ClientboundPlayerPositionPacket) packet, ClientboundPlayerPositionPacket.STREAM_CODEC);
-            }
-            if (packet instanceof ClientboundPlayerAbilitiesPacket) {
-                return encodeSize((ClientboundPlayerAbilitiesPacket) packet, ClientboundPlayerAbilitiesPacket.STREAM_CODEC);
-            }
-            if (packet instanceof ClientboundRespawnPacket) {
-                return encodeSize((ClientboundRespawnPacket) packet, ClientboundRespawnPacket.STREAM_CODEC);
-            }
+            PacketBuffer buf = new PacketBuffer(io.netty.buffer.Unpooled.buffer());
+            packet.write(buf);
+            int size = buf.readableBytes();
+            buf.release();
+            return size;
         } catch (Exception e) {
             EverlastingSkins.logger.debug("Failed to measure packet wire size", e);
         }
         return 0;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> int encodeSize(T packet, net.minecraft.network.codec.StreamCodec<?, T> codec) {
-        RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(),
-                SkinRestorer.server.registryAccess());
-        ((net.minecraft.network.codec.StreamCodec<RegistryFriendlyByteBuf, T>) codec).encode(buf, packet);
-        int size = buf.readableBytes();
-        buf.release();
-        return size;
     }
 
     @Nullable

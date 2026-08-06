@@ -8,7 +8,7 @@
 package levosilimo.everlastingskins.integration.discordsrv;
 
 import levosilimo.everlastingskins.util.I18nUtils;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.ServerPlayerEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,7 +22,7 @@ public final class DiscordSrvHook {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final String DISCORDSRV_CLASS = "github.scarsz.discordsrv.DiscordSRV";
 
-    public static void announceSkinChange(ServerPlayer player, String skinSource) {
+    public static void announceSkinChange(ServerPlayerEntity player, String skinSource) {
         try {
             Class<?> dsClass = Class.forName(DISCORDSRV_CLASS);
             Object plugin = dsClass.getMethod("getPlugin").invoke(null);
@@ -70,7 +70,7 @@ public final class DiscordSrvHook {
      * language in the Discord channel; falls back to Config.LANGUAGE for a
      * null player. Package-private for direct unit testing.
      */
-    static String formatAnnounce(ServerPlayer player, String skinSource) {
+    static String formatAnnounce(ServerPlayerEntity player, String skinSource) {
         String label = skinSource != null ? skinSource : "default";
         String name = player != null ? player.getScoreboardName() : "";
         return I18nUtils.formatMessage("discord_announce", player, name, label);

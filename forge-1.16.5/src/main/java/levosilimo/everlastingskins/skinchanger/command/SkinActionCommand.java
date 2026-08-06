@@ -27,10 +27,11 @@ import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataRe
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import levosilimo.everlastingskins.util.I18nUtils;
-import net.minecraft.Util;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.util.Util;
+import net.minecraft.command.CommandSource;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.StringTextComponent;
 
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
@@ -97,8 +98,8 @@ public final class SkinActionCommand {
     private SkinActionCommand() {
     }
 
-    /** Source player, or null when the command came from the console. 1.16.5's CommandSourceStack has no getPlayer() (1.21 has it); getPlayerOrException() throws instead. */
-    private static ServerPlayer sourcePlayer(CommandSourceStack source) {
+    /** Source player, or null when the command came from the console. 1.16.5's CommandSource has no getPlayer() (1.21 has it); getPlayerOrException() throws instead. */
+    private static ServerPlayerEntity sourcePlayer(CommandSource source) {
         try {
             return source.getPlayerOrException();
         } catch (CommandSyntaxException e) {
@@ -106,36 +107,36 @@ public final class SkinActionCommand {
         }
     }
 
-    public static int execute(CommandContext<CommandSourceStack> context, SkinCommand.SkinActionParameters params) {
-        Collection<ServerPlayer> targets = params.targets();
+    public static int execute(CommandContext<CommandSource> context, SkinCommand.SkinActionParameters params) {
+        Collection<ServerPlayerEntity> targets = params.targets();
         SkinActionType type = params.type();
         SkinVariant variant = params.variant();
         boolean withCape = params.withCape();
         String customSource = params.customSource();
-        ServerPlayer selfPlayer = sourcePlayer(context.getSource());
+        ServerPlayerEntity selfPlayer = sourcePlayer(context.getSource());
         if (selfPlayer == null) {
             context.getSource().sendFailure(I18nUtils.getLocalizedComponent("player_only", selfPlayer));
             return 0;
         }
         boolean targetingOthers = targets.stream().anyMatch(t -> !t.equals(selfPlayer));
+        PermissionContext selfCtx = PermissionContext.of(selfPlayer.getUUID(), selfPlayer);
         if (!PermissionServiceManager.hasPermission(
-                PermissionContext.of(selfPlayer.getUUID(), selfPlayer),
-                resolvePermissionNode(type, targetingOthers))) {
-            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", selfPlayer)));
+                selfCtx.uuid(), selfCtx.opLevel(),
+                resolvePermissionNode(type, targetingOthers))) {            context.getSource().sendFailure(new StringTextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", selfPlayer)));
             return 0;
         }
         if (Config.RATE_LIMIT_ENABLED.get() && isRateLimited(selfPlayer, context)) {
             return 0;
         }
-        for (ServerPlayer target : targets) {
+        for (ServerPlayerEntity target : targets) {
             SkinMetrics.INSTANCE.recordRefreshStarted(target.getUUID());
         }
         targets.forEach(player -> {
             if (Config.TOGGLE.get()) {
                 if (player == context.getSource().getEntity()) {
-                    context.getSource().sendSuccess(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("change", player)), false);
+                    context.getSource().sendSuccess(new StringTextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("change", player)), false);
                 } else {
-                    player.sendMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("change", player)), Util.NIL_UUID);
+                    player.sendMessage(new StringTextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("change", player)), Util.NIL_UUID);
                 }
             }
         });
@@ -144,7 +145,7 @@ public final class SkinActionCommand {
         if (type == SkinActionType.username) {
             warnStoredUsernameMismatch(targets, customSource);
             if (storedSourceMatches(targets, customSource)) {
-                for (ServerPlayer player : targets) {
+                for (ServerPlayerEntity player : targets) {
                     SkinMetrics.INSTANCE.recordRefreshSkippedStored(player.getUUID());
                     SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
                 }
@@ -157,8 +158,8 @@ public final class SkinActionCommand {
         ScheduledFuture<?> timeoutFuture = skinCommandExecutor.schedule(() -> {
             if (future.completeExceptionally(new TimeoutException("Skin fetch timeout occurred"))) {
                 EverlastingSkins.logger.error(I18nUtils.get("timeout"));
-                for (ServerPlayer player : targets) {
-                    player.sendMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.get("timeout")), Util.NIL_UUID);
+                for (ServerPlayerEntity player : targets) {
+                    player.sendMessage(new StringTextComponent(FEEDBACK_PREFIX + " " + I18nUtils.get("timeout")), Util.NIL_UUID);
                 }
             }
         }, 10000, TimeUnit.MILLISECONDS);
@@ -190,7 +191,7 @@ public final class SkinActionCommand {
         return storedSourceMatches(storage.getSource(playerUuid), storage.getUsername(playerUuid), requestedUsername);
     }
 
-    private static boolean storedSourceMatches(Collection<ServerPlayer> targets, String requestedUsername) {
+    private static boolean storedSourceMatches(Collection<ServerPlayerEntity> targets, String requestedUsername) {
         return targets.stream().allMatch(player -> storedSourceMatches(player.getUUID(), requestedUsername));
     }
 
@@ -205,15 +206,15 @@ public final class SkinActionCommand {
      * persistence or UUID-keyed lookups) cannot name the old username and skip
      * the notice.
      */
-    private static void warnStoredUsernameMismatch(Collection<ServerPlayer> targets, @Nullable String requestedUsername) {
+    private static void warnStoredUsernameMismatch(Collection<ServerPlayerEntity> targets, @Nullable String requestedUsername) {
         if (requestedUsername == null) return;
-        for (ServerPlayer player : targets) {
+        for (ServerPlayerEntity player : targets) {
             SkinStorage storage = SkinRestorer.getSkinStorage();
             String storedUsername = storage.getUsername(player.getUUID());
             if (SOURCE_MOJANG.equals(storage.getSource(player.getUUID()))
                     && storedUsername != null
                     && !storedUsername.equals(requestedUsername)) {
-                player.sendMessage(Component.literal(FEEDBACK_PREFIX + " "
+                player.sendMessage(new StringTextComponent(FEEDBACK_PREFIX + " "
                         + I18nUtils.formatMessage("stored_from_other_username", player, storedUsername)), Util.NIL_UUID);
             }
         }
@@ -221,7 +222,7 @@ public final class SkinActionCommand {
 
     private static CompletableFuture<Map<UUID, CustomSkinProperty>> fetchSkinProperty(SkinActionType type, SkinVariant variant,
                                                                            boolean withCape, String customSource,
-                                                                           Collection<ServerPlayer> targets) {
+                                                                           Collection<ServerPlayerEntity> targets) {
         return CompletableFuture.supplyAsync(() -> {
             Map<UUID, CustomSkinProperty> fetched = new HashMap<>();
             try {
@@ -229,7 +230,7 @@ public final class SkinActionCommand {
                     case clear:
                         // Each target restores from its OWN stored source — the
                         // first target's Mojang skin must not leak to the others.
-                        for (ServerPlayer t : targets) {
+                        for (ServerPlayerEntity t : targets) {
                             String storedSource = SkinRestorer.getSkinStorage().getSource(t.getUUID());
                             SkinRefreshHandler.MojangRestoreResult restore = SkinRefreshHandler.tryRestoreFromMojang(
                                     SkinCommand.getMojangAPI(), storedSource, t.getGameProfile().getName());
@@ -245,7 +246,7 @@ public final class SkinActionCommand {
                         } else {
                             skinProperty = SkinCommand.getMineSkinAPI().genSkin(customSource, variant).property();
                         }
-                        for (ServerPlayer t : targets) {
+                        for (ServerPlayerEntity t : targets) {
                             fetched.put(t.getUUID(), skinProperty);
                         }
                         break;
@@ -253,7 +254,7 @@ public final class SkinActionCommand {
                     case username: {
                         CustomSkinProperty skinProperty = SkinCommand.getMojangAPI().getSkin(customSource)
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        for (ServerPlayer t : targets) {
+                        for (ServerPlayerEntity t : targets) {
                             fetched.put(t.getUUID(), skinProperty);
                         }
                         break;
@@ -271,7 +272,7 @@ public final class SkinActionCommand {
                         CustomSkinProperty skinProperty = SkinCommand.getMojangAPI()
                                 .getSkin(Objects.requireNonNull(username))
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        for (ServerPlayer t : targets) {
+                        for (ServerPlayerEntity t : targets) {
                             fetched.put(t.getUUID(), skinProperty);
                         }
                         break;
@@ -280,7 +281,7 @@ public final class SkinActionCommand {
                         CustomSkinProperty skinProperty = SkinCommand.getMojangAPI()
                                 .getSkin(Objects.requireNonNull(RandomMojangSkin.newUsername(variant)))
                                 .map(MojangSkinDataResult::skinProperty).orElse(null);
-                        for (ServerPlayer t : targets) {
+                        for (ServerPlayerEntity t : targets) {
                             fetched.put(t.getUUID(), skinProperty);
                         }
                         break;
@@ -294,38 +295,38 @@ public final class SkinActionCommand {
     }
 
     private static void handleCompletion(Map<UUID, CustomSkinProperty> fetched, Throwable throwable,
-                                         Collection<ServerPlayer> targets, CommandContext<CommandSourceStack> context,
+                                         Collection<ServerPlayerEntity> targets, CommandContext<CommandSource> context,
                                          SkinActionType type, String customSource, long t0, long fetchStart) {
         skinCompletionsProcessed++;
         if (throwable != null) {
             EverlastingSkins.logger.error("Skin process error occurred");
-            for (ServerPlayer player : targets) {
+            for (ServerPlayerEntity player : targets) {
                 if (throwable instanceof TimeoutException) {
                     SkinMetrics.INSTANCE.recordTimedOut(player.getUUID());
                 } else {
                     SkinMetrics.INSTANCE.recordRefreshFailed(player.getUUID());
                 }
-                player.sendMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("error", player)), Util.NIL_UUID);
+                player.sendMessage(new StringTextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("error", player)), Util.NIL_UUID);
             }
             return;
         }
         boolean isClear = type == SkinActionType.clear;
         long fetchNanos = System.nanoTime() - fetchStart;
-        for (ServerPlayer player : targets) {
+        for (ServerPlayerEntity player : targets) {
             UUID uuid = player.getUUID();
             CustomSkinProperty skinProperty = fetched != null ? fetched.get(uuid) : null;
             if (skinProperty == null && !isClear) {
                 String reason = SkinRefreshHandler.deriveReason(type, customSource);
                 EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
                 SkinMetrics.INSTANCE.recordRefreshFailed(uuid);
-                player.sendMessage(Component.literal(FEEDBACK_PREFIX + " " + reason), Util.NIL_UUID);
+                player.sendMessage(new StringTextComponent(FEEDBACK_PREFIX + " " + reason), Util.NIL_UUID);
                 continue;
             }
             if (isClear && skinProperty == null) {
                 EverlastingSkins.logger.info("Skin cleared for player {} — no Mojang profile found", player.getGameProfile().getName());
                 SkinRestorer.getSkinStorage().setSkin(uuid, null);
                 if (Config.TOGGLE.get()) {
-                    player.sendMessage(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("cleared_no_profile", player)), Util.NIL_UUID);
+                    player.sendMessage(new StringTextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("cleared_no_profile", player)), Util.NIL_UUID);
                 }
                 // Clear the applied GameProfile too, not just storage: the
                 // refresh task drops the textures property and re-broadcasts, so
@@ -358,9 +359,9 @@ public final class SkinActionCommand {
                     ? I18nUtils.formatMessage("restored_from", player, skinProperty.getSource())
                     : I18nUtils.formatMessage("fulfilled", player);
                 if (player == context.getSource().getEntity()) {
-                    context.getSource().sendSuccess(Component.literal(FEEDBACK_PREFIX + " " + msg), false);
+                    context.getSource().sendSuccess(new StringTextComponent(FEEDBACK_PREFIX + " " + msg), false);
                 } else {
-                    player.sendMessage(Component.literal(FEEDBACK_PREFIX + " " + msg), Util.NIL_UUID);
+                    player.sendMessage(new StringTextComponent(FEEDBACK_PREFIX + " " + msg), Util.NIL_UUID);
                 }
             }
             SkinMetrics.INSTANCE.recordRefreshCompleted(uuid, t0, fetchNanos, 0, 0);
@@ -377,7 +378,7 @@ public final class SkinActionCommand {
         if (newSkin == null) return false;
         CustomSkinProperty stored = SkinRestorer.getSkinStorage().getSkin(uuid);
         if (stored == null) return false;
-        if (!newSkin.getOriginalProperty().value().equals(stored.getOriginalProperty().value())) {
+        if (!newSkin.getValue().equals(stored.getValue())) {
             return false;
         }
         return Objects.equals(newSkin.getSource(), stored.getSource());
@@ -396,10 +397,11 @@ public final class SkinActionCommand {
     }
 
     /** Per-player cooldown plus a sliding per-minute window. */
-    private static boolean isRateLimited(ServerPlayer player, CommandContext<CommandSourceStack> context) {
+    private static boolean isRateLimited(ServerPlayerEntity player, CommandContext<CommandSource> context) {
         UUID playerUuid = player.getUUID();
         if (player != null && PermissionServiceManager.hasPermission(
-                PermissionContext.of(player.getUUID(), player),
+                player.getUUID(),
+                PermissionContext.of(player.getUUID(), player).opLevel(),
                 "everlastingskins.bypass.cooldown")) {
             return false;
         }
@@ -409,7 +411,7 @@ public final class SkinActionCommand {
         long elapsed = now - lastCommand;
         if (lastCommand > 0 && elapsed < cooldownMs) {
             SkinMetrics.INSTANCE.recordRateLimited(playerUuid);
-            context.getSource().sendFailure(Component.literal(
+            context.getSource().sendFailure(new StringTextComponent(
                     I18nUtils.formatMessage("cooldown", player, (cooldownMs - elapsed) / 1000)));
             return true;
         }
@@ -420,7 +422,7 @@ public final class SkinActionCommand {
             }
             if (window.size() >= Config.MAX_COMMANDS_PER_MINUTE.get()) {
                 SkinMetrics.INSTANCE.recordRateLimited(playerUuid);
-                context.getSource().sendFailure(Component.literal(
+                context.getSource().sendFailure(new StringTextComponent(
                         I18nUtils.formatMessage("rate_limited", player)));
                 return true;
             }

@@ -44,25 +44,25 @@ public class LuckPermsPermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(PermissionContext context, String permissionNode) {
+    public boolean hasPermission(UUID uuid, int opLevel, String permissionNode) {
         if (luckPermsApi == null || userManager == null) {
             return false;
         }
         try {
-            UUID uuid = context.uuid();
+            UUID playerUuid = uuid;
             Method isLoadedMethod = userManager.getClass().getMethod("isLoaded", UUID.class);
-            Boolean isLoaded = (Boolean) isLoadedMethod.invoke(userManager, uuid);
+            Boolean isLoaded = (Boolean) isLoadedMethod.invoke(userManager, playerUuid);
             Object user = null;
             if (Boolean.TRUE.equals(isLoaded)) {
                 Method getUserMethod = userManager.getClass().getMethod("getUser", UUID.class);
-                user = getUserMethod.invoke(userManager, uuid);
+                user = getUserMethod.invoke(userManager, playerUuid);
             } else {
-                LOGGER.debug("LP user {} not pre-loaded, falling back to vanilla per-node levels", uuid);
-                return vanillaFallback(context, permissionNode);
+                LOGGER.debug("LP user {} not pre-loaded, falling back to vanilla per-node levels", playerUuid);
+                return vanillaFallback(uuid, opLevel, permissionNode);
             }
             if (user == null) {
                 LOGGER.warn("LP user {} returned null from getUser, falling back to vanilla per-node levels", uuid);
-                return vanillaFallback(context, permissionNode);
+                return vanillaFallback(uuid, opLevel, permissionNode);
             }
 
             Method getCachedDataMethod = user.getClass().getMethod("getCachedData");
@@ -89,8 +89,8 @@ public class LuckPermsPermissionService implements IPermissionService {
         }
     }
 
-    private boolean vanillaFallback(PermissionContext context, String permissionNode) {
-        return new VanillaPermissionService().hasPermission(context, permissionNode);
+    private boolean vanillaFallback(UUID uuid, int opLevel, String permissionNode) {
+        return new VanillaPermissionService().hasPermission(uuid, opLevel, permissionNode);
     }
 
     @Override
