@@ -18,7 +18,8 @@ forge-1.21.1/                point release (MC 1.21.1 / Forge 52.1.16)
 forge-1.21.4/                point release (MC 1.21.4 / Forge 54.1.18)
 forge-1.21.8/                point release (MC 1.21.8 / Forge 58.1.21)
 forge-1.16.5/  forge-1.20.1/ reserved placeholders (future lanes, not included yet)
-mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper, builds out-of-band
+mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG 2.3.4, Java 8,
+                            builds out-of-band, shares ../common as a source dir
 ```
 
 ## Modules
@@ -31,6 +32,7 @@ mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper, bui
 | `:forge-1.21.4` | 1.21.4 | 54.1.18 | 7.x | root 9.3.1 | 21 |
 | `:forge-1.21.8` | 1.21.8 | 58.1.21 | 7.x | root 9.3.1 | 21 |
 | (future) `:forge-1.16.5` / `:forge-1.20.1` | — | — | 5.1+/6.x | TBD | Java 8 source |
+| `mc1.12.2/` (not a subproject) | 1.12.2 | 14.23.5.2847 | 2.3.4 | own 4.10.3 wrapper | JDK 8 |
 
 Every `forge-*` module's `build.gradle.kts` is three lines:
 `plugins { id("everlastingskins.forge-module") }`. All build logic lives in
@@ -48,8 +50,12 @@ MC/Forge versions come from each subproject's `gradle.properties`.
 The 1.12.2 lane is NOT part of this build:
 
 ```bash
-cd mc1.12.2 && ./gradlew build   # Gradle 4.10.3 wrapper, Java 8
+cd mc1.12.2 && ./gradlew build   # own Gradle 4.10.3 wrapper, Java 8, FG 2.3.4
 ```
+
+`mc1.12.2/build.gradle` adds `../common/src/main/java` to its main source set,
+so the lane compiles the same `:common` sources as the Forge line (single
+canonical copy; no JPMS on Java 8).
 
 ## Notes / known state
 
@@ -68,5 +74,8 @@ cd mc1.12.2 && ./gradlew build   # Gradle 4.10.3 wrapper, Java 8
   is NOT green on this branch; the module-matrix CI rework is a follow-up
   (see AGENTS.md).
 - **Artifact naming:** `everlastingskins-<mc>` (was `EverlastingSkins-<mc>`).
-- `mc1.12.2/` is not yet included in this repo; it is imported from the
-  parent checkout's history when the port happens.
+- `mc1.12.2/` is imported from the parent checkout's history and builds
+  out-of-band with its own wrapper (Gradle 4.10.3 + FG 2.3.4 + Java 8). Its
+  main source set shares `../common/src/main/java`; overlapping lane copies
+  were deleted at import, so `:common` is canonical. Its 514 unit tests pass
+  (`cd mc1.12.2 && JAVA_HOME=<jdk8> ./gradlew test`).

@@ -1,0 +1,129 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { name = 'forge'; url = 'https://files.minecraftforge.net/maven' }
+        maven { name = 'sonatype'; url = 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3.4'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = '0.8.11'
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = "${mod_version}"
+group = 'levosilimo.everlastingskins'
+archivesBaseName = 'everlastingskins-1.12.2'
+
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+
+minecraft {
+    version = '1.12.2-14.23.5.2847'
+    runDir = 'run'
+    mappings = 'snapshot_20171003'
+    replace '@VERSION@', project.version
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+            // Share the monorepo :common sources (no JPMS on Java 8). Classes that
+            // also exist here are deleted from src/main/java — common is canonical.
+            srcDir '../common/src/main/java'
+            // Exclude Mixin support files — no Mixin annotation processor configured for 1.12.2
+            exclude 'levosilimo/everlastingskins/mixin/**'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "PlaceholderAPI"
+        url = "https://repo.extendedclip.com/content/repositories/placeholderapi/"
+    }
+    maven {
+        name = "DiscordSRV"
+        url = "https://nexus.scarsz.me/content/groups/public/"
+    }
+    maven {
+        name = "Spigot"
+        url = "https://hub.spigotmc.org/nexus/content/repositories/snapshots/"
+    }
+}
+
+dependencies {
+    // JetBrains annotations for @Nullable/@NotNull
+    provided 'org.jetbrains:annotations:24.0.0'
+
+    // LuckPerms soft-dependency (compile-only)
+    provided 'net.luckperms:api:5.5'
+    provided 'me.clip:placeholderapi:2.12.3'
+    provided 'com.discordsrv:discordsrv:1.30.5'
+    compile 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
+
+    // Apache HttpClient for HTTP transport
+    compile 'org.apache.httpcomponents:httpclient:4.5.13'
+
+    // JUnit 5 for test source set
+    testCompile 'org.junit.jupiter:junit-jupiter-api:5.10.3'
+    testCompile 'org.junit.jupiter:junit-jupiter-params:5.10.3'
+    testCompile 'net.jqwik:jqwik:1.9.0'
+    testCompile 'me.clip:placeholderapi:2.12.3'
+    testCompile 'org.spigotmc:spigot-api:1.12.2-R0.1-SNAPSHOT'
+    testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.10.3'
+    testRuntime 'org.junit.platform:junit-platform-launcher:1.10.3'
+    testCompile 'com.discordsrv:discordsrv:1.30.5'
+    testCompile 'org.mockito:mockito-core:2.28.2'
+}
+
+test {
+    useJUnitPlatform()
+    // Prevent test task from failing if no tests are found (clean build)
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.enabled = true
+        html.enabled = true
+    }
+}
+
+processResources {
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title': archivesBaseName,
+            'Specification-Vendor': 'Levosilimo',
+            'Specification-Version': project.version,
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'Levosilimo',
+            'FMLAT': 'everlastingskins_at.cfg'
+        ])
+    }
+}
