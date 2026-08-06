@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_command_set_mojang_full_flow",
+  "environment": "everlastingskins_gametest:skin_command_set_mojang_full_flow",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}
