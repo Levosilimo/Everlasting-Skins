@@ -251,4 +251,8 @@ jobs:
         with:
           node-version: 20
       - name: Run aislop gate on PR changes
-        run: npx -y aislop ci --changes --base origin/integration/m2-monorepo
+        # Diff against the PR's actual base branch (github.base_ref); on
+        # push events fall back to origin/main. Replaces the hardcoded
+        # origin/integration/m2-monorepo so PRs into main are gated
+        # against main, and integration PRs keep their old behavior.
+        run: npx -y aislop ci --changes --base origin/${{ github.base_ref || 'main' }}
