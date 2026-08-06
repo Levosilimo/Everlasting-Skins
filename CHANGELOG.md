@@ -2,6 +2,19 @@
 
 ## M2 (monorepo) — unreleased
 
+### Mainline promotion (2026-08-06)
+
+`integration/m2-monorepo` promoted to the repo's new default branch
+`main` (Option A): branch protection applied to `integration/m2-monorepo`
+and `main` (strict, `enforce_admins`, no force pushes/deletions, 12
+required checks — the full m2 ci.yml contract), `main` created at
+`055031b` from the m2 HEAD, default branch switched via
+`gh repo edit --default-branch main`. `1.21` stays as a frozen stable
+alias (tagged `archived-m2-complete`); its 4 PR #256 commits (e3e6531,
+8099ede, 02e2020, 1bb09d0) are superseded by the monorepo's `/common`
+vendor approach and were not ported. `1.21` and `mc1.12.2` retain their
+existing branch protection and are not deleted.
+
 ### Missing CHANGELOG entries backfilled
 
 - **#266** — docs: sync monorepo README/AGENTS/CHANGELOG + add

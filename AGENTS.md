@@ -169,11 +169,22 @@ matrix is not reliable under act (Docker JDK image fragility) — treat `act` as
 a syntax gate, not a build substitute.
 
 
-## Required checks (integration/m2-monorepo branch protection)
+## Branch policy & required checks
 
-Enforced via the gh API — do not edit branch protection in-repo. `Build
-(forge-1.16.5)` and `Build (forge-1.20.1)` are required status checks on
-integration/m2-monorepo, additive to the existing contract (`YAML Lint`,
-`Build (common)` / `Build (1.21.x)` matrix, `Build (mc1.12.2)`, `E2E
-(mc1.12.2)`, `GameTest (1.21)`, `aislop (M2)`). CI job names must match
-the required-check strings exactly.
+`main` is the default branch (promoted from `integration/m2-monorepo` at
+`055031b`, 2026-08-06 — the 4-commit `1.21` divergence, all PR #256, is
+superseded by the monorepo's `/common` vendor approach and was not
+ported). `1.21` and `mc1.12.2` remain as frozen stable aliases (tagged
+`archived-m2-complete`): do NOT delete them, do NOT force-push them.
+`1.21` keeps its own 3-check protection (`Build (1.21)`, `GameTest
+(1.21)`, `YAML Lint`).
+
+Required checks (identical contract on `main` and
+`integration/m2-monorepo`) are enforced via the gh API — do not edit
+branch protection in-repo. The contract is strict (`enforce_admins`, no
+force pushes/deletions) with 12 contexts: `YAML Lint`, the `Build
+(common)` / `Build (1.21.x)` matrix, `Build (mc1.12.2)`, `E2E
+(mc1.12.2)` (push-only job — fires on push events only), `GameTest
+(1.21)`, the out-of-band `Build (forge-1.16.5)` / `Build (forge-1.20.1)`
+lanes, and `aislop (M2)`. CI job names must match the required-check
+strings exactly.
