@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skip_if_unchanged",
+  "environment": "everlastingskins_gametest:skip_if_unchanged",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

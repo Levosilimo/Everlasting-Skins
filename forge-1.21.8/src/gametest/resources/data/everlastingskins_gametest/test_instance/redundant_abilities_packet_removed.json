@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:redundant_abilities_packet_removed",
+  "environment": "everlastingskins_gametest:redundant_abilities_packet_removed",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

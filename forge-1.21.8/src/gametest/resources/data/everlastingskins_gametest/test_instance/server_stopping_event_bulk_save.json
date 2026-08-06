@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:server_stopping_event_bulk_save",
+  "environment": "everlastingskins_gametest:server_stopping_event_bulk_save",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

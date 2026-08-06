@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_refresh_negative_control",
+  "environment": "everlastingskins_gametest:skin_refresh_negative_control",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}
