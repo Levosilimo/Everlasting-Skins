@@ -15,6 +15,7 @@ import levosilimo.everlastingskins.util.JsonUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URI;
@@ -52,7 +53,7 @@ public class RandomMojangSkin {
                     continue;
                 }
 
-                if ((variant.equals(SkinVariant.SLIM) && !isSlim(username)) || ((variant.equals(SkinVariant.CLASSIC) && isSlim(username)))) {
+                if ((variant.equals(SkinVariant.SLIM) && !isSlim(username)) || (variant.equals(SkinVariant.CLASSIC) && isSlim(username))) {
                     continue;
                 }
                 return username;
@@ -171,6 +172,6 @@ public class RandomMojangSkin {
         String skinValue = mojangAPI.getSkin(username)
                 .orElseThrow(() -> new IOException("No skin data for username: " + username))
                 .skinProperty().getValue();
-        return new String(Base64.getDecoder().decode(skinValue));
+        return new String(Base64.getDecoder().decode(skinValue), StandardCharsets.UTF_8);
     }
 }

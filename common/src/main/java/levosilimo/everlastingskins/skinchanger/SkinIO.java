@@ -32,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -209,7 +210,10 @@ public class SkinIO {
     private void scheduleDrain() {
         if (drainScheduled.getAndSet(true)) return;
         try {
-            writer().schedule(this::drainPending, DRAIN_DEBOUNCE_MS, TimeUnit.MILLISECONDS);
+            // Intentional fire-and-forget debounce: drainPending logs its own
+            // failures, so the timer future carries no observable signal.
+            @SuppressWarnings("FutureReturnValueIgnored")
+            ScheduledFuture<?> unused = writer().schedule(this::drainPending, DRAIN_DEBOUNCE_MS, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             LOGGER.warn("SkinIO drain schedule failed", e);
         }
@@ -227,6 +231,11 @@ public class SkinIO {
                 SkinMetrics.INSTANCE.recordRealWrite();
                 SkinMetrics.INSTANCE.recordSaveCompleted();
             }
+        } catch (Exception e) {
+            // Failure visibility: without this, a saveSkin error escapes to the
+            // executor's default handler (stderr only). Remaining payloads were
+            // already removed from pendingWrites; they are lost either way.
+            LOGGER.error("SkinIO drain failed", e);
         } finally {
             // Reset the latch so future saveSkinAsync calls schedule again. If new
             // writes arrived during this drain, schedule the next drain immediately
@@ -299,6 +308,7 @@ public class SkinIO {
             try {
                 Files.deleteIfExists(temp);
             } catch (IOException ignored) {
+                // Best-effort cleanup; a leftover temp file is harmless.
             }
         }
     }
@@ -499,6 +509,8 @@ public class SkinIO {
         try {
             Files.move(target, quarantine, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ignored) {
+            // Best-effort quarantine; the corrupt record stays in place and
+            // is retried next sweep.
         }
     }
 

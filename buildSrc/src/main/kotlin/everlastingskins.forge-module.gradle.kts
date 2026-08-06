@@ -21,6 +21,8 @@ plugins {
     // no-mixin gate (buildSrc): registers verifyNoMixin, wired into `build`.
     // Any subproject applying this convention gets the Mixin-usage gate.
     id("no-mixin")
+    // ErrorProne static analysis (buildSrc): hooks every JavaCompile.
+    id("everlastingskins.errorprone")
 }
 
 // NOTE: property reads here use project.findProperty (NOT
@@ -219,6 +221,11 @@ dependencies {
     implementation(project(":common"))
     implementation("org.apache.httpcomponents:httpclient:4.5.13")
     implementation(minecraft.dependency("net.minecraftforge:forge:${minecraftVersion}-${forgeVersion}"))
+    // MUST be declared before the mixin processor: mixin-0.8.7-processor.jar
+    // bundles an unrelocated OLD Guava (no ImmutableMap.Builder.buildOrThrow),
+    // which would shadow ErrorProne's Guava 33 on the annotation processor
+    // path and crash it with NoSuchMethodError (ErrorProne integration).
+    annotationProcessor("com.google.guava:guava:33.5.0-jre")
     annotationProcessor("org.spongepowered:mixin:0.8.7:processor")
     // Hack fix for now, force jopt-simple to be exactly 5.0.4 because Mojang
     // ships that version, but some transitive dependencies request 6.0+.

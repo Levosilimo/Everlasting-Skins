@@ -39,6 +39,7 @@ public final class HttpResponse {
         try {
             return GSON.fromJson(body, clazz);
         } catch (JsonSyntaxException ignored) {
+            // Malformed body: not JSON, treat as absent.
         }
         return null;
     }

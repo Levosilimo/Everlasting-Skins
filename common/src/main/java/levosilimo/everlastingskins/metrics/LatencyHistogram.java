@@ -61,11 +61,9 @@ final class LatencyHistogram {
         long p95 = percentile(total, 0.95);
         long p99 = percentile(total, 0.99);
         long max = 0;
-        long cumulative = 0;
         for (int i = 0; i < buckets.length; i++) {
             long count = buckets[i].sum();
             if (count == 0) continue;
-            cumulative += count;
             max = bound(i);
         }
         result.put("p50", p50);

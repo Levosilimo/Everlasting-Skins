@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -200,7 +201,7 @@ class SkinIOPropertyTest {
                     switch (op.type) {
                         case SAVE_ASYNC:
                             model.put(op.uuid, op.value);
-                            storage.saveSkinAsync(op.uuid, skin(op.value));
+                            CompletableFuture<Void> unused = storage.saveSkinAsync(op.uuid, skin(op.value));
                             break;
                         case SAVE_SYNC:
                             model.put(op.uuid, op.value);
@@ -276,7 +277,7 @@ class SkinIOPropertyTest {
     }
 
     @Group
-    class DrainIdempotence {
+    static class DrainIdempotence {
 
         /**
          * Model: the drain latch and per-UUID coalescing guarantee at most one
@@ -304,7 +305,7 @@ class SkinIOPropertyTest {
                     SkinStorage storage = new SkinStorage(io);
                     UUID uuid = UUID.randomUUID();
                     for (String value : burst) {
-                        storage.saveSkinAsync(uuid, skin(value));
+                        CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     }
                     storage.flushPending();
                     assertEquals(1, SkinMetrics.INSTANCE.snapshot().realWrites(),
@@ -321,7 +322,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    class DeleteBeatsWrite {
+    static class DeleteBeatsWrite {
 
         /**
          * Model: a delete is a tombstone that beats any earlier write, so a
@@ -339,7 +340,7 @@ class SkinIOPropertyTest {
                     SkinIO io = new SkinIO(dir);
                     SkinStorage storage = new SkinStorage(io);
                     UUID uuid = UUID.randomUUID();
-                    storage.saveSkinAsync(uuid, skin(value));
+                    CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     storage.removeSkin(uuid);
                     storage.flushPending();
                     assertFalse(Files.exists(dir.resolve(uuid + ".json")),
@@ -376,7 +377,7 @@ class SkinIOPropertyTest {
                     UUID uuid = UUID.randomUUID();
                     Path target = dir.resolve(uuid + ".json");
 
-                    storage.saveSkinAsync(uuid, skin(value));
+                    CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     assertTrue(blockingIO.writeStarted.await(5, TimeUnit.SECONDS),
                             "drain must reach the file write before the delete");
 
@@ -410,7 +411,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    class SerializeLoadRoundTrip {
+    static class SerializeLoadRoundTrip {
 
         /**
          * Model: the wire format is the state, so serialize -> load ->
@@ -456,7 +457,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    class RestartAfterDelete {
+    static class RestartAfterDelete {
 
         /**
          * Model: a tombstone must survive a restart, so a fresh store over the
@@ -475,7 +476,7 @@ class SkinIOPropertyTest {
                     SkinIO io = new SkinIO(dir);
                     SkinStorage storage = new SkinStorage(io);
                     UUID uuid = UUID.randomUUID();
-                    storage.saveSkinAsync(uuid, skin(value));
+                    CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     storage.removeSkin(uuid);
                     storage.flushPending();
                     SkinStorage restarted = new SkinStorage(new SkinIO(dir));
@@ -490,7 +491,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    class ModelEquivalence {
+    static class ModelEquivalence {
 
         /**
          * Model: the full specification. A random concurrent op script (async
@@ -537,7 +538,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    class LatestWins {
+    static class LatestWins {
 
         /**
          * Model: the map is latest-wins, so a sequence of async saves for one
@@ -555,7 +556,7 @@ class SkinIOPropertyTest {
                     SkinStorage storage = new SkinStorage(io);
                     UUID uuid = UUID.randomUUID();
                     for (String value : values) {
-                        storage.saveSkinAsync(uuid, skin(value));
+                        CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     }
                     storage.flushPending();
                     assertFileValue(dir, uuid, values.get(values.size() - 1));
@@ -587,7 +588,7 @@ class SkinIOPropertyTest {
                     Thread threadA = new Thread(() -> {
                         try {
                             start.await();
-                            storage.saveSkinAsync(uuid, skin(valueA));
+                            CompletableFuture<Void> unused2 = storage.saveSkinAsync(uuid, skin(valueA));
                         } catch (Throwable t) {
                             failure.compareAndSet(null, t);
                         }
@@ -595,7 +596,7 @@ class SkinIOPropertyTest {
                     Thread threadB = new Thread(() -> {
                         try {
                             start.await();
-                            storage.saveSkinAsync(uuid, skin(valueB));
+                            CompletableFuture<Void> unused3 = storage.saveSkinAsync(uuid, skin(valueB));
                         } catch (Throwable t) {
                             failure.compareAndSet(null, t);
                         }

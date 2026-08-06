@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -78,7 +79,7 @@ public class MojangProfileCache {
     /** Returns the cached skin for the username, or null when absent/expired. */
     public synchronized CustomSkinProperty get(String username) {
         if (username == null) return null;
-        String key = username.toLowerCase();
+        String key = username.toLowerCase(Locale.ROOT);
         CacheEntry entry = entries.get(key);
         if (entry == null) {
             SkinMetrics.INSTANCE.recordCacheMiss();
@@ -96,7 +97,7 @@ public class MojangProfileCache {
     /** Stores a fetched skin, evicting expired and least-recently-used entries when over capacity. */
     public synchronized void put(String username, CustomSkinProperty property) {
         if (username == null || property == null) return;
-        String key = username.toLowerCase();
+        String key = username.toLowerCase(Locale.ROOT);
         if (maxEntries <= 0) return;
         if (entries.containsKey(key)) {
             entries.put(key, new CacheEntry(property, System.nanoTime()));

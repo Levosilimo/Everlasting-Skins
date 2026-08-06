@@ -25,7 +25,6 @@ public final class PermissionServiceManager {
     private static final Logger LOGGER = LogManager.getLogger(PermissionServiceManager.class);
 
     private static IPermissionService activeService = null;
-    private static boolean initialized = false;
 
     private PermissionServiceManager() {}
 
@@ -34,7 +33,6 @@ public final class PermissionServiceManager {
         if (service == null) {
             return;
         }
-        initialized = true;
         if (activeService == null || service.getPriority() > activeService.getPriority()) {
             activeService = service;
             LOGGER.info("Permission backend active: {}", service.getActiveBackendName());
@@ -57,7 +55,6 @@ public final class PermissionServiceManager {
     /* package-private for testing */
     static void reset() {
         activeService = null;
-        initialized = false;
     }
 
     public static String getActiveBackendName() {

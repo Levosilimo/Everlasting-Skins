@@ -17,8 +17,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SkinMetricsTest {
 
-    private final SkinMetrics metrics = new SkinMetrics();
-
     private static SkinMetrics freshMetrics() {
         return new SkinMetrics();
     }

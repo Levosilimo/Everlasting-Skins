@@ -86,6 +86,7 @@ public class CustomSkinProperty {
     }
 
     @Override
+    @SuppressWarnings("EqualsGetClass") // deliberate: public non-final class, getClass() keeps subclass equality contract-safe
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

@@ -239,11 +239,11 @@ class SkinStorageTest {
             UUID u1 = UUID.randomUUID();
             UUID u2 = UUID.randomUUID();
 
-            storage.saveSkinAsync(u1, new CustomSkinProperty("textures", "sig1", "src1"));
+            CompletableFuture<Void> unused = storage.saveSkinAsync(u1, new CustomSkinProperty("textures", "sig1", "src1"));
             assertTrue(awaitFile(tempDir.resolve(u1 + ".json")),
                     "First async save should be persisted after the debounce window");
 
-            storage.saveSkinAsync(u2, new CustomSkinProperty("textures", "sig2", "src2"));
+            CompletableFuture<Void> unused2 = storage.saveSkinAsync(u2, new CustomSkinProperty("textures", "sig2", "src2"));
             assertTrue(awaitFile(tempDir.resolve(u2 + ".json")),
                     "Second async save after latch reset should be persisted");
         }
@@ -252,9 +252,9 @@ class SkinStorageTest {
         @DisplayName("burst saves for the same UUID coalesce into one disk write")
         void saveSkinAsync_coalescesSameUUIDWrites() throws Exception {
             UUID u = UUID.randomUUID();
-            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig1", "src1"));
-            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig2", "src2"));
-            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig3", "src3"));
+            CompletableFuture<Void> unused = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig1", "src1"));
+            CompletableFuture<Void> unused2 = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig2", "src2"));
+            CompletableFuture<Void> unused3 = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig3", "src3"));
             storage.flushPending();
 
             // Only the last payload should hit disk (realWrites=1, savesCoalesced=2).
@@ -271,7 +271,7 @@ class SkinStorageTest {
         @DisplayName("removeSkin purges pending writes so the deferred drain cannot resurrect the file")
         void deleteSkin_purgesPendingWrites() throws Exception {
             UUID u = UUID.randomUUID();
-            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+            CompletableFuture<Void> unused = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
             storage.removeSkin(u); // before the drain fires
             storage.flushPending();
 
@@ -300,7 +300,7 @@ class SkinStorageTest {
         @DisplayName("flushPending blocks until queued writes have landed on disk")
         void flushPending_waitsForPendingWrites_toFinish() throws Exception {
             UUID u = UUID.randomUUID();
-            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+            CompletableFuture<Void> unused = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
             assertTrue(storage.hasPendingWrites(), "payload must be queued right after saveSkinAsync");
 
             storage.flushPending();
@@ -315,7 +315,7 @@ class SkinStorageTest {
         void writeAfterDelete_doesNotResurrect() throws Exception {
             UUID u = UUID.randomUUID();
             Path target = tempDir.resolve(u + ".json");
-            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+            CompletableFuture<Void> unused = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
             assertTrue(storage.hasPendingWrites(), "payload must be queued before the delete");
 
             storage.removeSkin(u); // purges the deferred payload, serializes the delete
@@ -331,7 +331,7 @@ class SkinStorageTest {
             UUID u = UUID.randomUUID();
             assertFalse(storage.hasPendingWrites(), "no queue before any save");
 
-            storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
+            CompletableFuture<Void> unused = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
             assertTrue(storage.hasPendingWrites(), "queue must be non-empty right after an async save");
 
             storage.flushPending();

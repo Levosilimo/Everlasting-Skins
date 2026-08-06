@@ -37,7 +37,7 @@ public class HttpsUrlConnectionHttpClient implements HttpClient {
             throw new IOException("Only HTTPS is supported.");
         }
 
-        logger.debug("Sending " + method + " request to " + url + " with body: " + requestBody);
+        logger.debug("Sending {} request to {} with body: {}", method, url, requestBody == null ? "null" : requestBody.body());
 
         HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
         connection.setRequestMethod(method.name());
