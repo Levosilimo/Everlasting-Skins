@@ -11,10 +11,11 @@ on:
       - 'mc1.21.4-v*'
       - 'mc1.21.8-v*'
       - 'mc1.12.2-v*'
-      # mc1.20.1 / mc1.16.5: re-enable tag triggers + matrix entries
-      # below after PR #261 merges (subprojects land in settings.gradle.kts).
-      # - 'mc1.20.1-v*'
-      # - 'mc1.16.5-v*'
+      # mc1.20.1 / mc1.16.5: re-enable tag triggers + dedicated publish
+      # jobs (out-of-band lanes with their own wrappers, see
+      # publish-mc1_12_2 below) once the lanes reach SOURCE-COMPLETE.
+      # # - 'mc1.20.1-v*'
+      # # - 'mc1.16.5-v*'
       # NOTE: NeoForge intentionally dropped — no mcneoforge lane.
 
 jobs:
@@ -43,10 +44,14 @@ jobs:
             module: forge-1.21.8
             game-version: "1.21.8"
             java: "21"
-          # NOTE: mc1.20.1 / mc1.16.5 matrix entries commented out —
-          # forge-1.20.1 and forge-1.16.5 are not in settings.gradle.kts
-          # at this PR's head (1.16.5 is on integration via #257;
-          # 1.20.1 lands with PR #261). Re-enable after #261 merges.
+          # NOTE: mc1.20.1 / mc1.16.5 have NO matrix entries: since the FG
+          # lane separation (PR #2xx) they are standalone builds with their
+          # own wrappers (forge-1.16.5 → Gradle 7.6.4/Java 8 + FG 5.1.77;
+          # forge-1.20.1 → Gradle 8.7/Java 21 + FG 6.0.54), so the shared
+          # `./gradlew :${{ matrix.module }}:build` step cannot build them.
+          # Re-enable via dedicated jobs modeled on publish-mc1_12_2 below
+          # (own checkout, own JAVA_HOME, `cd forge-1.16.5 && ./gradlew
+          # build`) once the lanes reach SOURCE-COMPLETE.
           # - prefix: "mc1.20.1-v"
           #   module: forge-1.20.1
           #   game-version: "1.20.1"

@@ -17,7 +17,7 @@ forge-1.21/                  current 1.21 mod (MC 1.21 / Forge 51.0.8)
 forge-1.21.1/                point release (MC 1.21.1 / Forge 52.1.16)
 forge-1.21.4/                point release (MC 1.21.4 / Forge 54.1.18)
 forge-1.21.8/                point release (MC 1.21.8 / Forge 58.1.21)
-forge-1.16.5/  forge-1.20.1/ reserved placeholders (future lanes, not included yet)
+forge-1.16.5/  forge-1.20.1/ out-of-band legacy lanes (own Gradle wrappers, FG per-lane)
 mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG 2.3.4, Java 8,
                             builds out-of-band, shares ../common as a source dir
 ```
@@ -31,8 +31,13 @@ mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG
 | `:forge-1.21.1` | 1.21.1 | 52.1.16 | 7.x | root 9.3.1 | 21 |
 | `:forge-1.21.4` | 1.21.4 | 54.1.18 | 7.x | root 9.3.1 | 21 |
 | `:forge-1.21.8` | 1.21.8 | 58.1.21 | 7.x | root 9.3.1 | 21 |
-| (future) `:forge-1.16.5` / `:forge-1.20.1` | — | — | 5.1+/6.x | TBD | Java 8 source |
+| `forge-1.16.5/` (not a subproject) | 1.16.5 | 36.2.34 | 5.1.x | own 7.6.4 wrapper | JDK 8 |
+| `forge-1.20.1/` (not a subproject) | 1.20.1 | 47.4.10 | 6.x | own 8.7 wrapper | JDK 21 (17 toolchain) |
 | `mc1.12.2/` (not a subproject) | 1.12.2 | 14.23.5.2847 | 2.3.4 | own 4.10.3 wrapper | JDK 8 |
+
+`forge-1.16.5` / `forge-1.20.1` are out-of-band per-lane wrappers (own Gradle
+wrapper, FG applied per-lane — see AGENTS.md "Legacy lanes"): they are NOT
+included in `settings.gradle.kts`, so the root build never configures them.
 
 Every `forge-*` module's `build.gradle.kts` is three lines:
 `plugins { id("everlastingskins.forge-module") }`. All build logic lives in
@@ -70,12 +75,34 @@ canonical copy; no JPMS on Java 8).
   processing + jar-manifest attributes only (Lane C). Enforced by the
   `verifyNoMixin` gate in `buildSrc/` (`no-mixin.gradle.kts`, ported from the
   parent's `common/build-logic`), which fails the build on any Mixin usage.
-- **CI:** `.github/workflows/` still targets the old single-module layout and
-  is NOT green on this branch; the module-matrix CI rework is a follow-up
-  (see AGENTS.md).
+- **CI:** `.github/workflows/ci.yml` is a per-module matrix (PR #260):
+  lint-yaml, then `build` over `:common` + the four 1.21.x modules, an
+  out-of-band mc1.12.2 build (own wrapper, JDK 8), and the `E2E (mc1.12.2)`
+  required-check placeholder. `publish.yml` was reworked in the same PR.
+  The 1.16.5 / 1.20.1 scaffolds are not in the matrix yet.
 - **Artifact naming:** `everlastingskins-<mc>` (was `EverlastingSkins-<mc>`).
 - `mc1.12.2/` is imported from the parent checkout's history and builds
   out-of-band with its own wrapper (Gradle 4.10.3 + FG 2.3.4 + Java 8). Its
   main source set shares `../common/src/main/java`; overlapping lane copies
   were deleted at import, so `:common` is canonical. Its 514 unit tests pass
   (`cd mc1.12.2 && JAVA_HOME=<jdk8> ./gradlew test`).
+
+## Recently merged (M2 campaign)
+
+- **#257** — initial `forge-1.16.5` subproject scaffold (+ lib-35 first shims).
+- **#258** — `verifyNoMixin` build gate ported into `buildSrc/`.
+- **#259** — `run-gametest-local.sh` paths corrected for the multi-module layout.
+- **#260** — `ci.yml` + `publish.yml` reworked to a per-module matrix.
+- **#261** — initial `forge-1.20.1` subproject scaffold.
+- **#263** — `forge-1.21` compile compat restored with Forge 51.0.8.
+- **#264** — `forge-1.21` test/gametest sources downgraded for Forge 51.0.8.
+- **#265** — `forge-1.21` runtime blockers resolved (incl. JPMS split-package).
+- **#266** — docs sync (README / AGENTS / CHANGELOG) with the M2 campaign state.
+- **#267** — FG 5.x/6.x lane separation: 1.16.5 / 1.20.1 moved to out-of-band
+  per-lane wrappers (own Gradle + FG per lane).
+- **#268** — dedup of `forge-1.21` / `forge-1.16.5` against `:common`;
+  JPMS split-package resolved (Option B1, 12 survivors relocated to
+  `forge21.*`); `consumeCommon` flipped on for the forge modules.
+
+Still ahead: source carry-over onto `:common` for the legacy lanes and the
+`pack.mcmeta` format bump (see CHANGELOG).

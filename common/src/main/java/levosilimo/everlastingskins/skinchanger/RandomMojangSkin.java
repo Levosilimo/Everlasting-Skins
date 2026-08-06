@@ -170,7 +170,7 @@ public class RandomMojangSkin {
     private static String getDecodedStringForUsername(String username) throws IOException {
         String skinValue = mojangAPI.getSkin(username)
                 .orElseThrow(() -> new IOException("No skin data for username: " + username))
-                .skinProperty().getOriginalProperty().getValue();
+                .skinProperty().getValue();
         return new String(Base64.getDecoder().decode(skinValue));
     }
 }

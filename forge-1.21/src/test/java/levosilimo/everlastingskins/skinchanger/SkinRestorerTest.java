@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

@@ -12,6 +12,7 @@ build/
 run/
 server/
 /logs
+logs/
 .factorypath
 
 #Eclipse

@@ -11,7 +11,7 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
-import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import net.minecraft.core.Holder;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundBundlePacket;
@@ -59,7 +59,7 @@ import static org.mockito.Mockito.when;
  * {@code BROADCAST_USE_BUNDLE}, {@code DIMENSION_SCOPED_BROADCAST} and
  * the explicit-observer vs broadcast-all variants. These contract
  * guarantees are what {@link
- * levosilimo.everlastingskins.skinchanger.SkinRefreshHandler#task}
+ * levosilimo.everlastingskins.forge21.skinchanger.SkinRefreshHandler#task}
  * inherits by calling the broadcaster; the handler test asserts the
  * call shape, this one asserts the packets.
  */

@@ -19,11 +19,11 @@ import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.MojangAPI;
 import levosilimo.everlastingskins.skinchanger.ProfileLookup;
-import levosilimo.everlastingskins.skinchanger.SkinCommand;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinCommand;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.SkinIO;
-import levosilimo.everlastingskins.skinchanger.SkinRefreshHandler;
-import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRefreshHandler;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -1630,7 +1630,7 @@ public class SkinVisibilityTest {
         public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
             maybeSlow();
             if (fail) return Optional.empty();
-            return Optional.of(new CustomSkinProperty("textures", valueFor(lookup.username()), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, lookup.username()));
+            return Optional.of(new CustomSkinProperty("textures", valueFor(lookup.getUsername()), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, lookup.getUsername()));
         }
     }
 

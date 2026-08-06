@@ -11,9 +11,12 @@ import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.suggestion.Suggestion;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinCommand;
 import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
-import levosilimo.everlastingskins.util.CompletionSources;
+import levosilimo.everlastingskins.forge21.permission.VanillaPermissionService;
+import levosilimo.everlastingskins.forge21.util.CompletionSources;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.Bootstrap;
@@ -70,6 +73,9 @@ class SkinCommandTabCompleteTest {
     @BeforeEach
     void setUp() {
         TestConfigSupport.loadDefaults();
+        // :common's manager registers no backend by itself (fail-closed); the
+        // per-version bootstrap registers these — tests mirror the bootstrap.
+        PermissionServiceManager.registerService(new VanillaPermissionService());
         CompletionSources.setMojangProfileCache(new MojangProfileCache());
         dispatcher = new CommandDispatcher<>();
         SkinCommand.register(dispatcher);
