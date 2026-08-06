@@ -1,0 +1,30 @@
+modLoader = "javafml"
+loaderVersion = "[31,)"
+license = "MIT License"
+
+[[mods]]
+modId = "everlastingskins"
+version = "2.1.0"
+displayName = "Everlasting Skins"
+authors = "Levosilimo"
+description = '''
+A server-side Minecraft Forge mod that provides persistent custom skins on vanilla (offline-mode) servers.
+'''
+[[dependencies.everlastingskins]]
+modId = "forge"
+mandatory = false
+versionRange = "[31,)"
+ordering = "NONE"
+side = "SERVER"
+[[dependencies.everlastingskins]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.21.1,1.21.2)"
+ordering = "NONE"
+side = "BOTH"
+[[dependencies.everlastingskins]]
+modId = "luckperms"
+mandatory = false
+versionRange = "[5.5,)"
+ordering = "AFTER"
+side = "SERVER"
