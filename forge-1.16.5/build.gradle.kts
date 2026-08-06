@@ -154,6 +154,12 @@ dependencies {
     testImplementation("com.mojang:authlib:1.5.25")
     testImplementation("org.apache.logging.log4j:log4j-api:2.8.1")
     testImplementation("com.google.code.findbugs:jsr305:3.0.2")
+    // Mockito 4.x (not 5.x, which requires Java 11): this lane compiles and
+    // runs on Java 8. mockito-inline provides the inline mock maker needed
+    // for mockStatic (mirrors the root convention plugin's mockito usage).
+    testImplementation("org.mockito:mockito-core:4.11.0")
+    testImplementation("org.mockito:mockito-inline:4.11.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:4.11.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
 }
 
