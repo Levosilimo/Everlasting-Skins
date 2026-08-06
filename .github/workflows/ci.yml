@@ -255,4 +255,4 @@ jobs:
         # push events fall back to origin/main. Replaces the hardcoded
         # origin/integration/m2-monorepo so PRs into main are gated
         # against main; integration PRs keep their prior behavior.
-        run: npx -y aislop ci --changes --base origin/${{ github.base_ref || 'main' }}
+        run: npx -y aislop ci --changes --base origin/integration/m2-monorepo
