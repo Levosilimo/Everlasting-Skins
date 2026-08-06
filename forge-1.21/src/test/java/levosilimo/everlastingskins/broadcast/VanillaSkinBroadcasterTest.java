@@ -351,7 +351,10 @@ class VanillaSkinBroadcasterTest {
         when(player.getUUID()).thenReturn(uuid);
         when(player.getGameProfile()).thenReturn(new GameProfile(uuid, name));
         when(player.level()).thenReturn(level);
-        when(player.level()).thenReturn(level);
+        // The 51.0.8-compatible broadcaster reads the level through
+        // ServerPlayer.serverLevel() (Entity.level() is typed Level), so the
+        // mock must stub the ServerLevel-typed accessor as well.
+        when(player.serverLevel()).thenReturn(level);
         when(player.getTabListDisplayName()).thenReturn(null);
         when(player.getChatSession()).thenReturn(null);
         ServerGamePacketListenerImpl connection = mock(ServerGamePacketListenerImpl.class);
