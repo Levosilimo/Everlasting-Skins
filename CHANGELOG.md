@@ -133,7 +133,13 @@ Mixin gate, CI matrix, and forge-1.21 compat fixes.
   54.1.18, 2 API fixes; 34/34 gametests pass)
 - **#281** — feat(monorepo): forge-1.21.8 main source carry-over (Forge
   58.1.21, EventBus 7 migration; gametest dropped per MC 1.21.5 overhaul;
-  215 tests pass)
+  215 tests pass). Gametest coverage was restored by #292 below.
+- **#292** — feat(gametest): forge-1.21.8 GameTest re-introduced (post-#281)
+  using the MC 1.21.5+ data-driven test-instance framework
+  (`minecraft:test_function` / `test_instance` / `test_environment`
+  registries; `@GameTestNamespace` + `@GameTest` on a JPMS-isolated
+  `everlastingskins_gametest` mod). 34 skin-pipeline tests ported from
+  forge-1.21 + vanilla builtin `always_pass` = 35/35 required tests pass.
 
 ### Known follow-ups (next PRs)
 
