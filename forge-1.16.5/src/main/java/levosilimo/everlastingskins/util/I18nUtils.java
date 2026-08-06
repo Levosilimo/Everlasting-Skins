@@ -11,8 +11,9 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.StringTextComponent;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 import java.io.IOException;
@@ -171,7 +172,7 @@ public final class I18nUtils {
      * is not retained on the player), so the per-player variant resolves
      * against Config.LANGUAGE like the null-player path.
      */
-    public static String getLocalizedString(String key, ServerPlayer player) {
+    public static String getLocalizedString(String key, ServerPlayerEntity player) {
         return getLocalizedString(key, Config.LANGUAGE.get());
     }
 
@@ -235,17 +236,17 @@ public final class I18nUtils {
     }
 
     /** {@link #get} wrapped in a plain text Component for command feedback. */
-    public static Component getLocalizedComponent(String key, Object... args) {
-        return Component.literal(get(key, args));
+    public static ITextComponent getLocalizedComponent(String key, Object... args) {
+        return new StringTextComponent(get(key, args));
     }
 
     /** Per-player variant of {@link #get}. */
-    public static Component getLocalizedComponent(String key, ServerPlayer player, Object... args) {
-        return Component.literal(formatMessage(key, player, args));
+    public static ITextComponent getLocalizedComponent(String key, ServerPlayerEntity player, Object... args) {
+        return new StringTextComponent(formatMessage(key, player, args));
     }
 
     /** Resolves a template for {@code player} and fills format args. */
-    public static String formatMessage(String key, ServerPlayer player, Object... args) {
+    public static String formatMessage(String key, ServerPlayerEntity player, Object... args) {
         return format(getLocalizedString(key, player), args);
     }
 

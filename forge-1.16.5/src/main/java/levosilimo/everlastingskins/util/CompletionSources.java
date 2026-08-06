@@ -6,14 +6,15 @@
 
 package levosilimo.everlastingskins.util;
 
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.DefaultSkinResolver;
 import levosilimo.everlastingskins.skinchanger.MojangProfileCache;
-import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.command.CommandSource;
+import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,7 +95,7 @@ public final class CompletionSources {
      * base metrics permission; cleanup/reset additionally need the reset
      * permission, so unauthorized users never see them offered.
      */
-    public static List<String> metricsSubcommands(CommandSourceStack source) {
+    public static List<String> metricsSubcommands(CommandSource source) {
         List<String> subcommands = new ArrayList<>(METRICS_VIEW_SUBCOMMANDS);
         if (hasResetPermission(source)) {
             subcommands.add("cleanup");
@@ -103,10 +104,21 @@ public final class CompletionSources {
         return Collections.unmodifiableList(subcommands);
     }
 
-    private static boolean hasResetPermission(CommandSourceStack source) {
-        ServerPlayer player = source == null ? null : source.getPlayer();
+    private static boolean hasResetPermission(CommandSource source) {
+        ServerPlayerEntity player = source == null ? null : playerOf(source);
         if (player == null) return true; // console senders bypass the gate
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
-        return PermissionServiceManager.hasPermission(ctx, METRICS_RESET_PERMISSION);
+        return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), METRICS_RESET_PERMISSION);
+    }
+
+    /** Source player, or null when the command came from the console.
+     *  1.16.5's CommandSource has no getPlayer() (1.21 has it);
+     *  getPlayerOrException() throws instead. */
+    private static ServerPlayerEntity playerOf(CommandSource source) {
+        try {
+            return source.getPlayerOrException();
+        } catch (CommandSyntaxException e) {
+            return null;
+        }
     }
 }

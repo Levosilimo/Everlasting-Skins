@@ -11,14 +11,17 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import levosilimo.everlastingskins.metrics.MetricsFormat;
+import levosilimo.everlastingskins.metrics.PlayerSnapshot;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.metrics.Snapshot;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.util.I18nUtils;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.command.CommandSource;
+import net.minecraft.command.Commands;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.StringTextComponent;
 
 import java.util.Map;
 import java.util.UUID;
@@ -32,8 +35,8 @@ public final class SkinMetricsCommand {
     private SkinMetricsCommand() {
     }
 
-    /** Source player, or null when the command came from the console. 1.16.5's CommandSourceStack has no getPlayer() (1.21 has it); getPlayerOrException() throws instead. */
-    private static ServerPlayer sourcePlayer(CommandSourceStack source) {
+    /** Source player, or null when the command came from the console. 1.16.5's CommandSource has no getPlayer() (1.21 has it); getPlayerOrException() throws instead. */
+    private static ServerPlayerEntity sourcePlayer(CommandSource source) {
         try {
             return source.getPlayerOrException();
         } catch (CommandSyntaxException e) {
@@ -41,7 +44,7 @@ public final class SkinMetricsCommand {
         }
     }
 
-    public static LiteralArgumentBuilder<CommandSourceStack> build() {
+    public static LiteralArgumentBuilder<CommandSource> build() {
         return Commands.literal("metrics")
                 .executes(context -> metrics(context, false))
                 .then(Commands.literal("json")
@@ -64,58 +67,58 @@ public final class SkinMetricsCommand {
                         .executes(SkinMetricsCommand::reset));
     }
 
-    private static int metrics(CommandContext<CommandSourceStack> context, boolean asJson) {
-        ServerPlayer player = sourcePlayer(context.getSource());
+    private static int metrics(CommandContext<CommandSource> context, boolean asJson) {
+        ServerPlayerEntity player = sourcePlayer(context.getSource());
         if (player == null) {
             context.getSource().sendFailure(I18nUtils.getLocalizedComponent("player_only", player));
             return 0;
         }
         if (!hasPermission(context, "everlastingskins.command.metrics")) return 0;
-        SkinMetrics.Snapshot snapshot = SkinMetrics.INSTANCE.snapshot();
+        Snapshot snapshot = SkinMetrics.INSTANCE.snapshot();
         String output = asJson ? MetricsFormat.json(snapshot) : MetricsFormat.human(snapshot);
-        context.getSource().sendSuccess(Component.literal(output), false);
+        context.getSource().sendSuccess(new StringTextComponent(output), false);
         return 1;
     }
 
-    private static int players(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = sourcePlayer(context.getSource());
+    private static int players(CommandContext<CommandSource> context) {
+        ServerPlayerEntity player = sourcePlayer(context.getSource());
         if (player == null || !hasPermission(context, "everlastingskins.command.metrics")) return 0;
         StringBuilder sb = new StringBuilder(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_top_players", player));
         int rank = 0;
-        for (Map.Entry<UUID, SkinMetrics.PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
+        for (Map.Entry<UUID, PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
             sb.append("\n  ").append(++rank).append(". ")
                     .append(e.getKey()).append(" — ")
                     .append(e.getValue().refreshCount()).append(I18nUtils.formatMessage("metrics_refreshes", player));
         }
         if (rank == 0) sb.append("\n  ").append(I18nUtils.formatMessage("metrics_no_refreshes", player));
-        context.getSource().sendSuccess(Component.literal(sb.toString()), false);
+        context.getSource().sendSuccess(new StringTextComponent(sb.toString()), false);
         return 1;
     }
 
-    private static int cleanup(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = sourcePlayer(context.getSource());
+    private static int cleanup(CommandContext<CommandSource> context) {
+        ServerPlayerEntity player = sourcePlayer(context.getSource());
         if (!hasPermission(context, "everlastingskins.command.metrics.reset")) return 0;
         int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(CLEANUP_OLDER_THAN_MS);
-        context.getSource().sendSuccess(Component.literal(
+        context.getSource().sendSuccess(new StringTextComponent(
                 FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_cleanup", player, removed)), false);
         return 1;
     }
 
-    private static int reset(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = sourcePlayer(context.getSource());
+    private static int reset(CommandContext<CommandSource> context) {
+        ServerPlayerEntity player = sourcePlayer(context.getSource());
         if (!hasPermission(context, "everlastingskins.command.metrics.reset")) return 0;
         SkinMetrics.INSTANCE.reset();
-        context.getSource().sendSuccess(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_reset", player)), false);
+        context.getSource().sendSuccess(new StringTextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_reset", player)), false);
         return 1;
     }
 
-    private static boolean hasPermission(CommandContext<CommandSourceStack> context, String node) {
-        ServerPlayer player = sourcePlayer(context.getSource());
+    private static boolean hasPermission(CommandContext<CommandSource> context, String node) {
+        ServerPlayerEntity player = sourcePlayer(context.getSource());
         if (player == null) return false;
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
-        boolean allowed = PermissionServiceManager.hasPermission(ctx, node);
+        boolean allowed = PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), node);
         if (!allowed) {
-            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", player)));
+            context.getSource().sendFailure(new StringTextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", player)));
         }
         return allowed;
     }

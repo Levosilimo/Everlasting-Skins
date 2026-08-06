@@ -13,13 +13,12 @@ import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.FileUtil;
+import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.event.server.FMLServerStartingEvent;
+import net.minecraftforge.fml.event.server.FMLServerStoppingEvent;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -48,11 +47,12 @@ public class SkinRestorer {
     }
 
     @SubscribeEvent
-    public void onInitializeServer(ServerStartingEvent event) {
+    public void onInitializeServer(FMLServerStartingEvent event) {
         server = event.getServer();
-        Path path = event.getServer().getFile("EverlastingSkins");
+        Path path = event.getServer().getFile("EverlastingSkins").toPath();
         try {
-            FileUtil.createDirectoriesSafe(path);
+            // 1.16.5's FileUtil has no createDirectoriesSafe (1.17+ addition).
+            java.nio.file.Files.createDirectories(path);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -76,8 +76,8 @@ public class SkinRestorer {
      */
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer)) return;
-        ServerPlayer player = (ServerPlayer) event.getEntity();
+        if (!(event.getPlayer() instanceof ServerPlayerEntity)) return;
+        ServerPlayerEntity player = (ServerPlayerEntity) event.getPlayer();
         SkinMetrics.INSTANCE.recordPlayerJoined();
 
         UUID uuid = player.getUUID();
@@ -103,7 +103,7 @@ public class SkinRestorer {
                         // Re-check: skip unless the player still qualifies — unless
                         // applyForPremium explicitly allows overriding a saved custom skin.
                         if (!Config.DEFAULT_SKINS_APPLY_FOR_PREMIUM.get() && !skinStorage.hasDefaultSkin(uuid)) return;
-                        ServerPlayer online = srv.getPlayerList().getPlayer(uuid);
+                        ServerPlayerEntity online = srv.getPlayerList().getPlayer(uuid);
                         if (online == null) return;
                         online.getGameProfile().getProperties().removeAll("textures");
                         online.getGameProfile().getProperties().put("textures", defaultProp);
@@ -116,7 +116,7 @@ public class SkinRestorer {
                 srv.execute(() -> {
                     if (skinStorage.hasDefaultSkin(uuid)) {
                         skinStorage.setSkin(uuid, property);
-                        ServerPlayer online = srv.getPlayerList().getPlayer(uuid);
+                        ServerPlayerEntity online = srv.getPlayerList().getPlayer(uuid);
                         if (online != null) {
                             online.getGameProfile().getProperties().removeAll("textures");
                             online.getGameProfile().getProperties().put("textures", property.getOriginalProperty());
@@ -141,8 +141,8 @@ public class SkinRestorer {
      */
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer)) return;
-        ServerPlayer player = (ServerPlayer) event.getEntity();
+        if (!(event.getPlayer() instanceof ServerPlayerEntity)) return;
+        ServerPlayerEntity player = (ServerPlayerEntity) event.getPlayer();
         UUID uuid = player.getUUID();
         SkinMetrics.INSTANCE.recordPlayerLeft();
         SkinActionCommand.getLastRefreshByPlayer().remove(uuid);
@@ -157,9 +157,9 @@ public class SkinRestorer {
      * Saves all online players' skin data during graceful server shutdown.
      */
     @SubscribeEvent
-    public void onServerStopping(ServerStoppingEvent event) {
+    public void onServerStopping(FMLServerStoppingEvent event) {
         if (server == null) return;
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+        for (ServerPlayerEntity player : server.getPlayerList().getPlayers()) {
             skinStorage.saveSkin(player.getUUID());
         }
         skinIO.flushPending();

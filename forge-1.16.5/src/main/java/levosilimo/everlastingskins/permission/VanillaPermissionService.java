@@ -9,17 +9,19 @@ package levosilimo.everlastingskins.permission;
 
 import levosilimo.everlastingskins.Config;
 
+import java.util.UUID;
+
 public class VanillaPermissionService implements IPermissionService {
 
     private static final int BYPASS_COOLDOWN_OP_LEVEL = 2;
 
     @Override
-    public boolean hasPermission(PermissionContext context, String permissionNode) {
+    public boolean hasPermission(UUID uuid, int opLevel, String permissionNode) {
         if (permissionNode.endsWith(".source")) return true;
         if (permissionNode.endsWith(".bypass.cooldown")) {
-            return context.opLevel() >= BYPASS_COOLDOWN_OP_LEVEL;
+            return opLevel >= BYPASS_COOLDOWN_OP_LEVEL;
         }
-        return context.opLevel() >= requiredOpLevel(permissionNode);
+        return opLevel >= requiredOpLevel(permissionNode);
     }
 
     private static int requiredOpLevel(String permissionNode) {

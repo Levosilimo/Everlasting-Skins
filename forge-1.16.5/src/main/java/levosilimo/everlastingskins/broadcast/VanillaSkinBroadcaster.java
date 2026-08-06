@@ -13,16 +13,16 @@ import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoPacket;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.players.PlayerList;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.Level;
+import net.minecraft.client.network.play.IClientPlayNetHandler;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.network.IPacket;
+import net.minecraft.network.PacketBuffer;
+import net.minecraft.network.play.server.SPlayerListItemPacket;
+import net.minecraft.server.management.PlayerList;
+import net.minecraft.util.RegistryKey;
+import net.minecraft.world.World;
+import net.minecraft.world.server.ServerWorld;
 
 /**
  * Production {@link SkinBroadcaster} for Minecraft 1.16.5. Builds the
@@ -43,23 +43,23 @@ import net.minecraft.world.level.Level;
 public final class VanillaSkinBroadcaster implements SkinBroadcaster {
 
     @Override
-    public void broadcastProfileChange(GameProfile newProfile, ServerPlayer target) {
+    public void broadcastProfileChange(GameProfile newProfile, ServerPlayerEntity target) {
         broadcastInternal(target, null);
     }
 
     @Override
-    public void broadcastProfileChange(GameProfile newProfile, ServerPlayer target, ServerPlayer[] observers) {
+    public void broadcastProfileChange(GameProfile newProfile, ServerPlayerEntity target, ServerPlayerEntity[] observers) {
         broadcastInternal(target, observers);
     }
 
-    private void broadcastInternal(ServerPlayer target, ServerPlayer[] explicitObservers) {
+    private void broadcastInternal(ServerPlayerEntity target, ServerPlayerEntity[] explicitObservers) {
         PlayerList playerlist = target.getServer().getPlayerList();
-        ServerLevel serverLevel = target.getLevel();
-        ResourceKey<Level> dimension = serverLevel.dimension();
-        Packet<ClientGamePacketListener> removePacket =
-            new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.REMOVE_PLAYER, target);
-        Packet<ClientGamePacketListener> addPacket =
-            new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.ADD_PLAYER, target);
+        ServerWorld serverLevel = target.getLevel();
+        RegistryKey<World> dimension = serverLevel.dimension();
+        IPacket<IClientPlayNetHandler> removePacket =
+            new SPlayerListItemPacket(SPlayerListItemPacket.Action.REMOVE_PLAYER, target);
+        IPacket<IClientPlayNetHandler> addPacket =
+            new SPlayerListItemPacket(SPlayerListItemPacket.Action.ADD_PLAYER, target);
 
         NetworkMetricsHandler netHandler = NetworkMetricsHandler.getOrAttach(target.connection.getConnection());
         long outBefore = netHandler != null ? netHandler.outboundBytes() : 0;
@@ -67,7 +67,7 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
         long start = System.nanoTime();
 
         if (explicitObservers != null) {
-            for (ServerPlayer observer : explicitObservers) {
+            for (ServerPlayerEntity observer : explicitObservers) {
                 if (Config.DIMENSION_SCOPED_BROADCAST.get()
                         && !observer.getLevel().dimension().equals(dimension)) {
                     continue;
@@ -99,24 +99,24 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
         if (!Config.REFRESH_VIA_ENTITY_TRACKER.get()) {
             return;
         }
-        if (!(entity instanceof ServerPlayer)) {
+        if (!(entity instanceof ServerPlayerEntity)) {
             return;
         }
-        ServerPlayer player = (ServerPlayer) entity;
+        ServerPlayerEntity player = (ServerPlayerEntity) entity;
         // Per-viewer entity re-render via the tracker: untrack/track forces
         // remote clients to destroy+re-spawn the entity, so their cached
         // playerInfo re-fetches the new profile entry. Without this step
         // observers keep rendering the stale skin even after the tab-list
         // REMOVE+ADD (PR #121 dropped this step; lib-13 research: regression).
-        ServerLevel level = (ServerLevel) player.getLevel();
+        ServerWorld level = player.getLevel();
         level.getChunkSource().removeEntity(player);
         level.getChunkSource().addEntity(player);
     }
 
     /** Serialized byte size of the packets, measured by writing them out. */
-    private static int wireSize(Packet<?> packet) {
+    private static int wireSize(IPacket<?> packet) {
         try {
-            FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+            PacketBuffer buf = new PacketBuffer(Unpooled.buffer());
             packet.write(buf);
             int size = buf.readableBytes();
             buf.release();

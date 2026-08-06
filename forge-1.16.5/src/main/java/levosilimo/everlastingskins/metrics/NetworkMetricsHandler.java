@@ -13,7 +13,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.ChannelDuplexHandler;
-import net.minecraft.network.Connection;
+import net.minecraft.network.NetworkManager;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -67,9 +67,9 @@ public class NetworkMetricsHandler extends ChannelDuplexHandler {
      * new one in front of the encoder when absent. Returns null when the
      * channel or pipeline is not ready (e.g. in-memory test channels).
      */
-    public static NetworkMetricsHandler getOrAttach(Connection connection) {
+    public static NetworkMetricsHandler getOrAttach(NetworkManager connection) {
         try {
-            Channel channel = connection.channel;
+            Channel channel = connection.channel();
             if (channel == null) return null;
             ChannelPipeline pipeline = channel.pipeline();
             if (pipeline == null) return null;

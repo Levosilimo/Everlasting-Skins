@@ -7,7 +7,7 @@
 
 package levosilimo.everlastingskins.permission;
 
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.ServerPlayerEntity;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -48,11 +48,11 @@ public final class PermissionContext {
         return new PermissionContext(uuid, opLevel);
     }
 
-    public static PermissionContext of(UUID uuid, ServerPlayer player) {
+    public static PermissionContext of(UUID uuid, ServerPlayerEntity player) {
         return new PermissionContext(uuid, effectiveOpLevel(player));
     }
 
-    private static int effectiveOpLevel(ServerPlayer player) {
+    private static int effectiveOpLevel(ServerPlayerEntity player) {
         if (player == null) return 0;
         return player.getServer().getProfilePermissions(player.getGameProfile());
     }

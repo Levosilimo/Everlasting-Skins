@@ -12,9 +12,9 @@ import levosilimo.everlastingskins.permission.IPermissionService;
 import levosilimo.everlastingskins.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.VanillaPermissionService;
+import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.server.ServerLifecycleHooks;
+import net.minecraftforge.fml.server.ServerLifecycleHooks;
 import net.minecraftforge.server.permission.DefaultPermissionLevel;
 import net.minecraftforge.server.permission.PermissionAPI;
 
@@ -51,21 +51,21 @@ public class ForgePermissionService implements IPermissionService {
     }
 
     @Override
-    public boolean hasPermission(PermissionContext context, String permissionNode) {
-        ServerPlayer player = resolvePlayer(context.uuid());
+    public boolean hasPermission(UUID uuid, int opLevel, String permissionNode) {
+        ServerPlayerEntity player = resolvePlayer(uuid);
         try {
             if (player != null) {
                 return PermissionAPI.hasPermission(player, permissionNode);
             }
             // Offline path: 1.16.5's API takes a GameProfile (the player
             // does not have to be online) and an optional context.
-            return PermissionAPI.hasPermission(new GameProfile(context.uuid(), ""), permissionNode, null);
+            return PermissionAPI.hasPermission(new GameProfile(uuid, ""), permissionNode, null);
         } catch (Exception e) {
-            return new VanillaPermissionService().hasPermission(context, permissionNode);
+            return new VanillaPermissionService().hasPermission(uuid, opLevel, permissionNode);
         }
     }
 
-    private ServerPlayer resolvePlayer(UUID uuid) {
+    private ServerPlayerEntity resolvePlayer(UUID uuid) {
         try {
             MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
             if (server == null) return null;

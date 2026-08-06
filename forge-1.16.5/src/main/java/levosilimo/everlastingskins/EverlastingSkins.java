@@ -16,12 +16,12 @@ import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.server.ServerAboutToStartEvent;
-import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.server.FMLServerAboutToStartEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,11 +41,17 @@ public class EverlastingSkins {
 
     public EverlastingSkins() {
         I18nUtils.loadAll();
-        PermissionServiceManager.init();
         ForgePermissionService.registerNodes();
-        MinecraftForge.EVENT_BUS.register(new SkinRestorer());
-        // 1.16.5 has no TickEvent.ServerTickEvent.BUS (1.19+ addition);
-        // server ticks are plain EVENT_BUS events here.
+        // SkinRestorer has FORGE-bus handlers (login/logout) and MOD-bus FML
+        // lifecycle handlers (1.16.5 has no forge.event.Server* events — the
+        // FML server events fire on the mod bus); register one instance on each.
+        SkinRestorer restorer = new SkinRestorer();
+        MinecraftForge.EVENT_BUS.register(restorer);
+        FMLJavaModLoadingContext.get().getModEventBus().register(restorer);
+        // 1.16.5 has no TickEvent.ServerTickEvent.BUS (1.19+ addition) and no
+        // getServer() on ServerTickEvent; server ticks are plain EVENT_BUS
+        // events here and MetricsDumper resolves the server via
+        // ServerLifecycleHooks.getCurrentServer().
         MinecraftForge.EVENT_BUS.addListener(new MetricsDumper()::onServerTick);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
         PlaceholderApiHook.tryRegister();
@@ -53,12 +59,6 @@ public class EverlastingSkins {
 
     @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
     public static class EverlastingSkinsEventHandlers {
-        @SubscribeEvent
-        public static void onServerAboutToStart(ServerAboutToStartEvent event) {
-            I18nUtils.loadAll();
-            PermissionServiceManager.init();
-        }
-
         @SubscribeEvent
         public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
             if (!PermissionServiceManager.getActiveBackendName().startsWith("LuckPerms")) {
@@ -80,6 +80,17 @@ public class EverlastingSkins {
                 } catch (Exception ignored) {
                 }
             }).start();
+        }
+    }
+
+    // 1.16.5 lifecycle events are FML events on the MOD bus
+    // (net.minecraftforge.fml.event.server.*); there is no
+    // forge.event.ServerAboutToStartEvent on this version.
+    @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
+    public static class EverlastingSkinsServerLifecycle {
+        @SubscribeEvent
+        public static void onServerAboutToStart(FMLServerAboutToStartEvent event) {
+            I18nUtils.loadAll();
         }
     }
 }
