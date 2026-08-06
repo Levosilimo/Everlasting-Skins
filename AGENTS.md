@@ -108,6 +108,16 @@ registers backends).
 ```
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
-`:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build and
-`E2E (mc1.12.2)` placeholder. `forge-1.16.5` / `forge-1.20.1` are not in the
-matrix yet. Treat the matrix as authoritative for what is buildable in CI.
+`:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build,
+`E2E (mc1.12.2)` placeholder, and out-of-band `Build (forge-1.16.5)` /
+`Build (forge-1.20.1)` lanes (own wrappers, JDK 8 / JDK 21). Treat the
+matrix as authoritative for what is buildable in CI.
+
+## Required checks (integration/m2-monorepo branch protection)
+
+Enforced via the gh API — do not edit branch protection in-repo. `Build
+(forge-1.16.5)` and `Build (forge-1.20.1)` are required status checks on
+integration/m2-monorepo, additive to the existing contract (`YAML Lint`,
+`Build (common)` / `Build (1.21.x)` matrix, `Build (mc1.12.2)`, `E2E
+(mc1.12.2)`, `GameTest (1.21)`, `aislop (M2)`). CI job names must match
+the required-check strings exactly.

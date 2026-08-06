@@ -108,6 +108,70 @@ jobs:
       - name: Build and test
         run: ./gradlew build --no-daemon --stacktrace
 
+  # ── forge-1.16.5 out-of-band lane (own wrapper, JDK 8) ────────
+  build-forge-1_16_5:
+    name: Build (forge-1.16.5)
+    runs-on: ubuntu-latest
+    needs: lint-yaml
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - name: Set up JDK 8
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: "8"
+          distribution: temurin
+      - name: Cache Gradle wrapper and caches
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ runner.os }}-forge-1.16.5-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-forge-1.16.5-
+      - name: Grant execute permission for gradlew
+        run: chmod +x forge-1.16.5/gradlew
+      - name: Build and test
+        run: cd forge-1.16.5 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
+      - name: Upload built jar
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        with:
+          name: mod-forge-1.16.5
+          path: forge-1.16.5/build/libs/*.jar
+          if-no-files-found: warn
+
+  # ── forge-1.20.1 out-of-band lane (own wrapper, JDK 21) ────────
+  build-forge-1_20_1:
+    name: Build (forge-1.20.1)
+    runs-on: ubuntu-latest
+    needs: lint-yaml
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - name: Set up JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: 21
+          distribution: temurin
+      - name: Cache Gradle wrapper and caches
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ runner.os }}-forge-1.20.1-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-forge-1.20.1-
+      - name: Grant execute permission for gradlew
+        run: chmod +x forge-1.20.1/gradlew
+      - name: Build and test
+        run: cd forge-1.20.1 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
+      - name: Upload built jar
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        with:
+          name: mod-forge-1.20.1
+          path: forge-1.20.1/build/libs/*.jar
+          if-no-files-found: warn
+
   # ── E2E (mc1.12.2) required-check contract ─────────────────────
   # The old per-branch required-check contract names `E2E (mc1.12.2)`
   # as a status context; keep that exact check name present on
