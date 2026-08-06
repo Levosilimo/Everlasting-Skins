@@ -195,15 +195,19 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
     // and the empty.nbt template loads.
     (this as JavaExec).classpath += project.sourceSets.getByName("gametest").output
 
+    // Configuration-cache compat (#289): the doFirst action is serialized
+    // and replayed at execution time, where `project`/`layout` (script
+    // receiver) are unavailable. Resolve the run dir and the
+    // server.properties template eagerly here as plain serializable
+    // File values instead of touching layout inside doFirst.
+    val runDir = layout.projectDirectory.dir(mcRunDir).asFile
+    val serverPropertiesTemplate = layout.projectDirectory.file("test-infrastructure/server.properties").asFile
+
     doFirst {
-        val runDir = layout.projectDirectory.dir(mcRunDir).asFile
         runDir.mkdirs()
         val props = runDir.resolve("server.properties")
-        if (!props.exists()) {
-            val template = layout.projectDirectory.file("test-infrastructure/server.properties")
-            if (template.asFile.exists()) {
-                props.writeText(template.asFile.readText())
-            }
+        if (!props.exists() && serverPropertiesTemplate.exists()) {
+            props.writeText(serverPropertiesTemplate.readText())
         }
     }
 }
