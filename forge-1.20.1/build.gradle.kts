@@ -14,8 +14,6 @@
 // root build; the scaffolding it provided (Java 17, archives name, repos,
 // JUnit, jacoco, no-mixin gate) is inlined below so the lane stays
 // self-contained.
-import org.gradle.api.GradleException
-import org.gradle.api.tasks.SourceSetContainer
 
 buildscript {
     repositories {
@@ -54,6 +52,12 @@ repositories {
     // for the official channel).
     maven("https://maven.minecraftforge.net/") { name = "Forge" }
     maven("https://libraries.minecraft.net/") { name = "Minecraft" }
+    // Optional-integration libraries (compileOnly main, test for the hooks).
+    maven("https://modmaven.dev") { name = "ModMaven" }
+    maven("https://nexus.scarsz.me/content/groups/public/") { name = "DiscordSRV" }
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/") { name = "PlaceholderAPI" }
+    maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/") { name = "Spigot" }
+    maven("https://repo.papermc.io/repository/maven-public/") { name = "PaperMC" }
     mavenCentral()
 }
 
@@ -80,6 +84,14 @@ sourceSets {
     main {
         java.srcDir(projectDir.parentFile.resolve("common/src/main/java"))
         resources.srcDir(projectDir.parentFile.resolve("common/src/main/resources"))
+    }
+    // Unit tests: src/test/java carries the lane's MC-bound test suite
+    // (mirror of the forge-1.21 post-#268 tests). The default Gradle test
+    // source set is used; its compile/runtime classpaths already include
+    // main's output, which contains the shared :common classes compiled
+    // into main above (same shape as the 1.21 lane, where tests compile
+    // against the :common jar).
+    test {
     }
 }
 
@@ -122,6 +134,14 @@ dependencies {
     compileOnly("org.apache.logging.log4j:log4j-api:2.8.1")
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
 
+    // --- optional integrations (compileOnly; provided at run time when the
+    // hook's platform is present) ---
+    compileOnly("net.luckperms:api:5.5")
+    compileOnly("com.discordsrv:discordsrv:1.30.5")
+    compileOnly("me.clip:placeholderapi:2.12.3")
+    // PlaceholderAPI's expansion base class references org.bukkit.OfflinePlayer.
+    compileOnly("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
+
     // --- tests ---
     testImplementation(platform("org.junit:junit-bom:5.10.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -130,7 +150,26 @@ dependencies {
     testImplementation("com.mojang:authlib:1.5.25")
     testImplementation("org.apache.logging.log4j:log4j-api:2.8.1")
     testImplementation("com.google.code.findbugs:jsr305:3.0.2")
+    // slf4j-api MUST appear before discordsrv in the classpath order:
+    // discordsrv bundles unrelocated SLF4J 1.x classes (org/slf4j/
+    // LoggerFactory) that lack the getProvider() method required by SLF4J
+    // 2.x (same ordering constraint as the forge-1.21 lane).
+    testImplementation("org.slf4j:slf4j-api:2.0.9")
+    testImplementation("com.discordsrv:discordsrv:1.30.5")
+    testImplementation("me.clip:placeholderapi:2.12.3")
+    // PlaceholderAPI expansions + DiscordSRV hook tests reference Bukkit types.
+    testImplementation("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
+    testImplementation("org.mockito:mockito-core:5.12.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.slf4j") {
+            useVersion("2.0.9")
+        }
+    }
 }
 
 tasks.withType<Test>().configureEach {
@@ -141,80 +180,14 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-// --- no-mixin gate (inlined from the deleted buildSrc convention
-// no-mixin.gradle.kts, which this standalone build cannot use) ---
-// Mixin policy: this lane contains ZERO Mixin annotations and ZERO Mixin
-// Gradle plugin usage. The gate scans this project's build files + all
-// source roots (including the shared :common sources) and fails `build` on
-// any violation. Banned strings are written in escaped-regex form on
-// purpose so this file never contains the literal strings it scans for.
-val bannedLiterals = listOf(
-    "mixingradle coordinate" to "org.spongepowered:mixingradle",
-    "mixin plugin id" to "org.spongepowered.mixin",
-    "mixin config bundling" to "everlastingskins.mixins.json",
-)
-
-val bannedPatterns = listOf(
-    "Mixin annotation" to Regex("@Mixin\\b"),
-    "mixin block" to Regex("^\\s*mixin\\s*\\{"),
-)
-
-fun scanFile(file: java.io.File, offenders: MutableList<String>) {
-    if (!file.isFile) return
-    val text = file.readText()
-    for ((label, literal) in bannedLiterals) {
-        if (text.contains(literal)) {
-            offenders += "${file.relativeTo(projectDir)}: $label reference ('$literal')"
-        }
-    }
-    for ((label, pattern) in bannedPatterns) {
-        pattern.findAll(text).forEach { match ->
-            offenders += "${file.relativeTo(projectDir)}: $label at line ${text.substring(0, match.range.first).count { it == '\n' } + 1}"
-        }
-    }
-}
-
-val verifyNoMixin = tasks.register("verifyNoMixin") {
-    group = "verification"
-    description = "Fails the build if any Mixin usage is detected: annotations, mixingradle, mixin plugin id, mixin {} blocks, or mixins.json bundling."
-
-    val projectDir = project.projectDir
-    val buildFiles = listOf(
-        projectDir.resolve("build.gradle"),
-        projectDir.resolve("build.gradle.kts"),
-        projectDir.resolve("settings.gradle"),
-        projectDir.resolve("settings.gradle.kts"),
-        projectDir.resolve("gradle.properties"),
-    ).filter { it.isFile }
-
-    doLast {
-        val offenders = mutableListOf<String>()
-
-        // All source + resource files of every source set (main, test, ...
-        // plus the shared :common source dirs added above).
-        val sourceSets = project.extensions.findByType(SourceSetContainer::class.java)
-        val sourceRoots = (sourceSets?.flatMap { it.allSource.srcDirs } ?: emptyList())
-            .filter { it.exists() }
-        sourceRoots.forEach { root ->
-            root.walkTopDown()
-                .filter { it.isFile && (it.extension == "java" || it.extension == "json" || it.extension == "properties") }
-                .forEach { scanFile(it, offenders) }
-        }
-        buildFiles.forEach { scanFile(it, offenders) }
-
-        if (offenders.isNotEmpty()) {
-            throw GradleException(
-                "Mixin policy violated:\n" +
-                    offenders.joinToString("\n") +
-                    "\n\nMixin policy: the lane contains ZERO Mixin usage. " +
-                    "If a lane requires Mixin support, fork the lane - it is a sign " +
-                    "that should not happen in the shared core."
-            )
-        }
-        logger.lifecycle("Mixin check passed: zero Mixin annotations, zero mixingradle references.")
-    }
-}
+// --- no-mixin gate ---
+// Extracted to gradle/verify-no-mixin.gradle.kts: the inlined copy
+// self-reported on every run because the ban literals it scans for lived
+// in the scanned build file itself (build.gradle.kts). The extracted file
+// sits outside the scanned set (build.gradle(.kts), settings.gradle(.kts),
+// gradle.properties), mirroring the buildSrc layout of the root build.
+apply(from = rootProject.file("gradle/verify-no-mixin.gradle.kts"))
 
 tasks.named("build") {
-    dependsOn(verifyNoMixin)
+    dependsOn("verifyNoMixin")
 }
