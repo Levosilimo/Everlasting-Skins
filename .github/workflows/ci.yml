@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["integration/m2-monorepo"]
+    branches: ["integration/m2-monorepo", "main"]
   pull_request:
-    branches: ["integration/m2-monorepo"]
+    branches: ["integration/m2-monorepo", "main"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
