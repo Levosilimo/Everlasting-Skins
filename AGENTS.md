@@ -6,7 +6,7 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 
 - `:common` — version-independent core, `--release 8`. NEVER add a forge
   binding here; never raise the release level. Consumer of last resort:
-  every `forge-*` module and (future) the 1.12.2 lane.
+  every `forge-*` module and the mc1.12.2 lane.
 - `:forge-1.21`, `:forge-1.21.1`, `:forge-1.21.4`, `:forge-1.21.8` —
   thin binding layers applying `everlastingskins.forge-module`; MC/Forge
   versions live in each subproject's `gradle.properties`.
@@ -32,7 +32,7 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 
 ## Legacy lanes (forge-1.16.5 / forge-1.20.1) — out-of-band
 
-Not part of this Gradle root (lib-34 lane separation, PR #2xx): ForgeGradle
+Not part of this Gradle root (lib-34 lane separation, PR #267): ForgeGradle
 5.1.x rejects Gradle 8.0+ and ForgeGradle 6.0.x rejects Gradle 9.0+, so
 neither can run inside the root's Gradle 9.3.1 (verified empirically
 2026-08-06 against 5.1.77 / 6.0.54). Each lane is its own build with its
@@ -49,9 +49,10 @@ settings.gradle.kts does not include them.
 
 ## Rules
 
-1. **No source edits in scaffold land.** Ports are separate PRs: move
-   version-independent classes into `:common`, keep bindings in the
-   `forge-*` module, then delete the moved copy from the module.
+1. **No source edits in placeholder land.** Point-release ports (1.21.1 /
+   1.21.4 / 1.21.8) are separate PRs: move version-independent classes into
+   `:common`, keep bindings in the `forge-*` module, then delete the moved
+   copy from the module.
 2. **`:common` is frozen at `--release 8`** with `-Werror`. Compile it with
    `./gradlew :common:build`; if it fails, fix it before touching forge
    modules.
@@ -64,15 +65,16 @@ settings.gradle.kts does not include them.
 5. **Point-release parity:** keep `forge-1.21.x` gradle.properties versions
    in sync with the tags (`mc1.21.x-v2.1.0-rc1` etc.). Verify against git
    history before changing.
-6. **`consumeCommon` gate:** each forge module opts into the `:common`
-   dependency unless `consumeCommon=false` in its `gradle.properties`; the
-   default is to consume. No module currently sets it `false` — `forge-1.21`
-   was flipped on by #268 (the JPMS split-package that forced the old
-   opt-out was resolved by the #268 dedup), so every forge-* module consumes
-   `:common`. The gate is kept as a safety valve: if a future forge-*
-   subproject requires vendored copies, `consumeCommon=false` is the
-   documented escape hatch and may need to be re-added there. (The dead
-   plugin-era gate was deleted in #267.)
+6. **`:common` consumed unconditionally:** every forge-* subproject depends
+   on `:common` via `implementation(project(":common"))` in
+   buildSrc `everlastingskins.forge-module.gradle.kts`; there is no opt-out.
+   Historical context: a `consumeCommon=false` gate existed as a safety
+   valve for forge-1.21's JPMS split-package (#265) and was removed after
+   the Option B1 relocation to `forge21.*` (#268) resolved the conflict.
+   Re-add caveat: if a future forge-* subproject (e.g., forge-1.7.10 /
+   forge-1.8.9) requires vendored `:common` copies for tooling reasons,
+   re-add the gate to buildSrc `forge-module.gradle.kts` and re-introduce
+   the opt-out property. (The dead plugin-era gate was deleted in #267.)
 7. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
    out-of-band (`cd mc1.12.2 && ./gradlew build` with Java 8); changes there
    are reviewed against the shared `:common` contract, not against this build.
@@ -112,6 +114,10 @@ CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
 `E2E (mc1.12.2)` placeholder, and out-of-band `Build (forge-1.16.5)` /
 `Build (forge-1.20.1)` lanes (own wrappers, JDK 8 / JDK 21). Treat the
 matrix as authoritative for what is buildable in CI.
+
+Source status: `forge-1.16.5` and `forge-1.20.1` are SOURCE-COMPLETE
+(post-#274 / post-#273); the 1.21.1 / 1.21.4 / 1.21.8 point-release
+subprojects are placeholders whose source carries over separately.
 
 ## Required checks (integration/m2-monorepo branch protection)
 

@@ -2,6 +2,17 @@
 
 ## M2 (monorepo) — unreleased
 
+### consumeCommon gate removed
+
+The `consumeCommon=false` opt-out gate in
+`buildSrc/.../everlastingskins.forge-module.gradle.kts` is gone: every
+forge-* subproject now consumes `:common` unconditionally via
+`implementation(project(":common"))`. The gate was a safety valve for
+forge-1.21's JPMS split-package (#265) and became dead after the Option B1
+relocation to `forge21.*` (#268) resolved the conflict — no module ever
+sets `consumeCommon=false`. Docs updated (root AGENTS.md Rule 6,
+common/AGENTS.md, README.md).
+
 ### FG lane separation: forge-1.16.5 / forge-1.20.1 go out-of-band
 
 ForgeGradle 5.1.x hard-rejects Gradle 8.0+ and ForgeGradle 6.0.x
@@ -82,14 +93,32 @@ Mixin gate, CI matrix, and forge-1.21 compat fixes.
   `forge-1.21` opts out of `:common` via `consumeCommon=false` until its
   duplicate classes are removed).
 
+### M2 completion: SOURCE-COMPLETE (PRs #270–#274)
+
+- **#270 — REPOSITORY-STRUCTURE.md + standalone archival tags:** new doc
+  explaining the one-root-plus-out-of-band-lanes layout; the standalone
+  parent checkout is documented as archived (its lanes folded in here).
+- **#271 — docs wart fixes:** stale `consumeCommon` docs corrected
+  (post-#268), #269 added to the README merged list.
+- **#272 — P0 forge-1.16.5 compile fix:** Java-16 syntax (instanceof
+  patterns, records, `List.of`) downgraded to Java 8; duplicate `SkinUtils`
+  and the vendored httpclient-4.5.13.jar dropped; build script adjusted.
+  The lane compiles on Java 8 again.
+- **#273 — forge-1.20.1 source carry-over:** full main source brought over
+  from `forge-1.21` (bindings, lang files, inlined no-mixin gate) — the
+  lane is SOURCE-COMPLETE.
+- **#274 — forge-1.16.5 SOURCE-COMPLETE:** version-shape errors fixed for
+  Java 8 (e.g. `List.of`/`Map.of` → Java-8 equivalents, lambdas kept Java-8
+  compatible); stray `endpoints.properties`, `mixins.json` and
+  `default-skin.properties` dropped; `JavaHttpClient` removed. The lane is
+  SOURCE-COMPLETE.
+
 ### Known follow-ups (next PRs)
 
-- Port `forge-1.21` sources onto `:common` (reconcile the two copies), then
-  flip `consumeCommon` back on.
-- Port 1.21.1/1.21.4/1.21.8 sources.
-- Wire the `minecraft {}` blocks for the 1.16.5 / 1.20.1 lanes (source
-  carry-over) and add them to the CI matrix.
+- Port the 1.21.1 / 1.21.4 / 1.21.8 point-release sources (currently
+  placeholders; source carries over separately, same shape as #273).
+- Wire the CI matrix for the out-of-band 1.16.5 / 1.20.1 lanes
+  (publish.yml entries stay commented out until lane verification).
 - Fix `forge-1.21/src/main/resources/pack.mcmeta` staleness: `pack_format`
   is still 6 (a 1.16.2-era value; 1.21 needs 15+) and the `_comment` is
   stale.
-- Clean up the superseded `java8-forge-module` convention plugin stub.

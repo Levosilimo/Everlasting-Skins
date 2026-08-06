@@ -24,16 +24,16 @@ mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG
 
 ## Modules
 
-| Module | MC | Forge | FG | Gradle | Toolchain |
-|---|---|---|---|---|---|
-| `:common` | — | — | — | root 9.3.1 | build JDK 21, `--release 8` |
-| `:forge-1.21` | 1.21 | 51.0.8 | 7.x | root 9.3.1 | 21 |
-| `:forge-1.21.1` | 1.21.1 | 52.1.16 | 7.x | root 9.3.1 | 21 |
-| `:forge-1.21.4` | 1.21.4 | 54.1.18 | 7.x | root 9.3.1 | 21 |
-| `:forge-1.21.8` | 1.21.8 | 58.1.21 | 7.x | root 9.3.1 | 21 |
-| `forge-1.16.5/` (not a subproject) | 1.16.5 | 36.2.34 | 5.1.x | own 7.6.4 wrapper | JDK 8 |
-| `forge-1.20.1/` (not a subproject) | 1.20.1 | 47.4.10 | 6.x | own 8.7 wrapper | JDK 21 (17 toolchain) |
-| `mc1.12.2/` (not a subproject) | 1.12.2 | 14.23.5.2847 | 2.3.4 | own 4.10.3 wrapper | JDK 8 |
+| Module | MC | Forge | FG | Gradle | Toolchain | Status |
+|---|---|---|---|---|---|---|
+| `:common` | — | — | — | root 9.3.1 | build JDK 21, `--release 8` | canonical shared core |
+| `:forge-1.21` | 1.21 | 51.0.8 | 7.x | root 9.3.1 | 21 | SOURCE-COMPLETE |
+| `:forge-1.21.1` | 1.21.1 | 52.1.16 | 7.x | root 9.3.1 | 21 | point-release placeholder — source carries over separately |
+| `:forge-1.21.4` | 1.21.4 | 54.1.18 | 7.x | root 9.3.1 | 21 | point-release placeholder — source carries over separately |
+| `:forge-1.21.8` | 1.21.8 | 58.1.21 | 7.x | root 9.3.1 | 21 | point-release placeholder — source carries over separately |
+| `forge-1.16.5/` (not a subproject) | 1.16.5 | 36.2.34 | 5.1.x | own 7.6.4 wrapper | JDK 8 | SOURCE-COMPLETE (post-#274) |
+| `forge-1.20.1/` (not a subproject) | 1.20.1 | 47.4.10 | 6.x | own 8.7 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (post-#273) |
+| `mc1.12.2/` (not a subproject) | 1.12.2 | 14.23.5.2847 | 2.3.4 | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (post-#269) |
 
 `forge-1.16.5` / `forge-1.20.1` are out-of-band per-lane wrappers (own Gradle
 wrapper, FG applied per-lane — see AGENTS.md "Legacy lanes"): they are NOT
@@ -64,13 +64,11 @@ canonical copy; no JPMS on Java 8).
 
 ## Notes / known state
 
-- **Scaffold stage (M2 step 2):** this branch establishes the multi-module
-  layout and convention plugins. The per-subproject source ports (splitting
-  `forge-1.21` into binding layer + `:common`) land in later PRs. Until then
-  `forge-1.21/` still carries the full pre-split source, and `common/` holds
-  the standalone module copied from the parent `Everlasting-Skins/common/`
-  (Lane B's in-flight lift; the two copies intentionally diverge until the
-  port reconciles them).
+- **Source layout (post-M2):** `:common` is the single canonical copy of
+  shared code; every forge module consumes it (`consumeCommon` on for all,
+  post-#268), and the out-of-band lanes share it as an extra source dir.
+  The legacy lanes are SOURCE-COMPLETE; the 1.21.x point-release
+  subprojects are placeholders whose sources port over separately.
 - **No mixingradle:** the convention plugin applies mixin annotation
   processing + jar-manifest attributes only (Lane C). Enforced by the
   `verifyNoMixin` gate in `buildSrc/` (`no-mixin.gradle.kts`, ported from the
@@ -79,7 +77,8 @@ canonical copy; no JPMS on Java 8).
   lint-yaml, then `build` over `:common` + the four 1.21.x modules, an
   out-of-band mc1.12.2 build (own wrapper, JDK 8), and the `E2E (mc1.12.2)`
   required-check placeholder. `publish.yml` was reworked in the same PR.
-  The 1.16.5 / 1.20.1 scaffolds are not in the matrix yet.
+  The out-of-band 1.16.5 / 1.20.1 lanes are not in the matrix yet
+  (publish.yml entries stay commented out until lane verification).
 - **Artifact naming:** `everlastingskins-<mc>` (was `EverlastingSkins-<mc>`).
 - `mc1.12.2/` is imported from the parent checkout's history and builds
   out-of-band with its own wrapper (Gradle 4.10.3 + FG 2.3.4 + Java 8). Its
@@ -89,11 +88,11 @@ canonical copy; no JPMS on Java 8).
 
 ## Recently merged (M2 campaign)
 
-- **#257** — initial `forge-1.16.5` subproject scaffold (+ lib-35 first shims).
+- **#257** — initial `forge-1.16.5` subproject (+ lib-35 first shims).
 - **#258** — `verifyNoMixin` build gate ported into `buildSrc/`.
 - **#259** — `run-gametest-local.sh` paths corrected for the multi-module layout.
 - **#260** — `ci.yml` + `publish.yml` reworked to a per-module matrix.
-- **#261** — initial `forge-1.20.1` subproject scaffold.
+- **#261** — initial `forge-1.20.1` subproject.
 - **#263** — `forge-1.21` compile compat restored with Forge 51.0.8.
 - **#264** — `forge-1.21` test/gametest sources downgraded for Forge 51.0.8.
 - **#265** — `forge-1.21` runtime blockers resolved (incl. JPMS split-package).
@@ -102,10 +101,21 @@ canonical copy; no JPMS on Java 8).
   per-lane wrappers (own Gradle + FG per lane).
 - **#268** — dedup of `forge-1.21` / `forge-1.16.5` against `:common`;
   JPMS split-package resolved (Option B1, 12 survivors relocated to
-  `forge21.*`); `consumeCommon` flipped on for the forge modules.
+  `forge21.*`); `forge-1.21` consumes `:common` like the other modules.
 - **#269** — feat(monorepo): integrate mc1.12.2 lane + source-dir share
   `:common` (#269) — 162 files, 514 tests pass; mc1.12.2 now lives in the
-  monorepo as per-lane wrapper directory.
+  monorepo as per-lane wrapper directory (SOURCE-COMPLETE).
+- **#270** — `REPOSITORY-STRUCTURE.md` added; standalone parent checkout
+  documented as archived (tags on the standalone history).
+- **#271** — docs wart fixes (stale `consumeCommon` docs; #269 added to the
+  merged list).
+- **#272** — P0: `forge-1.16.5` compiles on Java 8 again (Java-16 syntax
+  downgraded, duplicate `SkinUtils` + vendored httpclient jar dropped).
+- **#273** — `forge-1.20.1` main source carried over from `forge-1.21`
+  (SOURCE-COMPLETE).
+- **#274** — `forge-1.16.5` SOURCE-COMPLETE (version-shape errors fixed for
+  Java 8).
 
-Still ahead: source carry-over onto `:common` for the legacy lanes and the
-`pack.mcmeta` format bump (see CHANGELOG).
+Still ahead: source ports for the 1.21.x point-release placeholders, CI
+wiring for the out-of-band lanes, and the `pack.mcmeta` format bump (see
+CHANGELOG).
