@@ -1,0 +1,23 @@
+{
+  "id": 12346,
+  "idStr": "12346",
+  "uuid": "550e8400-e29b-41d4-a716-446655440001",
+  "name": "Test",
+  "variant": "classic",
+  "data": {
+    "uuid": "550e8400-e29b-41d4-a716-446655440001",
+    "texture": {
+      "value": "",
+      "signature": "",
+      "url": ""
+    }
+  },
+  "timestamp": 1234567890,
+  "duration": 100,
+  "account": 1,
+  "server": "server1",
+  "private": false,
+  "views": 0,
+  "nextRequest": 0,
+  "duplicate": false
+}

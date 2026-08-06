@@ -1,0 +1,11 @@
+{
+  "id": "12345678123412341234123456789abc",
+  "name": "TestPlayer",
+  "properties": [
+    {
+      "name": "textures",
+      "value": "eyJ0aW1lc3RhbXAiOjE3MTIzNDU2Nzg5MDEsInByb2ZpbGVJZCI6IjEyMzQ1Njc4MTIzNDEyMzQxMjM0MTIzNDU2Nzg5YWJjIiwicHJvZmlsZU5hbWUiOiJUZXN0UGxheWVyIiwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2FiYzEyM2RlZjQ1NiJ9fX0=",
+      "signature": ""
+    }
+  ]
+}
