@@ -29,6 +29,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -176,11 +178,14 @@ class SkinStorageMetamorphicTest {
                 for (String value : sequence) {
                     UUID uuid = UUID.randomUUID();
                     model.put(uuid, value);
-                    storage.saveSkinAsync(uuid, skin(value));
+                    CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                 }
                 storage.flushPending();
-                assertEquals(model.size(),
-                        Files.list(dir).filter(p -> p.getFileName().toString().endsWith(".json")).count(),
+                long onDisk;
+                try (Stream<Path> paths = Files.list(dir)) {
+                    onDisk = paths.filter(p -> p.getFileName().toString().endsWith(".json")).count();
+                }
+                assertEquals(model.size(), onDisk,
                         "flush must land one file per live entry");
                 // Restart: a fresh SkinStorage over the same directory sees the disk state.
                 SkinStorage restarted = new SkinStorage(new SkinIO(dir));
@@ -213,7 +218,7 @@ class SkinStorageMetamorphicTest {
                 SkinIO io = new SkinIO(dir);
                 SkinStorage storage = new SkinStorage(io);
                 UUID uuid = UUID.randomUUID();
-                storage.saveSkinAsync(uuid, skin(value));
+                CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                 storage.flushPending();
                 storage.removeSkin(uuid);
 
@@ -245,7 +250,7 @@ class SkinStorageMetamorphicTest {
                 SkinStorage storage = new SkinStorage(io);
                 UUID uuid = UUID.randomUUID();
                 for (String value : sequence) {
-                    storage.saveSkinAsync(uuid, skin(value));
+                    CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                 }
                 storage.flushPending();
                 assertLoadedEquals(dir, uuid, sequence.get(sequence.size() - 1));
@@ -274,7 +279,7 @@ class SkinStorageMetamorphicTest {
             try {
                 SkinIO io = new SkinIO(dir);
                 SkinStorage storage = new SkinStorage(io);
-                storage.saveSkinAsync(op.uuid, skin(op.value));
+                CompletableFuture<Void> unused = storage.saveSkinAsync(op.uuid, skin(op.value));
                 storage.removeSkin(op.uuid);
                 storage.flushPending();
 

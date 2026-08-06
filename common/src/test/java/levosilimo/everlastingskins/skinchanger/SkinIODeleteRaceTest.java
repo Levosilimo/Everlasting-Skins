@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -56,7 +57,7 @@ class SkinIODeleteRaceTest {
         UUID u = UUID.randomUUID();
         Path target = tempDir.resolve(u + ".json");
 
-        blockingStorage.saveSkinAsync(u, skin("stale"));
+        CompletableFuture<Void> unused = blockingStorage.saveSkinAsync(u, skin("stale"));
         assertTrue(blockingIO.writeStarted.await(5, TimeUnit.SECONDS),
                 "drain must reach the file write before the delete");
 
@@ -100,7 +101,7 @@ class SkinIODeleteRaceTest {
             switch (rnd.nextInt(3)) {
                 case 0:
                     lastPayload = "payload-" + rnd.nextInt(100000);
-                    storage.saveSkinAsync(u, skin(lastPayload));
+                    CompletableFuture<Void> unused = storage.saveSkinAsync(u, skin(lastPayload));
                     lastOp = Op.SAVE;
                     break;
                 case 1:

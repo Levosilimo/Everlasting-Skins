@@ -404,10 +404,17 @@ class SkinRefreshHandlerTest {
     @Test
     void applyAtomicPersistence_mutateProfileThrowing_failsSoft() {
         GameProfile profile = mock(GameProfile.class);
-        PropertyMap properties = spy(profileWithTextures(OLD_PROPERTY).getProperties());
+        // Real PropertyMap subclass (Mockito spies on Guava Multimaps are
+        // forbidden by @DoNotMock); only removeAll throws, everything else
+        // delegates to the real backing map.
+        PropertyMap properties = new PropertyMap() {
+            @Override
+            public Collection<Property> removeAll(Object key) {
+                throw new RuntimeException("simulated profile mutation failure");
+            }
+        };
+        properties.put("textures", OLD_PROPERTY);
         when(profile.getProperties()).thenReturn(properties);
-        doThrow(new RuntimeException("simulated profile mutation failure"))
-                .when(properties).removeAll("textures");
         storage.setSkin(PLAYER_UUID, NEW_SKIN);
         long failedBefore = SkinMetrics.INSTANCE.snapshot().refreshesFailed();
 

@@ -240,7 +240,7 @@ class SkinCommandTabCompleteTest {
         // Mocking a Level subclass first initializes the registry chain
         // (BuiltInRegistries/Forge) that EntityDataSerializers needs when
         // ServerPlayer is instrumented; without it the mock fails to create.
-        mock(ServerLevel.class);
+        var unused = mock(ServerLevel.class);
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getUUID()).thenReturn(PLAYER_UUID);
         MinecraftServer server = mock(MinecraftServer.class);

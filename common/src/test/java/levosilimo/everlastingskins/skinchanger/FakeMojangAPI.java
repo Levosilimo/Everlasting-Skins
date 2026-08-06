@@ -10,6 +10,7 @@ import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataRe
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,12 +25,12 @@ class FakeMojangAPI implements MojangAPI {
     final Map<String, CustomSkinProperty> skins = new HashMap<String, CustomSkinProperty>();
 
     void addSkin(String name, CustomSkinProperty skin) {
-        skins.put(name.toLowerCase(), skin);
+        skins.put(name.toLowerCase(Locale.ROOT), skin);
     }
 
     @Override
     public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
-        CustomSkinProperty skin = skins.get(nameOrUniqueId.toLowerCase());
+        CustomSkinProperty skin = skins.get(nameOrUniqueId.toLowerCase(Locale.ROOT));
         if (skin == null) {
             return Optional.empty();
         }

@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Fuzz corpus for the Mojang API JSON parsers (AI-generated code surface,
  * cf. Pearce et al., S&P 2022). Every property feeds malformed JSON byte
  * shapes from {@link MalformedJsonCorpus} to the UUID and profile parsers
- * and asserts the fail-closed contract: the result is {@link Optional#EMPTY}
+ * and asserts the fail-closed contract: the result is {@code Optional.EMPTY}
  * ("no result") and no exception escapes the public API.
  * <p>
  * The malformed corpus never contains a valid 32-hex UUID or a complete

@@ -210,9 +210,9 @@ public class SkinUtils {
             return true;
         }
 
-        // For some reason, Apache's Lists.charactersOf is faster than character indexing for small strings.
-        for (char c : str.toCharArray()) {
-            // Note: Players who bought the game early in its development can have "-" in usernames.
+        // Note: Players who bought the game early in its development can have "-" in usernames.
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
             if (!(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') && !(c >= 'A' && c <= 'Z') && c != '_' && c != '-') {
                 return true;
             }
