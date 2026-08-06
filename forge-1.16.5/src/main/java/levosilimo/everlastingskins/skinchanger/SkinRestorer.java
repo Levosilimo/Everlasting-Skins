@@ -76,7 +76,8 @@ public class SkinRestorer {
      */
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (!(event.getEntity() instanceof ServerPlayer)) return;
+        ServerPlayer player = (ServerPlayer) event.getEntity();
         SkinMetrics.INSTANCE.recordPlayerJoined();
 
         UUID uuid = player.getUUID();
@@ -140,7 +141,8 @@ public class SkinRestorer {
      */
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (!(event.getEntity() instanceof ServerPlayer)) return;
+        ServerPlayer player = (ServerPlayer) event.getEntity();
         UUID uuid = player.getUUID();
         SkinMetrics.INSTANCE.recordPlayerLeft();
         SkinActionCommand.getLastRefreshByPlayer().remove(uuid);

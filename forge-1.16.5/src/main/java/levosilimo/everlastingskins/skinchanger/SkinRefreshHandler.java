@@ -214,14 +214,14 @@ public class SkinRefreshHandler {
     /** Serialized byte size of the cascade packets, measured with their stream codecs. */
     private static int wireSize(net.minecraft.network.protocol.Packet<?> packet) {
         try {
-            if (packet instanceof ClientboundPlayerPositionPacket position) {
-                return encodeSize(position, ClientboundPlayerPositionPacket.STREAM_CODEC);
+            if (packet instanceof ClientboundPlayerPositionPacket) {
+                return encodeSize((ClientboundPlayerPositionPacket) packet, ClientboundPlayerPositionPacket.STREAM_CODEC);
             }
-            if (packet instanceof ClientboundPlayerAbilitiesPacket abilities) {
-                return encodeSize(abilities, ClientboundPlayerAbilitiesPacket.STREAM_CODEC);
+            if (packet instanceof ClientboundPlayerAbilitiesPacket) {
+                return encodeSize((ClientboundPlayerAbilitiesPacket) packet, ClientboundPlayerAbilitiesPacket.STREAM_CODEC);
             }
-            if (packet instanceof ClientboundRespawnPacket respawn) {
-                return encodeSize(respawn, ClientboundRespawnPacket.STREAM_CODEC);
+            if (packet instanceof ClientboundRespawnPacket) {
+                return encodeSize((ClientboundRespawnPacket) packet, ClientboundRespawnPacket.STREAM_CODEC);
             }
         } catch (Exception e) {
             EverlastingSkins.logger.debug("Failed to measure packet wire size", e);
