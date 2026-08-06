@@ -99,8 +99,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
-        with:
-          ref: "mc1.12.2"
 
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -120,10 +118,10 @@ jobs:
             gradle-${{ runner.os }}-
 
       - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+        run: chmod +x mc1.12.2/gradlew
 
       - name: Build
-        run: ./gradlew build --no-daemon
+        run: cd mc1.12.2 && ./gradlew build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
@@ -142,7 +140,7 @@ jobs:
           game-versions: "1.12.2"
           game-version-filter: releases
           environment: server
-          files: build/libs/*.jar
+          files: mc1.12.2/build/libs/*.jar
           fail-mode: warn
           retry-attempts: 3
           retry-delay: 15000
