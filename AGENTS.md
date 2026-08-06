@@ -49,10 +49,11 @@ settings.gradle.kts does not include them.
 
 ## Rules
 
-1. **No source edits in placeholder land.** Point-release ports (1.21.1 /
-   1.21.4 / 1.21.8) are separate PRs: move version-independent classes into
-   `:common`, keep bindings in the `forge-*` module, then delete the moved
-   copy from the module.
+1. **`:common` owns version-independent code.** Every forge module is a thin
+   binding layer: version-independent classes live in `:common`, bindings in
+   the `forge-*` module. When a class moves into `:common`, delete the moved
+   copy from the module (duplicate classes break the mc1.12.2 source-dir
+   share).
 2. **`:common` is frozen at `--release 8`** with `-Werror`. Compile it with
    `./gradlew :common:build`; if it fails, fix it before touching forge
    modules.
@@ -111,13 +112,13 @@ registers backends).
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
 `:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build,
-`E2E (mc1.12.2)` placeholder, and out-of-band `Build (forge-1.16.5)` /
+`E2E (mc1.12.2)` stub, and out-of-band `Build (forge-1.16.5)` /
 `Build (forge-1.20.1)` lanes (own wrappers, JDK 8 / JDK 21). Treat the
 matrix as authoritative for what is buildable in CI.
 
-Source status: `forge-1.16.5` and `forge-1.20.1` are SOURCE-COMPLETE
-(post-#274 / post-#273); the 1.21.1 / 1.21.4 / 1.21.8 point-release
-subprojects are placeholders whose source carries over separately.
+Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
+forge-1.20.1 (post-#273), and the 1.21.1 / 1.21.4 / 1.21.8 point releases
+(post-#278 / #280 / #281).
 
 ## Required checks (integration/m2-monorepo branch protection)
 
