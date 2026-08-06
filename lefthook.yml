@@ -1,0 +1,37 @@
+# lefthook.yml — Go-binary git hook manager (no Python/Node runtime).
+# STATUS: documented, NOT yet adopted. `.githooks/` (via `git config
+# core.hooksPath .githooks`) remains the active path; this file is the
+# intended replacement so behavior stays identical when adopted (same
+# scripts, same order).
+#
+# Adopt (operational, not part of this repo):
+#   brew install lefthook            # or: go install github.com/evilmartians/lefthook@latest
+#   lefthook install                 # writes .git/hooks/pre-commit + pre-push
+#   git config --unset core.hooksPath
+#   # follow up: delete .githooks/ so the two paths cannot drift
+#
+# Pre-commit stays sequential (fail-fast tier, <30s); pre-push runs in
+# parallel (heavy tier, 5-10 min). Note: the two gradle jobs in pre-push
+# serialize on the project lock; aislop-ci is the true parallel win.
+
+pre-commit:
+  parallel: false
+  commands:
+    aislop:
+      run: bunx aislop scan --staged
+    test-count:
+      run: bash scripts/test-count-gate.sh
+    verify-no-mixin:
+      run: ./gradlew --no-daemon --offline :common:verifyNoMixin :forge-1.21:verifyNoMixin
+    compile:
+      run: ./gradlew --no-daemon --offline :common:compileJava :forge-1.21:compileJava --parallel
+
+pre-push:
+  parallel: true
+  commands:
+    unit-tests:
+      run: ./gradlew --no-daemon --offline test --parallel
+    gametest:
+      run: forge-1.21/test-infrastructure/run-gametest-local.sh
+    aislop-ci:
+      run: npx -y aislop ci --changes --base origin/integration/m2-monorepo
