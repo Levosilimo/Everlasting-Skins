@@ -7,6 +7,8 @@
 
 package levosilimo.everlastingskins.permission;
 
+import levosilimo.everlastingskins.forge21.permission.LuckPermsPermissionService;
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.PermissionData;

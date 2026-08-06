@@ -5,9 +5,10 @@
  */
 
 
-package levosilimo.everlastingskins.permission;
+package levosilimo.everlastingskins.forge21.permission;
 
 
+import levosilimo.everlastingskins.permission.IPermissionService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

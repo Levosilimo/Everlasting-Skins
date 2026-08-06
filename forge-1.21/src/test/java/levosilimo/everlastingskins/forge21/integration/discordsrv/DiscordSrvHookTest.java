@@ -5,12 +5,13 @@
  */
 
 
-package levosilimo.everlastingskins.integration.discordsrv;
+package levosilimo.everlastingskins.forge21.integration.discordsrv;
 
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.dependencies.jda.api.JDA;
+import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvConfig;
 import levosilimo.everlastingskins.Config;
-import levosilimo.everlastingskins.util.I18nUtils;
+import levosilimo.everlastingskins.forge21.util.I18nUtils;
 
 import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
 import org.junit.jupiter.api.BeforeAll;

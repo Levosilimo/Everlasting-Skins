@@ -5,8 +5,12 @@
  */
 
 
-package levosilimo.everlastingskins.util;
+package levosilimo.everlastingskins.forge21.util;
 
+import levosilimo.everlastingskins.util.HttpClient;
+import levosilimo.everlastingskins.util.HttpClient.HttpMethod;
+import levosilimo.everlastingskins.util.HttpClient.HttpType;
+import levosilimo.everlastingskins.util.HttpClient.RequestBody;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
 

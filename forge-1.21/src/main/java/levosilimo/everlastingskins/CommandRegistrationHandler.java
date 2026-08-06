@@ -8,7 +8,7 @@
 package levosilimo.everlastingskins;
 
 import com.mojang.brigadier.CommandDispatcher;
-import levosilimo.everlastingskins.skinchanger.SkinCommand;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinCommand;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;

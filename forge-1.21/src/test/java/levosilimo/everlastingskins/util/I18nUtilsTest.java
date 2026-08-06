@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.util;
 
+import levosilimo.everlastingskins.forge21.util.I18nUtils;
 import levosilimo.everlastingskins.Config;
 import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
 import org.junit.jupiter.api.BeforeAll;

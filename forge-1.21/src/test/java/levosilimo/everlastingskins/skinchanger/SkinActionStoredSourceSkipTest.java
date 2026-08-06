@@ -3,6 +3,7 @@
  */
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;

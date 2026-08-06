@@ -5,7 +5,7 @@
  */
 
 
-package levosilimo.everlastingskins.metrics;
+package levosilimo.everlastingskins.forge21.metrics;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;

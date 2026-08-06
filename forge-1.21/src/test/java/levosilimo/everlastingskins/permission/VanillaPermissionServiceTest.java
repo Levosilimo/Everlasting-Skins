@@ -7,6 +7,8 @@
 
 package levosilimo.everlastingskins.permission;
 
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
+import levosilimo.everlastingskins.forge21.permission.VanillaPermissionService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

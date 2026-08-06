@@ -7,7 +7,7 @@
 
 package levosilimo.everlastingskins.permission.forge;
 
-import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import net.minecraftforge.server.permission.PermissionAPI;

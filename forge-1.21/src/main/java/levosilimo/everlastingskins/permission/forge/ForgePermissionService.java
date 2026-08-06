@@ -8,9 +8,9 @@
 package levosilimo.everlastingskins.permission.forge;
 
 import levosilimo.everlastingskins.permission.IPermissionService;
-import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
-import levosilimo.everlastingskins.permission.VanillaPermissionService;
+import levosilimo.everlastingskins.forge21.permission.VanillaPermissionService;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;

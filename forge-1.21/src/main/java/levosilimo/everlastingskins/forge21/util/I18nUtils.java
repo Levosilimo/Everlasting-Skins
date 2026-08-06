@@ -5,7 +5,7 @@
  */
 
 
-package levosilimo.everlastingskins.util;
+package levosilimo.everlastingskins.forge21.util;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;

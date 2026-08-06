@@ -9,10 +9,11 @@ package levosilimo.everlastingskins.skinchanger;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinCommand;
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
-import levosilimo.everlastingskins.permission.VanillaPermissionService;
+import levosilimo.everlastingskins.forge21.permission.VanillaPermissionService;
 import net.minecraft.commands.CommandSourceStack;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;

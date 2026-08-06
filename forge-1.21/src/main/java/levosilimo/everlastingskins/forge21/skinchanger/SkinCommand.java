@@ -5,23 +5,28 @@
  */
 
 
-package levosilimo.everlastingskins.skinchanger;
+package levosilimo.everlastingskins.forge21.skinchanger;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import levosilimo.everlastingskins.skinchanger.MineSkinAPI;
+import levosilimo.everlastingskins.skinchanger.MineSkinApiHttpImpl;
+import levosilimo.everlastingskins.skinchanger.MojangAPI;
+import levosilimo.everlastingskins.skinchanger.MojangApiHttpImpl;
+import levosilimo.everlastingskins.skinchanger.MojangEndpoints;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
-import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.command.SkinMetricsCommand;
-import levosilimo.everlastingskins.util.CompletionSources;
-import levosilimo.everlastingskins.util.I18nUtils;
-import levosilimo.everlastingskins.util.JavaHttpClient;
+import levosilimo.everlastingskins.forge21.util.CompletionSources;
+import levosilimo.everlastingskins.forge21.util.I18nUtils;
+import levosilimo.everlastingskins.forge21.util.JavaHttpClient;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;

@@ -5,8 +5,9 @@
  */
 
 
-package levosilimo.everlastingskins.permission;
+package levosilimo.everlastingskins.forge21.permission;
 
+import levosilimo.everlastingskins.permission.IPermissionService;
 import levosilimo.everlastingskins.Config;
 
 import java.util.UUID;

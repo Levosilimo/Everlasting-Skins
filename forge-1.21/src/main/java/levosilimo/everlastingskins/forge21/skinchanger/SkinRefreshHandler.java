@@ -5,10 +5,12 @@
  */
 
 
-package levosilimo.everlastingskins.skinchanger;
+package levosilimo.everlastingskins.forge21.skinchanger;
 
 import com.mojang.authlib.GameProfile;
 import io.netty.buffer.Unpooled;
+import levosilimo.everlastingskins.skinchanger.MojangAPI;
+import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
@@ -17,7 +19,7 @@ import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import levosilimo.everlastingskins.util.I18nUtils;
+import levosilimo.everlastingskins.forge21.util.I18nUtils;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.game.*;

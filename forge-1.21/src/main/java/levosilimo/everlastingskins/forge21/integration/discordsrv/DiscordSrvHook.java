@@ -5,9 +5,10 @@
  */
 
 
-package levosilimo.everlastingskins.integration.discordsrv;
+package levosilimo.everlastingskins.forge21.integration.discordsrv;
 
-import levosilimo.everlastingskins.util.I18nUtils;
+import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvConfig;
+import levosilimo.everlastingskins.forge21.util.I18nUtils;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

@@ -4,10 +4,10 @@
  * https://github.com/Levosilimo/Everlasting-Skins
  */
 
-package levosilimo.everlastingskins.util;
+package levosilimo.everlastingskins.forge21.util;
 
 import levosilimo.everlastingskins.Config;
-import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.DefaultSkinResolver;
 import levosilimo.everlastingskins.skinchanger.MojangProfileCache;

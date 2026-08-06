@@ -5,8 +5,10 @@
  */
 
 
-package levosilimo.everlastingskins.metrics;
+package levosilimo.everlastingskins.forge21.metrics;
 
+import levosilimo.everlastingskins.metrics.MetricsFormat;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import net.minecraft.server.MinecraftServer;

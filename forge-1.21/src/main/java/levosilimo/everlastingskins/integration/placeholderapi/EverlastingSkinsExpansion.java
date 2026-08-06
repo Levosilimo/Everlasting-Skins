@@ -10,7 +10,7 @@ package levosilimo.everlastingskins.integration.placeholderapi;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 import org.jetbrains.annotations.NotNull;
-import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import java.util.UUID;
 
 public class EverlastingSkinsExpansion extends PlaceholderExpansion {

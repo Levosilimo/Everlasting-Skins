@@ -5,9 +5,12 @@
  */
 
 
-package levosilimo.everlastingskins.skinchanger;
+package levosilimo.everlastingskins.forge21.skinchanger;
 
 import com.mojang.authlib.properties.Property;
+import levosilimo.everlastingskins.skinchanger.DefaultSkinResolver;
+import levosilimo.everlastingskins.skinchanger.SkinIO;
+import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;

@@ -5,7 +5,7 @@
  */
 
 
-package levosilimo.everlastingskins.permission;
+package levosilimo.everlastingskins.forge21.permission;
 
 import net.minecraft.server.level.ServerPlayer;
 

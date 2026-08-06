@@ -10,14 +10,14 @@ package levosilimo.everlastingskins;
 import com.google.common.collect.Lists;
 import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvConfig;
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
-import levosilimo.everlastingskins.metrics.MetricsDumper;
-import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
-import levosilimo.everlastingskins.permission.LuckPermsPermissionService;
+import levosilimo.everlastingskins.forge21.metrics.MetricsDumper;
+import levosilimo.everlastingskins.forge21.metrics.NetworkMetricsHandler;
+import levosilimo.everlastingskins.forge21.permission.LuckPermsPermissionService;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
-import levosilimo.everlastingskins.permission.VanillaPermissionService;
+import levosilimo.everlastingskins.forge21.permission.VanillaPermissionService;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
-import levosilimo.everlastingskins.skinchanger.SkinRestorer;
-import levosilimo.everlastingskins.util.I18nUtils;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.forge21.util.I18nUtils;
 import net.minecraft.network.Connection;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -49,7 +49,6 @@ public class EverlastingSkins {
     public EverlastingSkins() {
         I18nUtils.loadAll();
         registerPermissionServices();
-        DiscordSrvConfig.configure(Config.DISCORDSRV_ENABLED.get(), Config.DISCORDSRV_CHANNEL_ID.get());
         ForgePermissionService.registerNodes();
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
         MinecraftForge.EVENT_BUS.addListener(new MetricsDumper()::onServerTick);

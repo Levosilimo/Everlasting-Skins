@@ -4,12 +4,16 @@
  * https://github.com/Levosilimo/Everlasting-Skins
  */
 
-package levosilimo.everlastingskins.skinchanger;
+package levosilimo.everlastingskins.forge21.skinchanger;
 
 import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import com.mojang.authlib.properties.PropertyMap;
+import levosilimo.everlastingskins.skinchanger.SkinIO;
+import levosilimo.everlastingskins.skinchanger.SkinStorage;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRefreshHandler;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.broadcast.FakeSkinBroadcaster;
 import levosilimo.everlastingskins.broadcast.VanillaSkinBroadcaster;
