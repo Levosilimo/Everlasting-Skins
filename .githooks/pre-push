@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Pre-push quality gate for EverlastingSkins (heavy tier, 5-10 min).
+# Order: full unit test suite -> GameTest (1.21) -> aislop ci (mirrors CI's
+# "aislop (M2)" job). Skip for one push with: git push --no-verify
+#
+# Requires: JVM 17+ for the root gradlew; bunx (bun) or npx for aislop.
+# Setup: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+echo "[pre-push] gradle: full unit test suite (parallel)..."
+./gradlew --no-daemon --offline test --parallel
+
+echo "[pre-push] gametest: forge-1.21 runGameTestServer..."
+forge-1.21/test-infrastructure/run-gametest-local.sh
+
+echo "[pre-push] aislop: ci --changes vs origin/integration/m2-monorepo..."
+if command -v bunx >/dev/null 2>&1; then
+  bunx aislop ci --changes --base origin/integration/m2-monorepo
+else
+  npx -y aislop ci --changes --base origin/integration/m2-monorepo
+fi
+
+echo "[pre-push] all checks passed."
