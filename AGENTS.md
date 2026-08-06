@@ -11,8 +11,11 @@ One Gradle root (9.3.1) for the Forge line. Modules:
   thin binding layers applying `everlastingskins.forge-module`; MC/Forge
   versions live in each subproject's `gradle.properties`.
 - `mc1.12.2/` — NOT a subproject (FG 2.3.4 needs Gradle 4.x + Java 8). It
-  stays on its own wrapper, builds out-of-band, consumes `:common` via
-  filePath when ported.
+  stays on its own wrapper (4.10.3), builds out-of-band, and consumes `:common`
+  via a source-dir share (`srcDir '../common/src/main/java'` in its
+  `build.gradle`). Classes present in both `src/main/java` and `:common` were
+  deleted from the lane at import — `:common` is canonical for every shared
+  class.
 
 ## Convention plugins (`buildSrc/src/main/kotlin/`)
 
@@ -67,8 +70,30 @@ settings.gradle.kts does not include them.
    every `:common` class, and pulling the jar in would create a JPMS split
    package. When the source port reconciles the duplicates, flip it back.
 7. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
-   out-of-band; changes there are reviewed against the shared `:common`
-   contract, not against this build.
+   out-of-band (`cd mc1.12.2 && ./gradlew build` with Java 8); changes there
+   are reviewed against the shared `:common` contract, not against this build.
+   The lane's `build.gradle` shares `:common` as an extra source dir — when a
+   class moves into `:common`, delete the lane copy or javac fails on the
+   duplicate class.
+
+## 1.12.2 lane (per-lane wrapper)
+
+`mc1.12.2/` is a self-contained Gradle build imported from the standalone
+1.12.2 repo — own wrapper (Gradle 4.10.3), FG 2.3.4, Java 8, MCP
+`snapshot_20171003`. Build it in isolation:
+
+```bash
+cd mc1.12.2 && JAVA_HOME=<jdk8> ./gradlew build
+```
+
+It is intentionally NOT listed in `settings.gradle.kts`; the root build never
+sees it. The main source set adds `../common/src/main/java` (source-dir share,
+no JPMS on Java 8), so `:common` is the single canonical copy of shared
+classes. Lane-specific code (Forge bindings, commands, listeners, mixins,
+permission services) stays in `mc1.12.2/src/main/java` and adapts to the
+`:common` APIs (e.g. `IPermissionService.hasPermission(UUID, int, String)`;
+the manager is fail-closed until the lane's `EverlastingSkins.init()`
+registers backends).
 
 ## Verification
 
