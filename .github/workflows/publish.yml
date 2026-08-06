@@ -11,43 +11,73 @@ on:
       - 'mc1.21.4-v*'
       - 'mc1.21.8-v*'
       - 'mc1.12.2-v*'
+      # mc1.20.1 / mc1.16.5: re-enable tag triggers + matrix entries
+      # below after PR #261 merges (subprojects land in settings.gradle.kts).
+      # - 'mc1.20.1-v*'
+      # - 'mc1.16.5-v*'
+      # NOTE: NeoForge intentionally dropped — no mcneoforge lane.
 
 jobs:
-  publish-1_21:
-    if: startsWith(github.ref_name, 'mc1.21-v')
+  # ── Per-tag module routing: tag prefix -> Gradle subproject ────
+  publish:
+    name: Publish (${{ matrix.game-version }})
     runs-on: ubuntu-latest
-    name: java-21
-
+    if: startsWith(github.ref_name, matrix.prefix)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - prefix: "mc1.21-v"
+            module: forge-1.21
+            game-version: "1.21"
+            java: "21"
+          - prefix: "mc1.21.1-v"
+            module: forge-1.21.1
+            game-version: "1.21.1"
+            java: "21"
+          - prefix: "mc1.21.4-v"
+            module: forge-1.21.4
+            game-version: "1.21.4"
+            java: "21"
+          - prefix: "mc1.21.8-v"
+            module: forge-1.21.8
+            game-version: "1.21.8"
+            java: "21"
+          # NOTE: mc1.20.1 / mc1.16.5 matrix entries commented out —
+          # forge-1.20.1 and forge-1.16.5 are not in settings.gradle.kts
+          # at this PR's head (1.16.5 is on integration via #257;
+          # 1.20.1 lands with PR #261). Re-enable after #261 merges.
+          # - prefix: "mc1.20.1-v"
+          #   module: forge-1.20.1
+          #   game-version: "1.20.1"
+          #   java: "17"
+          # - prefix: "mc1.16.5-v"
+          #   module: forge-1.16.5
+          #   game-version: "1.16.5"
+          #   java: "8"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
-        with:
-          ref: "1.21"
-
-      - name: Set up JDK 21
+      - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
-          java-version: "21"
+          java-version: ${{ matrix.java }}
           distribution: temurin
-
       - name: Cache Gradle
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
         with:
           path: |
             ~/.gradle/wrapper/dists
             ~/.gradle/caches
-          key: gradle-${{ runner.os }}-1.21
+          key: gradle-${{ runner.os }}-${{ matrix.game-version }}
           restore-keys: |
-            gradle-${{ runner.os }}-1.21-
+            gradle-${{ runner.os }}-${{ matrix.game-version }}-
             gradle-${{ runner.os }}-
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-
       - name: Build
-        run: ./gradlew build --no-daemon
+        run: ./gradlew :${{ matrix.module }}:build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
-
       - name: Publish to CurseForge, Modrinth, GitHub Releases
         uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
         with:
@@ -60,183 +90,19 @@ jobs:
           name: "Everlasting Skins ${{ github.ref_name }}"
           version-type: release
           loaders: forge
-          game-versions: "1.21"
+          game-versions: ${{ matrix.game-version }}
           game-version-filter: releases
           environment: server
-          files: build/libs/*.jar
+          files: ${{ matrix.module }}/build/libs/*.jar
           fail-mode: warn
           retry-attempts: 3
           retry-delay: 15000
 
-  publish-1_21_1:
-    if: startsWith(github.ref_name, 'mc1.21.1-v')
-    runs-on: ubuntu-latest
-    name: java-21
-
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
-        with:
-          ref: "${{ github.ref_name }}"
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
-        with:
-          java-version: "21"
-          distribution: temurin
-
-      - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-1.21.1
-          restore-keys: |
-            gradle-${{ runner.os }}-1.21.1-
-            gradle-${{ runner.os }}-
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build
-        run: ./gradlew build --no-daemon
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
-
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.21.1"
-          game-version-filter: releases
-          environment: server
-          files: build/libs/*.jar
-          fail-mode: warn
-          retry-attempts: 3
-          retry-delay: 15000
-
-  publish-1_21_4:
-    if: startsWith(github.ref_name, 'mc1.21.4-v')
-    runs-on: ubuntu-latest
-    name: java-21
-
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
-        with:
-          ref: "${{ github.ref_name }}"
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
-        with:
-          java-version: "21"
-          distribution: temurin
-
-      - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-1.21.4
-          restore-keys: |
-            gradle-${{ runner.os }}-1.21.4-
-            gradle-${{ runner.os }}-
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build
-        run: ./gradlew build --no-daemon
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
-
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.21.4"
-          game-version-filter: releases
-          environment: server
-          files: build/libs/*.jar
-          fail-mode: warn
-          retry-attempts: 3
-          retry-delay: 15000
-
-  publish-1_21_8:
-    if: startsWith(github.ref_name, 'mc1.21.8-v')
-    runs-on: ubuntu-latest
-    name: java-21
-
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
-        with:
-          ref: "${{ github.ref_name }}"
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
-        with:
-          java-version: "21"
-          distribution: temurin
-
-      - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-1.21.8
-          restore-keys: |
-            gradle-${{ runner.os }}-1.21.8-
-            gradle-${{ runner.os }}-
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build
-        run: ./gradlew build --no-daemon
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
-
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.21.8"
-          game-version-filter: releases
-          environment: server
-          files: build/libs/*.jar
-          fail-mode: warn
-          retry-attempts: 3
-          retry-delay: 15000
-
+  # ── mc1.12.2 out-of-band lane (own wrapper, JDK 8) ─────────────
   publish-mc1_12_2:
-    if: startsWith(github.ref_name, 'mc1.12.2')
+    name: Publish (mc1.12.2)
+    if: startsWith(github.ref_name, 'mc1.12.2-v')
     runs-on: ubuntu-latest
-    name: java-8
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
