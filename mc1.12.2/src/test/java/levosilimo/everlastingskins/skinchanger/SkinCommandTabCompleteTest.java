@@ -7,6 +7,7 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.Config;
+import levosilimo.everlastingskins.permission.PermissionTestSupport;
 import levosilimo.everlastingskins.util.CompletionSources;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -50,6 +51,9 @@ class SkinCommandTabCompleteTest {
         Config.MINESKIN_ENABLED = false;
         Config.permissionsOpLevelMetrics = 2;
         Config.permissionsOpLevelMetricsReset = 2;
+        // :common's manager registers no backend by itself (fail-closed); the
+        // per-version bootstrap registers these — tests mirror the bootstrap.
+        PermissionTestSupport.installVanilla();
         CompletionSources.setMojangProfileCache(new MojangProfileCache());
 
         server = mock(MinecraftServer.class);
@@ -63,6 +67,7 @@ class SkinCommandTabCompleteTest {
         Config.MINESKIN_ENABLED = false;
         Config.permissionsOpLevelMetrics = 2;
         Config.permissionsOpLevelMetricsReset = 2;
+        PermissionTestSupport.uninstall();
     }
 
     @Test
