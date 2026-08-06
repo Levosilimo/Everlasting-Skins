@@ -12,6 +12,7 @@ import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.permission.PermissionContext;
@@ -20,6 +21,7 @@ import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.command.SkinMetricsCommand;
 import levosilimo.everlastingskins.util.CompletionSources;
 import levosilimo.everlastingskins.util.I18nUtils;
+import levosilimo.everlastingskins.util.JavaHttpClient;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -30,6 +32,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.command.EnumArgument;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -44,14 +47,17 @@ public class SkinCommand {
 
     public static MineSkinAPI getMineSkinAPI() {
         if (mineSkinAPIInstance == null) {
-            mineSkinAPIInstance = new MineSkinApiHttpImpl();
+            mineSkinAPIInstance = new MineSkinApiHttpImpl(new JavaHttpClient(),
+                    Config.MINESKIN_API_KEY.get(),
+                    Config.URL_ALLOWLIST_ENABLED.get(),
+                    new ArrayList<String>(Config.URL_ALLOWLIST_DOMAINS.get()));
         }
         return mineSkinAPIInstance;
     }
 
     public static MojangAPI getMojangAPI() {
         if (mojangAPIInstance == null) {
-            mojangAPIInstance = new MojangApiHttpImpl();
+            mojangAPIInstance = new MojangApiHttpImpl(MojangEndpoints.DEFAULT, new JavaHttpClient());
         }
         return mojangAPIInstance;
     }
@@ -83,14 +89,14 @@ public class SkinCommand {
         ServerPlayer player = source.getPlayer();
         if (player == null) return false;
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
-        return PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.metrics");
+        return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.metrics");
     }
 
     private static boolean canTargetOthers(CommandSourceStack source) {
         ServerPlayer player = source.getPlayer();
         if (player == null) return false;
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
-        return PermissionServiceManager.hasPermission(ctx, "everlastingskins.command.skin.other");
+        return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin.other");
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> buildSourceSubcommand() {

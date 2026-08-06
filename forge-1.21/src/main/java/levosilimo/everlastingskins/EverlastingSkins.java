@@ -8,10 +8,13 @@
 package levosilimo.everlastingskins;
 
 import com.google.common.collect.Lists;
+import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvConfig;
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.metrics.MetricsDumper;
 import levosilimo.everlastingskins.metrics.NetworkMetricsHandler;
+import levosilimo.everlastingskins.permission.LuckPermsPermissionService;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.util.I18nUtils;
@@ -45,7 +48,8 @@ public class EverlastingSkins {
 
     public EverlastingSkins() {
         I18nUtils.loadAll();
-        PermissionServiceManager.init();
+        registerPermissionServices();
+        DiscordSrvConfig.configure(Config.DISCORDSRV_ENABLED.get(), Config.DISCORDSRV_CHANNEL_ID.get());
         ForgePermissionService.registerNodes();
         MinecraftForge.EVENT_BUS.register(new SkinRestorer());
         MinecraftForge.EVENT_BUS.addListener(new MetricsDumper()::onServerTick);
@@ -68,12 +72,25 @@ public class EverlastingSkins {
         }
     }
 
+    /**
+     * Registers the permission backends :common can see. Forge (highest
+     * relevance for this lane) is registered by
+     * {@link ForgePermissionService#registerNodes()}; LuckPerms registers
+     * only when its API is present at runtime.
+     */
+    private static void registerPermissionServices() {
+        PermissionServiceManager.registerService(LuckPermsPermissionService.tryCreate());
+        PermissionServiceManager.registerService(new VanillaPermissionService());
+    }
+
     @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
     public static class EverlastingSkinsEventHandlers {
         @SubscribeEvent
         public static void onServerAboutToStart(ServerAboutToStartEvent event) {
             I18nUtils.loadAll();
-            PermissionServiceManager.init();
+            // Config file is loaded by now, so this picks up the real values.
+            registerPermissionServices();
+            DiscordSrvConfig.configure(Config.DISCORDSRV_ENABLED.get(), Config.DISCORDSRV_CHANNEL_ID.get());
         }
 
         @SubscribeEvent

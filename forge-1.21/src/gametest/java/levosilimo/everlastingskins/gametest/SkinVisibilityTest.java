@@ -1630,7 +1630,7 @@ public class SkinVisibilityTest {
         public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
             maybeSlow();
             if (fail) return Optional.empty();
-            return Optional.of(new CustomSkinProperty("textures", valueFor(lookup.username()), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, lookup.username()));
+            return Optional.of(new CustomSkinProperty("textures", valueFor(lookup.getUsername()), TEST_SIGNATURE, SkinActionCommand.SOURCE_MOJANG, lookup.getUsername()));
         }
     }
 

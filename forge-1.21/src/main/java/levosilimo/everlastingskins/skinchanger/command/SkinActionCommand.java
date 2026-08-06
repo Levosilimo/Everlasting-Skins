@@ -107,8 +107,9 @@ public final class SkinActionCommand {
             return 0;
         }
         boolean targetingOthers = targets.stream().anyMatch(t -> !t.equals(selfPlayer));
+        PermissionContext selfCtx = PermissionContext.of(selfPlayer.getUUID(), selfPlayer);
         if (!PermissionServiceManager.hasPermission(
-                PermissionContext.of(selfPlayer.getUUID(), selfPlayer),
+                selfCtx.uuid(), selfCtx.opLevel(),
                 resolvePermissionNode(type, targetingOthers))) {
             context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", selfPlayer)));
             return 0;
@@ -384,8 +385,9 @@ public final class SkinActionCommand {
     /** Per-player cooldown plus a sliding per-minute window. */
     private static boolean isRateLimited(ServerPlayer player, CommandContext<CommandSourceStack> context) {
         UUID playerUuid = player.getUUID();
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
         if (player != null && PermissionServiceManager.hasPermission(
-                PermissionContext.of(player.getUUID(), player),
+                ctx.uuid(), ctx.opLevel(),
                 "everlastingskins.bypass.cooldown")) {
             return false;
         }

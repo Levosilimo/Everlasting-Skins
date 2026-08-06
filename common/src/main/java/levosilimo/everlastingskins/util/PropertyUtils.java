@@ -81,7 +81,7 @@ public class PropertyUtils {
      * @return Decoded profile data as java object
      */
     public static DecodedTextureProperty getSkinProfileData(CustomSkinProperty property) {
-        String decodedString = new String(Base64.getDecoder().decode(property.getOriginalProperty().getValue()), StandardCharsets.UTF_8);
+        String decodedString = new String(Base64.getDecoder().decode(property.getValue()), StandardCharsets.UTF_8);
 
         return GSON.fromJson(decodedString, DecodedTextureProperty.class);
     }

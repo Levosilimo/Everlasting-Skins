@@ -146,7 +146,11 @@ public class SkinRefreshHandler {
 
     private static void recordSaveEnqueue(UUID playerId) {
         long start = System.nanoTime();
-        SkinRestorer.getSkinStorage().saveSkinAsync(playerId);
+        SkinStorage storage = SkinRestorer.getSkinStorage();
+        CustomSkinProperty skin = storage.getSkin(playerId);
+        if (skin != null) {
+            storage.saveSkinAsync(playerId, skin);
+        }
         long enqueueNanos = System.nanoTime() - start;
         SkinMetrics.INSTANCE.recordSaveEnqueueLatency(enqueueNanos);
         SkinMetrics.INSTANCE.recordSpikeSaveEnqueue(enqueueNanos);

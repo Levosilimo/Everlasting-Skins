@@ -3,7 +3,6 @@
  */
 package levosilimo.everlastingskins.skinchanger;
 
-import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
@@ -164,8 +163,8 @@ class SkinActionStoredSourceSkipTest {
     @DisplayName("MojangApiHttpImpl results carry the production discriminator and the requested username")
     void mojangApiResults_carryProductionDiscriminatorAndUsername() {
         URI mojangProfileUri = URI.create("http://test.local/profile/mojang/" + NO_DASH_UUID);
-        FakeHttpClient client = new FakeHttpClient();
-        client.addResponse(mojangProfileUri, 200,
+        CountingHttpClient client = new CountingHttpClient();
+        client.register(mojangProfileUri, 200,
                 "{\"id\":\"x\",\"name\":\"x\",\"properties\":[{\"name\":\"textures\",\"value\":\"val\",\"signature\":\"sig\"}]}");
 
         Optional<CustomSkinProperty> result = new MojangApiHttpImpl(TEST_ENDPOINTS, client)
@@ -225,8 +224,8 @@ class SkinActionStoredSourceSkipTest {
     @DisplayName("MineSkinApiHttpImpl results carry the production MineSkin discriminator")
     void mineSkinApiResults_carryProductionDiscriminator() {
         URI mineskinUri = EndpointsConfig.getURI("endpoint.mineskin.generate");
-        FakeHttpClient client = new FakeHttpClient();
-        client.addResponse(mineskinUri, 200, validMineSkinJson());
+        CountingHttpClient client = new CountingHttpClient();
+        client.register(mineskinUri, 200, validMineSkinJson());
 
         MineSkinResponse result = new MineSkinApiHttpImpl(client, "").genSkin("https://example.com/skin.png", SkinVariant.CLASSIC);
 

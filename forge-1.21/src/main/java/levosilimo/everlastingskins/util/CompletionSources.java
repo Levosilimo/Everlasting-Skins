@@ -36,7 +36,8 @@ public final class CompletionSources {
     /** View subcommands every metrics-authorized sender may complete. */
     private static final List<String> METRICS_VIEW_SUBCOMMANDS = List.of("json", "players");
 
-    private static volatile MojangProfileCache profileCache = new MojangProfileCache();
+    private static volatile MojangProfileCache profileCache = new MojangProfileCache(
+            Config.MOJANG_CACHE_TTL_MS.get(), Config.MOJANG_CACHE_MAX_SIZE.get());
 
     private CompletionSources() {
     }
@@ -47,7 +48,8 @@ public final class CompletionSources {
      * the Mojang API uses so recently fetched profiles are offered.
      */
     public static void setMojangProfileCache(MojangProfileCache cache) {
-        profileCache = cache != null ? cache : new MojangProfileCache();
+        profileCache = cache != null ? cache : new MojangProfileCache(
+                Config.MOJANG_CACHE_TTL_MS.get(), Config.MOJANG_CACHE_MAX_SIZE.get());
     }
 
     /**
@@ -107,6 +109,6 @@ public final class CompletionSources {
         ServerPlayer player = source == null ? null : source.getPlayer();
         if (player == null) return true; // console senders bypass the gate
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
-        return PermissionServiceManager.hasPermission(ctx, METRICS_RESET_PERMISSION);
+        return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), METRICS_RESET_PERMISSION);
     }
 }
