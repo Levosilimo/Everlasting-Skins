@@ -8,16 +8,24 @@ package levosilimo.everlastingskins;
 
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.skinchanger.MineSkinApiHttpImpl;
+import levosilimo.everlastingskins.skinchanger.responses.HttpResponse;
+import levosilimo.everlastingskins.util.HttpClient;
 import net.minecraftforge.common.ForgeConfigSpec;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
 
+import java.net.URI;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Config defaults, toggle behavior, and MineSkin API key threading.
@@ -26,6 +34,27 @@ import static org.junit.jupiter.api.Assertions.*;
  * reads the current spec values directly.
  */
 class ConfigTest {
+
+    /** Valid MineSkin v1 response body; 200 completes genSkin in a single attempt. */
+    private static final String MINESKIN_OK_JSON = """
+            {
+              "id": 12345,
+              "idStr": "12345",
+              "uuid": "550e8400-e29b-41d4-a716-446655440000",
+              "name": "Test",
+              "variant": "classic",
+              "data": {
+                "uuid": "550e8400-e29b-41d4-a716-446655440000",
+                "texture": {
+                  "value": "dGV4dHVyZXM=",
+                  "signature": "signature==",
+                  "url": "https://example.com/skin"
+                }
+              },
+              "delay": 0,
+              "nextRequest": 0
+            }
+            """;
 
     @BeforeAll
     static void initConfig() {
@@ -116,69 +145,71 @@ class ConfigTest {
 
         @Test
         @DisplayName("With API key, request includes Authorization header")
-        void apiKeyIncludedInHeaders() {
-            var httpClient = new FakeHttpClient();
+        void apiKeyIncludedInHeaders() throws Exception {
+            HttpClient httpClient = mock(HttpClient.class);
             var api = new MineSkinApiHttpImpl(httpClient, "test-key");
 
-            // Register a 403 so the request completes (terminal, no retry loop)
-            httpClient.addResponse(
-                    levosilimo.everlastingskins.util.EndpointsConfig.getURI("endpoint.mineskin.generate"),
-                    403,
-                    "{\"errorCode\":\"invalid_api_key\",\"error\":\"Invalid API Key\"}"
-            );
+            // 200 with a valid body completes the request in one attempt.
+            URI uri = levosilimo.everlastingskins.util.EndpointsConfig.getURI("endpoint.mineskin.generate");
+            when(httpClient.execute(eq(uri), any(), any(), any(), any(), any(), anyInt()))
+                    .thenReturn(new HttpResponse(200, MINESKIN_OK_JSON, Map.of()));
 
             api.genSkin("https://example.com/skin.png", SkinVariant.CLASSIC);
 
-            var headers = httpClient.getLastCapturedHeaders();
+            Map<String, String> headers = capturedHeaders(httpClient);
             assertNotNull(headers, "Headers should be captured");
             assertEquals("Bearer test-key", headers.get("Authorization"));
         }
 
         @Test
         @DisplayName("With empty API key, no Authorization header sent")
-        void emptyApiKeyOmitsAuthHeader() {
-            var httpClient = new FakeHttpClient();
+        void emptyApiKeyOmitsAuthHeader() throws Exception {
+            HttpClient httpClient = mock(HttpClient.class);
             var api = new MineSkinApiHttpImpl(httpClient, "");
 
-            httpClient.addResponse(
-                    levosilimo.everlastingskins.util.EndpointsConfig.getURI("endpoint.mineskin.generate"),
-                    403,
-                    "{\"errorCode\":\"invalid_api_key\",\"error\":\"Invalid API Key\"}"
-            );
+            URI uri = levosilimo.everlastingskins.util.EndpointsConfig.getURI("endpoint.mineskin.generate");
+            when(httpClient.execute(eq(uri), any(), any(), any(), any(), any(), anyInt()))
+                    .thenReturn(new HttpResponse(200, MINESKIN_OK_JSON, Map.of()));
 
             api.genSkin("https://example.com/skin.png", SkinVariant.CLASSIC);
 
-            var headers = httpClient.getLastCapturedHeaders();
+            Map<String, String> headers = capturedHeaders(httpClient);
             assertNotNull(headers, "Headers should be captured");
             assertNull(headers.get("Authorization"),
                     "Authorization header should not be present when API key is empty");
         }
 
         @Test
-        @DisplayName("API key is read at construction time (not lazily)")
-        void apiKeyReadAtConstruction() {
+        @DisplayName("API key from Config is threaded through at construction time")
+        void apiKeyReadAtConstruction() throws Exception {
             ForgeConfigSpec.ConfigValue<String> keySpec = Config.MINESKIN_API_KEY;
             String original = keySpec.get();
             try {
                 keySpec.set("key-from-config");
-                // Construct a new instance using the 1-arg constructor (reads Config directly)
-                var httpClient = new FakeHttpClient();
-                var api = new MineSkinApiHttpImpl(httpClient);
+                // The per-version bootstrap injects the Config value; the impl
+                // captures it at construction time (never re-reads the config).
+                HttpClient httpClient = mock(HttpClient.class);
+                var api = new MineSkinApiHttpImpl(httpClient, Config.MINESKIN_API_KEY.get());
 
-                httpClient.addResponse(
-                        levosilimo.everlastingskins.util.EndpointsConfig.getURI("endpoint.mineskin.generate"),
-                        403,
-                        "{\"errorCode\":\"invalid_api_key\",\"error\":\"Invalid API Key\"}"
-                );
+                URI uri = levosilimo.everlastingskins.util.EndpointsConfig.getURI("endpoint.mineskin.generate");
+                when(httpClient.execute(eq(uri), any(), any(), any(), any(), any(), anyInt()))
+                        .thenReturn(new HttpResponse(200, MINESKIN_OK_JSON, Map.of()));
 
                 api.genSkin("https://example.com/skin.png", SkinVariant.CLASSIC);
 
-                var headers = httpClient.getLastCapturedHeaders();
+                Map<String, String> headers = capturedHeaders(httpClient);
                 assertNotNull(headers);
                 assertEquals("Bearer key-from-config", headers.get("Authorization"));
             } finally {
                 keySpec.set(original);
             }
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Map<String, String> capturedHeaders(HttpClient httpClient) throws Exception {
+            ArgumentCaptor<Map<String, String>> captor = ArgumentCaptor.forClass(Map.class);
+            verify(httpClient).execute(any(), any(), any(), any(), any(), captor.capture(), anyInt());
+            return captor.getValue();
         }
     }
 

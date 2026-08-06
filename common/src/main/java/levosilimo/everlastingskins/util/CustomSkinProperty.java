@@ -17,6 +17,25 @@ public class CustomSkinProperty {
     private final Property originalProperty;
     private static String defaultSkinValue;
 
+    /**
+     * authlib {@code Property} exposes its payload under a different accessor
+     * per major line (1.5.x {@code getValue()} class vs the 6.x record
+     * {@code value()}), and Gson restores instances without running the
+     * constructor. Read the backing field reflectively so both lines and
+     * deserialized instances behave identically.
+     */
+    private static final java.lang.reflect.Field ORIGINAL_VALUE_FIELD = originalValueField();
+
+    private static java.lang.reflect.Field originalValueField() {
+        try {
+            java.lang.reflect.Field field = Property.class.getDeclaredField("value");
+            field.setAccessible(true);
+            return field;
+        } catch (NoSuchFieldException e) {
+            return null;
+        }
+    }
+
     public static void setDefaultSkinValue(String value) {
         defaultSkinValue = value;
     }
@@ -44,7 +63,7 @@ public class CustomSkinProperty {
 
     public boolean isEmpty() {
         if (originalProperty == null) return true;
-        String value = originalProperty.getValue();
+        String value = getValue();
         if (value == null || value.trim().isEmpty()) return true;
         if (defaultSkinValue != null && defaultSkinValue.equals(value)) return true;
         return false;
@@ -56,7 +75,7 @@ public class CustomSkinProperty {
      */
     public boolean isValid() {
         if (originalProperty == null) return false;
-        String value = originalProperty.getValue();
+        String value = getValue();
         if (value == null || value.isEmpty()) return false;
         try {
             java.util.Base64.getDecoder().decode(value);
@@ -81,6 +100,21 @@ public class CustomSkinProperty {
 
     public Property getOriginalProperty() {
         return originalProperty;
+    }
+
+    /**
+     * The textures payload. Read from authlib's backing field rather than a
+     * version-specific accessor: the accessor name differs across authlib
+     * versions (1.5.x {@code getValue()} vs the 6.x record {@code value()}),
+     * and Gson-restored instances never ran the constructor.
+     */
+    public String getValue() {
+        if (originalProperty == null || ORIGINAL_VALUE_FIELD == null) return null;
+        try {
+            return (String) ORIGINAL_VALUE_FIELD.get(originalProperty);
+        } catch (IllegalAccessException e) {
+            return null;
+        }
     }
 
     public String getSource() {

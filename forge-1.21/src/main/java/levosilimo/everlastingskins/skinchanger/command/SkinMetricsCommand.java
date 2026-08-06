@@ -10,10 +10,12 @@ package levosilimo.everlastingskins.skinchanger.command;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import levosilimo.everlastingskins.metrics.MetricsFormat;
+import levosilimo.everlastingskins.metrics.PlayerSnapshot;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
-import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.metrics.Snapshot;
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
-import levosilimo.everlastingskins.util.I18nUtils;
+import levosilimo.everlastingskins.forge21.util.I18nUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -61,7 +63,7 @@ public final class SkinMetricsCommand {
             return 0;
         }
         if (!hasPermission(context, "everlastingskins.command.metrics")) return 0;
-        SkinMetrics.Snapshot snapshot = SkinMetrics.INSTANCE.snapshot();
+        Snapshot snapshot = SkinMetrics.INSTANCE.snapshot();
         String output = asJson ? MetricsFormat.json(snapshot) : MetricsFormat.human(snapshot);
         context.getSource().sendSuccess(() -> Component.literal(output), false);
         return 1;
@@ -72,7 +74,7 @@ public final class SkinMetricsCommand {
         if (player == null || !hasPermission(context, "everlastingskins.command.metrics")) return 0;
         StringBuilder sb = new StringBuilder(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_top_players", player));
         int rank = 0;
-        for (Map.Entry<UUID, SkinMetrics.PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
+        for (Map.Entry<UUID, PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
             sb.append("\n  ").append(++rank).append(". ")
                     .append(e.getKey()).append(" — ")
                     .append(e.getValue().refreshCount()).append(I18nUtils.formatMessage("metrics_refreshes", player));
@@ -101,7 +103,7 @@ public final class SkinMetricsCommand {
         ServerPlayer player = context.getSource().getPlayer();
         if (player == null) return false;
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
-        boolean allowed = PermissionServiceManager.hasPermission(ctx, node);
+        boolean allowed = PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), node);
         if (!allowed) {
             context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", player)));
         }

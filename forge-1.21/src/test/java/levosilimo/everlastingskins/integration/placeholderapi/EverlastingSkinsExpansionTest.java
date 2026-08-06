@@ -7,7 +7,7 @@
 
 package levosilimo.everlastingskins.integration.placeholderapi;
 
-import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import org.bukkit.OfflinePlayer;
 import org.junit.jupiter.api.AfterEach;

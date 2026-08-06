@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRefreshHandler;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import org.junit.jupiter.api.DisplayName;

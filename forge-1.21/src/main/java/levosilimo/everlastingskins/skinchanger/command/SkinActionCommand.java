@@ -12,20 +12,20 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
-import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvHook;
+import levosilimo.everlastingskins.forge21.integration.discordsrv.DiscordSrvHook;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
-import levosilimo.everlastingskins.permission.PermissionContext;
+import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.RandomCapeSource;
 import levosilimo.everlastingskins.skinchanger.RandomMojangSkin;
-import levosilimo.everlastingskins.skinchanger.SkinCommand;
-import levosilimo.everlastingskins.skinchanger.SkinRefreshHandler;
-import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinCommand;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRefreshHandler;
+import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
-import levosilimo.everlastingskins.util.I18nUtils;
+import levosilimo.everlastingskins.forge21.util.I18nUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -107,8 +107,9 @@ public final class SkinActionCommand {
             return 0;
         }
         boolean targetingOthers = targets.stream().anyMatch(t -> !t.equals(selfPlayer));
+        PermissionContext selfCtx = PermissionContext.of(selfPlayer.getUUID(), selfPlayer);
         if (!PermissionServiceManager.hasPermission(
-                PermissionContext.of(selfPlayer.getUUID(), selfPlayer),
+                selfCtx.uuid(), selfCtx.opLevel(),
                 resolvePermissionNode(type, targetingOthers))) {
             context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", selfPlayer)));
             return 0;
@@ -384,8 +385,9 @@ public final class SkinActionCommand {
     /** Per-player cooldown plus a sliding per-minute window. */
     private static boolean isRateLimited(ServerPlayer player, CommandContext<CommandSourceStack> context) {
         UUID playerUuid = player.getUUID();
+        PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
         if (player != null && PermissionServiceManager.hasPermission(
-                PermissionContext.of(player.getUUID(), player),
+                ctx.uuid(), ctx.opLevel(),
                 "everlastingskins.bypass.cooldown")) {
             return false;
         }
