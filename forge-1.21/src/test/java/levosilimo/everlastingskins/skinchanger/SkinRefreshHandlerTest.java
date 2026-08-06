@@ -513,7 +513,12 @@ class SkinRefreshHandlerTest {
         when(player.getUUID()).thenReturn(uuid);
         when(player.getGameProfile()).thenReturn(new GameProfile(uuid, name));
         when(player.level()).thenReturn(level);
-        when(player.level()).thenReturn(level);
+        // The 51.0.8-compatible cascade reads the level through
+        // ServerPlayer.serverLevel() (Entity.level() is typed Level), so the
+        // mock must stub the ServerLevel-typed accessor as well; without it
+        // the respawn spawnInfo and sendLevelInfo seams receive null and the
+        // cascade stream stays empty.
+        when(player.serverLevel()).thenReturn(level);
         when(player.position()).thenReturn(Vec3.ZERO);
         when(player.getYRot()).thenReturn(0f);
         when(player.getXRot()).thenReturn(0f);

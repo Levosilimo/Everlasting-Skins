@@ -52,6 +52,7 @@ import net.minecraft.world.level.Level;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.gametest.GameTestHolder;
 
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -79,13 +80,14 @@ import java.util.UUID;
  * tests share mod static state (SkinCommand provider, SkinStorage map, player
  * list), so one batch per test keeps execution sequential and deterministic.
  */
+@GameTestHolder(value = "everlastingskins")
 public class SkinVisibilityTest {
 
     private static final String TEST_TEXTURE_VALUE = "eyJ0aW1lc3RhbXAiOjE3MTk4NDY0MDAsInByb2ZpbGVJZCI6IjA2OWE3OWY0NDRlOTQ3MjZhNWJlZmNhOTBlMzhhYWY1IiwicHJvZmlsZU5hbWUiOiJOb3RjaCIsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9iYmIxIn19fQ==";
     private static final String TEST_SIGNATURE = "ZmFrZVNpZ25hdHVyZUZvclRlc3Rpbmc9PQ==";
     private static final UUID TEST_UUID = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinSetMojang_broadcastsTextureToAllClients", timeoutTicks = 200)
     public void skinSetMojang_broadcastsTextureToAllClients(GameTestHelper helper) {
         // The vanilla GameTestServer never calls DedicatedServer.initServer, so
         // Forge's ServerStartingEvent does not fire and SkinRestorer never
@@ -144,7 +146,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinCommand_setMojang_fullFlow", timeoutTicks = 200)
     public void skinCommand_setMojang_fullFlow(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -180,7 +182,7 @@ public class SkinVisibilityTest {
         });
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinCommand_permissionDenied", timeoutTicks = 200)
     public void skinCommand_permissionDenied(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -225,7 +227,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", batch = "skinCommand_clear_removesTexture", timeoutTicks = 60000)
     public void skinCommand_clear_removesTexture(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -271,7 +273,7 @@ public class SkinVisibilityTest {
         });
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinCommand_source_reportsCurrentSource", timeoutTicks = 200)
     public void skinCommand_source_reportsCurrentSource(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -300,7 +302,7 @@ public class SkinVisibilityTest {
         helper.succeed();
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinRefresh_persistence_roundTrip", timeoutTicks = 200)
     public void skinRefresh_persistence_roundTrip(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -345,7 +347,7 @@ public class SkinVisibilityTest {
         helper.succeed();
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinRefresh_broadcastExactCount", timeoutTicks = 200)
     public void skinRefresh_broadcastExactCount(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -372,7 +374,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinRefresh_negativeControl", timeoutTicks = 200)
     public void skinRefresh_negativeControl(GameTestHelper helper) {
         installFakeMojangAPI(true);
         ensureStorage(helper);
@@ -400,7 +402,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinRefresh_signaturePropagation", timeoutTicks = 200)
     public void skinRefresh_signaturePropagation(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -432,7 +434,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinRefresh_propagatesToMultipleObservers", timeoutTicks = 200)
     public void skinRefresh_propagatesToMultipleObservers(GameTestHelper helper) {
         installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -466,7 +468,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", batch = "skinRefresh_runCommandSuccessPath", timeoutTicks = 60000)
     public void skinRefresh_runCommandSuccessPath(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -501,7 +503,7 @@ public class SkinVisibilityTest {
         });
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "wireSerializeInfoUpdate_updateDisplayName_omitsProfile", timeoutTicks = 200)
     public void wireSerializeInfoUpdate_updateDisplayName_omitsProfile(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -545,7 +547,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "refreshBroadcastUsesAddPlayer_notUpdateDisplayName", timeoutTicks = 200)
     public void refreshBroadcastUsesAddPlayer_notUpdateDisplayName(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -590,7 +592,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "duplicateSendPlayerPermissionLevelRemoved", timeoutTicks = 200)
     public void duplicateSendPlayerPermissionLevelRemoved(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -614,7 +616,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "redundantAbilitiesPacketRemoved", timeoutTicks = 200)
     public void redundantAbilitiesPacketRemoved(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -636,7 +638,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "dimensionTargetedBroadcast", timeoutTicks = 200)
     public void dimensionTargetedBroadcast(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -696,7 +698,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "ioAsyncWriterSurvivesSecondShutdown", timeoutTicks = 200)
     public void ioAsyncWriterSurvivesSecondShutdown(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -723,7 +725,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "respawnFlagIsKeepAllData", timeoutTicks = 200)
     public void respawnFlagIsKeepAllData(GameTestHelper helper) {
         SkinStorage storage = ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -759,7 +761,7 @@ public class SkinVisibilityTest {
      * textures properties. This proves the FakeMojangAPI texture actually CAN
      * appear on the wire when the packet type carries profiles.
      */
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "wireSerializeInfoUpdate_addPlayer_includesProfile", timeoutTicks = 200)
     public void wireSerializeInfoUpdate_addPlayer_includesProfile(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -807,7 +809,7 @@ public class SkinVisibilityTest {
         return sb.toString();
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skipIfUnchanged", timeoutTicks = 200)
     public void skipIfUnchanged(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -871,7 +873,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "debounceAfter100ms", timeoutTicks = 200)
     public void debounceAfter100ms(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         MinecraftServer server = helper.getLevel().getServer();
@@ -928,7 +930,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "debouncedRequest_keepsStoredEqualToApplied", timeoutTicks = 200)
     public void debouncedRequest_keepsStoredEqualToApplied(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1020,7 +1022,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "expiredDebounceWindow_appliesNormally", timeoutTicks = 200)
     public void expiredDebounceWindow_appliesNormally(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1111,7 +1113,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinClear_noProfile_clearsAppliedProfile", timeoutTicks = 200)
     public void skinClear_noProfile_clearsAppliedProfile(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1182,7 +1184,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "rateLimitAfterCooldown", timeoutTicks = 200)
     public void rateLimitAfterCooldown(GameTestHelper helper) {
         installFakeMojangAPI(true);
         ensureStorage(helper);
@@ -1209,7 +1211,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "rateLimitBypassedForOps", timeoutTicks = 200)
     public void rateLimitBypassedForOps(GameTestHelper helper) {
         installFakeMojangAPI(true);
         ensureStorage(helper);
@@ -1235,7 +1237,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skin_metrics_command_printsHumanReadable", timeoutTicks = 200)
     public void skin_metrics_command_printsHumanReadable(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -1266,7 +1268,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skin_metrics_json_command_printsJson", timeoutTicks = 200)
     public void skin_metrics_json_command_printsJson(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -1295,7 +1297,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skin_metrics_players_top10ByCount", timeoutTicks = 200)
     public void skin_metrics_players_top10ByCount(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -1329,7 +1331,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "metrics_json_showsNewCounters", timeoutTicks = 200)
     public void metrics_json_showsNewCounters(GameTestHelper helper) {
         ensureStorage(helper);
         MinecraftServer server = helper.getLevel().getServer();
@@ -1367,7 +1369,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "metrics_withProviderCache_avoidsHttp", timeoutTicks = 200)
     public void metrics_withProviderCache_avoidsHttp(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         ensureStorage(helper);
@@ -1419,7 +1421,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "serverStoppingEvent_bulkSave", timeoutTicks = 200)
     public void serverStoppingEvent_bulkSave(GameTestHelper helper) {
         ensureStorage(helper);
         SkinStorage storage = SkinRestorer.getSkinStorage();
@@ -1449,7 +1451,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", batch = "concurrentSkinSet_twoPlayers", timeoutTicks = 60000)
     public void concurrentSkinSet_twoPlayers(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1535,7 +1537,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinSet_selfReceivesBroadcast", timeoutTicks = 200)
     public void skinSet_selfReceivesBroadcast(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
