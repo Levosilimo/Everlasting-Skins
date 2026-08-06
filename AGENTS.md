@@ -6,7 +6,7 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 
 - `:common` — version-independent core, `--release 8`. NEVER add a forge
   binding here; never raise the release level. Consumer of last resort:
-  every `forge-*` module and (future) the 1.12.2 lane.
+  every `forge-*` module and the mc1.12.2 lane.
 - `:forge-1.21`, `:forge-1.21.1`, `:forge-1.21.4`, `:forge-1.21.8` —
   thin binding layers applying `everlastingskins.forge-module`; MC/Forge
   versions live in each subproject's `gradle.properties`.
@@ -32,7 +32,7 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 
 ## Legacy lanes (forge-1.16.5 / forge-1.20.1) — out-of-band
 
-Not part of this Gradle root (lib-34 lane separation, PR #2xx): ForgeGradle
+Not part of this Gradle root (lib-34 lane separation, PR #267): ForgeGradle
 5.1.x rejects Gradle 8.0+ and ForgeGradle 6.0.x rejects Gradle 9.0+, so
 neither can run inside the root's Gradle 9.3.1 (verified empirically
 2026-08-06 against 5.1.77 / 6.0.54). Each lane is its own build with its
@@ -49,9 +49,10 @@ settings.gradle.kts does not include them.
 
 ## Rules
 
-1. **No source edits in scaffold land.** Ports are separate PRs: move
-   version-independent classes into `:common`, keep bindings in the
-   `forge-*` module, then delete the moved copy from the module.
+1. **No source edits in placeholder land.** Point-release ports (1.21.1 /
+   1.21.4 / 1.21.8) are separate PRs: move version-independent classes into
+   `:common`, keep bindings in the `forge-*` module, then delete the moved
+   copy from the module.
 2. **`:common` is frozen at `--release 8`** with `-Werror`. Compile it with
    `./gradlew :common:build`; if it fails, fix it before touching forge
    modules.
@@ -111,3 +112,7 @@ CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
 `:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build and
 `E2E (mc1.12.2)` placeholder. `forge-1.16.5` / `forge-1.20.1` are not in the
 matrix yet. Treat the matrix as authoritative for what is buildable in CI.
+
+Source status: `forge-1.16.5` and `forge-1.20.1` are SOURCE-COMPLETE
+(post-#274 / post-#273); the 1.21.1 / 1.21.4 / 1.21.8 point-release
+subprojects are placeholders whose source carries over separately.
