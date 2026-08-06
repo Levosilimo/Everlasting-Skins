@@ -61,7 +61,12 @@ settings.gradle.kts does not include them.
 5. **Point-release parity:** keep `forge-1.21.x` gradle.properties versions
    in sync with the tags (`mc1.21.x-v2.1.0-rc1` etc.). Verify against git
    history before changing.
-6. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
+6. **`consumeCommon` gate:** each forge module opts into the `:common`
+   dependency unless `consumeCommon=false` in its `gradle.properties`.
+   `forge-1.21` currently sets it `false` — it still ships its own copies of
+   every `:common` class, and pulling the jar in would create a JPMS split
+   package. When the source port reconciles the duplicates, flip it back.
+7. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
    out-of-band; changes there are reviewed against the shared `:common`
    contract, not against this build.
 
@@ -73,5 +78,7 @@ settings.gradle.kts does not include them.
 ./gradlew build                # whole Forge line
 ```
 
-CI (`ci.yml`) is still the old single-module workflow — rework into a
-per-module matrix is a tracked follow-up; do not rely on it for this branch.
+CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
+`:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build and
+`E2E (mc1.12.2)` placeholder. `forge-1.16.5` / `forge-1.20.1` are not in the
+matrix yet. Treat the matrix as authoritative for what is buildable in CI.
