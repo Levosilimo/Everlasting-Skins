@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "skin": {
+    "uuid": "c891dfac-4cd2-47a2-a557-43e7e82ce76f",
+    "name": "Test Skin",
+    "visibility": "public",
+    "variant": "classic",
+    "texture": {
+      "data": {
+        "value": "",
+        "signature": ""
+      },
+      "hash": {
+        "texture": ""
+      },
+      "url": {
+        "skin": ""
+      }
+    },
+    "generator": {
+      "name": "MineSkin",
+      "version": "2.0.0",
+      "build": 1,
+      "javaVersion": 21,
+      "server": "server1",
+      "duration": 100
+    },
+    "views": 1,
+    "duplicate": false
+  },
+  "rateLimit": {
+    "next": {
+      "absolute": 1750000000000,
+      "relative": 250
+    },
+    "delay": {
+      "millis": 1200,
+      "seconds": 1.2
+    },
+    "limit": {
+      "limit": 60,
+      "remaining": 59,
+      "used": 1,
+      "reset": 60
+    }
+  },
+  "messages": [
+    {
+      "code": "ok",
+      "message": "All good!"
+    }
+  ]
+}
