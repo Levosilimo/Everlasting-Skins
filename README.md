@@ -101,7 +101,7 @@ canonical copy; no JPMS on Java 8).
   per-lane wrappers (own Gradle + FG per lane).
 - **#268** — dedup of `forge-1.21` / `forge-1.16.5` against `:common`;
   JPMS split-package resolved (Option B1, 12 survivors relocated to
-  `forge21.*`); `consumeCommon` flipped on for the forge modules.
+  `forge21.*`); `forge-1.21` consumes `:common` like the other modules.
 - **#269** — feat(monorepo): integrate mc1.12.2 lane + source-dir share
   `:common` (#269) — 162 files, 514 tests pass; mc1.12.2 now lives in the
   monorepo as per-lane wrapper directory (SOURCE-COMPLETE).

@@ -209,17 +209,14 @@ tasks.matching { it.name == "runGameTestServer" }.configureEach {
 }
 
 dependencies {
-    // :common is the shared version-independent core (M2). forge-1.21 is the
-    // original pre-M2 module: it still ships its own copies of every :common
-    // class, so pulling the jar in also puts common.jar on the dev-run module
-    // path, where the launcher turns it into automatic module "common". Both
-    // it and the main module then export levosilimo.everlastingskins.
-    // skinchanger.responses.*, which fails the JPMS layer build (split
-    // package) before the game test server boots. Modules that own their
-    // classes opt out via consumeCommon=false in gradle.properties.
-    if (project.findProperty("consumeCommon")?.toString() != "false") {
-        implementation(project(":common"))
-    }
+    // :common is the shared version-independent core (M2); every forge-*
+    // module consumes it unconditionally. An opt-out gate existed as a
+    // safety valve for forge-1.21's JPMS split-package issue (#265); it
+    // became dead after the Option B1 relocation to forge21.* (#268)
+    // resolved the conflict — no module ever opted out. If a future
+    // forge-* lane needs vendored :common copies for tooling reasons,
+    // re-add the gate + opt-out property here.
+    implementation(project(":common"))
     implementation("org.apache.httpcomponents:httpclient:4.5.13")
     implementation(minecraft.dependency("net.minecraftforge:forge:${minecraftVersion}-${forgeVersion}"))
     annotationProcessor("org.spongepowered:mixin:0.8.7:processor")

@@ -2,6 +2,17 @@
 
 ## M2 (monorepo) — unreleased
 
+### consumeCommon gate removed
+
+The `consumeCommon=false` opt-out gate in
+`buildSrc/.../everlastingskins.forge-module.gradle.kts` is gone: every
+forge-* subproject now consumes `:common` unconditionally via
+`implementation(project(":common"))`. The gate was a safety valve for
+forge-1.21's JPMS split-package (#265) and became dead after the Option B1
+relocation to `forge21.*` (#268) resolved the conflict — no module ever
+sets `consumeCommon=false`. Docs updated (root AGENTS.md Rule 6,
+common/AGENTS.md, README.md).
+
 ### FG lane separation: forge-1.16.5 / forge-1.20.1 go out-of-band
 
 ForgeGradle 5.1.x hard-rejects Gradle 8.0+ and ForgeGradle 6.0.x
