@@ -123,9 +123,19 @@ Mixin gate, CI matrix, and forge-1.21 compat fixes.
   `default-skin.properties` dropped; `JavaHttpClient` removed. The lane is
   SOURCE-COMPLETE.
 
+### 1.21.x point-release source carry-over
+
+- **#278** — feat(monorepo): forge-1.21.1 main source carry-over (Forge
+  52.1.16, 0 Java changes; 34/34 gametests pass)
+- **#279** — docs: backfill CHANGELOG entries + bump forge-1.21
+  pack.mcmeta to pack_format 34 + fix stale README CI note
+- **#280** — feat(monorepo): forge-1.21.4 main source carry-over (Forge
+  54.1.18, 2 API fixes; 34/34 gametests pass)
+- **#281** — feat(monorepo): forge-1.21.8 main source carry-over (Forge
+  58.1.21, EventBus 7 migration; gametest dropped per MC 1.21.5 overhaul;
+  215 tests pass)
+
 ### Known follow-ups (next PRs)
 
-- Port the 1.21.1 / 1.21.4 / 1.21.8 point-release sources (currently
-  placeholders; source carries over separately, same shape as #273).
 - Run the lane userdev pipelines end-to-end on the out-of-band
   1.16.5 / 1.20.1 wrappers (prepareRuns/runClient/runServer, reobfJar).
