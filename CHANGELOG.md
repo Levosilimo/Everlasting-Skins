@@ -13,6 +13,24 @@ matching the Forge 65.x line naming). CI gains a `Build (26.2)` matrix
 cell (JDK 25) and a publish matrix entry; the required-check contract
 goes 12 → 13.
 
+### forge-1.8.9 out-of-band lane
+
+New out-of-band lane for Minecraft 1.8.9 (Forge 11.15.1.2318 / FG
+2.1-SNAPSHOT / MCP stable_20 / Java 8), mirroring the established
+mc1.12.2 / forge-1.16.5 / forge-1.20.1 pattern: self-contained Gradle
+4.10.3 build under `forge-1.8.9/`, NOT in settings.gradle.kts, `:common`
+consumed via source-dir share, inline no-mixin gate (heavier variant —
+scans build files too). Binding surface is pre-ModLauncher
+(LaunchWrapper): `@Mod` + `@Instance` + `FMLInitializationEvent` /
+`FMLServerStartingEvent`; UUID extraction via `Entity.getPersistentID()`
+and `EntityPlayer.getGameProfile()`; `IPermissionService` adapter over
+`canCommandSenderUseCommand` + `UserListOps`/OpList; broadcast channel
+via `NetworkRegistry.INSTANCE.newSimpleChannel`; `/everlastingskins`
+command on the 1.8-era `ICommand` surface. 14 pure-JUnit tests (no live
+HTTP). CI gains `Build (forge-1.8.9)` (required-check contract 12 → 13)
+and `publish-mc1_8_9` (`mc1.8.9-v*` tag). Dep-analysis NOT eligible
+(Gradle 4.10.3 < 8.11 minimum).
+
 ### Mainline promotion (2026-08-06)
 
 `integration/m2-monorepo` promoted to the repo's new default branch
