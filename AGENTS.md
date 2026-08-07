@@ -7,9 +7,12 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 - `:common` — version-independent core, `--release 8`. NEVER add a forge
   binding here; never raise the release level. Consumer of last resort:
   every `forge-*` module and the mc1.12.2 lane.
-- `:forge-1.21`, `:forge-1.21.1`, `:forge-1.21.4`, `:forge-1.21.8` —
+- `:forge-1.21`, `:forge-1.21.1`, `:forge-1.21.4`, `:forge-1.21.8`, `:forge-26.2` —
   thin binding layers applying `everlastingskins.forge-module`; MC/Forge
-  versions live in each subproject's `gradle.properties`.
+  versions live in each subproject's `gradle.properties`. forge-26.2 is the
+  newest line (MC 26.2 / Forge 65.0.9 / Java 25 / unobfuscated MC, FG 7.0.17
+  on the buildSrc classpath; `minecraft.unobfuscated=true` gates the
+  convention's mappings() call).
 - `mc1.12.2/` — NOT a subproject (FG 2.3.4 needs Gradle 4.x + Java 8). It
   stays on its own wrapper (4.10.3), builds out-of-band, and consumes `:common`
   via a source-dir share (`srcDir '../common/src/main/java'` in its
@@ -19,10 +22,14 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 
 ## Convention plugins (`buildSrc/src/main/kotlin/`)
 
-- `everlastingskins.forge-module.gradle.kts` — FG 7.x + Java 21 toolchain.
-  All forge build logic lives here; subproject build scripts are just
-  `plugins { id("everlastingskins.forge-module") }`. Parameterization is via
-  gradle.properties, never via editing build scripts.
+- `everlastingskins.forge-module.gradle.kts` — FG 7.x (consumed at 7.0.17)
+  + parameterized toolchain (Java 21 for 1.21.x, Java 25 for 26.2 via
+  `java.toolchain.version`). All forge build logic lives here; subproject
+  build scripts are just `plugins { id("everlastingskins.forge-module") }`.
+  Parameterization is via gradle.properties, never via editing build
+  scripts. The `minecraft.unobfuscated` property (default false) gates the
+  mappings() call for 26.x and enables the configuration-cache
+  re-materialization of the unobfuscated-UserDev compile classpath.
 - `no-mixin.gradle.kts` — the Mixin-usage gate (port from the parent's
   `common/build-logic`, M2 step 2). Registers `verifyNoMixin` (fails the
   build on `@Mixin` annotations, mixingradle, the mixin plugin id, `mixin {}`
@@ -65,7 +72,10 @@ settings.gradle.kts does not include them.
    on Minecraft classpaths).
 5. **Point-release parity:** keep `forge-1.21.x` gradle.properties versions
    in sync with the tags (`mc1.21.x-v2.1.0-rc1` etc.). Verify against git
-   history before changing.
+   history before changing. SCOPE: applies ONLY to the four `forge-1.21.x`
+   point releases. forge-26.2 is a new MC major (new Forge line), not a
+   point release of 1.21 — it is governed by its own tag prefix
+   `mc26.2-v*` (colloquial '26.2', matching the Forge 65.x line naming).
 6. **`:common` consumed unconditionally:** every forge-* subproject depends
    on `:common` via `implementation(project(":common"))` in
    buildSrc `everlastingskins.forge-module.gradle.kts`; there is no opt-out.
@@ -76,6 +86,11 @@ settings.gradle.kts does not include them.
    forge-1.8.9) requires vendored `:common` copies for tooling reasons,
    re-add the gate to buildSrc `forge-module.gradle.kts` and re-introduce
    the opt-out property. (The dead plugin-era gate was deleted in #267.)
+   Contingency note for 26.x: forge-26.2 consumes `:common` unconditionally
+   via the convention; there is no split-package risk (common=`levosilimo.*`
+   vs the 26.x forge jar=`net.*`; the binding lives under `forge26.*`). If a
+   future 26.x jar ever collides, re-add the consumeCommon gate per the
+   #265/#276 caveat.
 7. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
    out-of-band (`cd mc1.12.2 && ./gradlew build` with Java 8); changes there
    are reviewed against the shared `:common` contract, not against this build.
@@ -107,6 +122,7 @@ registers backends).
 ```bash
 ./gradlew :common:build        # fast gate after :common changes
 ./gradlew :forge-1.21:build    # full forge module (slow; downloads userdev)
+./gradlew :forge-26.2:build    # 26.2 lane (Java 25 toolchain, unobfuscated MC, FG 7.0.17)
 ./gradlew build                # whole Forge line
 ```
 
@@ -117,8 +133,9 @@ CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
 matrix as authoritative for what is buildable in CI.
 
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
-forge-1.20.1 (post-#273), and the 1.21.1 / 1.21.4 / 1.21.8 point releases
-(post-#278 / #280 / #281).
+forge-1.20.1 (post-#273), the 1.21.1 / 1.21.4 / 1.21.8 point releases
+(post-#278 / #280 / #281), and forge-26.2 (Java 25, unobfuscated MC,
+EventBus 7; data-driven GameTest green).
 
 ### Fail-fast hooks
 
@@ -205,9 +222,9 @@ ported). `1.21` and `mc1.12.2` remain as frozen stable aliases (tagged
 Required checks (identical contract on `main` and
 `integration/m2-monorepo`) are enforced via the gh API — do not edit
 branch protection in-repo. The contract is strict (`enforce_admins`, no
-force pushes/deletions) with 12 contexts: `YAML Lint`, the `Build
-(common)` / `Build (1.21.x)` matrix, `Build (mc1.12.2)`, `E2E
-(mc1.12.2)` (push-only job — fires on push events only), `GameTest
+force pushes/deletions) with 13 contexts: `YAML Lint`, the `Build
+(common)` / `Build (1.21.x)` / `Build (26.2)` matrix, `Build (mc1.12.2)`,
+`E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
 (1.21)`, the out-of-band `Build (forge-1.16.5)` / `Build (forge-1.20.1)`
 lanes, and `aislop (M2)`. CI job names must match the required-check
 strings exactly.
