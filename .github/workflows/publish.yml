@@ -25,7 +25,7 @@ jobs:
   # ── Per-tag module routing: tag prefix -> Gradle subproject ────
   publish:
     name: Publish (${{ matrix.game-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     if: startsWith(github.ref_name, matrix.prefix)
     strategy:
@@ -106,7 +106,7 @@ jobs:
   publish-mc1_12_2:
     name: Publish (mc1.12.2)
     if: startsWith(github.ref_name, 'mc1.12.2-v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
@@ -161,7 +161,7 @@ jobs:
   publish-mc1_16_5:
     name: Publish (mc1.16.5)
     if: startsWith(github.ref_name, 'mc1.16.5-v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
@@ -216,7 +216,7 @@ jobs:
   publish-mc1_8_9:
     name: Publish (mc1.8.9)
     if: startsWith(github.ref_name, 'mc1.8.9-v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
@@ -271,7 +271,7 @@ jobs:
   publish-mc1_20_1:
     name: Publish (mc1.20.1)
     if: startsWith(github.ref_name, 'mc1.20.1-v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
@@ -326,7 +326,7 @@ jobs:
   publish-mc1_7_10:
     name: Publish (mc1.7.10)
     if: startsWith(github.ref_name, 'mc1.7.10-v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
