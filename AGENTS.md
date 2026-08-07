@@ -305,7 +305,7 @@ branch protection in-repo. The contract is strict (`enforce_admins`, no
 force pushes/deletions) with 15 contexts: `YAML Lint`, the `Build
 (common)` / `Build (1.21.x)` / `Build (26.2)` matrix, `Build (mc1.12.2)`,
 `E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
-(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
+`(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
 / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes, and `aislop
 (M2)`. CI job names must match the required-check strings exactly.
 
@@ -315,3 +315,22 @@ merge order forge-26.2 → forge-1.8.9 → forge-1.7.10): 12 → 13 after
 `Build (forge-1.8.9)` (PR #311) → 15 after `Build (forge-1.7.10)` lands
 (this lane's CI cell, PR #312). Each lane is added to the contract via
 the `gh-api-bump-<lane>.sh` script (out-of-repo tooling) at PR-open time.
+
+### Branch protection bump scripts
+
+`scripts/gh-api-bump/{26.2,1.8.9,1.7.10}.sh` are one-shot gh-API scripts that
+atomically add a new required-status context to the branch-protection contract
+on both `main` and (if it still exists) `integration/m2-monorepo`. They use
+`gh api -X PATCH` on `/branches/<branch>/protection/required_status_checks`
+(verified empirically — `PUT` returns 404 on the protection subresource).
+
+Each script has guard-protected modes: `--dry-run` (read-only), `--apply`
+(write; refuses unless the live contract matches the expected baseline
+idempotently), `--verify` (confirms a check-run exists for the lane head).
+
+Use them after a new lane PR lands: run the lane's `gh-api-bump-X.sh
+--apply`, then open the next lane PR (the now-required context gates
+its CI). For multi-lane expansions with cross-lane required contexts, use
+the temporary-relax-then-restore dance documented in FINAL-REPORT.md
+under "Post-Merge Deadlock Resolution".
+
