@@ -33,6 +33,29 @@ minecraft {
     replace '@VERSION@', project.version
 }
 
+// Gradle 4.10.3 has no per-srcDir filter closure (srcDir(Object, Closure) was added later),
+// and a filtered fileTree in srcDirs breaks ForgeGradle 2.3.4's TaskSourceCopy fingerprinting
+// ("Source directory ... is not a directory"). Stage a filtered copy of :common's test tree
+// instead; the Sync output dir is a plain srcDir. FG already compiles all test sources from a
+// copy (build/sources/test/java), so this matches the lane's existing compile pipeline.
+task syncCommonTestSources(type: Sync) {
+    from '../common/src/test/java'
+    into "$buildDir/generated/common-test-sources"
+    // Only the 8 divergent files (which stay lane-local in src/test/java) are excluded from
+    // the SHARED tree; a global source-set exclude would also strip mc1.12.2's own copies.
+    exclude 'levosilimo/everlastingskins/metrics/**'
+    // TestConfigSupport is forge-lane-only (imports com.electronwill.nightconfig, not a
+    // mc1.12.2 dependency); mc1.12.2 has no copy of its own (P2-3 scope).
+    exclude 'levosilimo/everlastingskins/permission/TestConfigSupport.java'
+    exclude 'levosilimo/everlastingskins/skinchanger/SkinIOPropertyTest.java'
+    exclude 'levosilimo/everlastingskins/skinchanger/SkinIODeleteRaceTest.java'
+    exclude 'levosilimo/everlastingskins/skinchanger/MojangApiFuzzTest.java'
+    exclude 'levosilimo/everlastingskins/skinchanger/SkinStorageTest.java'
+    exclude 'levosilimo/everlastingskins/skinchanger/SkinIOMetamorphicTest.java'
+    exclude 'levosilimo/everlastingskins/skinchanger/DefaultSkinResolverTest.java'
+    exclude 'levosilimo/everlastingskins/skinchanger/SkinStorageMetamorphicTest.java'
+}
+
 sourceSets {
     main {
         java {
@@ -42,6 +65,16 @@ sourceSets {
             srcDir '../common/src/main/java'
             // Exclude Mixin support files — no Mixin annotation processor configured for 1.12.2
             exclude 'levosilimo/everlastingskins/mixin/**'
+        }
+    }
+    test {
+        java {
+            srcDir 'src/test/java'
+            // Share the :common unit-test tree (Java 8, no JPMS). Files that are
+            // byte-identical here are deleted from src/test/java — common is canonical.
+            // srcDir(Task) adds the Sync output dir and wires the task dependency; the
+            // excludes above apply only to the shared tree, never to src/test/java.
+            srcDir tasks.syncCommonTestSources
         }
     }
 }
