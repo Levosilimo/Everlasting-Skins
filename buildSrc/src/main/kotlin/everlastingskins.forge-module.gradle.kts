@@ -126,6 +126,9 @@ sourceSets {
     // (canonical copy; the forge lanes deleted their duplicates).
     test {
         java.srcDir("$rootDir/common/src/test/java/net/luckperms")
+        // Shared TestConfigSupport (P2-3): canonical copy in :common's
+        // permission test package; the 7 lane copies are deleted.
+        java.srcDir("$rootDir/common/src/test/java/levosilimo/everlastingskins/permission")
     }
 }
 

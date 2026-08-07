@@ -91,6 +91,11 @@ sourceSets {
         java.srcDir(projectDir.parentFile.resolve("common/src/main/java"))
         resources.srcDir(projectDir.parentFile.resolve("common/src/main/resources"))
     }
+    // Share TestConfigSupport from :common's test tree (P2-3); the lane's
+    // copy is deleted — common is canonical.
+    test {
+        java.srcDir(projectDir.parentFile.resolve("common/src/test/java/levosilimo/everlastingskins/permission"))
+    }
 }
 
 // The minecraft extension is registered at apply() time above (FG 5.1:
