@@ -1,0 +1,75 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ *
+ * forge-1.8.9 out-of-band lane (Minecraft 1.8.9 / Forge 11.15.1.2318 /
+ * ForgeGradle 2.1-SNAPSHOT / MCP stable_20 / Java 8). Self-contained build:
+ * own Gradle 4.10.3 wrapper, NOT in settings.gradle.kts, no buildSrc.
+ * Build with: cd forge-1.8.9 && JAVA_HOME=<jdk8> ./gradlew build
+ */
+
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { name = 'forge'; url = 'https://files.minecraftforge.net/maven' }
+        maven { name = 'sonatype'; url = 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    }
+    dependencies {
+        // Rule 4 lane decision: FG 2.1-SNAPSHOT is the classic 1.8.9
+        // ForgeGradle line (verified on files.minecraftforge.net/maven,
+        // latest snapshot build 2.1-20211118.174922-42). Same classpath
+        // shape as the proven mc1.12.2 lane (FG 2.3.4) buildscript.
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.1-SNAPSHOT'
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = "${mod_version}"
+group = 'levosilimo.everlastingskins'
+archivesBaseName = 'everlastingskins-1.8.9'
+
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+
+minecraft {
+    // Combined MC-Forge string (FG 2.x DSL — NOT the FG 5.x two-arg form).
+    // 1.8.9 builds >= 11.15.1.1875 exist on the forge maven only in the
+    // double-suffixed form '<mc>-<forge>-<mc>' (maven.minecraftforge.net
+    // metadata, verified 2026-08-07); the plain '<mc>-<forge>' string 404s.
+    version = '1.8.9-11.15.1.2318-1.8.9'
+    runDir = 'run'
+    // Bare-string MCP channel (FG 2.x DSL). stable_20 was designed for
+    // 1.8.8; FG emits a benign 'designed for 1.8.8' warning — expected.
+    mappings = 'stable_20'
+    replace '@VERSION@', project.version
+    // NOTE: FG 2.1-SNAPSHOT has no standardForgeFixes property (added in
+    // later FG 2.x); 1.8.9 deobf works without it.
+}
+
+repositories {
+    mavenCentral()
+}
+
+processResources {
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title': archivesBaseName,
+            'Specification-Vendor': 'Levosilimo',
+            'Specification-Version': project.version,
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'Levosilimo'
+        ])
+    }
+}
