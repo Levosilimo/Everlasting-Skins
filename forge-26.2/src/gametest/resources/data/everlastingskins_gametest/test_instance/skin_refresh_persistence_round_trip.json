@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_refresh_persistence_round_trip",
+  "environment": "everlastingskins_gametest:skin_refresh_persistence_round_trip",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

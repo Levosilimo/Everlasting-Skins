@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_metrics_json_command_prints_json",
+  "environment": "everlastingskins_gametest:skin_metrics_json_command_prints_json",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

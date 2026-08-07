@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:debounce_after100ms",
+  "environment": "everlastingskins_gametest:debounce_after100ms",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

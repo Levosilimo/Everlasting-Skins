@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:dimension_targeted_broadcast",
+  "environment": "everlastingskins_gametest:dimension_targeted_broadcast",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}
