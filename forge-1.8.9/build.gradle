@@ -51,6 +51,25 @@ repositories {
     mavenCentral()
 }
 
+dependencies {
+    // Rule 4 lane decision (2026-08-07): JUnit 5.10.3 + mockito-core
+    // 2.28.2 mirror the mc1.12.2 lane's test scaffold exactly — same
+    // Gradle 4.10.3 / Java 8 toolchain, same Maven coords, no new
+    // dependencies beyond the established legacy-lane set.
+    testCompile 'org.junit.jupiter:junit-jupiter-api:5.10.3'
+    testCompile 'org.junit.jupiter:junit-jupiter-params:5.10.3'
+    testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.10.3'
+    testRuntime 'org.junit.platform:junit-platform-launcher:1.10.3'
+    testCompile 'org.mockito:mockito-core:2.28.2'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
 // :common consumed by source-dir share (Rule 1: :common is canonical; the
 // lane never carries a duplicate copy). Same mechanism as mc1.12.2 — no
 // JPMS on Java 8. No mixin/ exclude needed: :common has no mixin package

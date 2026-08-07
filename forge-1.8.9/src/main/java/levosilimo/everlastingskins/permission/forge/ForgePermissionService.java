@@ -61,10 +61,10 @@ public class ForgePermissionService implements IPermissionService {
 
     /**
      * Player op level from the Ops list, or -1 when no server context is
-     * available. Package-visible seam: tests subclass and override this so
-     * the gating logic is unit-testable without a live server.
+     * available. Protected seam: tests subclass and override this so the
+     * gating logic is unit-testable without a live server.
      */
-    int resolveOpLevel(UUID uuid) {
+    protected int resolveOpLevel(UUID uuid) {
         try {
             MinecraftServer server = MinecraftServer.getServer();
             if (server == null || server.getConfigurationManager() == null) return -1;
