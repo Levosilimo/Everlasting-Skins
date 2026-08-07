@@ -8,6 +8,7 @@ plugins {
     id("no-mixin")
     // ErrorProne static analysis (buildSrc): hooks every JavaCompile.
     id("everlastingskins.errorprone")
+    id("everlastingskins.dependency-analysis")
 }
 
 java {
@@ -51,7 +52,6 @@ dependencies {
     testImplementation("com.google.code.gson:gson:2.8.0")
     testImplementation("com.mojang:authlib:1.5.25")
     testImplementation("org.apache.logging.log4j:log4j-api:2.8.1")
-    testImplementation("com.google.code.findbugs:jsr305:3.0.2")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
     // Default log4j2 config (ERROR-only) so test output stays quiet.

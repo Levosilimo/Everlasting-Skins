@@ -2,25 +2,34 @@
 
 Persistent player skin management for Minecraft Forge servers.
 
-[![CI (1.21)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml/badge.svg?branch=1.21)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml?query=branch%3A1.21)
-[![CI (mc1.12.2)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml/badge.svg?branch=mc1.12.2)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml?query=branch%3Amc1.12.2)
+[![CI](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Levosilimo/Everlasting-Skins/actions/workflows/ci.yml?query=branch%3Amain)
 [![Release](https://img.shields.io/github/v/release/Levosilimo/Everlasting-Skins?include_prereleases&label=latest)](https://github.com/Levosilimo/Everlasting-Skins/releases)
 [![License](https://img.shields.io/github/license/Levosilimo/Everlasting-Skins)](LICENSE)
 [![CurseForge](https://cf.way2muchnoise.eu/versions/538149.svg)](https://www.curseforge.com/minecraft/mc-mods/everlasting-skins)
 [![Modrinth](https://img.shields.io/modrinth/dt/everlasting-skins?label=Modrinth)](https://modrinth.com/mod/everlasting-skins)
 [![Java](https://img.shields.io/badge/java-21%20%7C%208-blue)](https://adoptium.net/)
 
-This repository uses **git branches** to target different Minecraft versions.
-Each branch is isolated with its own toolchain, Forge version, and Java runtime.
+This repository is a **Gradle monorepo** (`main` is the default branch): every
+supported Minecraft version is a lane under one root build instead of an
+isolated git branch. All lanes share the version-independent `:common` module.
 
-## Branches
+## Lanes
 
-| Branch | Minecraft | Forge | Java | Status |
-|--------|-----------|-------|------|--------|
-| [1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/1.21) | 1.21 | 51.0.8 | 21 | Active |
-| [mc1.12.2](https://github.com/Levosilimo/Everlasting-Skins/tree/mc1.12.2) | 1.12.2 | 14.23.5.2847 | 8 | Active |
+| Lane | Minecraft | Forge | Java | Notes |
+|------|-----------|-------|------|-------|
+| [:common](https://github.com/Levosilimo/Everlasting-Skins/tree/main/common) | — | — | 8 (`--release 8`) | version-independent shared module |
+| [:forge-1.21](https://github.com/Levosilimo/Everlasting-Skins/tree/main/forge-1.21) | 1.21 | 51.0.8 | 21 | root subproject (Gradle 9.3.1) |
+| [:forge-1.21.1](https://github.com/Levosilimo/Everlasting-Skins/tree/main/forge-1.21.1) | 1.21.1 | 52.1.16 | 21 | root subproject |
+| [:forge-1.21.4](https://github.com/Levosilimo/Everlasting-Skins/tree/main/forge-1.21.4) | 1.21.4 | 54.1.18 | 21 | root subproject |
+| [:forge-1.21.8](https://github.com/Levosilimo/Everlasting-Skins/tree/main/forge-1.21.8) | 1.21.8 | 58.1.21 | 21 | root subproject |
+| [forge-1.16.5/](https://github.com/Levosilimo/Everlasting-Skins/tree/main/forge-1.16.5) | 1.16.5 | 36.2.34 | 8 | own wrapper (Gradle 7.6.4, FG 5.1.77) |
+| [forge-1.20.1/](https://github.com/Levosilimo/Everlasting-Skins/tree/main/forge-1.20.1) | 1.20.1 | 47.4.10 | 21 | own wrapper (Gradle 8.7, FG 6.0.54) |
+| [mc1.12.2/](https://github.com/Levosilimo/Everlasting-Skins/tree/main/mc1.12.2) | 1.12.2 | 14.23.5.2847 | 8 | own wrapper (Gradle 4.10.3, FG 2.3.4) |
 
-Each branch has its own README with version-specific installation instructions, config paths, and command documentation.
+The `1.21` and `mc1.12.2` branches still exist on GitHub but are **archived
+stable aliases** — frozen snapshots of the old per-branch layout, not active
+development targets. See [REPOSITORY-STRUCTURE.md](../REPOSITORY-STRUCTURE.md)
+for the full layout.
 
 ## ✨ Features
 
@@ -36,7 +45,7 @@ Each branch has its own README with version-specific installation instructions, 
 ## 📦 Installation
 
 1. Install [Forge for Minecraft 1.21](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.21.html).
-2. Download `EverlastingSkins-1.21-2.1.0.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
+2. Download `everlastingskins-1.21-2.1.0.jar` from the [Releases page](https://github.com/Levosilimo/Everlasting-Skins/releases).
 3. Place the JAR in your server's `mods/` folder.
 4. Restart the server.
 
@@ -208,12 +217,12 @@ To enable DiscordSRV announcements:
 Requires JDK 21 and Gradle (via the wrapper):
 
 ```bash
-git clone -b 1.21 https://github.com/Levosilimo/Everlasting-Skins
+git clone https://github.com/Levosilimo/Everlasting-Skins
 cd Everlasting-Skins
-./gradlew build
+./gradlew :forge-1.21:build
 ```
 
-Output: `build/libs/EverlastingSkins-1.21-2.1.0.jar`
+Output: `forge-1.21/build/libs/everlastingskins-1.21-2.1.0.jar`
 
 ## ❓ FAQ
 
