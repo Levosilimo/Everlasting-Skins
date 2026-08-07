@@ -7,6 +7,7 @@
 package levosilimo.everlastingskins;
 
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
+import levosilimo.everlastingskins.command.SkinRestorerCommand;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraftforge.fml.common.Mod;
@@ -56,6 +57,7 @@ public class EverlastingSkins {
     @Mod.EventHandler
     public void serverStarting(FMLServerStartingEvent event) {
         SkinRestorer.init(event);
+        event.registerServerCommand(new SkinRestorerCommand());
         LOGGER.info("{} server starting", MOD_NAME);
     }
 }
