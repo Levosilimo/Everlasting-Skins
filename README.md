@@ -19,6 +19,7 @@ forge-1.21.1/                point release (MC 1.21.1 / Forge 52.1.16)
 forge-1.21.4/                point release (MC 1.21.4 / Forge 54.1.18)
 forge-1.21.8/                point release (MC 1.21.8 / Forge 58.1.21)
 forge-1.16.5/  forge-1.20.1/ out-of-band legacy lanes (own Gradle wrappers, FG per-lane)
+forge-1.8.9/                 out-of-band legacy lane (own Gradle 4.10.3 wrapper, FG 2.1-SNAPSHOT, Java 8)
 mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG 2.3.4, Java 8,
                             builds out-of-band, shares ../common as a source dir
 ```
@@ -35,9 +36,10 @@ mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG
 | `:forge-26.2` | 26.2 | 65.0.9 | 7.x | root 9.3.1 | 25 | SOURCE-COMPLETE (Java 25, unobfuscated MC, EventBus 7) |
 | `forge-1.16.5/` (not a subproject) | 1.16.5 | 36.2.34 | 5.1.x | own 7.6.4 wrapper | JDK 8 | SOURCE-COMPLETE (post-#274) |
 | `forge-1.20.1/` (not a subproject) | 1.20.1 | 47.4.10 | 6.x | own 8.7 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (post-#273) |
+| `forge-1.8.9/` (not a subproject) | 1.8.9 | 11.15.1.2318 | 2.1-SNAPSHOT | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
 | `mc1.12.2/` (not a subproject) | 1.12.2 | 14.23.5.2847 | 2.3.4 | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (post-#269) |
 
-`forge-1.16.5` / `forge-1.20.1` are out-of-band per-lane wrappers (own Gradle
+`forge-1.8.9` / `forge-1.16.5` / `forge-1.20.1` are out-of-band per-lane wrappers (own Gradle
 wrapper, FG applied per-lane — see AGENTS.md "Legacy lanes"): they are NOT
 included in `settings.gradle.kts`, so the root build never configures them.
 
@@ -58,6 +60,12 @@ The 1.12.2 lane is NOT part of this build:
 
 ```bash
 cd mc1.12.2 && ./gradlew build   # own Gradle 4.10.3 wrapper, Java 8, FG 2.3.4
+```
+
+The 1.8.9 lane is likewise out-of-band (FG 2.1-SNAPSHOT needs Gradle 4.x):
+
+```bash
+cd forge-1.8.9 && JAVA_HOME=<jdk8> ./gradlew build   # own Gradle 4.10.3 wrapper, Java 8
 ```
 
 `mc1.12.2/build.gradle` adds `../common/src/main/java` to its main source set,
@@ -83,11 +91,12 @@ locally with no Docker. See AGENTS.md → "Local CI validation with act".
   parent's `common/build-logic`), which fails the build on any Mixin usage.
 - **CI:** `.github/workflows/ci.yml` is a per-module matrix (PR #260,
   extended by #277): lint-yaml, then `build` over `:common` + the four
-  1.21.x modules, out-of-band builds for mc1.12.2 / forge-1.16.5 /
-  forge-1.20.1 (own wrappers), and the `E2E (mc1.12.2)` required-check
-  stub. `publish.yml` gained dedicated `publish-mc1_16_5` /
+  1.21.x modules, out-of-band builds for mc1.12.2 / forge-1.8.9 /
+  forge-1.16.5 / forge-1.20.1 (own wrappers), and the `E2E (mc1.12.2)`
+  required-check stub. `publish.yml` gained dedicated `publish-mc1_16_5` /
   `publish-mc1_20_1` jobs in #277, with the `mc1.16.5-v*` /
-  `mc1.20.1-v*` tag triggers uncommented.
+  `mc1.20.1-v*` tag triggers uncommented; the forge-1.8.9 lane adds
+  `Build (forge-1.8.9)` + `publish-mc1_8_9` (`mc1.8.9-v*`).
 - **Artifact naming:** `everlastingskins-<mc>` (was `EverlastingSkins-<mc>`).
 - `mc1.12.2/` is imported from the parent checkout's history and builds
   out-of-band with its own wrapper (Gradle 4.10.3 + FG 2.3.4 + Java 8). Its
