@@ -10,7 +10,7 @@ import levosilimo.everlastingskins.FakeHttpClient;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.TestServerContext;
-import levosilimo.everlastingskins.integration.FakeMojangAPI;
+import levosilimo.everlastingskins.skinchanger.FakeMojangAPI;
 import levosilimo.everlastingskins.integration.TestProperties;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.MineSkinResponse;
