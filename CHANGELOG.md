@@ -31,6 +31,33 @@ HTTP). CI gains `Build (forge-1.8.9)` (required-check contract 12 → 13)
 and `publish-mc1_8_9` (`mc1.8.9-v*` tag). Dep-analysis NOT eligible
 (Gradle 4.10.3 < 8.11 minimum).
 
+### forge-1.7.10 out-of-band lane (GTNH FG 1.2.11, Gradle 4.4.1, JDK 8, MCP stable_12)
+
+Added the oldest MC target in the monorepo as an out-of-band lane (own
+wrapper, never in settings.gradle.kts). Upstream ForgeGradle 1.2 is dead
+(hardcoded Mojang API 403s since 2022), so the lane pins the GTNH community
+fork `com.github.GTNewHorizons:ForgeGradle:1.2.11` via jitpack — the
+Legacy Modding Wiki's prescribed fix — on Gradle 4.4.1 (FG 1.2 hard floor)
++ Java 8. Binding surface is pre-ModLauncher LaunchWrapper: `@Mod` +
+`cpw.mods.fml` events, netty `NetworkRegistry.INSTANCE.newChannel(...)` for
+the skin-broadcast channel (`@NetworkMod` was removed in FML 1.7 and does
+not exist in 10.13.4.1614), and `EntityPlayer.getGameProfile()` (no
+`getPersistentID`). Permission adapter maps
+`IPermissionService.hasPermission(UUID,int,String)` onto
+`EntityPlayer.canCommandSenderUseCommand` + the Configuration ops model
+(no PermissionAPI / UserListOps on 1.7.10). `:common` is consumed by
+source-dir share; the `consumeCommon` gate is NOT re-added (out-of-band
+lanes never use `project(":common")` — rule #6 caveat resolved).
+
+- CI: `Build (forge-1.7.10)` cell (JDK 8) + `publish-mc1_7_10` job
+  (`mc1.7.10-v*` tag, loaders forge, game-version 1.7.10). Required-check
+  contract count: 12 → 13 after `Build (26.2)` → 14 after
+  `Build (forge-1.8.9)` → 15 after `Build (forge-1.7.10)` (deepwork merge
+  order: forge-26.2 → forge-1.8.9 → forge-1.7.10).
+- Tests: 48 JUnit 4 unit tests (SkinStorage + permission adapter + decoder
+  + command); pure-JUnit scaffold, no GameTest on 1.7.10. Deterministic
+  fakes only (memory #1115) — no live HTTP anywhere in the lane tests.
+
 ### Mainline promotion (2026-08-06)
 
 `integration/m2-monorepo` promoted to the repo's new default branch
