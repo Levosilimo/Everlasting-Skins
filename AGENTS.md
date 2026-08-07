@@ -168,6 +168,29 @@ runs the cheap `lint-yaml` / `aislop` jobs on the host runner; the Forge build
 matrix is not reliable under act (Docker JDK image fragility) — treat `act` as
 a syntax gate, not a build substitute.
 
+## Codebase improvement tools (knip-equivalent)
+
+Java/Gradle has no direct `knip` equivalent; the closest analog is the
+dependency-analysis-gradle-plugin (autonomousapps). Role split: **AFT /
+Qartez / Codegraph** handle dead-code, dead-symbol, clone, and hotspot
+analysis (already integrated, no changes needed);
+**dependency-analysis-gradle-plugin** handles dep hygiene — unused deps,
+wrong-config, undeclared transitives, duplicate class files — the gap the
+codebase-intel tools do not fill.
+
+WARN-only policy: Forge reflection (registry `@ObjectHolder`,
+`@EventBusSubscriber`, string-based resource registration) is a known
+false-positive source for dependency-analysis; we run WARN-only and never
+`fixDependencies` automatically until a manual triage pass confirms the
+findings are real. Rolled out in WARN-only mode; hook integration is gated
+on empirical validation on a forge-1.21.x module to catalog known false
+positives.
+
+Lane policy: buildSrc classpath (lane 1) + convention plugin (lane 2) +
+`scripts/gradle-health.sh` (manual runs, this lane) are in place.
+Out-of-band lanes (mc1.12.2 / forge-1.16.5 / forge-1.20.1) are NOT eligible
+for dependency-analysis due to their Gradle version constraints (verified
+Feb 2026) — they continue to rely on AFT/Qartez/Codegraph.
 
 ## Branch policy & required checks
 

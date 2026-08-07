@@ -1,6 +1,8 @@
 // everlastingskins.forge-module — convention plugin for the ForgeGradle 7+
 // (Java 21 toolchain) modules: forge-1.21 and the 1.21.x point releases.
 
+import com.autonomousapps.tasks.AbiAnalysisTask
+import com.autonomousapps.tasks.ClassListExploderTask
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -222,9 +224,9 @@ dependencies {
     // resolved the conflict — no module ever opted out. If a future
     // forge-* lane needs vendored :common copies for tooling reasons,
     // re-add the gate + opt-out property here.
-    implementation(project(":common"))
+    api(project(":common"))
     implementation("org.apache.httpcomponents:httpclient:4.5.13")
-    implementation(minecraft.dependency("net.minecraftforge:forge:${minecraftVersion}-${forgeVersion}"))
+    api(minecraft.dependency("net.minecraftforge:forge:${minecraftVersion}-${forgeVersion}"))
     // MUST be declared before the mixin processor: mixin-0.8.7-processor.jar
     // bundles an unrelocated OLD Guava (no ImmutableMap.Builder.buildOrThrow),
     // which would shadow ErrorProne's Guava 33 on the annotation processor
@@ -253,7 +255,6 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.3")
     testImplementation("net.jqwik:jqwik:1.9.0")
     testImplementation("me.clip:placeholderapi:2.12.3")
-    testImplementation("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.12.0")
 
@@ -261,8 +262,17 @@ dependencies {
 
     "gametestImplementation"(sourceSets.main.get().output)
     "gametestImplementation"("org.junit.jupiter:junit-jupiter-api:5.10.3")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.3")
     "gametestRuntimeOnly"("org.junit.platform:junit-platform-launcher:1.10.3")
 }
+
+// jsr305 is brought in transitively by Forge AND bundled by discordsrv;
+// both publish javax/annotation/Nullable to the same FQN. Exclude the
+// transitive copy so discordsrv's bundled class is the only one on the
+// classpath (same split-package pattern as the historical #265 forge21.*
+// fix). dep-analysis 3.18.0 surfaces this as a duplicate-class warning.
+configurations.getByName("compileOnly").exclude(group = "com.google.code.findbugs", module = "jsr305")
+configurations.getByName("testImplementation").exclude(group = "com.google.code.findbugs", module = "jsr305")
 
 configurations.getByName("testRuntimeClasspath") {
     exclude(group = "org.slf4j", module = "slf4j-simple")
@@ -322,4 +332,23 @@ sourceSets.all {
     val dir = layout.buildDirectory.dir("sourcesSets/${name}")
     output.setResourcesDir(dir.get().asFile)
     java.destinationDirectory = dir
+}
+
+// Workaround for dependency-analysis-gradle-plugin #960:
+// FG redirects every sourceSet's classes+resources output to
+// build/sourcesSets/<name> (this convention's lines 321-325). The
+// plugin's explodeByteCodeSourceMain + abiAnalysisMain tasks read
+// build/sourcesSets/<name> but don't declare dependsOn processResources,
+// so Gradle 9.3.1's strict implicit-dependency detection hard-fails
+// :<module>:projectHealth. Maintainer-verified fix per #960: inject
+// the missing wiring at projectsEvaluated time. Only fires when the
+// dep-analysis plugin is actually applied to this module — its tasks
+// won't exist otherwise and `withType` is a no-op.
+gradle.projectsEvaluated {
+    tasks.withType<ClassListExploderTask>().configureEach {
+        dependsOn("processResources")
+    }
+    tasks.withType<AbiAnalysisTask>().configureEach {
+        dependsOn("processResources")
+    }
 }
