@@ -1,0 +1,32 @@
+modLoader = "javafml"
+# FML major for the 26.2 line is 65 (read from the 26.2-65.0.9 MDK); the
+# 1.21.x lanes use [31,).
+loaderVersion = "[65,)"
+license = "MIT License"
+
+[[mods]]
+modId = "everlastingskins"
+version = "2.1.0-beta.1"
+displayName = "Everlasting Skins"
+authors = "Levosilimo"
+description = '''
+A server-side Minecraft Forge mod that provides persistent custom skins on vanilla (offline-mode) servers.
+'''
+[[dependencies.everlastingskins]]
+modId = "forge"
+mandatory = false
+versionRange = "[65,)"
+ordering = "NONE"
+side = "SERVER"
+[[dependencies.everlastingskins]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[26.2,26.3)"
+ordering = "NONE"
+side = "BOTH"
+[[dependencies.everlastingskins]]
+modId = "luckperms"
+mandatory = false
+versionRange = "[5.5,)"
+ordering = "AFTER"
+side = "SERVER"
