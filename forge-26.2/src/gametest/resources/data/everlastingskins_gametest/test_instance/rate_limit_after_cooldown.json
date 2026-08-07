@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:rate_limit_after_cooldown",
+  "environment": "everlastingskins_gametest:rate_limit_after_cooldown",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

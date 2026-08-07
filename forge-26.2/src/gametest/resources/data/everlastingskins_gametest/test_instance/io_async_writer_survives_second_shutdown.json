@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:io_async_writer_survives_second_shutdown",
+  "environment": "everlastingskins_gametest:io_async_writer_survives_second_shutdown",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

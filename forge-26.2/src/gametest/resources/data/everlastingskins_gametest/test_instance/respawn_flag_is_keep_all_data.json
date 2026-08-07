@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:respawn_flag_is_keep_all_data",
+  "environment": "everlastingskins_gametest:respawn_flag_is_keep_all_data",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

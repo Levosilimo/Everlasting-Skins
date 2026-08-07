@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_set_self_receives_broadcast",
+  "environment": "everlastingskins_gametest:skin_set_self_receives_broadcast",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}
