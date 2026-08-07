@@ -279,11 +279,12 @@ class SkinStorageTest {
     }
     /** Polls for a file to appear (50ms debounce + load headroom, bounded 2s). */
     private static boolean awaitFile(Path file) throws InterruptedException {
-        for (int i = 0; i < 40; i++) {
-            if (Files.exists(file)) {
-                return true;
-            }
-            Thread.sleep(50);
+        long deadline = System.currentTimeMillis() + 2000;
+        long pollMs = 1;
+        while (System.currentTimeMillis() < deadline) {
+            if (Files.exists(file)) return true;
+            Thread.sleep(pollMs);
+            pollMs = Math.min(100, pollMs * 2);
         }
         return Files.exists(file);
     }
