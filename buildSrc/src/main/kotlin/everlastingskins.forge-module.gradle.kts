@@ -58,7 +58,10 @@ base {
 }
 
 jacoco {
-    toolVersion = "0.8.11"
+    // 0.8.11 supports up to Java 23 class files; the Java 25 toolchain
+    // lanes (26.x) need 0.8.13+. Gated by toolchain so the 1.21.x modules
+    // keep the pinned 0.8.11 unchanged.
+    toolVersion = if (toolchainVersion >= 25) "0.8.13" else "0.8.11"
 }
 
 repositories {
