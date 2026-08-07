@@ -46,6 +46,11 @@ val mcRunDir: String = project.findProperty("mc.runDir")?.toString() ?: "run"
 val mcRunDir2: String = project.findProperty("mc.runDir2")?.toString() ?: "run2"
 val gametestNamespace: String = project.findProperty("gametestNamespace")?.toString() ?: "everlastingskins"
 
+// Minecraft 26.1+ ships unobfuscated (Forge 62.0.0); when true the
+// mappings() call is skipped (see the minecraft block below) and FG
+// 7.0.17's unobfuscated-UserDev wiring applies.
+val unobfuscated: Boolean = project.findProperty("minecraft.unobfuscated")?.toString()?.toBoolean() == true
+
 version = modVersion
 
 base {
@@ -84,6 +89,29 @@ tasks.withType<JavaCompile>().configureEach {
     options.release.set(toolchainVersion)
 }
 
+// FG 7.0.17 unobfuscated-UserDev wiring points compileJava.classpath at the
+// raw resolvable userdev configuration; the configuration cache cannot
+// serialize that configuration object (the classic userdev path materializes
+// a file collection instead). Re-materialize as a plain file collection so
+// :<module>:compileJava stores a valid configuration-cache entry. Gated to
+// the unobfuscated lanes; 1.21.x keeps the classic wiring untouched.
+if (unobfuscated) {
+    gradle.projectsEvaluated {
+        tasks.withType<JavaCompile>().configureEach {
+            classpath = files(classpath)
+            // The annotationProcessorPath is captured by a plugin's
+            // configureEach lambda as part of the CompileOptions bean;
+            // re-materialize it as RESOLVED files (files(config) would keep
+            // the configuration as the collection origin, which is exactly
+            // what the configuration cache cannot serialize).
+            val apPath = options.annotationProcessorPath
+            if (apPath != null) {
+                options.annotationProcessorPath = files(apPath.files)
+            }
+        }
+    }
+}
+
 // Game test source set: separate from unit tests because it compiles and runs
 // against the real Minecraft server (game test framework), not JUnit.
 // Declared before the runs block, which references it.
@@ -107,7 +135,7 @@ minecraft {
     // (default false) so the 1.21.x modules keep official mappings and the
     // 26.2 lane skips the call entirely (FG 7.0.15+ defaults the channel to
     // official anyway; FG 7.0.17 added explicit unobfuscated-UserDev support).
-    if (project.findProperty("minecraft.unobfuscated")?.toString()?.toBoolean() != true) {
+    if (!unobfuscated) {
         mappings("official", minecraftVersion)
     }
 
