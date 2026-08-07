@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -25,6 +26,16 @@ class MojangProfileCacheTest {
 
     private static final String USERNAME = "Notch";
     private static final CustomSkinProperty SKIN = new CustomSkinProperty("textures", "value", "sig", "MojangAPI");
+
+    /** No-new-dep poll: returns when cond holds, else fails after timeoutMs. */
+    private static void awaitUntil(BooleanSupplier cond, long timeoutMs) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (cond.getAsBoolean()) return;
+            Thread.sleep(10);
+        }
+        fail("condition not met within " + timeoutMs + "ms");
+    }
 
     @Test
     @DisplayName("a cached entry is returned immediately")
@@ -43,7 +54,7 @@ class MojangProfileCacheTest {
         MojangProfileCache cache = new MojangProfileCache(10, 100);
         cache.put(USERNAME, SKIN);
 
-        Thread.sleep(20);
+        awaitUntil(() -> cache.get(USERNAME) == null && cache.size() == 0, 1000);
 
         assertNull(cache.get(USERNAME));
         assertEquals(0, cache.size());
@@ -142,7 +153,7 @@ class MojangProfileCacheTest {
     void ttlExpiry_evictsEntriesOnPut() throws InterruptedException {
         MojangProfileCache cache = new MojangProfileCache(20, 100);
         cache.put("a", SKIN);
-        Thread.sleep(40);
+        awaitUntil(() -> cache.get("a") == null, 1000);  // wait for TTL expiry, not a fixed sleep
         cache.put("b", SKIN);            // sweep drops expired a
         assertEquals(1, cache.size());
         assertNull(cache.get("a"));
