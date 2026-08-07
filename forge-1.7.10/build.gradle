@@ -1,0 +1,186 @@
+// forge-1.7.10 — standalone Gradle build for the Minecraft 1.7.10 lane.
+//
+// LANE SEPARATION (out-of-band, per the monorepo doctrine): upstream
+// ForgeGradle 1.2 is dead (its hardcoded Mojang API endpoints 403 since
+// 2022), so this lane pins the GTNH community fork
+// `com.github.GTNewHorizons:ForgeGradle:1.2.11` via jitpack — the Legacy
+// Modding Wiki's prescribed fix. FG 1.2 hard-requires Gradle 4.4.1 (the
+// highest Gradle that works with all FG 1.2-era builds) and Java 8
+// ("Could not determine java version" on newer JDKs). The monorepo root
+// runs Gradle 9.3.1, so this lane is its own build with its own wrapper,
+// exactly like mc1.12.2 / forge-1.16.5 / forge-1.20.1: never included in
+// settings.gradle.kts, no buildSrc, no `everlastingskins.forge-module`
+// convention, no dependency-analysis (out-of-band policy).
+//
+// The binding surface is pre-ModLauncher LaunchWrapper: `@Mod` +
+// `cpw.mods.fml` events, `NetworkRegistry.INSTANCE.newChannel(...)` for
+// the skin-broadcast channel (the FML 1.7.10 netty surface — `@NetworkMod`
+// was removed in FML 1.7 and does not exist in 10.13.4.1614), and
+// `EntityPlayer.getGameProfile()` (1.7.10 has GameProfile; there is no
+// `getPersistentID`).
+
+buildscript {
+    repositories {
+        maven {
+            name = 'jitpack'
+            url = 'https://jitpack.io'
+        }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.github.GTNewHorizons:ForgeGradle:1.2.11'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'maven-publish'
+}
+
+apply plugin: 'forge'
+
+version = "${mod_version}"
+group = 'levosilimo.everlastingskins'
+archivesBaseName = 'everlastingskins-1.7.10'
+
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+
+minecraft {
+    // mc-forge-mcp triple; the GTNH fork selects MCP stable_12 for 1.7.10
+    // by default (mcpMappingChannel/mcpMappingVersion may be set explicitly
+    // but stable_12 is the fork's canonical default).
+    version = "${minecraft_version}-${forge_version}-${minecraft_version}"
+    runDir = 'run'
+    replace '@VERSION@', project.version
+}
+
+// :common wiring lands in the next commit (source-dir share, same pattern
+// as mc1.12.2 / forge-1.16.5 / forge-1.20.1).
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Rule 4 lane decision: jsr305 is required by :common's
+    // javax.annotation.Nullable and is NOT on the 1.7.10 MC classpath
+    // (it arrives transitively on the 1.21/1.12.2 classpaths, but the
+    // 1.7.10 libraries.json has no jsr305). gson/authlib/log4j-api arrive
+    // transitively on the Minecraft classpath — do NOT declare them.
+    compile 'com.google.code.findbugs:jsr305:3.0.2'
+
+    // Rule 4 lane decision: JUnit 4.13.2 — Gradle 4.4.1 is the FG 1.2 hard
+    // floor and junit-jupiter needs the junit-platform launcher config,
+    // which is riskier on this wrapper (mc1.12.2's JUnit-5-on-Gradle-4.x
+    // works, but the plan pins JUnit 4 as safest). Mockito 2.28.2 mirrors
+    // the mc1.12.2 lane (Java-8 compatible, Gradle-4.x proven).
+    testCompile 'junit:junit:4.13.2'
+    testCompile 'org.mockito:mockito-core:2.28.2'
+}
+
+test {
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
+processResources {
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title': archivesBaseName,
+            'Specification-Vendor': 'Levosilimo',
+            'Specification-Version': project.version,
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'Levosilimo'
+        ])
+    }
+}
+
+// --- no-mixin gate (inlined from buildSrc no-mixin.gradle.kts, which this
+// standalone build cannot use) ---
+// Mixin policy: this lane contains ZERO Mixin annotations and ZERO Mixin
+// Gradle plugin usage. The gate scans this project's build files + all
+// source roots (including the shared :common sources) and fails `build` on
+// any violation. Banned strings are assembled from parts below so this file
+// never contains the literal strings it scans for.
+def bannedLiterals = [
+    [label: 'mixingradle coordinate', literal: 'org.spongepowered' + ':mixingradle'],
+    [label: 'mixin plugin id', literal: 'org.spongepowered' + '.mixin'],
+    [label: 'mixin config bundling', literal: 'everlastingskins' + '.mixins.json'],
+]
+
+def bannedPatterns = [
+    [label: 'Mixin annotation', pattern: ~/@Mixin\b/],
+    [label: 'mixin block', pattern: ~/^\s*mixin\s*\{/],
+]
+
+def scanFile = { File file, List<String> offenders ->
+    if (!file.isFile()) return
+    def text = file.getText('UTF-8')
+    bannedLiterals.each { entry ->
+        if (text.contains(entry.literal)) {
+            offenders << "${file.relativePath(projectDir)}: ${entry.label} reference ('${entry.literal}')"
+        }
+    }
+    bannedPatterns.each { entry ->
+        def matcher = entry.pattern.matcher(text)
+        while (matcher.find()) {
+            def lineNo = text.substring(0, matcher.start()).count('\n') + 1
+            offenders << "${file.relativePath(projectDir)}: ${entry.label} at line ${lineNo}"
+        }
+    }
+}
+
+task verifyNoMixin {
+    group = 'verification'
+    description = 'Fails the build if any Mixin usage is detected: annotations, mixingradle, the mixin plugin id, mixin {} blocks, or mixins.json bundling.'
+
+    doLast {
+        def offenders = []
+
+        // All source + resource files of every source set (main, test, ...
+        // plus the shared :common source dirs added above).
+        def sourceRoots = []
+        sourceSets.each { ss ->
+            ss.allSource.srcDirs.each { dir ->
+                if (dir.exists()) sourceRoots << dir
+            }
+        }
+        sourceRoots.each { root ->
+            root.eachFileRecurse(groovy.io.FileType.FILES) { f ->
+                if (f.name.endsWith('.java') || f.name.endsWith('.json') || f.name.endsWith('.properties')) {
+                    scanFile(f, offenders)
+                }
+            }
+        }
+
+        ['build.gradle', 'settings.gradle', 'gradle.properties'].each { name ->
+            def f = new File(projectDir, name)
+            if (f.isFile()) scanFile(f, offenders)
+        }
+
+        if (!offenders.isEmpty()) {
+            throw new GradleException(
+                "Mixin policy violated:\n" +
+                offenders.join('\n') +
+                "\n\nMixin policy: the lane contains ZERO Mixin usage. " +
+                "If a lane requires Mixin support, fork the lane - it is a sign " +
+                "that should not happen in the shared core."
+            )
+        }
+        logger.lifecycle('Mixin check passed: zero Mixin annotations, zero mixingradle references.')
+    }
+}
+
+build.dependsOn verifyNoMixin
