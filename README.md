@@ -2,9 +2,10 @@
 
 Server-side persistent custom skins on pure Forge servers — no client mod required.
 
-This is the M2 multi-module monorepo (`integration/m2-monorepo` branch). It
-unifies every Forge lane of the project under one Gradle root; the 1.12.2 lane
-stays on its own wrapper out-of-band.
+This is the M2 multi-module monorepo. `main` is the default branch;
+`integration/m2-monorepo` is the live integration branch where fix/* PRs
+merge and CI runs. It unifies every Forge lane of the project under one
+Gradle root; the 1.12.2 lane stays on its own wrapper out-of-band.
 
 ## Layout
 
