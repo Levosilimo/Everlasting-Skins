@@ -2,6 +2,19 @@
 
 ## M2 (monorepo) — unreleased
 
+### Mainline promotion (2026-08-06)
+
+`integration/m2-monorepo` promoted to the repo's new default branch
+`main` (Option A): branch protection applied to `integration/m2-monorepo`
+and `main` (strict, `enforce_admins`, no force pushes/deletions, 12
+required checks — the full m2 ci.yml contract), `main` created at
+`055031b` from the m2 HEAD, default branch switched via
+`gh repo edit --default-branch main`. `1.21` stays as a frozen stable
+alias (tagged `archived-m2-complete`); its 4 PR #256 commits (e3e6531,
+8099ede, 02e2020, 1bb09d0) are superseded by the monorepo's `/common`
+vendor approach and were not ported. `1.21` and `mc1.12.2` retain their
+existing branch protection and are not deleted.
+
 ### Missing CHANGELOG entries backfilled
 
 - **#266** — docs: sync monorepo README/AGENTS/CHANGELOG + add
@@ -133,7 +146,13 @@ Mixin gate, CI matrix, and forge-1.21 compat fixes.
   54.1.18, 2 API fixes; 34/34 gametests pass)
 - **#281** — feat(monorepo): forge-1.21.8 main source carry-over (Forge
   58.1.21, EventBus 7 migration; gametest dropped per MC 1.21.5 overhaul;
-  215 tests pass)
+  215 tests pass). Gametest coverage was restored by #292 below.
+- **#292** — feat(gametest): forge-1.21.8 GameTest re-introduced (post-#281)
+  using the MC 1.21.5+ data-driven test-instance framework
+  (`minecraft:test_function` / `test_instance` / `test_environment`
+  registries; `@GameTestNamespace` + `@GameTest` on a JPMS-isolated
+  `everlastingskins_gametest` mod). 34 skin-pipeline tests ported from
+  forge-1.21 + vanilla builtin `always_pass` = 35/35 required tests pass.
 
 ### Known follow-ups (next PRs)
 

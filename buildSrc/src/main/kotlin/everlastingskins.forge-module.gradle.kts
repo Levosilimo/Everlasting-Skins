@@ -1,6 +1,8 @@
 // everlastingskins.forge-module — convention plugin for the ForgeGradle 7+
 // (Java 21 toolchain) modules: forge-1.21 and the 1.21.x point releases.
 
+import com.autonomousapps.tasks.AbiAnalysisTask
+import com.autonomousapps.tasks.ClassListExploderTask
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -322,4 +324,23 @@ sourceSets.all {
     val dir = layout.buildDirectory.dir("sourcesSets/${name}")
     output.setResourcesDir(dir.get().asFile)
     java.destinationDirectory = dir
+}
+
+// Workaround for dependency-analysis-gradle-plugin #960:
+// FG redirects every sourceSet's classes+resources output to
+// build/sourcesSets/<name> (this convention's lines 321-325). The
+// plugin's explodeByteCodeSourceMain + abiAnalysisMain tasks read
+// build/sourcesSets/<name> but don't declare dependsOn processResources,
+// so Gradle 9.3.1's strict implicit-dependency detection hard-fails
+// :<module>:projectHealth. Maintainer-verified fix per #960: inject
+// the missing wiring at projectsEvaluated time. Only fires when the
+// dep-analysis plugin is actually applied to this module — its tasks
+// won't exist otherwise and `withType` is a no-op.
+gradle.projectsEvaluated {
+    tasks.withType<ClassListExploderTask>().configureEach {
+        dependsOn("processResources")
+    }
+    tasks.withType<AbiAnalysisTask>().configureEach {
+        dependsOn("processResources")
+    }
 }
