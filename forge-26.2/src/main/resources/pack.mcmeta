@@ -1,0 +1,8 @@
+{
+    "pack": {
+        "description": "everlastingskins resources",
+        "max_format": 107,
+        "min_format": [107, 1],
+        "_comment": "26.x pack format per the Forge 26.2 MDK (server-side mod; the client never loads this as a resource pack)."
+    }
+}

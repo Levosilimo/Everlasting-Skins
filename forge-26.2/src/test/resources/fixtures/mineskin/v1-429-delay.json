@@ -1,0 +1,9 @@
+{
+  "error": "rate_limit",
+  "nextRequest": 0,
+  "delay": 1,
+  "delayInfo": {
+    "millis": 1000,
+    "seconds": 1
+  }
+}

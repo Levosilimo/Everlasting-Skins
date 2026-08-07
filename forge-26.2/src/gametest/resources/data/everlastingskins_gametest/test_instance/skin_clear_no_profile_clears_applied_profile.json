@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_clear_no_profile_clears_applied_profile",
+  "environment": "everlastingskins_gametest:skin_clear_no_profile_clears_applied_profile",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}
