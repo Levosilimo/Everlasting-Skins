@@ -8,6 +8,10 @@
 package levosilimo.everlastingskins.forge26.permission;
 
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.server.permissions.Permission;
+import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.server.permissions.PermissionSet;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -37,8 +41,23 @@ public record PermissionContext(UUID uuid, int opLevel) {
         return new PermissionContext(uuid, effectiveOpLevel(player));
     }
 
+    /**
+     * Derives the effective op level (0-4) from the player's 26.2
+     * {@link PermissionSet}. Level-based sets (server ops config) expose the
+     * level directly; any other set is probed highest-command-level-first via
+     * {@link Permission.HasCommandLevel} so non-op grants are still honored.
+     */
     private static int effectiveOpLevel(ServerPlayer player) {
         if (player == null) return 0;
-        return player.getServer().getProfilePermissions(player.getGameProfile());
+        PermissionSet permissions = player.permissions();
+        if (permissions instanceof LevelBasedPermissionSet levelSet) {
+            return levelSet.level().id();
+        }
+        for (int level = 4; level >= 1; level--) {
+            if (permissions.hasPermission(new Permission.HasCommandLevel(PermissionLevel.byId(level)))) {
+                return level;
+            }
+        }
+        return 0;
     }
 }

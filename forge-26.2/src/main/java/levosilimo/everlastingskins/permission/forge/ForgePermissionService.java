@@ -13,6 +13,8 @@ import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.forge26.permission.VanillaPermissionService;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.Permission;
+import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import net.minecraftforge.server.permission.PermissionAPI;
 import net.minecraftforge.server.permission.events.PermissionGatherEvent;
@@ -31,7 +33,7 @@ public class ForgePermissionService implements IPermissionService {
     public static final PermissionNode<Boolean> SKIN_OTHER_NODE =
         new PermissionNode<>("everlastingskins", "command.skin.other",
             PermissionTypes.BOOLEAN,
-            (player, uuid, context) -> player != null && player.hasPermissions(2));
+            (player, uuid, context) -> player != null && hasCommandLevel(player, 2));
 
     public static final PermissionNode<Boolean> SKIN_URL_NODE =
         new PermissionNode<>("everlastingskins", "command.skin.url",
@@ -46,12 +48,12 @@ public class ForgePermissionService implements IPermissionService {
     public static final PermissionNode<Boolean> METRICS_NODE =
         new PermissionNode<>("everlastingskins", "command.metrics",
             PermissionTypes.BOOLEAN,
-            (player, uuid, context) -> player != null && player.hasPermissions(2));
+            (player, uuid, context) -> player != null && hasCommandLevel(player, 2));
 
     public static final PermissionNode<Boolean> METRICS_RESET_NODE =
         new PermissionNode<>("everlastingskins", "command.metrics.reset",
             PermissionTypes.BOOLEAN,
-            (player, uuid, context) -> player != null && player.hasPermissions(2));
+            (player, uuid, context) -> player != null && hasCommandLevel(player, 2));
 
     public static final PermissionNode<Boolean> SOURCE_NODE =
         new PermissionNode<>("everlastingskins", "command.skin.source",
@@ -61,7 +63,7 @@ public class ForgePermissionService implements IPermissionService {
     public static final PermissionNode<Boolean> BYPASS_COOLDOWN_NODE =
         new PermissionNode<>("everlastingskins", "bypass.cooldown",
             PermissionTypes.BOOLEAN,
-            (player, uuid, context) -> player != null && player.hasPermissions(2));
+            (player, uuid, context) -> player != null && hasCommandLevel(player, 2));
 
     public static void registerNodes() {
         PermissionServiceManager.registerService(new ForgePermissionService());
@@ -70,6 +72,15 @@ public class ForgePermissionService implements IPermissionService {
     public static void onPermissionGather(PermissionGatherEvent.Nodes event) {
         event.addNodes(SKIN_NODE, SKIN_OTHER_NODE, SKIN_URL_NODE, SKIN_CLEAR_NODE,
                 METRICS_NODE, METRICS_RESET_NODE, SOURCE_NODE, BYPASS_COOLDOWN_NODE);
+    }
+
+    /**
+     * 26.2 permission model: the player's {@code PermissionSet} is probed
+     * with a {@code HasCommandLevel} permission instead of the removed
+     * {@code hasPermissions(int)}.
+     */
+    static boolean hasCommandLevel(ServerPlayer player, int level) {
+        return player.permissions().hasPermission(new Permission.HasCommandLevel(PermissionLevel.byId(level)));
     }
 
     @Override
@@ -117,7 +128,7 @@ public class ForgePermissionService implements IPermissionService {
 
     @Override
     public String getActiveBackendName() {
-        return "Forge PermissionAPI (1.21)";
+        return "Forge PermissionAPI (26.2)";
     }
 
     @Override
