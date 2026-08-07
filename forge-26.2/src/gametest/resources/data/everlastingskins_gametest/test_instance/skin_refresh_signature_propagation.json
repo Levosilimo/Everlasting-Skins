@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_refresh_signature_propagation",
+  "environment": "everlastingskins_gametest:skin_refresh_signature_propagation",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

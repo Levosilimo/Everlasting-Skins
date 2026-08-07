@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:rate_limit_bypassed_for_ops",
+  "environment": "everlastingskins_gametest:rate_limit_bypassed_for_ops",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

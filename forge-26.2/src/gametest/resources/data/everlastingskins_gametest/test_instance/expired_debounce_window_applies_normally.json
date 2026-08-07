@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:expired_debounce_window_applies_normally",
+  "environment": "everlastingskins_gametest:expired_debounce_window_applies_normally",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

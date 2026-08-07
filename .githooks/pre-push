@@ -14,11 +14,11 @@ echo "[pre-push] gradle: full unit test suite (parallel)..."
 echo "[pre-push] gametest: forge-1.21 runGameTestServer..."
 forge-1.21/test-infrastructure/run-gametest-local.sh
 
-echo "[pre-push] aislop: ci --changes vs origin/integration/m2-monorepo..."
+echo "[pre-push] aislop: ci --changes vs origin/main..."
 if command -v bunx >/dev/null 2>&1; then
-  bunx aislop ci --changes --base origin/integration/m2-monorepo
+  bunx aislop ci --changes --base origin/main
 else
-  npx -y aislop ci --changes --base origin/integration/m2-monorepo
+  npx -y aislop ci --changes --base origin/main
 fi
 
 echo "[pre-push] all checks passed."

@@ -1,0 +1,63 @@
+{
+  "success": true,
+  "skin": {
+    "uuid": "c891dfac-4cd2-47a2-a557-43e7e82ce76f",
+    "name": "Test Skin",
+    "visibility": "public",
+    "variant": "classic",
+    "texture": {
+      "data": {
+        "value": "eyJ0aW1lc3RhbXAiOjE3MzAwMDAwMDAwMDAsInByb2ZpbGVJZCI6IjU1MGU4NDAwZTI5YjQxZDRhNzE2NDQ2NjU1NDQwMDAwIiwicHJvZmlsZU5hbWUiOiJMZXZvc2lsaW1vIiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9hYmMxMjNkZWY0NTYifX19",
+        "signature": "TQLAykIrTfFeo4eO7uNx0aj4eCy0eR9qAAqXr8CWjZ9NAsDKQitN8V6jh47u43HRqPh4LLR5H2oACpevwJaNn00CwMpCK03xXqOHju7jcdGo+HgstHkfagAKl6/Alo2fTQLAykIrTfFeo4eO7uNx0aj4eCy0eR9qAAqXr8CWjZ9NAsDKQitN8V6jh47u43HRqPh4LLR5H2oACpevwJaNn00CwMpCK03xXqOHju7jcdGo+HgstHkfagAKl6/Alo2fTQLAykIrTfFeo4eO7uNx0aj4eCy0eR9qAAqXr8CWjZ9NAsDKQitN8V6jh47u43HRqPh4LLR5H2oACpevwJaNnw=="
+      },
+      "hash": {
+        "texture": "abc123def456"
+      },
+      "url": {
+        "skin": "http://textures.minecraft.net/texture/abc123def456"
+      }
+    },
+    "generator": {
+      "name": "MineSkin",
+      "version": "2.0.0",
+      "build": 1,
+      "javaVersion": 21,
+      "server": "server1",
+      "duration": 100
+    },
+    "views": 1,
+    "duplicate": false
+  },
+  "rateLimit": {
+    "next": {
+      "absolute": 1750000000000,
+      "relative": 250
+    },
+    "delay": {
+      "millis": 1200,
+      "seconds": 1.2
+    },
+    "limit": {
+      "limit": 60,
+      "remaining": 59,
+      "used": 1,
+      "reset": 60
+    }
+  },
+  "usage": {
+    "credits": {
+      "used": 1,
+      "limit": 60
+    },
+    "metered": {
+      "used": 1,
+      "limit": 60
+    }
+  },
+  "messages": [
+    {
+      "code": "ok",
+      "message": "All good!"
+    }
+  ]
+}
