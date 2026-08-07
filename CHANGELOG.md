@@ -2,6 +2,17 @@
 
 ## M2 (monorepo) — unreleased
 
+### forge-26.2 lane (Minecraft 26.2, Forge 65.0.9, Java 25)
+
+Add the `forge-26.2` lane (in-root): MC 26.2 / Forge 65.0.9 / Java 25
+toolchain, unobfuscated mappings (`minecraft.unobfuscated=true` gates the
+convention's mappings() call), EventBus 7 + module-local
+`eventbus-validator:7.0.5` AP, and the data-driven GameTest scaffold
+(#292 pattern, 35 cases green). Tag prefix `mc26.2-v*` (colloquial '26.2',
+matching the Forge 65.x line naming). CI gains a `Build (26.2)` matrix
+cell (JDK 25) and a publish matrix entry; the required-check contract
+goes 12 → 13.
+
 ### Mainline promotion (2026-08-06)
 
 `integration/m2-monorepo` promoted to the repo's new default branch
