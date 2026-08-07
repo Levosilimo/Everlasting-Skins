@@ -63,6 +63,7 @@ public class ForgePermissionServiceTest {
         when(server.getConfigurationManager()).thenReturn(manager);
         EntityPlayerMP player = mock(EntityPlayerMP.class);
         when(player.getUniqueID()).thenReturn(TEST_UUID);
+        when(player.canCommandSenderUseCommand(0, "everlastingskins.command.skin")).thenReturn(true);
         setPlayerEntityList(manager, player);
 
         ForgePermissionService.setServerOverride(server);

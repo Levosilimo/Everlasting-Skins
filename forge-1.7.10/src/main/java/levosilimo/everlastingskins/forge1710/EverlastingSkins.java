@@ -72,7 +72,7 @@ public class EverlastingSkins {
 
     @Mod.EventHandler
     public void serverStopping(FMLServerStoppingEvent event) {
-        SkinRestorer.onServerStopping();
+        SkinRestorer.onServerStopping(event);
     }
 
     @SubscribeEvent
