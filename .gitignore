@@ -9,6 +9,7 @@ out/
 #ForgeGradle
 build/
 .gradle/
+.kotlin/
 run/
 server/
 /logs
