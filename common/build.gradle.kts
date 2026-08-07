@@ -8,6 +8,7 @@ plugins {
     id("no-mixin")
     // ErrorProne static analysis (buildSrc): hooks every JavaCompile.
     id("everlastingskins.errorprone")
+    id("everlastingskins.dependency-analysis")
 }
 
 java {
