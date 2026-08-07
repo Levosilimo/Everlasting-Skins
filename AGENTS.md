@@ -37,7 +37,7 @@ One Gradle root (9.3.1) for the Forge line. Modules:
   `everlastingskins.forge-module` and `:common` itself; new forge convention
   plugins must apply it too.
 
-## Legacy lanes (forge-1.8.9 / forge-1.16.5 / forge-1.20.1) — out-of-band
+## Legacy lanes (forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1) — out-of-band
 
 Not part of this Gradle root (lib-34 lane separation, PR #267): ForgeGradle
 2.1.x requires Gradle 4.x, ForgeGradle 5.1.x rejects Gradle 8.0+ and
@@ -53,11 +53,39 @@ Each lane is its own build with its own wrapper and FG version:
 - `forge-1.16.5/` — Gradle 7.6.4 (run on Java 8), ForgeGradle 5.1.77.
 - `forge-1.20.1/` — Gradle 8.7 (run on Java 21, Java 17 toolchain via
   foojay), ForgeGradle 6.0.54.
+- `forge-1.7.10/` — Gradle 4.4.1 (run on Java 8), GTNH ForgeGradle 1.2.11
+  via jitpack (`https://jitpack.io/`, plus `maven.minecraftforge.net` for
+  legacy MCP/RetroGuard artifacts FG 1.2.11 still resolves), MCP stable_12.
+  Uses LaunchWrapper `@Mod`/`@Mod.EventHandler` (cpw.mods.fml) and the
+  netty-based `NetworkRegistry.INSTANCE.newChannel(...)` — the 1.6.4
+  `@NetworkMod` annotation was REMOVED in FML 1.7 (verified absent from
+  10.13.4.1614). `EntityPlayer.getGameProfile()` is the profile surface
+  (no `getPersistentID` — 1.8+). Consumes `:common` by source-dir share.
+  dep-analysis NOT eligible (out-of-band, same policy as
+  mc1.12.2/forge-1.16.5/forge-1.20.1).
 
-All three consume `:common` by source-dir sharing (they cannot use
+All four consume `:common` by source-dir sharing (they cannot use
 `project(":common")`), inline their own no-mixin gate, and are built from
-their own directory: `cd forge-1.8.9 && ./gradlew build`. The root's
-settings.gradle.kts does not include them.
+their own directory: `cd forge-1.7.10 && ./gradlew build` (or the lane's
+own README). The root's settings.gradle.kts does not include them.
+
+### forge-1.7.10 supply chain (jitpack pin + fallback)
+
+`com.github.GTNewHorizons:ForgeGradle:1.2.11` is pinned EXACTLY (never
+float a SNAPSHOT) and resolved from jitpack; the GTNH fork is the Legacy
+Modding Wiki's prescribed replacement for the dead upstream FG 1.2 (the
+hardcoded Mojang API 403s since 2022). This is in-lane supply-chain
+hardening, not scope creep: jitpack uptime is a real CI risk. Mitigations:
+
+- **Pin:** the buildscript classpath is exact (`1.2.11`), so resolution is
+  reproducible across runs.
+- **Vendor fallback:** after a successful build, the resolved artifacts
+  live in `~/.gradle/caches/modules-2/files-2.1/com.github.GTNewHorizons/`.
+  To ride out jitpack downtime, pre-populate the same cache path on the
+  build host (copy the jar/poms), or point the buildscript repo at a local
+  `maven { url = uri("file://...") }` mirror. FG 1.2.11 also resolves
+  legacy MCP artifacts (`de.oceanlabs.mcp:RetroGuard:3.6.6`) from
+  `maven.minecraftforge.net` — keep that repo in the buildscript block.
 
 ## Rules
 
@@ -90,10 +118,10 @@ settings.gradle.kts does not include them.
    Historical context: a `consumeCommon=false` gate existed as a safety
    valve for forge-1.21's JPMS split-package (#265) and was removed after
    the Option B1 relocation to `forge21.*` (#268) resolved the conflict.
-   Re-add caveat: if a future forge-* subproject (e.g., forge-1.7.10 /
-   forge-1.8.9) requires vendored `:common` copies for tooling reasons,
-   re-add the gate to buildSrc `forge-module.gradle.kts` and re-introduce
-   the opt-out property. (The dead plugin-era gate was deleted in #267.)
+   Re-add caveat: if a future forge-* subproject (e.g., forge-1.8.9)
+   requires vendored `:common` copies for tooling reasons, re-add the gate
+   to buildSrc `forge-module.gradle.kts` and re-introduce the opt-out
+   property. (The dead plugin-era gate was deleted in #267.)
    Contingency note for 26.x: forge-26.2 consumes `:common` unconditionally
    via the convention; there is no split-package risk (common=`levosilimo.*`
    vs the 26.x forge jar=`net.*`; the binding lives under `forge26.*`). If a
@@ -107,6 +135,12 @@ settings.gradle.kts does not include them.
    copies for tooling reasons) does not apply, so the gate would be dead
    configuration. Source-dir share is the gate-free mechanism for all
    out-of-band lanes (mc1.12.2 / forge-1.16.5 / forge-1.20.1 precedent).
+   forge-1.7.10 resolution (2026-08): the caveat named forge-1.7.10 /
+   forge-1.8.9 as contingencies, but forge-1.7.10 is an out-of-band lane
+   that consumes `:common` by source-dir share — it can never exercise
+   `implementation(project(":common"))`, so the gate was NOT re-added
+   (dead configuration; see "Legacy lanes" above). forge-1.8.9 follows the
+   same pattern.
 7. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
    out-of-band (`cd mc1.12.2 && ./gradlew build` with Java 8); changes there
    are reviewed against the shared `:common` contract, not against this build.
@@ -145,14 +179,16 @@ registers backends).
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
 `:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build,
 `E2E (mc1.12.2)` stub, and out-of-band `Build (forge-1.8.9)` /
-`Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes (own wrappers,
-JDK 8 / JDK 8 / JDK 21). Treat the matrix as authoritative for what is
+`Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.7.10)`
+lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8). Treat the matrix as
+authoritative for what is
 buildable in CI.
 
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), the 1.21.1 / 1.21.4 / 1.21.8 point releases
-(post-#278 / #280 / #281), and forge-26.2 (Java 25, unobfuscated MC,
-EventBus 7; data-driven GameTest green).
+(post-#278 / #280 / #281), forge-26.2 (Java 25, unobfuscated MC,
+EventBus 7; data-driven GameTest green), and forge-1.7.10 (GTNH FG 1.2.11 +
+MCP stable_12; 48 unit tests, JUnit 4).
 
 ### Fail-fast hooks
 
@@ -166,7 +202,11 @@ Tiered local gates mirroring CI (see `.githooks/` and `lefthook.yml`):
   --changes` (mirrors CI's `aislop (M2)` job). Skip once with
   `git push --no-verify`.
 - `scripts/test-count-gate.sh` mirrors ci.yml's `@Test >= 150` floor: counts
-  `@Test` + `@ParameterizedTest` in `common/src` + `forge-1.21/src`.
+  `@Test` + `@ParameterizedTest` in `common/src` + `forge-1.21/src`. The
+  gate is PATH-SCOPED (it counts `@Test` tokens from both JUnit 4 and
+  JUnit 5 identically — the regex `@(Test|ParameterizedTest)\b` matches
+  either); forge-1.7.10's JUnit 4 tests are not counted because they live
+  outside those two paths, not because of the JUnit version.
 
 The root `gradlew` requires JVM 17+ (the mc1.12.2 lane keeps its own JDK 8
 wrapper). Hooks pass `--offline`; a first run needs a prior online build to
@@ -222,10 +262,10 @@ positives.
 
 Lane policy: buildSrc classpath (lane 1) + convention plugin (lane 2) +
 `scripts/gradle-health.sh` (manual runs, this lane) are in place.
-Out-of-band lanes (mc1.12.2 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1) are
-NOT eligible for dependency-analysis due to their Gradle version constraints
-(verified Feb 2026; forge-1.8.9 runs Gradle 4.10.3 < 8.11 minimum) — they
-continue to rely on AFT/Qartez/Codegraph.
+Out-of-band lanes (mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 /
+forge-1.20.1) are NOT eligible for dependency-analysis due to their Gradle
+version constraints (verified Feb 2026; forge-1.8.9 runs Gradle 4.10.3 <
+8.11 minimum) — they continue to rely on AFT/Qartez/Codegraph.
 
 ## Branch policy & required checks
 
@@ -245,7 +285,11 @@ force pushes/deletions) with 15 contexts: `YAML Lint`, the `Build
 `E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
 (1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
 / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes, and `aislop
-(M2)`. CI job names must match the required-check strings exactly. The
-contract grew 12→13 (forge-26.2 lane, PR #310) →14 (forge-1.8.9 lane,
-PR #311) →15 (forge-1.7.10 lane, current state applied via direct
-PATCH).
+(M2)`. CI job names must match the required-check strings exactly.
+
+Required-check contract count progression (three-lane expansion, deepwork
+merge order forge-26.2 → forge-1.8.9 → forge-1.7.10): 12 → 13 after
+`Build (26.2)` lands (forge-26.2 lane, PR #310) → 14 after
+`Build (forge-1.8.9)` (PR #311) → 15 after `Build (forge-1.7.10)` lands
+(this lane's CI cell, PR #312). Each lane's gh-API branch-protection
+update happens at PR-open time (out-of-repo).
