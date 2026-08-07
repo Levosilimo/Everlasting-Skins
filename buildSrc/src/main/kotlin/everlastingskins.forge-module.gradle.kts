@@ -224,9 +224,9 @@ dependencies {
     // resolved the conflict — no module ever opted out. If a future
     // forge-* lane needs vendored :common copies for tooling reasons,
     // re-add the gate + opt-out property here.
-    implementation(project(":common"))
+    api(project(":common"))
     implementation("org.apache.httpcomponents:httpclient:4.5.13")
-    implementation(minecraft.dependency("net.minecraftforge:forge:${minecraftVersion}-${forgeVersion}"))
+    api(minecraft.dependency("net.minecraftforge:forge:${minecraftVersion}-${forgeVersion}"))
     // MUST be declared before the mixin processor: mixin-0.8.7-processor.jar
     // bundles an unrelocated OLD Guava (no ImmutableMap.Builder.buildOrThrow),
     // which would shadow ErrorProne's Guava 33 on the annotation processor
@@ -255,7 +255,6 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.3")
     testImplementation("net.jqwik:jqwik:1.9.0")
     testImplementation("me.clip:placeholderapi:2.12.3")
-    testImplementation("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.12.0")
 
@@ -263,8 +262,17 @@ dependencies {
 
     "gametestImplementation"(sourceSets.main.get().output)
     "gametestImplementation"("org.junit.jupiter:junit-jupiter-api:5.10.3")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.3")
     "gametestRuntimeOnly"("org.junit.platform:junit-platform-launcher:1.10.3")
 }
+
+// jsr305 is brought in transitively by Forge AND bundled by discordsrv;
+// both publish javax/annotation/Nullable to the same FQN. Exclude the
+// transitive copy so discordsrv's bundled class is the only one on the
+// classpath (same split-package pattern as the historical #265 forge21.*
+// fix). dep-analysis 3.18.0 surfaces this as a duplicate-class warning.
+configurations.getByName("compileOnly").exclude(group = "com.google.code.findbugs", module = "jsr305")
+configurations.getByName("testImplementation").exclude(group = "com.google.code.findbugs", module = "jsr305")
 
 configurations.getByName("testRuntimeClasspath") {
     exclude(group = "org.slf4j", module = "slf4j-simple")
