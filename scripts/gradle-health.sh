@@ -37,10 +37,8 @@ for c in "${CONSUMERS[@]}"; do
     fi
     echo "[gradle-health] ${c}:projectHealth..."
     ./gradlew --no-daemon --offline "${c}:projectHealth" || true
-    report="common/build/reports/dependency-analysis/project-health-report.txt"
     case "$c" in
         :common) report="common/build/reports/dependency-analysis/project-health-report.txt" ;;
-        :forge-1.21) report="forge-1.21/build/reports/dependency-analysis/project-health-report.txt" ;;
         *) report="${c#:}/build/reports/dependency-analysis/project-health-report.txt" ;;
     esac
     if [ -f "$report" ]; then
