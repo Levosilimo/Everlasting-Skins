@@ -6,6 +6,7 @@
 
 package levosilimo.everlastingskins.integration;
 
+import levosilimo.everlastingskins.skinchanger.FakeMojangAPI;
 import com.mojang.authlib.properties.Property;
 import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.TestServerContext;

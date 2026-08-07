@@ -12,10 +12,10 @@ import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataRe
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 
 /**
@@ -24,8 +24,8 @@ import java.util.UUID;
  */
 public class FakeMojangAPI implements MojangAPI {
 
-    private final Map<String, CustomSkinProperty> skins = new HashMap<String, CustomSkinProperty>();
-    private final Map<String, Integer> lookups = new HashMap<String, Integer>();
+    private final Map<String, CustomSkinProperty> skins = new ConcurrentHashMap<String, CustomSkinProperty>();
+    private final Map<String, Integer> lookups = new ConcurrentHashMap<String, Integer>();
 
     public FakeMojangAPI(CustomSkinProperty... fixtures) {
         for (CustomSkinProperty skin : fixtures) {
