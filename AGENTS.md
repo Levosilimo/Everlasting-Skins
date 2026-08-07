@@ -108,6 +108,7 @@ registers backends).
 ./gradlew :common:build        # fast gate after :common changes
 ./gradlew :forge-1.21:build    # full forge module (slow; downloads userdev)
 ./gradlew build                # whole Forge line
+bash scripts/gradle-health.sh  # dep-hygiene sweep (manual, WARN-only; per-consumer :projectHealth)
 ```
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
