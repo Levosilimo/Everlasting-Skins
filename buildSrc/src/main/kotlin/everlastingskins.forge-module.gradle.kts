@@ -101,7 +101,15 @@ configurations {
 }
 
 minecraft {
-    mappings("official", minecraftVersion)
+    // Minecraft 26.1+ ships unobfuscated (Forge 62.0.0): mappings are a
+    // no-op there and there is no official-mappings artifact for 26.x to
+    // resolve. Gate the mappings() call behind minecraft.unobfuscated
+    // (default false) so the 1.21.x modules keep official mappings and the
+    // 26.2 lane skips the call entirely (FG 7.0.15+ defaults the channel to
+    // official anyway; FG 7.0.17 added explicit unobfuscated-UserDev support).
+    if (project.findProperty("minecraft.unobfuscated")?.toString()?.toBoolean() != true) {
+        mappings("official", minecraftVersion)
+    }
 
     // FG 7.0.2x+ (SlimeLauncher): accessTransformer is a ConfigurableFileCollection
     // with a boolean setter that enables the default AT file from resources
