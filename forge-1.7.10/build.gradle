@@ -25,6 +25,13 @@ buildscript {
             name = 'jitpack'
             url = 'https://jitpack.io'
         }
+        // Legacy MCP/RetroGuard artifacts that FG 1.2.11 depends on
+        // (de.oceanlabs.mcp:RetroGuard:3.6.6 etc.) survive only on the
+        // Forge maven; the GTNH fork still resolves them by groupId.
+        maven {
+            name = 'forge'
+            url = 'https://maven.minecraftforge.net'
+        }
         mavenCentral()
     }
     dependencies {
@@ -54,8 +61,26 @@ minecraft {
     replace '@VERSION@', project.version
 }
 
-// :common wiring lands in the next commit (source-dir share, same pattern
-// as mc1.12.2 / forge-1.16.5 / forge-1.20.1).
+// :common (the shared version-independent core) is consumed by source-dir
+// sharing: this is a standalone build and cannot use project(":common").
+// Common is frozen at Java 8 (-Werror), which matches this lane's bytecode
+// level. Classes that also exist under src/main/java must be deleted from
+// the lane — javac fails on the duplicate via the share (Rule 1; :common is
+// canonical). The mc1.12.2 analog adds only the java dir; the forge-1.16.5
+// analog also shares resources (endpoints.properties +
+// everlastingskins/default-skin.properties are classpath-loaded by :common).
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+            srcDir '../common/src/main/java'
+        }
+        resources {
+            srcDir 'src/main/resources'
+            srcDir '../common/src/main/resources'
+        }
+    }
+}
 
 repositories {
     mavenCentral()
@@ -121,8 +146,8 @@ def bannedLiterals = [
 ]
 
 def bannedPatterns = [
-    [label: 'Mixin annotation', pattern: ~/@Mixin\b/],
-    [label: 'mixin block', pattern: ~/^\s*mixin\s*\{/],
+    [label: 'Mixin annotation', pattern: java.util.regex.Pattern.compile('@' + 'Mixin' + '\\b')],
+    [label: 'mixin block', pattern: java.util.regex.Pattern.compile('^\\s*' + 'mixin' + '\\s*\\{')],
 ]
 
 def scanFile = { File file, List<String> offenders ->
@@ -130,14 +155,14 @@ def scanFile = { File file, List<String> offenders ->
     def text = file.getText('UTF-8')
     bannedLiterals.each { entry ->
         if (text.contains(entry.literal)) {
-            offenders << "${file.relativePath(projectDir)}: ${entry.label} reference ('${entry.literal}')"
+            offenders << "${project.relativePath(file)}: ${entry.label} reference ('${entry.literal}')"
         }
     }
     bannedPatterns.each { entry ->
         def matcher = entry.pattern.matcher(text)
         while (matcher.find()) {
             def lineNo = text.substring(0, matcher.start()).count('\n') + 1
-            offenders << "${file.relativePath(projectDir)}: ${entry.label} at line ${lineNo}"
+            offenders << "${project.relativePath(file)}: ${entry.label} at line ${lineNo}"
         }
     }
 }
