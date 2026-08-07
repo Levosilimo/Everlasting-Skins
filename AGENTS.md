@@ -240,9 +240,12 @@ ported). `1.21` and `mc1.12.2` remain as frozen stable aliases (tagged
 Required checks (identical contract on `main` and
 `integration/m2-monorepo`) are enforced via the gh API — do not edit
 branch protection in-repo. The contract is strict (`enforce_admins`, no
-force pushes/deletions) with 13 contexts: `YAML Lint`, the `Build
+force pushes/deletions) with 15 contexts: `YAML Lint`, the `Build
 (common)` / `Build (1.21.x)` / `Build (26.2)` matrix, `Build (mc1.12.2)`,
 `E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
-(1.21)`, the out-of-band `Build (forge-1.16.5)` / `Build (forge-1.20.1)`
-lanes, and `aislop (M2)`. CI job names must match the required-check
-strings exactly.
+(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
+/ `Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes, and `aislop
+(M2)`. CI job names must match the required-check strings exactly. The
+contract grew 12→13 (forge-26.2 lane, PR #310) →14 (forge-1.8.9 lane,
+PR #311) →15 (forge-1.7.10 lane, current state applied via direct
+PATCH).
