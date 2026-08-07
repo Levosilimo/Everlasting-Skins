@@ -144,9 +144,10 @@ registers backends).
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
 `:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build,
-`E2E (mc1.12.2)` stub, and out-of-band `Build (forge-1.16.5)` /
-`Build (forge-1.20.1)` lanes (own wrappers, JDK 8 / JDK 21). Treat the
-matrix as authoritative for what is buildable in CI.
+`E2E (mc1.12.2)` stub, and out-of-band `Build (forge-1.8.9)` /
+`Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes (own wrappers,
+JDK 8 / JDK 8 / JDK 21). Treat the matrix as authoritative for what is
+buildable in CI.
 
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), the 1.21.1 / 1.21.4 / 1.21.8 point releases
