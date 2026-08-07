@@ -45,14 +45,17 @@ dependencies {
 
     // --- test: standalone verification of the module ---
     testImplementation(platform("org.junit:junit-bom:5.10.3"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("net.jqwik:jqwik:1.9.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-api")
+    testImplementation("org.junit.jupiter:junit-jupiter-params")
+    testImplementation("net.jqwik:jqwik-api:1.9.0")
     testImplementation("org.mockito:mockito-core:5.12.0")
     // The module's main code paths use Gson/authlib/log4j at runtime too.
     testImplementation("com.google.code.gson:gson:2.8.0")
     testImplementation("com.mojang:authlib:1.5.25")
     testImplementation("org.apache.logging.log4j:log4j-api:2.8.1")
 
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.3")
+    testRuntimeOnly("net.jqwik:jqwik-engine:1.9.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
     // Default log4j2 config (ERROR-only) so test output stays quiet.
     testRuntimeOnly("org.apache.logging.log4j:log4j-core:2.8.1")
