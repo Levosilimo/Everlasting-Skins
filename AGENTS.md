@@ -37,21 +37,26 @@ One Gradle root (9.3.1) for the Forge line. Modules:
   `everlastingskins.forge-module` and `:common` itself; new forge convention
   plugins must apply it too.
 
-## Legacy lanes (forge-1.16.5 / forge-1.20.1) — out-of-band
+## Legacy lanes (forge-1.8.9 / forge-1.16.5 / forge-1.20.1) — out-of-band
 
 Not part of this Gradle root (lib-34 lane separation, PR #267): ForgeGradle
-5.1.x rejects Gradle 8.0+ and ForgeGradle 6.0.x rejects Gradle 9.0+, so
-neither can run inside the root's Gradle 9.3.1 (verified empirically
-2026-08-06 against 5.1.77 / 6.0.54). Each lane is its own build with its
-own wrapper and FG version:
+2.1.x requires Gradle 4.x, ForgeGradle 5.1.x rejects Gradle 8.0+ and
+ForgeGradle 6.0.x rejects Gradle 9.0+, so none can run inside the root's
+Gradle 9.3.1 (verified empirically 2026-08-06 against 5.1.77 / 6.0.54).
+Each lane is its own build with its own wrapper and FG version:
 
+- `forge-1.8.9/` — Gradle 4.10.3 (run on Java 8), ForgeGradle 2.1-SNAPSHOT,
+  MCP stable_20. Build with `cd forge-1.8.9 && JAVA_HOME=<jdk8> ./gradlew
+  build`; consumes `:common` via source-dir share; inline no-mixin gate
+  (heavier variant — scans build files too); dep-analysis NOT eligible
+  (Gradle 4.x < 8.11 minimum).
 - `forge-1.16.5/` — Gradle 7.6.4 (run on Java 8), ForgeGradle 5.1.77.
 - `forge-1.20.1/` — Gradle 8.7 (run on Java 21, Java 17 toolchain via
   foojay), ForgeGradle 6.0.54.
 
-Both consume `:common` by source-dir sharing (they cannot use
+All three consume `:common` by source-dir sharing (they cannot use
 `project(":common")`), inline their own no-mixin gate, and are built from
-their own directory: `cd forge-1.16.5 && ./gradlew build`. The root's
+their own directory: `cd forge-1.8.9 && ./gradlew build`. The root's
 settings.gradle.kts does not include them.
 
 ## Rules
@@ -69,7 +74,10 @@ settings.gradle.kts does not include them.
    `no-mixin.gradle.kts`) on every forge module and `:common`.
 4. **No new dependencies without a lane decision** — same Maven deps as the
    legacy 1.21/mc1.12.2 builds (gson, authlib, log4j-api arrive transitively
-   on Minecraft classpaths).
+   on Minecraft classpaths). Lane decision (forge-1.8.9, 2026-08-07): the
+   lane's test scaffold uses JUnit 5.10.3 + mockito-core 2.28.2, mirroring
+   mc1.12.2 exactly (same Gradle 4.10.3 / Java 8 toolchain, no new Maven
+   coords); rationale is recorded in forge-1.8.9/build.gradle.
 5. **Point-release parity:** keep `forge-1.21.x` gradle.properties versions
    in sync with the tags (`mc1.21.x-v2.1.0-rc1` etc.). Verify against git
    history before changing. SCOPE: applies ONLY to the four `forge-1.21.x`
@@ -91,6 +99,14 @@ settings.gradle.kts does not include them.
    vs the 26.x forge jar=`net.*`; the binding lives under `forge26.*`). If a
    future 26.x jar ever collides, re-add the consumeCommon gate per the
    #265/#276 caveat.
+
+   Resolution (forge-1.8.9, 2026-08-07): no gate re-added. Out-of-band
+   lanes (incl. forge-1.8.9) consume `:common` purely by source-dir share
+   (`srcDir '../common/src/main/java'`), which never exercises
+   `implementation(project(":common"))` — the caveat's premise (vendored
+   copies for tooling reasons) does not apply, so the gate would be dead
+   configuration. Source-dir share is the gate-free mechanism for all
+   out-of-band lanes (mc1.12.2 / forge-1.16.5 / forge-1.20.1 precedent).
 7. **1.12.2 lane:** never include it in `settings.gradle.kts`. It builds
    out-of-band (`cd mc1.12.2 && ./gradlew build` with Java 8); changes there
    are reviewed against the shared `:common` contract, not against this build.
@@ -128,9 +144,10 @@ registers backends).
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
 `:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build,
-`E2E (mc1.12.2)` stub, and out-of-band `Build (forge-1.16.5)` /
-`Build (forge-1.20.1)` lanes (own wrappers, JDK 8 / JDK 21). Treat the
-matrix as authoritative for what is buildable in CI.
+`E2E (mc1.12.2)` stub, and out-of-band `Build (forge-1.8.9)` /
+`Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes (own wrappers,
+JDK 8 / JDK 8 / JDK 21). Treat the matrix as authoritative for what is
+buildable in CI.
 
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), the 1.21.1 / 1.21.4 / 1.21.8 point releases
@@ -205,9 +222,10 @@ positives.
 
 Lane policy: buildSrc classpath (lane 1) + convention plugin (lane 2) +
 `scripts/gradle-health.sh` (manual runs, this lane) are in place.
-Out-of-band lanes (mc1.12.2 / forge-1.16.5 / forge-1.20.1) are NOT eligible
-for dependency-analysis due to their Gradle version constraints (verified
-Feb 2026) — they continue to rely on AFT/Qartez/Codegraph.
+Out-of-band lanes (mc1.12.2 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1) are
+NOT eligible for dependency-analysis due to their Gradle version constraints
+(verified Feb 2026; forge-1.8.9 runs Gradle 4.10.3 < 8.11 minimum) — they
+continue to rely on AFT/Qartez/Codegraph.
 
 ## Branch policy & required checks
 
@@ -222,9 +240,12 @@ ported). `1.21` and `mc1.12.2` remain as frozen stable aliases (tagged
 Required checks (identical contract on `main` and
 `integration/m2-monorepo`) are enforced via the gh API — do not edit
 branch protection in-repo. The contract is strict (`enforce_admins`, no
-force pushes/deletions) with 13 contexts: `YAML Lint`, the `Build
+force pushes/deletions) with 15 contexts: `YAML Lint`, the `Build
 (common)` / `Build (1.21.x)` / `Build (26.2)` matrix, `Build (mc1.12.2)`,
 `E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
-(1.21)`, the out-of-band `Build (forge-1.16.5)` / `Build (forge-1.20.1)`
-lanes, and `aislop (M2)`. CI job names must match the required-check
-strings exactly.
+(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
+/ `Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes, and `aislop
+(M2)`. CI job names must match the required-check strings exactly. The
+contract grew 12→13 (forge-26.2 lane, PR #310) →14 (forge-1.8.9 lane,
+PR #311) →15 (forge-1.7.10 lane, current state applied via direct
+PATCH).

@@ -32,13 +32,14 @@ rejects Gradle 8.0+, ForgeGradle 6.0.x rejects Gradle 9.0+, ForgeGradle 2.3.4
 requires Gradle 4.x. Included builds would run under the root's Gradle, so
 each lane is a separate build with its own wrapper and JDK:
 
-| Lane           | Gradle  | ForgeGradle | Java | Build command            |
-|----------------|---------|-------------|------|--------------------------|
-| `forge-1.16.5/` | 7.6.4   | 5.1.77      | 8    | `cd forge-1.16.5 && ./gradlew build` |
-| `forge-1.20.1/` | 8.7     | 6.0.54      | 21   | `cd forge-1.20.1 && ./gradlew build` |
-| `mc1.12.2/`     | 4.10.3  | 2.3.4       | 8    | `cd mc1.12.2 && ./gradlew build`     |
+| Lane           | Gradle  | ForgeGradle    | Java | Build command            |
+|----------------|---------|----------------|------|--------------------------|
+| `forge-1.16.5/` | 7.6.4   | 5.1.77         | 8    | `cd forge-1.16.5 && ./gradlew build` |
+| `forge-1.20.1/` | 8.7     | 6.0.54         | 21   | `cd forge-1.20.1 && ./gradlew build` |
+| `forge-1.8.9/`  | 4.10.3  | 2.1-SNAPSHOT   | 8    | `cd forge-1.8.9 && ./gradlew build`  |
+| `mc1.12.2/`     | 4.10.3  | 2.3.4          | 8    | `cd mc1.12.2 && ./gradlew build`     |
 
-All three source-dir share `common/src/main/java` and
+All four source-dir share `common/src/main/java` and
 `common/src/main/resources`, so shared code edits land in one place and are
 picked up by every lane.
 
