@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["integration/m2-monorepo", "main"]
+    branches: ["main"]
   pull_request:
-    branches: ["integration/m2-monorepo", "main"]
+    branches: ["main"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -246,7 +246,7 @@ jobs:
   # ── E2E (mc1.12.2) required-check contract ─────────────────────
   # The old per-branch required-check contract names `E2E (mc1.12.2)`
   # as a status context; keep that exact check name present on
-  # integration/m2-monorepo (future-proofing, memory #1212). The real
+  # main (future-proofing, memory #1212). The real
   # HeadlessMC boot smoke runs on the mc1.12.2 branch; this lane runs
   # a minimal placeholder against forge-1.21, where the headlessmc
   # tests live in the M2 tree.
@@ -319,7 +319,5 @@ jobs:
           node-version: 20
       - name: Run aislop gate on PR changes
         # Diff against the PR's actual base branch (github.base_ref); on
-        # push events fall back to origin/main. Replaces the hardcoded
-        # origin/integration/m2-monorepo so PRs into main are gated
-        # against main; integration PRs keep their prior behavior.
+        # push events fall back to origin/main.
         run: npx -y aislop ci --changes --base origin/${{ github.base_ref || 'main' }}

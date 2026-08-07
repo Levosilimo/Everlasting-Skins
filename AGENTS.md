@@ -290,16 +290,17 @@ version constraints (verified Feb 2026; forge-1.8.9 runs Gradle 4.10.3 <
 
 ## Branch policy & required checks
 
-`main` is the default branch (promoted from `integration/m2-monorepo` at
-`055031b`, 2026-08-06 — the 4-commit `1.21` divergence, all PR #256, is
-superseded by the monorepo's `/common` vendor approach and was not
-ported). `1.21` and `mc1.12.2` remain as frozen stable aliases (tagged
+`main` is the default branch and the single source of truth (promoted
+from `integration/m2-monorepo` at `055031b`, 2026-08-06; the
+integration branch itself was retired 2026-08-07 per the branch-topology
+analysis — the 4-commit `1.21` divergence, all PR #256, is superseded by
+the monorepo's `/common` vendor approach and was not ported). `1.21`
+and `mc1.12.2` remain as frozen stable aliases (tagged
 `archived-m2-complete`): do NOT delete them, do NOT force-push them.
 `1.21` keeps its own 3-check protection (`Build (1.21)`, `GameTest
 (1.21)`, `YAML Lint`).
 
-Required checks (identical contract on `main` and
-`integration/m2-monorepo`) are enforced via the gh API — do not edit
+Required checks (contract on `main`) are enforced via the gh API — do not edit
 branch protection in-repo. The contract is strict (`enforce_admins`, no
 force pushes/deletions) with 15 contexts: `YAML Lint`, the `Build
 (common)` / `Build (1.21.x)` / `Build (26.2)` matrix, `Build (mc1.12.2)`,

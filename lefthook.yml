@@ -34,4 +34,4 @@ pre-push:
     gametest:
       run: forge-1.21/test-infrastructure/run-gametest-local.sh
     aislop-ci:
-      run: npx -y aislop ci --changes --base origin/integration/m2-monorepo
+      run: npx -y aislop ci --changes --base origin/main
