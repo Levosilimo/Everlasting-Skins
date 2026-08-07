@@ -519,8 +519,7 @@ public class SkinVisibilityTest {
             // Mirror production: set skin on profile then build the same packet.
             CustomSkinProperty testSkin = new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "gametest");
             SkinRestorer.getSkinStorage().setSkin(playerId, testSkin);
-            player.getGameProfile().properties().removeAll("textures");
-            player.getGameProfile().properties().put("textures", testSkin.getOriginalProperty());
+            SkinRestorer.applyTextureProperty(player, testSkin.getOriginalProperty());
             SkinRefreshHandler.task(player);
 
             ClientboundPlayerInfoUpdatePacket packet = new ClientboundPlayerInfoUpdatePacket(
@@ -774,8 +773,7 @@ public class SkinVisibilityTest {
 
             CustomSkinProperty testSkin = new CustomSkinProperty("textures", TEST_TEXTURE_VALUE, TEST_SIGNATURE, "gametest");
             SkinRestorer.getSkinStorage().setSkin(playerId, testSkin);
-            player.getGameProfile().properties().removeAll("textures");
-            player.getGameProfile().properties().put("textures", testSkin.getOriginalProperty());
+            SkinRestorer.applyTextureProperty(player, testSkin.getOriginalProperty());
 
             ClientboundPlayerInfoUpdatePacket packet = new ClientboundPlayerInfoUpdatePacket(
                     ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, player);

@@ -7,7 +7,11 @@
 
 package levosilimo.everlastingskins.forge26.skinchanger;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
+import com.mojang.authlib.properties.PropertyMap;
 import levosilimo.everlastingskins.skinchanger.DefaultSkinResolver;
 import levosilimo.everlastingskins.skinchanger.SkinIO;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
@@ -137,13 +141,35 @@ public class SkinRestorer {
     }
 
     /**
-     * 26.2: authlib 9 GameProfile is an immutable record; its PropertyMap
-     * field is still mutable in place, so the textures property is updated
-     * through {@code properties()} (the record's map reference).
+     * 26.2 skin application (authlib 9): GameProfile is an immutable record
+     * whose PropertyMap is immutable too — in-place mutation throws
+     * UnsupportedOperationException. The only server-side way to change a
+     * player's skin post-login is to build a NEW GameProfile carrying the
+     * textures property and swap it into the player's {@code gameProfile}
+     * field. Reflection is confined to this binding layer (unobfuscated MC:
+     * the field name is the real name) and the swap is done on the server
+     * thread. Memory #1123 holds: only the UUID ever crosses into :common.
      */
-    private static void applyTextureProperty(ServerPlayer player, Property property) {
-        player.getGameProfile().properties().removeAll("textures");
-        player.getGameProfile().properties().put("textures", property);
+    public static void applyTextureProperty(ServerPlayer player, @Nullable Property property) {
+        GameProfile current = player.getGameProfile();
+        // authlib 9's PropertyMap ctor COPIES into an ImmutableMultimap, so the
+        // contents are assembled in a mutable multimap first and only wrapped
+        // at the end; putting into a PropertyMap directly throws.
+        Multimap<String, Property> contents = ArrayListMultimap.create();
+        current.properties().entries().stream()
+                .filter(e -> !"textures".equals(e.getKey()))
+                .forEach(e -> contents.put(e.getKey(), e.getValue()));
+        if (property != null) {
+            contents.put("textures", property);
+        }
+        GameProfile replacement = new GameProfile(current.id(), current.name(), new PropertyMap(contents));
+        try {
+            java.lang.reflect.Field field = net.minecraft.world.entity.player.Player.class.getDeclaredField("gameProfile");
+            field.setAccessible(true);
+            field.set(player, replacement);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new IllegalStateException("Failed to swap GameProfile on MC 26.2", e);
+        }
     }
 
     /**

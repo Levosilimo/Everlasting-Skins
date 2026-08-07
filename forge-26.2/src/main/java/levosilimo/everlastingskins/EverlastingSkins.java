@@ -16,11 +16,13 @@ import levosilimo.everlastingskins.forge26.util.I18nUtils;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import net.minecraft.network.Connection;
-import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.network.ConnectionStartEvent;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
+import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -43,12 +45,11 @@ import java.util.concurrent.TimeUnit;
  * object ever crosses into {@code :common}. The binding layer is the only
  * place Forge/Minecraft types appear.
  *
- * <p>EventBus 7 note: this binding registers every listener explicitly via
- * {@code addListener} (no {@code @Mod.EventBusSubscriber} static handler
- * classes, no object {@code register()}): EventBus 7 dropped the reflective
- * static-handler path, and the module-local
- * {@code net.minecraftforge:eventbus-validator} AP enforces valid listener
- * signatures at build time.
+ * <p>EventBus 7 note: Forge 65.x dropped {@code @Mod.EventBusSubscriber} and
+ * the static-handler path. Every listener is registered explicitly against
+ * the event's typed {@code EventBus<T>} (e.g. {@code ServerStartingEvent.BUS});
+ * the module-local {@code net.minecraftforge:eventbus-validator} AP enforces
+ * valid listener signatures at build time.
  */
 @Mod(EverlastingSkins.MOD_ID)
 public class EverlastingSkins {
@@ -68,22 +69,23 @@ public class EverlastingSkins {
 
     private static void registerEventListeners() {
         // SkinRestorer lifecycle: server start/stop + player login/logout.
-        MinecraftForge.EVENT_BUS.addListener(new SkinRestorer()::onInitializeServer);
-        MinecraftForge.EVENT_BUS.addListener(new SkinRestorer()::onPlayerLoggedIn);
-        MinecraftForge.EVENT_BUS.addListener(new SkinRestorer()::onPlayerLoggedOut);
-        MinecraftForge.EVENT_BUS.addListener(new SkinRestorer()::onServerStopping);
-        // Periodic metrics.json dump (server tick).
-        MinecraftForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent e) -> new MetricsDumper().onServerTick(e));
+        SkinRestorer restorer = new SkinRestorer();
+        ServerStartingEvent.BUS.addListener(restorer::onInitializeServer);
+        PlayerEvent.PlayerLoggedInEvent.BUS.addListener(restorer::onPlayerLoggedIn);
+        PlayerEvent.PlayerLoggedOutEvent.BUS.addListener(restorer::onPlayerLoggedOut);
+        ServerStoppingEvent.BUS.addListener(restorer::onServerStopping);
+        // Periodic metrics.json dump (server tick, END phase).
+        TickEvent.ServerTickEvent.Post.BUS.addListener(new MetricsDumper()::onServerTick);
         // Forge permission node registration (PermissionGatherEvent).
         PermissionGatherEvent.Nodes.BUS.addListener(ForgePermissionService::onPermissionGather);
         // Per-connection byte counters for the metrics view.
         ConnectionStartEvent.BUS.addListener(EverlastingSkins::onConnectionStart);
         // /skin command registration.
-        MinecraftForge.EVENT_BUS.addListener(CommandRegistrationHandler::onRegisterCommands);
+        RegisterCommandsEvent.BUS.addListener(CommandRegistrationHandler::onRegisterCommands);
         // Config-dependent re-registration once the server is about to start.
-        MinecraftForge.EVENT_BUS.addListener(EverlastingSkins::onServerAboutToStart);
+        ServerAboutToStartEvent.BUS.addListener(EverlastingSkins::onServerAboutToStart);
         // LuckPerms user preload so permission checks don't fall back to ops.
-        MinecraftForge.EVENT_BUS.addListener(EverlastingSkins::onPlayerLoggedInPreload);
+        PlayerEvent.PlayerLoggedInEvent.BUS.addListener(EverlastingSkins::onPlayerLoggedInPreload);
     }
 
     /**

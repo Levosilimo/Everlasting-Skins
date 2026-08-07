@@ -25,6 +25,18 @@ minecraft {
     runs {
         configureEach {
             systemProperty("eventbus.api.strictRuntimeChecks", "true")
+            // The 26.2 skin application swaps the player's GameProfile via
+            // reflection (authlib 9 immutable records; see SkinRestorer). In
+            // dev the MC classes live in the named `minecraft` module, so the
+            // reflective write needs the package opened to the unnamed module.
+            jvmArgs(
+                "--add-opens=minecraft/net.minecraft.world.entity.player=ALL-UNNAMED",
+                // Java 24+ restricted native access: netty 4.2 loads in named
+                // modules inside the secure-bootstrap layer and fails to init
+                // without explicit native-access enablement.
+                "--enable-native-access=ALL-UNNAMED",
+                "--enable-native-access=io.netty.common,io.netty.buffer,io.netty.transport,io.netty.handler,io.netty.codec,io.netty.resolver"
+            )
         }
     }
 }

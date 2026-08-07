@@ -79,7 +79,7 @@ public class SkinRefreshHandler {
             // observers re-learn the profile and rebuild the target's own view.
             // Without this, /skin clear with no Mojang profile left the applied
             // profile showing the old texture while storage said "cleared".
-            mutateProfileCleared(player.getGameProfile());
+            mutateProfileCleared(player);
             recordObserverBroadcast(player, null);
             recordCascade(player);
             return;
@@ -93,7 +93,7 @@ public class SkinRefreshHandler {
         // mutated profile with no persisted skin would silently revert on the
         // next server restart. applyAtomicPersistence records the failure
         // metric itself; broadcast/cascade only run after it succeeded.
-        if (applyAtomicPersistence(player.getUUID(), player.getGameProfile(), skin)) {
+        if (applyAtomicPersistence(player.getUUID(), player, skin)) {
             try {
                 recordObserverBroadcast(player, skin);
                 recordCascade(player);
@@ -121,10 +121,10 @@ public class SkinRefreshHandler {
      * enqueue time, before the profile is mutated. Test-visible so
      * SkinRefreshHandlerTest can exercise the invariant without a ServerPlayer.
      */
-    static boolean applyAtomicPersistence(UUID playerId, GameProfile profile, CustomSkinProperty skin) {
+    static boolean applyAtomicPersistence(UUID playerId, ServerPlayer player, CustomSkinProperty skin) {
         try {
             recordSaveEnqueue(playerId);
-            mutateProfile(profile, skin);
+            mutateProfile(player, skin);
             return true;
         } catch (Throwable t) {
             EverlastingSkins.logger.warn("Skin refresh failed for {}", playerId, t);
@@ -133,19 +133,18 @@ public class SkinRefreshHandler {
         }
     }
 
-    private static void mutateProfile(GameProfile profile, CustomSkinProperty skin) {
-        profile.properties().removeAll("textures");
-        profile.properties().put("textures", skin.getOriginalProperty());
+    private static void mutateProfile(ServerPlayer player, CustomSkinProperty skin) {
+        SkinRestorer.applyTextureProperty(player, skin.getOriginalProperty());
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={}",
-                profile.name(),
-                profile.properties().get("textures"));
+                player.getGameProfile().name(),
+                player.getGameProfile().properties().get("textures"));
     }
 
-    private static void mutateProfileCleared(GameProfile profile) {
-        profile.properties().removeAll("textures");
+    private static void mutateProfileCleared(ServerPlayer player) {
+        SkinRestorer.applyTextureProperty(player, null);
         EverlastingSkins.logger.info("SKIN_REFRESH: profile={}, property={} (cleared)",
-                profile.name(),
-                profile.properties().get("textures"));
+                player.getGameProfile().name(),
+                player.getGameProfile().properties().get("textures"));
     }
 
     private static void recordSaveEnqueue(UUID playerId) {
