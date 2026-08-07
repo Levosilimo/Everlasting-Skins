@@ -6,6 +6,7 @@
 
 package levosilimo.everlastingskins;
 
+import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -43,6 +44,9 @@ public class EverlastingSkins {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
+        // Register the op-level backend with the fail-closed manager
+        // (PermissionServiceManager stays fail-closed until this runs).
+        ForgePermissionService.register();
         LOGGER.info("{} {} initializing (server-side)", MOD_NAME, VERSION);
     }
 
