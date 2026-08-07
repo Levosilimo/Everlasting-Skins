@@ -32,15 +32,15 @@ rejects Gradle 8.0+, ForgeGradle 6.0.x rejects Gradle 9.0+, ForgeGradle 2.3.4
 requires Gradle 4.x. Included builds would run under the root's Gradle, so
 each lane is a separate build with its own wrapper and JDK:
 
-| Lane           | Gradle  | ForgeGradle    | Java | Build command            |
-|----------------|---------|----------------|------|--------------------------|
-| `forge-1.16.5/` | 7.6.4   | 5.1.77         | 8    | `cd forge-1.16.5 && ./gradlew build` |
-| `forge-1.20.1/` | 8.7     | 6.0.54         | 21   | `cd forge-1.20.1 && ./gradlew build` |
-| `forge-1.8.9/`  | 4.10.3  | 2.1-SNAPSHOT   | 8    | `cd forge-1.8.9 && ./gradlew build`  |
-| `forge-1.7.10/` | 4.4.1   | 1.2.11 (GTNH fork via jitpack) | 8 | `cd forge-1.7.10 && ./gradlew build` |
-| `mc1.12.2/`     | 4.10.3  | 2.3.4          | 8    | `cd mc1.12.2 && ./gradlew build`     |
+| Lane           | Gradle  | ForgeGradle       | Java | Build command                                  |
+|----------------|---------|-------------------|------|------------------------------------------------|
+| `mc1.12.2/`     | 4.10.3  | 2.3.4             | 8    | `cd mc1.12.2 && JAVA_HOME=<jdk8> ./gradlew build` |
+| `forge-1.7.10/` | 4.4.1   | 1.2.11 (GTNH/jitpack) | 8 | `cd forge-1.7.10 && JAVA_HOME=<jdk8> ./gradlew build` |
+| `forge-1.8.9/`  | 4.10.3  | 2.1-SNAPSHOT      | 8    | `cd forge-1.8.9 && JAVA_HOME=<jdk8> ./gradlew build` |
+| `forge-1.16.5/` | 7.6.4   | 5.1.77            | 8    | `cd forge-1.16.5 && JAVA_HOME=<jdk8> ./gradlew build` |
+| `forge-1.20.1/` | 8.7     | 6.0.54            | 21   | `cd forge-1.20.1 && JAVA_HOME=<jdk21> ./gradlew build` |
 
-All four source-dir share `common/src/main/java` and
+All five source-dir share `common/src/main/java` and
 `common/src/main/resources`, so shared code edits land in one place and are
 picked up by every lane. `forge-1.7.10` is the most fragile toolchain in the
 repo (Gradle 4.4.1 = FG 1.2 hard floor, Java 8 ONLY, MCP stable_12 mappings

@@ -13,50 +13,63 @@ matching the Forge 65.x line naming). CI gains a `Build (26.2)` matrix
 cell (JDK 25) and a publish matrix entry; the required-check contract
 goes 12 → 13.
 
-### forge-1.8.9 out-of-band lane
+### forge-1.8.9 out-of-band lane (Minecraft 1.8.9, Forge 11.15.1.2318, Java 8)
 
-New out-of-band lane for Minecraft 1.8.9 (Forge 11.15.1.2318 / FG
-2.1-SNAPSHOT / MCP stable_20 / Java 8), mirroring the established
-mc1.12.2 / forge-1.16.5 / forge-1.20.1 pattern: self-contained Gradle
-4.10.3 build under `forge-1.8.9/`, NOT in settings.gradle.kts, `:common`
-consumed via source-dir share, inline no-mixin gate (heavier variant —
-scans build files too). Binding surface is pre-ModLauncher
-(LaunchWrapper): `@Mod` + `@Instance` + `FMLInitializationEvent` /
-`FMLServerStartingEvent`; UUID extraction via `Entity.getPersistentID()`
-and `EntityPlayer.getGameProfile()`; `IPermissionService` adapter over
-`canCommandSenderUseCommand` + `UserListOps`/OpList; broadcast channel
-via `NetworkRegistry.INSTANCE.newSimpleChannel`; `/everlastingskins`
-command on the 1.8-era `ICommand` surface. 14 pure-JUnit tests (no live
-HTTP). CI gains `Build (forge-1.8.9)` (required-check contract 12 → 13)
-and `publish-mc1_8_9` (`mc1.8.9-v*` tag). Dep-analysis NOT eligible
-(Gradle 4.10.3 < 8.11 minimum).
+Add the `forge-1.8.9/` out-of-band lane mirroring the established
+mc1.12.2 / forge-1.16.5 / forge-1.20.1 pattern: own Gradle 4.10.3 wrapper,
+ForgeGradle 2.1-SNAPSHOT (plugin id `net.minecraftforge.gradle.forge`),
+Java 8 bytecode, MCP stable_20 mappings, `:common` consumed via
+source-dir share (`srcDir '../common/src/main/java'`), inline
+heavier `verifyNoMixin` gate (no `@Mod.EventBusSubscriber`-equivalent;
+the lane is pre-SubscribeEvent era). The lane is NOT listed in
+`settings.gradle.kts` and is NOT eligible for dep-analysis by policy
+(Gradle 4.x < 8.11 minimum). Binding surface is LaunchWrapper:
+`@Mod(modid,name,version)` on a plain class, `@Instance`, `@Mod.EventHandler`
+on `FMLInitializationEvent` / `FMLServerStartingEvent`,
+`EntityPlayer.getGameProfile()` + `getPersistentID()` (dashed UUID),
+`NetworkRegistry.INSTANCE.newSimpleChannel(...)` (pre-`PacketDistributor`),
+and `ICommand.getCommandName/processCommand` (1.8-era MCP, NOT 1.7.10's
+same-name surface or 1.11+'s `getName`). Permission adapter maps
+`IPermissionService.hasPermission(UUID,int,String)` to
+`EntityPlayer.canCommandSenderUseCommand(int permLevel, String name)` +
+`UserListOps.getEntry(GameProfile(uuid,null))` (1.8+'s `UserListOps`
+surface, which does NOT exist in 1.7.10). 22/22 unit tests passing
+(SkinStorage 5, IPermissionServiceAdapter 7, TextureDecoder 3,
+SkinRestorerCommand 7). `consumeCommon` gate NOT re-added (gate is
+scoped to in-root `forge-*` subprojects via the convention; out-of-band
+lanes use source-dir share, never `project(":common")`).
+AGENTS.md rule #6 caveat resolved (2026-08-07). Tag prefix `mc1.8.9-v*`.
+CI gains a `Build (forge-1.8.9)` self-checkout cell (JDK 8, gradle-health
+out-of-band so not iterated) and a `publish-mc1_8_9` job; required-check
+contract goes 13 → 14.
 
-### forge-1.7.10 out-of-band lane (GTNH FG 1.2.11, Gradle 4.4.1, JDK 8, MCP stable_12)
+### forge-1.7.10 out-of-band lane (Minecraft 1.7.10, Forge 10.13.4.1614, Java 8)
 
-Added the oldest MC target in the monorepo as an out-of-band lane (own
-wrapper, never in settings.gradle.kts). Upstream ForgeGradle 1.2 is dead
-(hardcoded Mojang API 403s since 2022), so the lane pins the GTNH community
-fork `com.github.GTNewHorizons:ForgeGradle:1.2.11` via jitpack — the
-Legacy Modding Wiki's prescribed fix — on Gradle 4.4.1 (FG 1.2 hard floor)
-+ Java 8. Binding surface is pre-ModLauncher LaunchWrapper: `@Mod` +
-`cpw.mods.fml` events, netty `NetworkRegistry.INSTANCE.newChannel(...)` for
-the skin-broadcast channel (`@NetworkMod` was removed in FML 1.7 and does
-not exist in 10.13.4.1614), and `EntityPlayer.getGameProfile()` (no
-`getPersistentID`). Permission adapter maps
-`IPermissionService.hasPermission(UUID,int,String)` onto
-`EntityPlayer.canCommandSenderUseCommand` + the Configuration ops model
-(no PermissionAPI / UserListOps on 1.7.10). `:common` is consumed by
-source-dir share; the `consumeCommon` gate is NOT re-added (out-of-band
-lanes never use `project(":common")` — rule #6 caveat resolved).
-
-- CI: `Build (forge-1.7.10)` cell (JDK 8) + `publish-mc1_7_10` job
-  (`mc1.7.10-v*` tag, loaders forge, game-version 1.7.10). Required-check
-  contract count: 12 → 13 after `Build (26.2)` → 14 after
-  `Build (forge-1.8.9)` → 15 after `Build (forge-1.7.10)` (deepwork merge
-  order: forge-26.2 → forge-1.8.9 → forge-1.7.10).
-- Tests: 48 JUnit 4 unit tests (SkinStorage + permission adapter + decoder
-  + command); pure-JUnit scaffold, no GameTest on 1.7.10. Deterministic
-  fakes only (memory #1115) — no live HTTP anywhere in the lane tests.
+Add the `forge-1.7.10/` out-of-band lane — the oldest MC target in the
+monorepo. Upstream ForgeGradle 1.2 died in 2022 (Mojang API 403s); this
+lane pins the GTNH community fork `com.github.GTNewHorizons:ForgeGradle:1.2.11`
+via jitpack, on Gradle 4.4.1 (FG 1.2 hard floor) + Java 8 + MCP stable_12.
+Mirrors the established out-of-band pattern. Binding surface is
+pre-ModLauncher LaunchWrapper: `@Mod` + `@NetworkMod` are NOT valid in
+1.7.10 (the actual binding uses `NetworkRegistry.INSTANCE.newChannel(...)`
++ `FMLProxyPacket`); `@Mod` has no `serverSideOnly` attribute in 1.7.10.
+Permission adapter maps `IPermissionService.hasPermission(UUID,int,String)`
+to `EntityPlayer.canCommandSenderUseCommand(int,String)` + the Forge
+`Configuration` ops model (1.7.10 has no `UserListOps`; that's 1.8+).
+`EntityPlayer.getGameProfile()` exists; no `getPersistentID()` (1.8+).
+`ICommand.getCommandName/processCommand` (1.7.10 MCP). 48/48 JUnit 4 tests
+passing (ForgePermissionService 8, VanillaPermissionService 9,
+PermissionServiceManager 8, SkinRestorerCommand 10, SkinStorageCache 7,
+TextureDecoder 6). Mockito 2.28.2 (not 5.x — Java 8 + Gradle 4.4.1
+constraint). JUnit 4.13.2 (not 5 — Gradle 4.4.1 doesn't reliably resolve
+`junit-jupiter`). `consumeCommon` gate NOT re-added. AGENTS.md rule #6
+caveat resolved (2026-08-07). Tag prefix `mc1.7.10-v*`. CI gains a
+`Build (forge-1.7.10)` self-checkout cell (JDK 8, requires online
+populate of jitpack + GTNH FG 1.2.11 + RetroGuard 3.6.6 on first run)
+and a `publish-mc1_7_10` job; required-check contract goes 14 → 15.
+The 48 lane tests are not counted by the root `test-count-gate.sh`
+(path-scoped to `common/src` + `forge-1.21/src`); the lane's own
+`JAVA_HOME=jdk8 ./gradlew test` is authoritative.
 
 ### Mainline promotion (2026-08-06)
 

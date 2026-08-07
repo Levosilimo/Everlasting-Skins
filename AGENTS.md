@@ -37,14 +37,26 @@ One Gradle root (9.3.1) for the Forge line. Modules:
   `everlastingskins.forge-module` and `:common` itself; new forge convention
   plugins must apply it too.
 
-## Legacy lanes (forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1) — out-of-band
+## Legacy lanes (mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1) — out-of-band
 
 Not part of this Gradle root (lib-34 lane separation, PR #267): ForgeGradle
-2.1.x requires Gradle 4.x, ForgeGradle 5.1.x rejects Gradle 8.0+ and
-ForgeGradle 6.0.x rejects Gradle 9.0+, so none can run inside the root's
-Gradle 9.3.1 (verified empirically 2026-08-06 against 5.1.77 / 6.0.54).
+5.1.x rejects Gradle 8.0+ and ForgeGradle 6.0.x rejects Gradle 9.0+, so
+neither can run inside the root's Gradle 9.3.1 (verified empirically
+2026-08-06 against 5.1.77 / 6.0.54). The 1.7.10 and 1.8.9 lanes predate
+even FG 5.1.x and use Gradle wrappers pinned at 4.4.1 / 4.10.3 respectively.
 Each lane is its own build with its own wrapper and FG version:
 
+- `mc1.12.2/` — Gradle 4.10.3 (run on Java 8), ForgeGradle 2.3.4.
+- `forge-1.7.10/` — Gradle 4.4.1 (run on Java 8), GTNH `ForgeGradle:1.2.11`
+  via jitpack (`https://jitpack.io/`, plus `maven.minecraftforge.net` for
+  legacy MCP/RetroGuard artifacts FG 1.2.11 still resolves), MCP stable_12.
+  Uses LaunchWrapper `@Mod`/`@Mod.EventHandler` (cpw.mods.fml) and the
+  netty-based `NetworkRegistry.INSTANCE.newChannel(...)` — the 1.6.4
+  `@NetworkMod` annotation was REMOVED in FML 1.7 (verified absent from
+  10.13.4.1614). `EntityPlayer.getGameProfile()` is the profile surface
+  (no `getPersistentID` — 1.8+). Consumes `:common` by source-dir share.
+  dep-analysis NOT eligible (out-of-band, same policy as
+  mc1.12.2/forge-1.16.5/forge-1.20.1).
 - `forge-1.8.9/` — Gradle 4.10.3 (run on Java 8), ForgeGradle 2.1-SNAPSHOT,
   MCP stable_20. Build with `cd forge-1.8.9 && JAVA_HOME=<jdk8> ./gradlew
   build`; consumes `:common` via source-dir share; inline no-mixin gate
@@ -64,10 +76,18 @@ Each lane is its own build with its own wrapper and FG version:
   dep-analysis NOT eligible (out-of-band, same policy as
   mc1.12.2/forge-1.16.5/forge-1.20.1).
 
-All four consume `:common` by source-dir sharing (they cannot use
+All five consume `:common` by source-dir sharing (they cannot use
 `project(":common")`), inline their own no-mixin gate, and are built from
-their own directory: `cd forge-1.7.10 && ./gradlew build` (or the lane's
-own README). The root's settings.gradle.kts does not include them.
+their own directory: `cd <lane-dir> && ./gradlew build` (or
+`JAVA_HOME=<jdk8> ./gradlew build` for the Java 8 lanes). The root's
+settings.gradle.kts does not include them. The `consumeCommon=false` gate
+was removed in #276 and was scoped only to in-root `forge-*` subprojects
+via the convention; legacy lanes use source-dir share and never
+exercise the gate. Re-add caveat: if a future forge-* subproject (e.g.
+1.7.10 / 1.8.9) requires vendored `:common` copies for tooling reasons,
+re-add the gate to buildSrc `forge-module.gradle.kts` and re-introduce
+the opt-out property. (forge-1.7.10 + forge-1.8.9 resolved 2026-08-07:
+source-dir share is sufficient — the gate was NOT re-added.)
 
 ### forge-1.7.10 supply chain (jitpack pin + fallback)
 
@@ -292,5 +312,5 @@ Required-check contract count progression (three-lane expansion, deepwork
 merge order forge-26.2 → forge-1.8.9 → forge-1.7.10): 12 → 13 after
 `Build (26.2)` lands (forge-26.2 lane, PR #310) → 14 after
 `Build (forge-1.8.9)` (PR #311) → 15 after `Build (forge-1.7.10)` lands
-(this lane's CI cell, PR #312). Each lane's gh-API branch-protection
-update happens at PR-open time (out-of-repo).
+(this lane's CI cell, PR #312). Each lane is added to the contract via
+the `gh-api-bump-<lane>.sh` script (out-of-repo tooling) at PR-open time.
