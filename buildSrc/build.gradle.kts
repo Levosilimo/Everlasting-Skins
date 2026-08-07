@@ -39,7 +39,7 @@ dependencies {
     // as the ErrorProne line above).
     //
     // Version 3.18.0: latest stable as of 2026, verified compatible with
-    // Gradle 9.6.1; minimum supported Gradle is 8.11 (root build is 9.3.1).
+    // Gradle 9.3.1; minimum supported Gradle is 8.11 (root build is 9.3.1).
     // Requires a Java 11 runtime, which is fine: the build JVM is 17+ and
     // :common's --release 8 is a source/target level, not the build JVM.
     //
