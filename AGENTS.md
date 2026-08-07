@@ -168,12 +168,46 @@ runs the cheap `lint-yaml` / `aislop` jobs on the host runner; the Forge build
 matrix is not reliable under act (Docker JDK image fragility) — treat `act` as
 a syntax gate, not a build substitute.
 
+## Codebase improvement tools (knip-equivalent)
 
-## Required checks (integration/m2-monorepo branch protection)
+Java/Gradle has no direct `knip` equivalent; the closest analog is the
+dependency-analysis-gradle-plugin (autonomousapps). Role split: **AFT /
+Qartez / Codegraph** handle dead-code, dead-symbol, clone, and hotspot
+analysis (already integrated, no changes needed);
+**dependency-analysis-gradle-plugin** handles dep hygiene — unused deps,
+wrong-config, undeclared transitives, duplicate class files — the gap the
+codebase-intel tools do not fill.
 
-Enforced via the gh API — do not edit branch protection in-repo. `Build
-(forge-1.16.5)` and `Build (forge-1.20.1)` are required status checks on
-integration/m2-monorepo, additive to the existing contract (`YAML Lint`,
-`Build (common)` / `Build (1.21.x)` matrix, `Build (mc1.12.2)`, `E2E
-(mc1.12.2)`, `GameTest (1.21)`, `aislop (M2)`). CI job names must match
-the required-check strings exactly.
+WARN-only policy: Forge reflection (registry `@ObjectHolder`,
+`@EventBusSubscriber`, string-based resource registration) is a known
+false-positive source for dependency-analysis; we run WARN-only and never
+`fixDependencies` automatically until a manual triage pass confirms the
+findings are real. Rolled out in WARN-only mode; hook integration is gated
+on empirical validation on a forge-1.21.x module to catalog known false
+positives.
+
+Lane policy: buildSrc classpath (lane 1) + convention plugin (lane 2) +
+`scripts/gradle-health.sh` (manual runs, this lane) are in place.
+Out-of-band lanes (mc1.12.2 / forge-1.16.5 / forge-1.20.1) are NOT eligible
+for dependency-analysis due to their Gradle version constraints (verified
+Feb 2026) — they continue to rely on AFT/Qartez/Codegraph.
+
+## Branch policy & required checks
+
+`main` is the default branch (promoted from `integration/m2-monorepo` at
+`055031b`, 2026-08-06 — the 4-commit `1.21` divergence, all PR #256, is
+superseded by the monorepo's `/common` vendor approach and was not
+ported). `1.21` and `mc1.12.2` remain as frozen stable aliases (tagged
+`archived-m2-complete`): do NOT delete them, do NOT force-push them.
+`1.21` keeps its own 3-check protection (`Build (1.21)`, `GameTest
+(1.21)`, `YAML Lint`).
+
+Required checks (identical contract on `main` and
+`integration/m2-monorepo`) are enforced via the gh API — do not edit
+branch protection in-repo. The contract is strict (`enforce_admins`, no
+force pushes/deletions) with 12 contexts: `YAML Lint`, the `Build
+(common)` / `Build (1.21.x)` matrix, `Build (mc1.12.2)`, `E2E
+(mc1.12.2)` (push-only job — fires on push events only), `GameTest
+(1.21)`, the out-of-band `Build (forge-1.16.5)` / `Build (forge-1.20.1)`
+lanes, and `aislop (M2)`. CI job names must match the required-check
+strings exactly.
