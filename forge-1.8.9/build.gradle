@@ -51,6 +51,19 @@ repositories {
     mavenCentral()
 }
 
+// :common consumed by source-dir share (Rule 1: :common is canonical; the
+// lane never carries a duplicate copy). Same mechanism as mc1.12.2 — no
+// JPMS on Java 8. No mixin/ exclude needed: :common has no mixin package
+// and the inline verifyNoMixin gate below scans the shared roots anyway.
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+            srcDir '../common/src/main/java'
+        }
+    }
+}
+
 processResources {
     from(sourceSets.main.resources.srcDirs) {
         include 'mcmod.info'
@@ -73,3 +86,77 @@ jar {
         ])
     }
 }
+
+// --- no-mixin gate (inlined; the root buildSrc no-mixin.gradle.kts does
+// not apply to out-of-band lanes) ---
+// Oracle fix (three-lane review): HEAVIER variant — scans the lane's build
+// files AND every source root (incl. the shared :common sources) for Mixin
+// usage. The lighter mc1.12.2 exclude-only approach does not scan build
+// files for `mixin {}` blocks / mixins.json bundling, so it is not used.
+// Banned strings are assembled from parts so this file never contains the
+// literal strings it scans for. Everything lives inside the doLast closure:
+// script-level defs are not visible to task actions in Groovy.
+
+task verifyNoMixin {
+    group = 'verification'
+    description = 'Fails the build if any Mixin usage is detected: annotations, mixingradle, mixin plugin id, mixin {} blocks, or mixins.json bundling.'
+    doLast {
+        def bannedLiterals = [
+            'mixingradle coordinate': 'org.spongepowered' + ':mixingradle',
+            'mixin plugin id'       : 'org.spongepowered' + '.mixin',
+            'mixin config bundling' : 'everlastingskins' + '.mixins.json',
+        ]
+
+        def bannedPatterns = [
+            // Pattern assembled from parts so this file never contains the
+            // literal scanned string (same trick as the Kotlin original).
+            'Mixin annotation': ~/${"@"}Mixin\b/,
+            'mixin block'     : ~/^\s*mixin\s*\{/,
+        ]
+
+        def scanFile = { File file, List<String> offenders ->
+            if (!file.isFile()) return
+            String text = file.getText('UTF-8')
+            String rel = projectDir.toPath().relativize(file.toPath()).toString()
+            bannedLiterals.each { label, literal ->
+                if (text.contains(literal)) {
+                    offenders << "$rel: $label reference ('$literal')"
+                }
+            }
+            bannedPatterns.each { label, pattern ->
+                def matcher = pattern.matcher(text)
+                while (matcher.find()) {
+                    int line = text.substring(0, matcher.start()).count('\n') + 1
+                    offenders << "$rel: $label at line $line"
+                }
+            }
+        }
+
+        List<String> offenders = []
+        File projectDir = project.projectDir
+        List<File> buildFiles = [
+            new File(projectDir, 'build.gradle'),
+            new File(projectDir, 'settings.gradle'),
+            new File(projectDir, 'gradle.properties'),
+        ].findAll { it.isFile() }
+        Set<File> sourceRoots = sourceSets.collectMany { it.allSource.srcDirs }.findAll { it.exists() }
+        sourceRoots.each { root ->
+            root.eachFileRecurse(groovy.io.FileType.FILES) { f ->
+                if (f.name.endsWith('.java') || f.name.endsWith('.json') || f.name.endsWith('.properties')) {
+                    scanFile(f, offenders)
+                }
+            }
+        }
+        buildFiles.each { scanFile(it, offenders) }
+        if (!offenders.isEmpty()) {
+            throw new GradleException(
+                'Mixin policy violated:\n' + offenders.join('\n') +
+                '\n\nMixin policy: the lane contains ZERO Mixin usage. ' +
+                'If a lane requires Mixin support, fork the lane - it is a sign ' +
+                'that should not happen in the shared core.')
+        }
+        logger.lifecycle('Mixin check passed: zero Mixin annotations, zero mixingradle references.')
+    }
+}
+
+build.dependsOn verifyNoMixin
