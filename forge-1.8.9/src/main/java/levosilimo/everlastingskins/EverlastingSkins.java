@@ -6,6 +6,7 @@
 
 package levosilimo.everlastingskins;
 
+import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraftforge.fml.common.Mod;
@@ -47,6 +48,8 @@ public class EverlastingSkins {
         // Register the op-level backend with the fail-closed manager
         // (PermissionServiceManager stays fail-closed until this runs).
         ForgePermissionService.register();
+        // Skin broadcast channel (SimpleNetworkWrapper, pre-ModLauncher).
+        SkinBroadcaster.init();
         LOGGER.info("{} {} initializing (server-side)", MOD_NAME, VERSION);
     }
 
