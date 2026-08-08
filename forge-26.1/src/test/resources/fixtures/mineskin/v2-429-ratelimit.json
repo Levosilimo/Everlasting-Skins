@@ -1,0 +1,25 @@
+{
+  "success": false,
+  "errors": [
+    {
+      "code": "rate_limit",
+      "message": "Too many requests"
+    }
+  ],
+  "rateLimit": {
+    "next": {
+      "absolute": 1750000000000,
+      "relative": 250
+    },
+    "delay": {
+      "millis": 1200,
+      "seconds": 1.2
+    },
+    "limit": {
+      "limit": 60,
+      "remaining": 0,
+      "used": 60,
+      "reset": 60
+    }
+  }
+}
