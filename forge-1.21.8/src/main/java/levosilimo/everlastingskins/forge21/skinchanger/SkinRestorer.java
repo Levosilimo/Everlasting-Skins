@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.forge21.skinchanger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.mojang.authlib.properties.Property;
 import levosilimo.everlastingskins.skinchanger.DefaultSkinResolver;
 import levosilimo.everlastingskins.skinchanger.SkinIO;
