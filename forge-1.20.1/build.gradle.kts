@@ -6,7 +6,7 @@
 // ForgeGradle 6.0.54). The monorepo root runs Gradle 9.3.1, and included
 // builds run under the root's Gradle version, so this lane can neither be a
 // root subproject nor an included build. It is therefore its own Gradle
-// build with its own wrapper (Gradle 8.7, run on Java 21) and ForgeGradle
+// build with its own wrapper (Gradle 8.14, run on Java 21) and ForgeGradle
 // 6.0.54 applied via the buildscript classpath (the 1.20.1 MDK pattern).
 //
 // The precompiled buildSrc convention plugin
