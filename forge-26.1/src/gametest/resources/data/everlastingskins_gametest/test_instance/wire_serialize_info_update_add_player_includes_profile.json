@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:wire_serialize_info_update_add_player_includes_profile",
+  "environment": "everlastingskins_gametest:wire_serialize_info_update_add_player_includes_profile",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

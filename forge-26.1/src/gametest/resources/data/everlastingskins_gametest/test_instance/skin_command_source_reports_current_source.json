@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_command_source_reports_current_source",
+  "environment": "everlastingskins_gametest:skin_command_source_reports_current_source",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

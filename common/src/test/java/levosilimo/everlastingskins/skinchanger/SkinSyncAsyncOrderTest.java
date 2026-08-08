@@ -33,6 +33,15 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class SkinSyncAsyncOrderTest {
 
+    /**
+     * Await window for the cross-thread latches. The drain-coalesce writer is
+     * a lazily-created static thread shared across all tests, so under CI load
+     * the 50ms debounce + queue position can take far longer than a fixed 5s
+     * window (the lib-58 flake). Once the awaited step fires the test is
+     * deterministic, so a generous window costs nothing.
+     */
+    private static final long GENEROUS_AWAIT_SECONDS = 30;
+
     @TempDir
     Path tempDir;
 
@@ -40,6 +49,7 @@ class SkinSyncAsyncOrderTest {
 
     @BeforeEach
     void setUp() {
+        SkinStorage.resetForTest();
         storage = new SkinStorage(new SkinIO(tempDir));
     }
 
@@ -67,7 +77,13 @@ class SkinSyncAsyncOrderTest {
 
         blockingStorage.setSkin(u, skin("Yg=="));
         blockingStorage.saveSkinAsync(u, skin("YQ=="));
-        assertTrue(blockingIO.writeStarted.await(5, TimeUnit.SECONDS),
+        // Settle barrier (mirrors the #354 terminal-metric pattern): the drain
+        // runs on the lazily-created static writer thread after the 50ms
+        // debounce, so on a loaded CI box it can take far longer than 5s to
+        // reach the write. Await generously — once writeStarted fires the
+        // drain is deterministically blocked holding the single writer thread
+        // and every subsequent step is race-free.
+        assertTrue(blockingIO.writeStarted.await(GENEROUS_AWAIT_SECONDS, TimeUnit.SECONDS),
                 "drain must reach the file write before the sync save");
 
         CountDownLatch syncDone = new CountDownLatch(1);
@@ -83,8 +99,15 @@ class SkinSyncAsyncOrderTest {
             // single writer thread (FIFO), so the sync save cannot complete
             // until the blocked drain write has landed.
             boolean completedWhileDrainBlocked = syncDone.await(2, TimeUnit.SECONDS);
+            // Non-race assertion: the sync save is submitted to the same single
+            // writer thread the drain is blocked on, so it cannot complete while
+            // the drain holds the thread. The 2s probe is a deterministic
+            // negative check, not a timing bet — a regression (direct write on
+            // the caller thread) completes instantly and fails here.
+            assertFalse(completedWhileDrainBlocked,
+                    "sync save must be FIFO-ordered behind the in-flight drain write");
             blockingIO.releaseWrite.countDown();
-            sync.get(5, TimeUnit.SECONDS);
+            sync.get(GENEROUS_AWAIT_SECONDS, TimeUnit.SECONDS);
             blockingStorage.flushPending();
 
             String disk = new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
@@ -121,7 +144,7 @@ class SkinSyncAsyncOrderTest {
         void saveSkin(UUID uuid, byte[] payload) {
             writeStarted.countDown();
             try {
-                if (!releaseWrite.await(5, TimeUnit.SECONDS)) {
+                if (!releaseWrite.await(GENEROUS_AWAIT_SECONDS, TimeUnit.SECONDS)) {
                     throw new IllegalStateException("test latch not released in time");
                 }
             } catch (InterruptedException e) {

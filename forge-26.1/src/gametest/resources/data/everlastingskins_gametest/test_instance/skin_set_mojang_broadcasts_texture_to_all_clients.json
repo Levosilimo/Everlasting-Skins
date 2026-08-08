@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_set_mojang_broadcasts_texture_to_all_clients",
+  "environment": "everlastingskins_gametest:skin_set_mojang_broadcasts_texture_to_all_clients",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

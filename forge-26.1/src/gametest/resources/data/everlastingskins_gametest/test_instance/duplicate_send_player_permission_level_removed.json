@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:duplicate_send_player_permission_level_removed",
+  "environment": "everlastingskins_gametest:duplicate_send_player_permission_level_removed",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

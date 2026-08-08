@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:debounced_request_keeps_stored_equal_to_applied",
+  "environment": "everlastingskins_gametest:debounced_request_keeps_stored_equal_to_applied",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}
