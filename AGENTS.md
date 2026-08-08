@@ -203,19 +203,19 @@ bash scripts/gradle-health.sh  # dep-hygiene sweep (manual; per-consumer :projec
 ```
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
-`:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build,
-`E2E (mc1.12.2)` stub, and out-of-band `Build (forge-1.8.9)` /
-`Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.7.10)`
-lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8). Treat the matrix as
-authoritative for what is
-buildable in CI.
+`:common` + the four 1.21.x modules + forge-26.2 (`Build (26.2)`, Java 25),
+plus the out-of-band mc1.12.2 build, `E2E (mc1.12.2)` stub, and out-of-band
+`Build (forge-1.8.9)` / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` /
+`Build (forge-1.7.10)` lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8).
+Treat the matrix as authoritative for what is buildable in CI.
 
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), the 1.21.1 / 1.21.4 / 1.21.8 point releases
 (post-#278 / #280 / #281), forge-26.2 (Java 25, unobfuscated MC,
 EventBus 7; data-driven GameTest green), forge-26.1 (Java 25, unobfuscated
-MC, EventBus 7.0.1), and forge-1.7.10 (GTNH FG 1.2.11 +
-MCP stable_12; 48 unit tests, JUnit 4).
+MC, EventBus 7.0.1), forge-1.7.10 (GTNH FG 1.2.11 +
+MCP stable_12; 48 unit tests, JUnit 4), and forge-1.8.9 (post-#311,
+Gradle 4.10.3 / Java 8 / MCP stable_20).
 
 ### Fail-fast hooks
 
@@ -398,3 +398,25 @@ its CI). For multi-lane expansions with cross-lane required contexts, use
 the temporary-relax-then-restore dance documented in FINAL-REPORT.md
 under "Post-Merge Deadlock Resolution".
 
+
+### Publishing workflow
+
+`.github/workflows/publish.yml` (`Publish`) is the release pipeline — it is
+tag-triggered (`on: push: tags:`), NOT branch-triggered. Tag prefixes route to
+their module: `mc1.21-v*` / `mc1.21.1-v*` / `mc1.21.4-v*` / `mc1.21.8-v*`
+(the four 1.21.x point releases), `mc26.2-v*` (colloquial '26.2', dropping
+the leading '1.' — the Forge 65.x line naming), plus the out-of-band lanes
+`mc1.12.2-v*` / `mc1.8.9-v*` / `mc1.16.5-v*` / `mc1.20.1-v*` / `mc1.7.10-v*`.
+NeoForge is intentionally absent (no `mcneoforge` lane).
+
+Each publish job is a per-prefix matrix entry (`prefix` → Gradle subproject →
+game version → Java) using the pinned `Kira-NT/mc-publish` v3 action to upload
+to CurseForge + Modrinth + GitHub Releases (secrets `CURSEFORGE_TOKEN`,
+`MODRINTH_TOKEN`, `GITHUB_TOKEN`). Two hard-won constraints from the #356
+fix: the tag gate lives on the **steps** (`if: startsWith(github.ref_name,
+matrix.prefix)`), not on `jobs.<job_id>.if` — GitHub's context-availability
+table excludes `matrix` from job-level `if`, and a matrix ref there rejects
+the whole file at registration; and the workflow declares top-level
+`permissions: contents: write` (the releases:write fix) so the action may
+create GitHub Releases. Change it only with a dry-run of the mc-publish action
+in mind; a broken publish.yml blocks ALL tag releases, not just one lane.
