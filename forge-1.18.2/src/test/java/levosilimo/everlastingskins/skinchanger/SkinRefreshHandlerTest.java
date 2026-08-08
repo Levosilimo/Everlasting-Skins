@@ -21,17 +21,15 @@ import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientboundBundlePacket;
 import net.minecraft.network.protocol.game.ClientboundChangeDifficultyPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerAbilitiesPacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.SharedConstants;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
@@ -125,11 +123,16 @@ class SkinRefreshHandlerTest {
             Field bootstrapFlag = Bootstrap.class.getDeclaredField("isBootstrapped");
             bootstrapFlag.setAccessible(true);
             bootstrapFlag.setBoolean(null, true);
-            // 1.20.1 delta: the flag alone is not enough — Registries and
-            // BuiltInRegistries have circular <clinit>s (verified against the
-            // 47.4.10 bytecode); initialize BuiltInRegistries first so its
-            // ROOT_REGISTRY_NAME is assigned before Registries reads it.
-            Class.forName("net.minecraft.core.registries.BuiltInRegistries");
+            // 1.18.2 delta: the flag alone is not enough — Registries has a
+            // circular <clinit> (verified against the
+            // 40.3.0 bytecode); initialize Registry first so its
+            // ROOT_REGISTRY_NAME is assigned before the registry map reads it.
+            // 1.18.2 delta: CURRENT_VERSION is only set by
+            // SharedConstants.tryDetectVersion() (called from the vanilla
+            // server main), which DataFixers.<clinit> needs; without it
+            // Registry bootstrap throws "Game version not set".
+            SharedConstants.tryDetectVersion();
+            Class.forName("net.minecraft.core.Registry");
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -521,13 +524,11 @@ class SkinRefreshHandlerTest {
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getUUID()).thenReturn(uuid);
         when(player.getGameProfile()).thenReturn(new GameProfile(uuid, name));
-        when(player.level()).thenReturn(level);
-        // The 51.0.8-compatible cascade reads the level through
-        // ServerPlayer.serverLevel() (Entity.level() is typed Level), so the
-        // mock must stub the ServerLevel-typed accessor as well; without it
-        // the respawn spawnInfo and sendLevelInfo seams receive null and the
-        // cascade stream stays empty.
-        when(player.serverLevel()).thenReturn(level);
+        // 1.18.2: the cascade reads the level through ServerPlayer.getLevel()
+        // (no Entity.level()/serverLevel() accessors), so stub the covariant
+        // ServerLevel-typed accessor; without it the respawn spawnInfo and
+        // sendLevelInfo seams receive null and the cascade stream stays empty.
+        when(player.getLevel()).thenReturn(level);
         when(player.position()).thenReturn(Vec3.ZERO);
         when(player.getYRot()).thenReturn(0f);
         when(player.getXRot()).thenReturn(0f);
@@ -537,7 +538,6 @@ class SkinRefreshHandlerTest {
         // left at Mockito defaults, the assertions are type-only.
         when(player.getActiveEffects()).thenReturn(Collections.emptyList());
         when(player.getTabListDisplayName()).thenReturn(null);
-        when(player.getChatSession()).thenReturn(null);
 
         // Field-backed state production reads directly (mock fields are null
         // because Mockito skips constructors).

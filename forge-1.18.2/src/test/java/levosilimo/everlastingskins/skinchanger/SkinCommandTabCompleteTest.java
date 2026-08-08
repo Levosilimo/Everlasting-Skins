@@ -20,6 +20,7 @@ import levosilimo.everlastingskins.util.CompletionSources;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.SharedConstants;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -59,11 +60,16 @@ class SkinCommandTabCompleteTest {
             Field bootstrapFlag = Bootstrap.class.getDeclaredField("isBootstrapped");
             bootstrapFlag.setAccessible(true);
             bootstrapFlag.setBoolean(null, true);
-            // 1.20.1 delta: the flag alone is not enough — Registries and
-            // BuiltInRegistries have circular <clinit>s (verified against the
-            // 47.4.10 bytecode); initialize BuiltInRegistries first so its
-            // ROOT_REGISTRY_NAME is assigned before Registries reads it.
-            Class.forName("net.minecraft.core.registries.BuiltInRegistries");
+            // 1.18.2 delta: the flag alone is not enough — Registries has a
+            // circular <clinit> (verified against the
+            // 40.3.0 bytecode); initialize Registry first so its
+            // ROOT_REGISTRY_NAME is assigned before the registry map reads it.
+            // 1.18.2 delta: CURRENT_VERSION is only set by
+            // SharedConstants.tryDetectVersion() (called from the vanilla
+            // server main), which DataFixers.<clinit> needs; without it
+            // Registry bootstrap throws "Game version not set".
+            SharedConstants.tryDetectVersion();
+            Class.forName("net.minecraft.core.Registry");
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -253,7 +259,9 @@ class SkinCommandTabCompleteTest {
         when(player.getServer()).thenReturn(server);
 
         CommandSourceStack source = mock(CommandSourceStack.class);
-        when(source.getPlayer()).thenReturn(player);
+        // 1.18.2 CommandSourceStack has no getPlayer(); the command reads
+        // getEntity() and casts, so the mock must stub the Entity accessor.
+        when(source.getEntity()).thenReturn(player);
         when(source.getOnlinePlayerNames()).thenReturn(ONLINE_PLAYERS);
         when(source.hasPermission(anyInt())).thenReturn(opLevel >= 2);
         return source;

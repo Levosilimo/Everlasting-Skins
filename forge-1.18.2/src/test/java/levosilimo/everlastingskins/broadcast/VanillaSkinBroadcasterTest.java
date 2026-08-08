@@ -14,11 +14,10 @@ import levosilimo.everlastingskins.permission.TestConfigSupport;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraft.core.Holder;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientboundBundlePacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.SharedConstants;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
@@ -78,11 +77,15 @@ class VanillaSkinBroadcasterTest {
             Field bootstrapFlag = Bootstrap.class.getDeclaredField("isBootstrapped");
             bootstrapFlag.setAccessible(true);
             bootstrapFlag.setBoolean(null, true);
-            // 1.20.1 delta: the flag alone is not enough — Registries and
-            // BuiltInRegistries have circular <clinit>s (verified against the
-            // 47.4.10 bytecode); initialize BuiltInRegistries first so its
-            // ROOT_REGISTRY_NAME is assigned before Registries reads it.
-            Class.forName("net.minecraft.core.registries.BuiltInRegistries");
+            // 1.18.2 delta: the flag alone is not enough — Registries has a
+            // circular <clinit> (verified against the 40.3.0 bytecode);
+            // initialize Registry first so its ROOT_REGISTRY_NAME is assigned
+            // before the registry map reads it. CURRENT_VERSION is only set by
+            // SharedConstants.tryDetectVersion() (called from the vanilla
+            // server main), which DataFixers.<clinit> needs; without it
+            // Registry bootstrap throws "Game version not set".
+            SharedConstants.tryDetectVersion();
+            Class.forName("net.minecraft.core.Registry");
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -164,7 +167,7 @@ class VanillaSkinBroadcasterTest {
             ResourceKey<Level> dim = inv.getArgument(1);
             globalSink.add(packet);
             for (ServerPlayer onlinePlayer : online) {
-                if (onlinePlayer.level().dimension().equals(dim)) {
+                if (onlinePlayer.getLevel().dimension().equals(dim)) {
                     streamFor(onlinePlayer).add(packet);
                 }
             }
@@ -192,35 +195,25 @@ class VanillaSkinBroadcasterTest {
         broadcaster.broadcastProfileChange(target.getGameProfile(), target);
 
         assertEquals(2, globalSink.size(), "exactly one REMOVE + one ADD");
-        assertTrue(globalSink.get(0) instanceof ClientboundPlayerInfoRemovePacket,
+        assertTrue(isRemove(globalSink.get(0)),
             "first broadcast must be REMOVE; sink=" + globalSink);
-        assertTrue(globalSink.get(1) instanceof ClientboundPlayerInfoUpdatePacket,
+        assertTrue(isAdd(globalSink.get(1)),
             "second broadcast must be ADD; sink=" + globalSink);
-        int removeIdx = indexOfType(targetStream, ClientboundPlayerInfoRemovePacket.class);
-        int addIdx = indexOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class);
+        int removeIdx = indexOfAction(targetStream, ClientboundPlayerInfoPacket.Action.REMOVE_PLAYER);
+        int addIdx = indexOfAction(targetStream, ClientboundPlayerInfoPacket.Action.ADD_PLAYER);
         assertTrue(removeIdx >= 0 && addIdx == removeIdx + 1,
             "REMOVE+ADD must be neighbors in the captured stream; stream=" + targetStream);
     }
 
     @Test
-    @DisplayName("Bundle mode: REMOVE+ADD travel inside one ClientboundBundlePacket (atomicity)")
+    @DisplayName("Bundle mode is a no-op on 1.18.2 (no ClientboundBundlePacket): REMOVE+ADD travel un-bundled")
     void bundleAtomicity_removeAddInSingleBundle() {
         Config.BROADCAST_USE_BUNDLE.set(true);
         broadcaster.broadcastProfileChange(target.getGameProfile(), target);
 
-        List<ClientboundBundlePacket> bundles = filterType(targetStream, ClientboundBundlePacket.class);
-        assertEquals(1, bundles.size(), "exactly one bundle expected; stream=" + targetStream);
-        List<Packet<?>> inner = new ArrayList<>();
-        bundles.get(0).subPackets().forEach(inner::add);
-        assertEquals(2, inner.size(), "bundle must contain exactly REMOVE+ADD; inner=" + inner);
-        assertTrue(inner.get(0) instanceof ClientboundPlayerInfoRemovePacket,
-            "bundle[0] must be REMOVE; inner=" + inner);
-        assertTrue(inner.get(1) instanceof ClientboundPlayerInfoUpdatePacket,
-            "bundle[1] must be ADD; inner=" + inner);
-        assertEquals(0, countOfType(targetStream, ClientboundPlayerInfoRemovePacket.class),
-            "no standalone REMOVE outside the bundle");
-        assertEquals(0, countOfType(targetStream, ClientboundPlayerInfoUpdatePacket.class),
-            "no standalone ADD outside the bundle");
+        assertEquals(2, targetStream.size(), "exactly one REMOVE + one ADD; stream=" + targetStream);
+        assertTrue(isRemove(targetStream.get(0)), "first must be REMOVE; stream=" + targetStream);
+        assertTrue(isAdd(targetStream.get(1)), "second must be ADD; stream=" + targetStream);
     }
 
     @Test
@@ -281,8 +274,8 @@ class VanillaSkinBroadcasterTest {
 
         assertEquals(0, netherStream.size(),
             "nether observer must receive nothing; stream=" + netherStream);
-        assertEquals(1, countOfType(observer1Stream, ClientboundBundlePacket.class),
-            "observer1 must receive the bundle; stream=" + observer1Stream);
+        assertEquals(2, countOfType(observer1Stream, ClientboundPlayerInfoPacket.class),
+            "observer1 must receive the REMOVE+ADD pair; stream=" + observer1Stream);
     }
 
     /* ================================================================== */
@@ -333,15 +326,15 @@ class VanillaSkinBroadcasterTest {
             new Property("textures", TEXTURE_VALUE, TEXTURE_SIGNATURE));
         broadcaster.broadcastProfileChange(target.getGameProfile(), target);
 
-        ClientboundPlayerInfoUpdatePacket add = filterType(targetStream, ClientboundPlayerInfoUpdatePacket.class)
+        ClientboundPlayerInfoPacket add = filterType(targetStream, ClientboundPlayerInfoPacket.class)
             .stream()
-            .filter(p -> p.actions().contains(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER))
+            .filter(p -> p.getAction() == ClientboundPlayerInfoPacket.Action.ADD_PLAYER)
             .findFirst()
             .orElse(null);
         assertNotNull(add, "ADD packet missing from stream=" + targetStream);
-        boolean hasTexture = add.entries().stream()
-            .anyMatch(e -> e.profile() != null
-                && e.profile().getProperties().get("textures").stream()
+        boolean hasTexture = add.getEntries().stream()
+            .anyMatch(e -> e.getProfile() != null
+                && e.getProfile().getProperties().get("textures").stream()
                     .anyMatch(prop -> TEXTURE_VALUE.equals(prop.getValue())));
         assertTrue(hasTexture, "ADD packet must carry the textures property");
     }
@@ -355,18 +348,16 @@ class VanillaSkinBroadcasterTest {
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getUUID()).thenReturn(uuid);
         when(player.getGameProfile()).thenReturn(new GameProfile(uuid, name));
-        when(player.level()).thenReturn(level);
-        // The 51.0.8-compatible broadcaster reads the level through
-        // ServerPlayer.serverLevel() (Entity.level() is typed Level), so the
-        // mock must stub the ServerLevel-typed accessor as well.
-        when(player.serverLevel()).thenReturn(level);
+        // 1.18.2: the broadcaster reads the level through ServerPlayer.getLevel()
+        // (no Entity.level()/serverLevel() accessors), so stub the covariant
+        // ServerLevel-typed accessor.
+        when(player.getLevel()).thenReturn(level);
         when(player.getTabListDisplayName()).thenReturn(null);
-        when(player.getChatSession()).thenReturn(null);
         ServerGamePacketListenerImpl connection = mock(ServerGamePacketListenerImpl.class);
         setField(player, "connection", connection);
         when(player.getServer()).thenReturn(server);
-        // ClientboundPlayerInfoUpdatePacket's Entry constructor reads
-        // p_252094_.gameMode.getGameModeForPlayer(); field-back it with a
+        // ClientboundPlayerInfoPacket's ADD entry reads
+        // player.gameMode.getGameModeForPlayer(); field-back it with a
         // mock that returns SURVIVAL.
         ServerPlayerGameMode gameMode = mock(ServerPlayerGameMode.class);
         when(gameMode.getGameModeForPlayer()).thenReturn(GameType.SURVIVAL);
@@ -392,6 +383,25 @@ class VanillaSkinBroadcasterTest {
         ServerLevel level = mock(ServerLevel.class);
         when(level.dimension()).thenReturn(dimension);
         return level;
+    }
+
+    private static boolean isRemove(Object packet) {
+        return packet instanceof ClientboundPlayerInfoPacket info
+                && info.getAction() == ClientboundPlayerInfoPacket.Action.REMOVE_PLAYER;
+    }
+
+    private static boolean isAdd(Object packet) {
+        return packet instanceof ClientboundPlayerInfoPacket info
+                && info.getAction() == ClientboundPlayerInfoPacket.Action.ADD_PLAYER;
+    }
+
+    private static int indexOfAction(List<?> events, ClientboundPlayerInfoPacket.Action action) {
+        for (int i = 0; i < events.size(); i++) {
+            if (events.get(i) instanceof ClientboundPlayerInfoPacket info && info.getAction() == action) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static int indexOfType(List<?> events, Class<?> type) {
