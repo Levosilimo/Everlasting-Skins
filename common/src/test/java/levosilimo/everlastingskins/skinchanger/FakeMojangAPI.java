@@ -6,35 +6,55 @@
 
 package levosilimo.everlastingskins.skinchanger;
 
+import levosilimo.everlastingskins.skinchanger.MojangAPI;
+import levosilimo.everlastingskins.skinchanger.ProfileLookup;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 
-import java.util.HashMap;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 
 /**
- * Deterministic {@link MojangAPI} fake for unit tests. Was a nested class of
- * the per-version {@code SkinCommandTest}; promoted to a top-level
- * test-support class in the common module.
+ * Deterministic Mojang API stub. {@code getSkin} resolves only names registered
+ * via {@link #addSkin} and counts lookups so async tests can await completion.
  */
-class FakeMojangAPI implements MojangAPI {
+public class FakeMojangAPI implements MojangAPI {
 
-    final Map<String, CustomSkinProperty> skins = new HashMap<String, CustomSkinProperty>();
+    private final Map<String, CustomSkinProperty> skins = new ConcurrentHashMap<String, CustomSkinProperty>();
+    private final Map<String, Integer> lookups = new ConcurrentHashMap<String, Integer>();
 
-    void addSkin(String name, CustomSkinProperty skin) {
+    public FakeMojangAPI(CustomSkinProperty... fixtures) {
+        for (CustomSkinProperty skin : fixtures) {
+            if (skin.getSource() != null) {
+                addSkin(skin.getSource(), skin);
+            }
+        }
+    }
+
+    public FakeMojangAPI addSkin(String name, CustomSkinProperty skin) {
         skins.put(name.toLowerCase(Locale.ROOT), skin);
+        return this;
+    }
+
+    public int lookupCount(String name) {
+        Integer count = lookups.get(name.toLowerCase(Locale.ROOT));
+        return count != null ? count : 0;
     }
 
     @Override
     public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
-        CustomSkinProperty skin = skins.get(nameOrUniqueId.toLowerCase(Locale.ROOT));
+        String key = nameOrUniqueId.toLowerCase(Locale.ROOT);
+        lookups.merge(key, 1, Integer::sum);
+        CustomSkinProperty skin = skins.get(key);
         if (skin == null) {
             return Optional.empty();
         }
-        return Optional.of(new MojangSkinDataResult(UUID.randomUUID(), skin));
+        UUID uuid = UUID.nameUUIDFromBytes(nameOrUniqueId.getBytes(StandardCharsets.UTF_8));
+        return Optional.of(new MojangSkinDataResult(uuid, skin));
     }
 
     @Override

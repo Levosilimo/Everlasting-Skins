@@ -6,6 +6,7 @@
 
 package levosilimo.everlastingskins.integration;
 
+import levosilimo.everlastingskins.skinchanger.FakeMojangAPI;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.PacketLog;
