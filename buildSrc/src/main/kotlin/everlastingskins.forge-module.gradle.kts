@@ -121,6 +121,14 @@ sourceSets {
     create("gametest") {
         compileClasspath += sourceSets.main.get().output
         runtimeClasspath += output + sourceSets.main.get().output
+        // Shared GameTest helper (lib-47 packet-arrival flake): PacketAssert
+        // lives in its own package dir under forge-test-shared so this share
+        // pulls in only version-independent classes. It imports only
+        // net.minecraft.gametest.framework.* (stable across 1.21.x and 26.2)
+        // — unlike I18nUtilsTest/ConfigTest it has no forge21.* imports, so
+        // the share is NOT gated on minecraft.unobfuscated like the test
+        // source-set share below.
+        java.srcDir("$rootDir/forge-test-shared/src/test/java/levosilimo/everlastingskins/gametest")
     }
     // Shared LuckPerms API test stubs live in :common's test source-set
     // (canonical copy; the forge lanes deleted their duplicates).

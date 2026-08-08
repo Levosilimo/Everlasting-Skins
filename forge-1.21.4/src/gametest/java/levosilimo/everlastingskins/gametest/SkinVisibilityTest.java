@@ -1537,7 +1537,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", batch = "skinSet_selfReceivesBroadcast", timeoutTicks = 200)
+    @GameTest(template = "everlastingskins:empty", batch = "skinSet_selfReceivesBroadcast", timeoutTicks = 60000)
     public void skinSet_selfReceivesBroadcast(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1545,6 +1545,13 @@ public class SkinVisibilityTest {
         ServerPlayer playerA = mockPlayer(helper, "SelfRecvPlayer");
         makeOp(playerA);
         UUID playerId = playerA.getUUID();
+
+        // Real-time budget for the async pipeline — see
+        // ASYNC_PIPELINE_DEADLINE_NANOS. timeoutTicks=60000 above is only a
+        // backstop; the deadline below is the actual bound (lib-47: the tick
+        // budget alone raced the broadcast on loaded CI runners).
+        PacketAssert.Deadline packetDeadline =
+                PacketAssert.deadline(TimeUnit.NANOSECONDS.toMillis(ASYNC_PIPELINE_DEADLINE_NANOS));
 
         try {
             placePlayer(helper, playerA);
@@ -1555,15 +1562,22 @@ public class SkinVisibilityTest {
             helper.assertTrue(result == 1, "command should report 1 target, got " + result);
 
             helper.succeedWhen(() -> {
+                PacketAssert.checkDeadline(helper, packetDeadline, "self-reception broadcast");
                 CustomSkinProperty stored = storage.getSkin(playerId);
                 if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
                     throw new GameTestAssertException("waiting for source=" + SkinActionCommand.SOURCE_MOJANG + " (got "
                             + (stored == null ? "null" : stored.getSource()) + ")");
                 }
-                long selfCount = countAddPlayerUpdatesWithTextures(drain(playerA), playerId);
-                if (selfCount < 1) {
-                    throw new GameTestAssertException("target player must receive at least 1 ADD_PLAYER (self-reception), got " + selfCount);
-                }
+                // Packet-arrival phase: retry every tick while the deadline
+                // holds; fail at the deadline instead of racing the tick
+                // budget (lib-47: transient "got 0" surfaced as the failure
+                // when the 200-tick budget ran out on loaded runners).
+                PacketAssert.assertEventually(helper, packetDeadline, () -> {
+                    long selfCount = countAddPlayerUpdatesWithTextures(drain(playerA), playerId);
+                    if (selfCount < 1) {
+                        throw new GameTestAssertException("target player must receive at least 1 ADD_PLAYER (self-reception), got " + selfCount);
+                    }
+                });
                 removeQuietly(server, playerA);
             });
         } catch (RuntimeException e) {
