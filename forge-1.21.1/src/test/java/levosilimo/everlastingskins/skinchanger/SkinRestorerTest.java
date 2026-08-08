@@ -7,12 +7,14 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
+import com.mojang.authlib.properties.Property;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,7 +25,9 @@ import org.junit.jupiter.api.io.TempDir;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -165,6 +169,189 @@ class SkinRestorerTest {
             // Restore the wired state: JUnit does not guarantee nested-class
             // order, and sibling tests read the static through storage().
             restorer.onInitializeServer(TestForgeEvents.newServerStartingEvent(server));
+        }
+    }
+
+    // ======================================================================
+    //  Player login  (onPlayerLoggedIn — real handler, synchronous branch)
+    // ======================================================================
+
+    @Nested
+    @DisplayName("onPlayerLoggedIn — stored skin applied through the real handler")
+    class PlayerLogin {
+
+        @Test
+        @DisplayName("Stored custom skin is applied to the GameProfile (synchronous branch)")
+        void appliesStoredSkinToProfile() {
+            CustomSkinProperty stored = new CustomSkinProperty("login-val", "login-sig", "login");
+            storage().setSkin(testUuid, stored);
+            ServerPlayer player = TestForgeEvents.mockPlayer(testUuid, "Alice");
+
+            restorer.onPlayerLoggedIn(TestForgeEvents.newPlayerLoggedInEvent(player));
+
+            Collection<Property> textures = player.getGameProfile().getProperties().get("textures");
+            assertEquals(1, textures.size(), "exactly one textures property after apply");
+            assertEquals(stored.getOriginalProperty(), textures.iterator().next(),
+                    "the applied property must equal the stored skin");
+        }
+
+        @Test
+        @DisplayName("Skin property is non-null and non-empty when skin file exists")
+        void skinPropertyReadyForProfile() {
+            // Value must be valid base64: SkinIO.loadSkin drops records that
+            // fail CustomSkinProperty.isValid() (corrupt values never reach
+            // the profile).
+            skinIO.saveSkin(testUuid, new CustomSkinProperty("cHJvZmlsZS12YWw=", "profile-sig", "profile"));
+
+            CustomSkinProperty skin = storage().getSkin(testUuid);
+
+            assertNotNull(skin);
+            assertNotNull(skin.getOriginalProperty());
+            assertNotNull(skin.getOriginalProperty().value());
+            assertFalse(skin.getOriginalProperty().value().isEmpty());
+            assertNotNull(skin.getOriginalProperty().signature());
+        }
+
+        @Test
+        @DisplayName("No stored skin leaves hasDefaultSkin() true")
+        void noSkinDefaults() {
+            assertTrue(storage().hasDefaultSkin(testUuid));
+        }
+    }
+
+    // ======================================================================
+    //  Player logout  (onPlayerLoggedOut — real handler)
+    // ======================================================================
+
+    @Nested
+    @DisplayName("onPlayerLoggedOut — cached skin saved through the real handler")
+    class PlayerLogout {
+
+        @Test
+        @DisplayName("Cached skin is written to disk on logout")
+        void savesCachedSkinToDisk() {
+            storage().setSkin(testUuid, new CustomSkinProperty("logout-val", "logout-sig", "logout"));
+            assertNotNull(storage().getSkin(testUuid), "skin must be cached before logout");
+
+            restorer.onPlayerLoggedOut(TestForgeEvents.newPlayerLoggedOutEvent(
+                    TestForgeEvents.mockPlayer(testUuid, "Alice")));
+
+            assertTrue(Files.exists(skinDir.resolve(testUuid + ".json")),
+                    "logout must persist the cached skin to disk");
+        }
+
+        @Test
+        @DisplayName("Noop when player has no cached skin")
+        void noopForUncachedPlayer() {
+            restorer.onPlayerLoggedOut(TestForgeEvents.newPlayerLoggedOutEvent(
+                    TestForgeEvents.mockPlayer(testUuid, "Alice")));
+
+            assertTrue(storage().hasDefaultSkin(testUuid));
+            assertFalse(Files.exists(skinDir.resolve(testUuid + ".json")),
+                    "no skin file may appear for an uncached player");
+        }
+
+        @Test
+        @DisplayName("Repeated logouts overwrite the same file")
+        void overwritesOnRepeatedLogout() {
+            storage().setSkin(testUuid, new CustomSkinProperty("first", "sig1", "src1"));
+            restorer.onPlayerLoggedOut(TestForgeEvents.newPlayerLoggedOutEvent(
+                    TestForgeEvents.mockPlayer(testUuid, "Alice")));
+            storage().setSkin(testUuid, new CustomSkinProperty("second", "sig2", "src2"));
+            restorer.onPlayerLoggedOut(TestForgeEvents.newPlayerLoggedOutEvent(
+                    TestForgeEvents.mockPlayer(testUuid, "Alice")));
+
+            CustomSkinProperty reloaded = skinIO.loadSkin(testUuid);
+            assertNotNull(reloaded);
+            assertEquals("second", reloaded.getOriginalProperty().value());
+        }
+    }
+
+    // ======================================================================
+    //  Server stopping  (onServerStopping — real handler)
+    // ======================================================================
+
+    @Nested
+    @DisplayName("onServerStopping — bulk save through the real handler")
+    class ServerStopping {
+
+        @Test
+        @DisplayName("All cached skins of online players are saved to disk")
+        void savesAllCachedSkins() {
+            UUID uuid1 = UUID.randomUUID();
+            UUID uuid2 = UUID.randomUUID();
+            storage().setSkin(uuid1, new CustomSkinProperty("sv1", "ssig1", "src1"));
+            storage().setSkin(uuid2, new CustomSkinProperty("sv2", "ssig2", "src2"));
+
+            driveStopping(List.of(TestForgeEvents.mockPlayer(uuid1, "A"),
+                    TestForgeEvents.mockPlayer(uuid2, "B")));
+
+            assertTrue(Files.exists(skinDir.resolve(uuid1 + ".json")));
+            assertTrue(Files.exists(skinDir.resolve(uuid2 + ".json")));
+        }
+
+        @Test
+        @DisplayName("Noop when no players are online")
+        void noopWhenEmpty() {
+            driveStopping(List.of());
+
+            try (var stream = Files.list(skinDir)) {
+                assertEquals(0, stream.count(), "no files may appear with an empty player list");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Test
+        @DisplayName("Partially-cached players persist independently")
+        void partialSave() {
+            UUID uuidA = UUID.randomUUID();
+            UUID uuidB = UUID.randomUUID();
+            storage().setSkin(uuidA, new CustomSkinProperty("a-val", "a-sig", "a"));
+
+            driveStopping(List.of(TestForgeEvents.mockPlayer(uuidA, "A"),
+                    TestForgeEvents.mockPlayer(uuidB, "B")));
+
+            assertTrue(Files.exists(skinDir.resolve(uuidA + ".json")));
+            assertFalse(Files.exists(skinDir.resolve(uuidB + ".json")));
+        }
+
+        /** Stubs the handler's static server with the online roster, then drives the handler. */
+        private void driveStopping(List<ServerPlayer> online) {
+            SkinRestorer.server = TestForgeEvents.mockServer(tempDir, online);
+            restorer.onServerStopping(TestForgeEvents.newServerStoppingEvent(server));
+        }
+    }
+
+    // ======================================================================
+    //  Edge cases
+    // ======================================================================
+
+    @Nested
+    @DisplayName("Edge cases — empty / null skin handling")
+    class EdgeCases {
+
+        @Test
+        @DisplayName("Null skin set removes from cache and disk")
+        void nullSkinRemoves() {
+            storage().setSkin(testUuid, new CustomSkinProperty("val", "sig", "src"));
+            storage().saveSkin(testUuid);
+            assertTrue(Files.exists(skinDir.resolve(testUuid + ".json")));
+
+            storage().setSkin(testUuid, null);
+
+            assertNull(storage().getSkin(testUuid));
+            assertFalse(Files.exists(skinDir.resolve(testUuid + ".json")));
+        }
+
+        @Test
+        @DisplayName("Empty skin value treated as absent (not applied)")
+        void emptySkinNotApplied() {
+            var empty = new CustomSkinProperty("textures", "", "", "stub");
+            storage().setSkin(testUuid, empty);
+
+            assertTrue(empty.isEmpty());
+            assertTrue(storage().hasDefaultSkin(testUuid));
         }
     }
 }
