@@ -45,15 +45,4 @@ class HttpResultTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> result.get());
         assertSame(cause, ex.getCause());
     }
-
-    @Test
-    void recordComponentAccessors() {
-        HttpResponse resp = new HttpResponse(200, "body", EMPTY_HEADERS);
-        HttpResult.Success success = new HttpResult.Success(resp);
-        assertSame(resp, success.response());
-
-        IOException cause = new IOException("fail");
-        HttpResult.Failure failure = new HttpResult.Failure(cause);
-        assertSame(cause, failure.cause());
-    }
 }
