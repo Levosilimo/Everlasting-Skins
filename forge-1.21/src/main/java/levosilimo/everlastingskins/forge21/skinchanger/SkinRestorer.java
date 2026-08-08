@@ -46,6 +46,18 @@ public class SkinRestorer {
         return t;
     });
 
+    /**
+     * Test seam: overrides the login executor so the default-skin login work can
+     * be driven synchronously/awaitably in tests (e.g. Runnable::run). The
+     * production default is untouched unless called. Public because the test
+     * source-set lives in package levosilimo.everlastingskins.skinchanger, not
+     * forge21.skinchanger.
+     */
+    @VisibleForTesting
+    public static void setLoginExecutorForTest(ExecutorService executor) {
+        loginExecutor = executor;
+    }
+
     @Nullable
     public static SkinStorage getSkinStorage() {
         return skinStorage;
