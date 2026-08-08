@@ -25,7 +25,7 @@ class SkinMetricsTest {
     @DisplayName("recordRefreshStarted increments the initiated counter")
     void recordRefreshStarted_incrementsCounter() {
         SkinMetrics m = freshMetrics();
-        UUID uuid = UUID.randomUUID();
+        UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
         m.recordRefreshStarted(uuid);
         m.recordRefreshStarted(uuid);
@@ -38,7 +38,7 @@ class SkinMetricsTest {
     @DisplayName("recordRefreshCompleted populates histograms and per-player state")
     void recordRefreshCompleted_populatesAllHistograms() {
         SkinMetrics m = freshMetrics();
-        UUID uuid = UUID.randomUUID();
+        UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
         m.recordRefreshCompleted(uuid, System.nanoTime(), 1_000_000L, 200_000L, 500_000L);
 
@@ -60,7 +60,7 @@ class SkinMetricsTest {
         // Buckets: 1, 5, 10, 50, 100, 500us ... (see LATENCY_BUCKETS_US).
         // Record 10 samples of 100us each and 10 samples of 500us each.
         SkinMetrics m = freshMetrics();
-        UUID uuid = UUID.randomUUID();
+        UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000003");
         long start = System.nanoTime();
         for (int i = 0; i < 10; i++) {
             m.recordRefreshCompleted(uuid, start, 100_000L, 0, 0);
@@ -82,7 +82,7 @@ class SkinMetricsTest {
     @DisplayName("snapshot is readable under concurrent recording")
     void snapshot_isThreadSafe() {
         SkinMetrics m = freshMetrics();
-        UUID uuid = UUID.randomUUID();
+        UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000004");
         Thread[] threads = new Thread[8];
         for (int t = 0; t < threads.length; t++) {
             threads[t] = new Thread(() -> {
@@ -111,7 +111,7 @@ class SkinMetricsTest {
     @DisplayName("skipped/debounced/rate-limited use separate counters")
     void recordRefreshSkippedDebouncedRateLimited_separateCounters() {
         SkinMetrics m = freshMetrics();
-        UUID uuid = UUID.randomUUID();
+        UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000005");
 
         m.recordRefreshSkipped(uuid);
         m.recordRefreshSkipped(uuid);
@@ -130,7 +130,7 @@ class SkinMetricsTest {
     @DisplayName("reset zeroes all counters and histograms")
     void reset_zerosAllCountersAndHistograms() {
         SkinMetrics m = freshMetrics();
-        UUID uuid = UUID.randomUUID();
+        UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000006");
 
         m.recordRefreshStarted(uuid);
         m.recordRefreshCompleted(uuid, System.nanoTime(), 1_000_000L, 200_000L, 500_000L);
@@ -177,7 +177,7 @@ class SkinMetricsTest {
     @DisplayName("command total and task duration latencies are separate histograms")
     void commandTotalLatency_andTaskDuration_areSeparate() {
         SkinMetrics m = freshMetrics();
-        UUID uuid = UUID.randomUUID();
+        UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000007");
 
         m.recordRefreshCompleted(uuid, System.nanoTime(), 100_000L, 0, 0);  // sub-ms command span
         m.recordTaskDuration(TimeUnit.MILLISECONDS.toNanos(200));           // 200ms task
@@ -192,7 +192,7 @@ class SkinMetricsTest {
     @DisplayName("timed-out refreshes count separately from failures")
     void recordTimedOut_separateFromFailed() {
         SkinMetrics m = freshMetrics();
-        UUID uuid = UUID.randomUUID();
+        UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000008");
 
         m.recordRefreshFailed(uuid);
         m.recordTimedOut(uuid);

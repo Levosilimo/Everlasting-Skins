@@ -303,7 +303,7 @@ class SkinIOPropertyTest {
                 try {
                     SkinIO io = new SkinIO(dir);
                     SkinStorage storage = new SkinStorage(io);
-                    UUID uuid = UUID.randomUUID();
+                    UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000101");
                     for (String value : burst) {
                         CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     }
@@ -339,7 +339,7 @@ class SkinIOPropertyTest {
                 try {
                     SkinIO io = new SkinIO(dir);
                     SkinStorage storage = new SkinStorage(io);
-                    UUID uuid = UUID.randomUUID();
+                    UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000102");
                     CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     storage.removeSkin(uuid);
                     storage.flushPending();
@@ -374,7 +374,7 @@ class SkinIOPropertyTest {
                 try {
                     BlockingSkinIO blockingIO = new BlockingSkinIO(dir);
                     SkinStorage storage = new SkinStorage(blockingIO);
-                    UUID uuid = UUID.randomUUID();
+                    UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000103");
                     Path target = dir.resolve(uuid + ".json");
 
                     CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
@@ -432,7 +432,7 @@ class SkinIOPropertyTest {
                 try {
                     SkinIO io = new SkinIO(dir);
                     SkinStorage storage = new SkinStorage(io);
-                    UUID uuid = UUID.randomUUID();
+                    UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000104");
                     CustomSkinProperty skin = new CustomSkinProperty(value, signature, source);
                     io.saveSkin(uuid, skin);
                     String serialized = JsonUtils.toJson(skin);
@@ -475,7 +475,7 @@ class SkinIOPropertyTest {
                 try {
                     SkinIO io = new SkinIO(dir);
                     SkinStorage storage = new SkinStorage(io);
-                    UUID uuid = UUID.randomUUID();
+                    UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000105");
                     CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     storage.removeSkin(uuid);
                     storage.flushPending();
@@ -554,7 +554,7 @@ class SkinIOPropertyTest {
                 try {
                     SkinIO io = new SkinIO(dir);
                     SkinStorage storage = new SkinStorage(io);
-                    UUID uuid = UUID.randomUUID();
+                    UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000106");
                     for (String value : values) {
                         CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, skin(value));
                     }
@@ -582,7 +582,7 @@ class SkinIOPropertyTest {
                 try {
                     SkinIO io = new SkinIO(dir);
                     SkinStorage storage = new SkinStorage(io);
-                    UUID uuid = UUID.randomUUID();
+                    UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000107");
                     CyclicBarrier start = new CyclicBarrier(2);
                     AtomicReference<Throwable> failure = new AtomicReference<>();
                     Thread threadA = new Thread(() -> {
