@@ -10,8 +10,10 @@ on:
       - 'mc1.21.1-v*'
       - 'mc1.21.4-v*'
       - 'mc1.21.8-v*'
-      # NOTE: mc26.2-v* drops the leading '1.' — MC 1.26.2 is colloquially
-      # '26.2' and the Forge 65.x line follows that naming (see PR body).
+      # NOTE: mc26.1-v* / mc26.2-v* drop the leading '1.' — MC 1.26.1 and
+      # 1.26.2 are colloquially '26.1'/'26.2' and the Forge 62.x / 65.x lines
+      # follow that naming (see PR body).
+      - 'mc26.1-v*'
       - 'mc26.2-v*'
       - 'mc1.12.2-v*'
       - 'mc1.8.9-v*'
@@ -53,6 +55,10 @@ jobs:
           - prefix: "mc26.2-v"
             module: forge-26.2
             game-version: "26.2"
+            java: "25"
+          - prefix: "mc26.1-v"
+            module: forge-26.1
+            game-version: "26.1"
             java: "25"
           # NOTE: mc1.20.1 / mc1.16.5 have NO matrix entries: since the FG
           # lane separation (PR #2xx) they are standalone builds with their
