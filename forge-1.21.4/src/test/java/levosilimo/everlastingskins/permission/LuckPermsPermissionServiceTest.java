@@ -13,12 +13,6 @@ import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.StubLuckPerms;
 import net.luckperms.api.StubUserManager;
 import net.luckperms.api.util.Tristate;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.PermissionData;
-import net.luckperms.api.User;
-import net.luckperms.api.UserManager;
-import net.luckperms.api.cacheddata.CachedPermissionData;
-import net.luckperms.api.query.QueryOptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,8 +24,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 class LuckPermsPermissionServiceTest {
 
