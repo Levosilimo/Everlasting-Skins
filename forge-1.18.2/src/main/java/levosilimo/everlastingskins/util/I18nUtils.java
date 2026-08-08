@@ -12,6 +12,7 @@ import com.google.gson.reflect.TypeToken;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.EverlastingSkins;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.ForgeConfigSpec;
 
@@ -209,12 +210,12 @@ public final class I18nUtils {
 
     /** {@link #get} wrapped in a plain text Component for command feedback. */
     public static Component getLocalizedComponent(String key, Object... args) {
-        return Component.literal(get(key, args));
+        return new TextComponent(get(key, args));
     }
 
     /** Per-player variant of {@link #get}. */
     public static Component getLocalizedComponent(String key, ServerPlayer player, Object... args) {
-        return Component.literal(formatMessage(key, player, args));
+        return new TextComponent(formatMessage(key, player, args));
     }
 
     /** Resolves a template for {@code player} and fills format args. */

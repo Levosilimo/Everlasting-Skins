@@ -106,7 +106,8 @@ public final class CompletionSources {
     }
 
     private static boolean hasResetPermission(CommandSourceStack source) {
-        ServerPlayer player = source == null ? null : source.getPlayer();
+        ServerPlayer player = source == null ? null
+                : (source.getEntity() instanceof ServerPlayer p ? p : null);
         if (player == null) return true; // console senders bypass the gate
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
         return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), METRICS_RESET_PERMISSION);
