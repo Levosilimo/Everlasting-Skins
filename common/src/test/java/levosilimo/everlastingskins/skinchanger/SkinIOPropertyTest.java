@@ -277,7 +277,7 @@ class SkinIOPropertyTest {
     }
 
     @Group
-    static class DrainIdempotence {
+    class DrainIdempotence {
 
         /**
          * Model: the drain latch and per-UUID coalescing guarantee at most one
@@ -322,7 +322,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    static class DeleteBeatsWrite {
+    class DeleteBeatsWrite {
 
         /**
          * Model: a delete is a tombstone that beats any earlier write, so a
@@ -411,7 +411,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    static class SerializeLoadRoundTrip {
+    class SerializeLoadRoundTrip {
 
         /**
          * Model: the wire format is the state, so serialize -> load ->
@@ -457,7 +457,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    static class RestartAfterDelete {
+    class RestartAfterDelete {
 
         /**
          * Model: a tombstone must survive a restart, so a fresh store over the
@@ -491,7 +491,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    static class ModelEquivalence {
+    class ModelEquivalence {
 
         /**
          * Model: the full specification. A random concurrent op script (async
@@ -538,7 +538,7 @@ class SkinIOPropertyTest {
 
 
     @Group
-    static class LatestWins {
+    class LatestWins {
 
         /**
          * Model: the map is latest-wins, so a sequence of async saves for one

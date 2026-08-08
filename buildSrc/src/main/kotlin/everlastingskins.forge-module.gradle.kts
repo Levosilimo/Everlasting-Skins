@@ -302,13 +302,13 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.3"))
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.3")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.10.3")
-    testImplementation("net.jqwik:jqwik-api:1.9.0")
+    testImplementation("net.jqwik:jqwik-api:1.9.3")
     testImplementation("me.clip:placeholderapi:2.12.3")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.12.0")
 
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.3")
-    testRuntimeOnly("net.jqwik:jqwik-engine:1.9.0")
+    testRuntimeOnly("net.jqwik:jqwik-engine:1.9.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
 
     "gametestImplementation"(sourceSets.main.get().output)
