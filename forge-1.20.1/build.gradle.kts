@@ -95,6 +95,9 @@ sourceSets {
         // Shared LuckPerms API test stubs live in :common's test
         // source-set (canonical copy; this lane deleted its duplicates).
         java.srcDir(projectDir.parentFile.resolve("common/src/test/java/net/luckperms"))
+        // Shared TestConfigSupport (P2-3): canonical copy in :common's
+        // permission test package; this lane's copy is deleted.
+        java.srcDir(projectDir.parentFile.resolve("common/src/test/java/levosilimo/everlastingskins/permission"))
     }
 }
 

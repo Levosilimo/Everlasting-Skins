@@ -25,6 +25,18 @@ java {
     // "obsolete options" warning.
 }
 
+// TestConfigSupport (P2-3) lives in this module's test tree as the canonical
+// copy for the forge lanes' selective srcDir share, but it is forge-bound
+// (nightconfig's CommentedConfig arrives on forge lane classpaths only):
+// :common itself must not compile it.
+sourceSets {
+    test {
+        java {
+            exclude("levosilimo/everlastingskins/permission/**")
+        }
+    }
+}
+
 repositories {
     mavenCentral()
     // com.mojang:authlib lives on Mojang's maven; both consumers already ship
