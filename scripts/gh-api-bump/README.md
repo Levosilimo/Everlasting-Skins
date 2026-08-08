@@ -8,7 +8,7 @@ required-check strings exactly.
 
 ## PATCH, not PUT
 
-All three scripts use PATCH. `gh api -X PUT` on
+All four scripts use PATCH. `gh api -X PUT` on
 `/branches/<branch>/protection/required_status_checks` returns 404 — the
 protection subresource is PATCH-only (verified empirically during the
 three-lane expansion deadlock-resolution sequence, 2026-08-06). `26.2.sh` and
@@ -26,6 +26,10 @@ The contract advances one lane at a time (12 -> 13 -> 14 -> ... -> N).
 | `26.2.sh` | `Build (26.2)`           | 12 (pre-forge-26.2 contract)          |
 | `1.8.9.sh`| `Build (forge-1.8.9)`    | 13 (after forge-26.2 merged)          |
 | `1.7.10.sh`| `Build (forge-1.7.10)`  | 14 (after forge-1.8.9 merged)         |
+| `CI-Health.sh` | `CI Health` | 15 (current main contract) |
+
+`CI-Health.sh` targets `main` only: `integration/m2-monorepo` was retired
+2026-08-07 (PR #314) and returns HTTP 404. It advances the contract 15 -> 16.
 
 ## Dead-state rules
 
