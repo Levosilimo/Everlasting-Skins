@@ -39,7 +39,7 @@ public class SkinRestorer {
     public static volatile MinecraftServer server;
 
     /** Off-login-thread executor for the default-skin Mojang restore fetch. */
-    private static final ExecutorService loginExecutor = Executors.newCachedThreadPool(r -> {
+    private static volatile ExecutorService loginExecutor = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "everlastingskins-login");
         t.setDaemon(true);
         return t;
