@@ -246,6 +246,10 @@ org.gradle.caching=true
 pre-push); `.githooks/` stays active until lefthook is installed and
 `core.hooksPath` unset.
 
+Fresh clones bootstrap lefthook with `bash scripts/setup-hooks.sh` (idempotent;
+verifies the binary + config, then runs `lefthook install --reset-hooks-path`
+to write `.git/hooks/` shims and clear `core.hooksPath`).
+
 ### Local CI validation with act
 
 Validate workflow syntax locally with [act](https://github.com/nektos/act);
