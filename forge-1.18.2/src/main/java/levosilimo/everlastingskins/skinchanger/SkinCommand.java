@@ -31,8 +31,8 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.command.EnumArgument;
 
@@ -91,22 +91,28 @@ public class SkinCommand {
     }
 
     private static boolean canUseMetrics(CommandSourceStack source) {
-        ServerPlayer player = source.getPlayer();
+        ServerPlayer player = getCommandPlayer(source);
         if (player == null) return false;
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
         return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.metrics");
     }
 
     private static boolean canTargetOthers(CommandSourceStack source) {
-        ServerPlayer player = source.getPlayer();
+        ServerPlayer player = getCommandPlayer(source);
         if (player == null) return false;
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
         return PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin.other");
     }
 
+    /** 1.18.2 CommandSourceStack has no getPlayer(); cast getEntity(). */
+    @Nullable
+    private static ServerPlayer getCommandPlayer(CommandSourceStack source) {
+        return source.getEntity() instanceof ServerPlayer player ? player : null;
+    }
+
     private static LiteralArgumentBuilder<CommandSourceStack> buildSourceSubcommand() {
         return Commands.literal("source")
-                .executes(context -> sourceAction(context, context.getSource().getPlayer()))
+                .executes(context -> sourceAction(context, getCommandPlayer(context.getSource())))
                 .then(Commands.argument("target", EntityArgument.player())
                         .requires(SkinCommand::canTargetOthers)
                         .executes(context -> sourceAction(context, EntityArgument.getPlayer(context, "target")))
@@ -116,7 +122,7 @@ public class SkinCommand {
     private static LiteralArgumentBuilder<CommandSourceStack> buildClearSubcommand() {
         return Commands.literal("clear")
                 .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                        Collections.singleton(context.getSource().getPlayer()),
+                        Collections.singleton(getCommandPlayer(context.getSource())),
                         SkinActionType.clear, SkinVariant.ALL, false, null
                 )))
                 .then(Commands.argument("targets", EntityArgument.players()).requires(SkinCommand::canTargetOthers)
@@ -134,7 +140,7 @@ public class SkinCommand {
                                 .suggests((context, builder) ->
                                         SharedSuggestionProvider.suggest(CompletionSources.recentUsernames(), builder))
                                 .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                                        Collections.singleton(context.getSource().getPlayer()),
+                                        Collections.singleton(getCommandPlayer(context.getSource())),
                                         SkinActionType.username, SkinVariant.ALL, false,
                                         StringArgumentType.getString(context, "skin_name")
                                 )))
@@ -153,7 +159,7 @@ public class SkinCommand {
                                         .suggests((context, builder) ->
                                                 SharedSuggestionProvider.suggest(CompletionSources.urlCandidates(), builder))
                                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                                                Collections.singleton(context.getSource().getPlayer()),
+                                                Collections.singleton(getCommandPlayer(context.getSource())),
                                                 SkinActionType.url, SkinVariant.CLASSIC, false,
                                                 StringArgumentType.getString(context, "url")
                                         )))
@@ -171,7 +177,7 @@ public class SkinCommand {
                                         .suggests((context, builder) ->
                                                 SharedSuggestionProvider.suggest(CompletionSources.urlCandidates(), builder))
                                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                                                Collections.singleton(context.getSource().getPlayer()),
+                                                Collections.singleton(getCommandPlayer(context.getSource())),
                                                 SkinActionType.url, SkinVariant.SLIM, false,
                                                 StringArgumentType.getString(context, "url")
                                         )))
@@ -188,30 +194,30 @@ public class SkinCommand {
                 )
                 .then(Commands.literal("random")
                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                                Collections.singleton(context.getSource().getPlayer()),
+                                Collections.singleton(getCommandPlayer(context.getSource())),
                                 SkinActionType.random, SkinVariant.ALL, false, null
                         )))
                         .then(Commands.argument("cape", BoolArgumentType.bool())
                                 .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                                        Collections.singleton(context.getSource().getPlayer()),
+                                        Collections.singleton(getCommandPlayer(context.getSource())),
                                         SkinActionType.random, SkinVariant.ALL, BoolArgumentType.getBool(context, "cape"), null
                                 )))
                                 .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
                                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                                                Collections.singleton(context.getSource().getPlayer()),
-                                                SkinActionType.random, context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
+                                        Collections.singleton(getCommandPlayer(context.getSource())),
+                                        SkinActionType.random, context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
                                         )))
                                 )
                         )
                         .then(Commands.argument("skin variant", EnumArgument.enumArgument(SkinVariant.class))
                                 .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                                        Collections.singleton(context.getSource().getPlayer()),
+                                        Collections.singleton(getCommandPlayer(context.getSource())),
                                         SkinActionType.random, context.getArgument("skin variant", SkinVariant.class), false, null
                                 )))
                                 .then(Commands.argument("cape", BoolArgumentType.bool())
                                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
-                                                Collections.singleton(context.getSource().getPlayer()),
-                                                SkinActionType.random, context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
+                                        Collections.singleton(getCommandPlayer(context.getSource())),
+                                        SkinActionType.random, context.getArgument("skin variant", SkinVariant.class), BoolArgumentType.getBool(context, "cape"), null
                                         )))
                                 )
                         )
@@ -251,14 +257,14 @@ public class SkinCommand {
     private static int sourceAction(CommandContext<CommandSourceStack> context, ServerPlayer target) {
         UUID uuid = target.getUUID();
         if (SkinRestorer.getSkinStorage().hasDefaultSkin(uuid)) {
-            context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + target.getGameProfile().getName()), false);
+            context.getSource().sendSuccess(new TextComponent(FEEDBACK_PREFIX + " " + target.getGameProfile().getName()), false);
             return 1;
         }
         String source = SkinRestorer.getSkinStorage().getSource(uuid);
         MutableComponent message = source != null
-            ? Component.literal(FEEDBACK_PREFIX + " " + source)
-            : Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("no_source", target));
-        context.getSource().sendSuccess(() -> message, false);
+            ? new TextComponent(FEEDBACK_PREFIX + " " + source)
+            : new TextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("no_source", target));
+        context.getSource().sendSuccess(message, false);
         return 1;
     }
 }
