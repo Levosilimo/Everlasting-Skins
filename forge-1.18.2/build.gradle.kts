@@ -178,6 +178,17 @@ configurations.all {
     }
 }
 
+// MC 1.18.2's Forge pom ships the slf4j 1.8-era bridge log4j-slf4j18-impl
+// (2.17.0), which predates getRequestedApiVersion() on SLF4JServiceProvider.
+// With slf4j-api pinned to 2.0.9 above, it throws AbstractMethodError the
+// moment Bootstrap.<clinit> initializes LogUtils — i.e. any registry-touching
+// unit test (VanillaSkinBroadcasterTest, SkinRefreshHandlerTest,
+// SkinCommandTabCompleteTest). Drop the legacy bridge from the test runtime
+// so slf4j resolves to the simple provider shipped in the Forge pom.
+configurations.testRuntimeClasspath {
+    exclude(group = "org.apache.logging.log4j", module = "log4j-slf4j18-impl")
+}
+
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     testLogging {
