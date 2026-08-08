@@ -11,6 +11,7 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.PacketLog;
 import levosilimo.everlastingskins.harness.TestServerContext;
+import levosilimo.everlastingskins.metrics.PlayerSnapshot;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.SkinCommandTestAccess;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -139,9 +140,18 @@ class DebounceStateConsistencyIT {
             () -> SkinMetrics.INSTANCE.snapshot().refreshesCompleted() > baseCompleted),
             "first request must complete its profile refresh");
 
-        Thread.sleep(300);
         long debouncedBefore = SkinMetrics.INSTANCE.snapshot().refreshesDebounced();
         long completedBefore = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
+        // Wait on the real signal: the per-player last refresh (set by the first
+        // request's recordRefreshCompleted, the same settle barrier awaited at L138-140)
+        // must be Config.DEBOUNCE_MILLIS old so the debounce window has elapsed
+        // before the second request. Bounded at 2s; no fixed sleep, no wall-clock race.
+        assertTrue(AsyncSupport.await(2000, () -> {
+            PlayerSnapshot ps = SkinMetrics.INSTANCE.snapshot()
+                .perPlayer().get(player.getUniqueID());
+            return ps != null
+                && System.currentTimeMillis() - ps.lastRefreshAtMs() >= Config.DEBOUNCE_MILLIS;
+        }), "debounce window must elapse before the second request");
 
         ctx.commandManager.executeCommand(player, "/skin set mojang Jeb_");
         assertTrue(AsyncSupport.await(5000,
