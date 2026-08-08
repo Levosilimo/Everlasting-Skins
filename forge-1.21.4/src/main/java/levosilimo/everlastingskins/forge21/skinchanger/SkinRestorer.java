@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins.forge21.skinchanger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.mojang.authlib.properties.Property;
 import levosilimo.everlastingskins.skinchanger.DefaultSkinResolver;
 import levosilimo.everlastingskins.skinchanger.SkinIO;
@@ -39,11 +40,24 @@ public class SkinRestorer {
     public static volatile MinecraftServer server;
 
     /** Off-login-thread executor for the default-skin Mojang restore fetch. */
-    private static final ExecutorService loginExecutor = Executors.newCachedThreadPool(r -> {
+    private static volatile ExecutorService loginExecutor = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "everlastingskins-login");
         t.setDaemon(true);
         return t;
     });
+
+    /**
+     * Test seam: overrides the login executor so the default-skin login work can
+     * be driven synchronously/awaitably in tests (e.g. Runnable::run). The
+     * production default is untouched unless called. Public because the test
+     * source-set lives in package levosilimo.everlastingskins.skinchanger, not
+     * forge21.skinchanger. guava is already on the main compile classpath
+     * (EverlastingSkins.java imports com.google.common.collect.Lists).
+     */
+    @VisibleForTesting
+    public static void setLoginExecutorForTest(ExecutorService executor) {
+        loginExecutor = executor;
+    }
 
     @Nullable
     public static SkinStorage getSkinStorage() {
