@@ -16,9 +16,7 @@ import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundBundlePacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -26,13 +24,13 @@ import net.minecraft.server.players.PlayerList;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 
-import java.util.List;
 
 /**
- * Production {@link SkinBroadcaster} for Minecraft 1.21. Builds the
- * REMOVE+ADD (or one bundled REMOVE+ADD) tab-list pair and delivers it
- * via the live {@link PlayerList} or, when {@code BROADCAST_USE_BUNDLE}
- * is enabled, directly to each filtered observer's connection. Also
+ * Production {@link SkinBroadcaster} for Minecraft 1.18.2. Builds the
+ * REMOVE+ADD tab-list pair and delivers it via the live {@link PlayerList}
+ * or directly to each filtered observer's connection. 1.18.2 predates
+ * {@code ClientboundBundlePacket} (1.19.3), so {@code BROADCAST_USE_BUNDLE}
+ * is a no-op here: the pair is always sent un-bundled. Also
  * drives the chunk-source remove/add pair that re-tracks the target on
  * observers' entity trackers when {@code REFRESH_VIA_ENTITY_TRACKER}
  * is enabled.
@@ -56,37 +54,25 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
 
     private void broadcastInternal(ServerPlayer target, ServerPlayer[] explicitObservers) {
         PlayerList playerlist = target.getServer().getPlayerList();
-        ServerLevel serverLevel = target.serverLevel();
+        ServerLevel serverLevel = target.getLevel();
         ResourceKey<Level> dimension = serverLevel.dimension();
         Packet<ClientGamePacketListener> removePacket =
-            new ClientboundPlayerInfoRemovePacket(List.of(target.getUUID()));
+            new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.REMOVE_PLAYER, target);
         Packet<ClientGamePacketListener> addPacket =
-            new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER, target);
+            new ClientboundPlayerInfoPacket(ClientboundPlayerInfoPacket.Action.ADD_PLAYER, target);
 
         NetworkMetricsHandler netHandler = NetworkMetricsHandler.getOrAttach(target.connection.connection);
         long outBefore = netHandler != null ? netHandler.outboundBytes() : 0;
         long inBefore = netHandler != null ? netHandler.inboundBytes() : 0;
         long start = System.nanoTime();
 
-        if (Config.BROADCAST_USE_BUNDLE.get()) {
-            ClientboundBundlePacket bundle = new ClientboundBundlePacket(List.of(removePacket, addPacket));
-            if (explicitObservers != null) {
-                for (ServerPlayer observer : explicitObservers) {
-                    if (Config.DIMENSION_SCOPED_BROADCAST.get()
-                            && !observer.level().dimension().equals(dimension)) {
-                        continue;
-                    }
-                    observer.connection.send(bundle);
-                }
-            } else if (Config.DIMENSION_SCOPED_BROADCAST.get()) {
-                playerlist.broadcastAll(bundle, dimension);
-            } else {
-                playerlist.broadcastAll(bundle);
-            }
-        } else if (explicitObservers != null) {
+        // 1.18.2 has no ClientboundBundlePacket (1.19.3+), so
+        // BROADCAST_USE_BUNDLE is a no-op: REMOVE+ADD always go out as an
+        // un-bundled pair.
+        if (explicitObservers != null) {
             for (ServerPlayer observer : explicitObservers) {
                 if (Config.DIMENSION_SCOPED_BROADCAST.get()
-                        && !observer.level().dimension().equals(dimension)) {
+                        && !observer.getLevel().dimension().equals(dimension)) {
                     continue;
                 }
                 observer.connection.send(removePacket);
@@ -124,7 +110,7 @@ public final class VanillaSkinBroadcaster implements SkinBroadcaster {
         // playerInfo re-fetches the new profile entry. Without this step
         // observers keep rendering the stale skin even after the tab-list
         // REMOVE+ADD (PR #121 dropped this step; lib-13 research: regression).
-        ServerLevel level = (ServerLevel) player.level();
+        ServerLevel level = player.getLevel();
         level.getChunkSource().removeEntity(player);
         level.getChunkSource().addEntity(player);
     }
