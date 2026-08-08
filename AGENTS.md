@@ -351,6 +351,22 @@ force pushes/deletions) with 16 contexts: `YAML Lint`, the `Build
 (M2)`, and `CI Health` (informational -> required, lib-69). CI job names
 must match the required-check strings exactly.
 
+### Known GameTest false-positives
+
+Mavenizer cache-miss failures are infrastructure noise, NOT real test
+failures (lib-58). The signature is:
+
+```
+java.lang.Exception: Cache miss! Stacktrace for Information Only
+```
+
+Observed across the forge-1.21, forge-1.21.4, and forge-26.2 GameTest lanes;
+the same signature was previously classified as noise for forge-1.21.4.
+Triage rule: re-run a red GameTest check before investigating — only treat
+it as a real failure when an actual assertion/text failure (or a non-
+Mavenizer stack trace) is present. Mavenizer cache-miss noise alone must
+not block a merge or trigger a bug hunt.
+
 Required-check contract count progression (three-lane expansion, deepwork
 merge order forge-26.2 → forge-1.8.9 → forge-1.7.10): 12 → 13 after
 `Build (26.2)` lands (forge-26.2 lane, PR #310) → 14 after
