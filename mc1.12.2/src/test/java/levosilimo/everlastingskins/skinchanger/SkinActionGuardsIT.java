@@ -146,10 +146,20 @@ class SkinActionGuardsIT {
             TestProperties.NOTCH.getOriginalProperty().getSignature(), "Jeb_"));
         EntityPlayerMP alice = ctx.newPlayer("Alice");
 
+        long baseCompleted = SkinMetrics.INSTANCE.snapshot().refreshesCompleted();
         ctx.commandManager.executeCommand(alice, "/skin set mojang Notch");
         assertTrue(AsyncSupport.await(5000, () -> texturesValue(alice) != null),
             "first dispatch must apply textures to the profile");
         assertEquals(TestProperties.NOTCH.getOriginalProperty().getValue(), texturesValue(alice));
+        // The cascade's terminal metric (recordRefreshCompleted) lands after the
+        // profile mutation AND the respawn packet sends. Attaching the log
+        // stubs connection.sendPacket, so attaching while the executor thread
+        // is still mid-cascade races the Mockito stubbing (the UnfinishedStubbing
+        // flake). Await the terminal metric so the first pipeline fully drains
+        // before the log is attached.
+        assertTrue(AsyncSupport.await(5000,
+                () -> SkinMetrics.INSTANCE.snapshot().refreshesCompleted() > baseCompleted),
+            "first dispatch must complete its profile refresh");
 
         // Attach the chat log only after the first fulfilment, so the
         // no-fulfil assertion below cannot be satisfied by the first request.
