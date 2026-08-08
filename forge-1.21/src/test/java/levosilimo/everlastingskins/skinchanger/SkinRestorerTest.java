@@ -10,13 +10,18 @@ import com.electronwill.nightconfig.core.InMemoryCommentedFormat;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
+import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Field;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.UUID;
@@ -122,5 +127,44 @@ class SkinRestorerTest {
         Field field = clazz.getDeclaredField(name);
         field.setAccessible(true);
         field.set(null, value);
+    }
+
+    // ======================================================================
+    //  Init  (onInitializeServer — real handler)
+    // ======================================================================
+
+    @Nested
+    @DisplayName("onInitializeServer — storage initialisation")
+    class Init {
+
+        @Test
+        @DisplayName("Creates the EverlastingSkins data directory")
+        void createsStorageDirectory() {
+            assertTrue(Files.exists(skinDir), "handler must create the storage directory");
+            assertTrue(Files.isDirectory(skinDir), "storage path must be a directory");
+        }
+
+        @Test
+        @DisplayName("Wires skinStorage; a set+save+flush lands <uuid>.json on disk")
+        void wiresStorage() {
+            storage().setSkin(testUuid, new CustomSkinProperty("wire-val", "wire-sig", "wire"));
+            storage().saveSkin(testUuid);
+            storage().flushPending();
+
+            assertTrue(Files.exists(skinDir.resolve(testUuid + ".json")),
+                    "the wired SkinIO must persist the skin to disk");
+        }
+
+        @Test
+        @DisplayName("getSkinStorage() returns null before the handler runs")
+        void nullBeforeInit() throws Exception {
+            setStaticField(SkinRestorer.class, "skinStorage", null);
+            setStaticField(SkinRestorer.class, "skinIO", null);
+            assertNull(SkinRestorer.getSkinStorage(), "no storage before onInitializeServer");
+
+            // Restore the wired state: JUnit does not guarantee nested-class
+            // order, and sibling tests read the static through storage().
+            restorer.onInitializeServer(TestForgeEvents.newServerStartingEvent(server));
+        }
     }
 }
