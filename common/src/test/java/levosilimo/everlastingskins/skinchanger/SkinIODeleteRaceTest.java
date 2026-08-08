@@ -7,24 +7,35 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import net.jqwik.api.Arbitraries;
+import net.jqwik.api.Arbitrary;
+import net.jqwik.api.Combinators;
+import net.jqwik.api.ForAll;
+import net.jqwik.api.From;
+import net.jqwik.api.Label;
+import net.jqwik.api.Property;
+import net.jqwik.api.Provide;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.RepeatedTest;
-import org.junit.jupiter.api.RepetitionInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Random;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -88,42 +99,70 @@ class SkinIODeleteRaceTest {
         }
     }
 
-    @RepeatedTest(20)
-    @DisplayName("randomized save/delete/flush sequences never resurrect a deleted file")
-    void randomizedSequencesNeverResurrectDeletedFile(RepetitionInfo repetition) throws Exception {
-        UUID u = UUID.randomUUID();
-        Path target = tempDir.resolve(u + ".json");
-        Random rnd = new Random(0x5eedL + repetition.getCurrentRepetition() * 7919L);
-        String lastPayload = null;
-        Op lastOp = null;
+    /**
+     * P3-7 rewrite of the old {@code @RepeatedTest(20) + rnd.nextInt(3) +
+     * Thread.sleep} loop: a jqwik {@code @Property} over an
+     * {@code Arbitrary<List<Op>>} (SAVE/DELETE/FLUSH). The Thread.sleep
+     * (the flake source lib-21 flagged) is replaced by flushPending() as the
+     * deterministic barrier. Same last-op contract:
+     *   lastOp==DELETE -> file absent
+     *   lastOp==SAVE   -> file present with the last payload
+     *
+     * <p>Per-try isolation uses newTempDir()+deleteRecursively()+resetForTest()+
+     * METRICS_LOCK (the established SkinIOPropertyTest pattern) instead of the
+     * shared {@code @TempDir} field, because jqwik + @TempDir injection is
+     * unreliable and files would accumulate across tries.
+     */
+    @Property(tries = 100)
+    @Label("randomized save/delete/flush sequences never resurrect a deleted file")
+    void randomizedSequencesNeverResurrectDeletedFile(@ForAll @From("saveDeleteFlushSequences") List<Op> ops)
+            throws IOException {
+        synchronized (METRICS_LOCK) {
+            SkinStorage.resetForTest();
+            Path dir = newTempDir();
+            try {
+                SkinIO io = new SkinIO(dir);
+                SkinStorage isolated = new SkinStorage(io);
+                UUID u = UUID.randomUUID();
+                Path target = dir.resolve(u + ".json");
+                OpType lastOp = null;
+                String lastPayload = null;
+                for (Op op : ops) {
+                    switch (op.type) {
+                        case SAVE:
+                            lastPayload = op.payload;
+                            lastOp = OpType.SAVE;
+                            CompletableFuture<Void> unused = isolated.saveSkinAsync(u, skin(op.payload));
+                            break;
+                        case DELETE:
+                            isolated.removeSkin(u);
+                            lastOp = OpType.DELETE;
+                            break;
+                        case FLUSH:
+                            isolated.flushPending(); // barrier replaces the old Thread.sleep window
+                            break;
+                        default:
+                            throw new IllegalStateException("unknown op " + op.type);
+                    }
+                }
+                isolated.flushPending();
 
-        for (int i = 0; i < 15; i++) {
-            switch (rnd.nextInt(3)) {
-                case 0:
-                    lastPayload = "payload-" + rnd.nextInt(100000);
-                    CompletableFuture<Void> unused = storage.saveSkinAsync(u, skin(lastPayload));
-                    lastOp = Op.SAVE;
-                    break;
-                case 1:
-                    storage.removeSkin(u);
-                    lastOp = Op.DELETE;
-                    break;
-                default:
-                    storage.flushPending();
+                if (lastOp == OpType.DELETE) {
+                    assertFalse(Files.exists(target),
+                            "stale write resurrected a deleted skin");
+                } else if (lastOp == OpType.SAVE) {
+                    // Compare the deserialized value, NOT raw file text: Gson
+                    // escapes base64 padding chars on write ("YQ==" becomes
+                    // "YQ\u003d\u003d"), so a text contains() match on the
+                    // payload is wrong for base64 payloads.
+                    CustomSkinProperty loaded = io.loadSkin(u);
+                    assertNotNull(loaded, "last save was lost: " + target);
+                    assertEquals(lastPayload, loaded.getValue(),
+                            "stale payload won over the last save");
+                }
+            } finally {
+                deleteRecursively(dir);
             }
-            Thread.sleep(rnd.nextInt(3));
-        }
-        storage.flushPending();
-
-        if (lastOp == Op.DELETE) {
-            assertFalse(Files.exists(target),
-                    "repetition " + repetition.getCurrentRepetition() + ": stale write resurrected a deleted skin");
-        } else if (lastOp == Op.SAVE) {
-            assertTrue(Files.exists(target),
-                    "repetition " + repetition.getCurrentRepetition() + ": last save was lost");
-            String content = new String(Files.readAllBytes(target), StandardCharsets.UTF_8);
-            assertTrue(content.contains(lastPayload),
-                    "repetition " + repetition.getCurrentRepetition() + ": stale payload won over the last save");
         }
     }
 
@@ -162,8 +201,60 @@ class SkinIODeleteRaceTest {
         return new CustomSkinProperty(value, "sig", "src");
     }
 
-    private enum Op {
-        SAVE, DELETE
+    private enum OpType { SAVE, DELETE, FLUSH }
+
+    private static final class Op {
+        final OpType type;
+        final String payload;
+
+        Op(OpType type, String payload) {
+            this.type = type;
+            this.payload = payload;
+        }
+
+        @Override
+        public String toString() {
+            return type + (payload == null ? "" : "(" + payload + ")");
+        }
+    }
+
+    @Provide
+    Arbitrary<String> payloads() {
+        return Arbitraries.strings().withCharRange('a', 'z').ofMinLength(1).ofMaxLength(16)
+                .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Provide
+    Arbitrary<List<Op>> saveDeleteFlushSequences() {
+        return Combinators.combine(
+                Arbitraries.of(OpType.SAVE, OpType.DELETE, OpType.FLUSH),
+                payloads())
+                .as(Op::new)
+                .list().ofMinSize(1).ofMaxSize(15);
+    }
+
+    private static final Object METRICS_LOCK = new Object();
+
+    private static Path newTempDir() {
+        try {
+            return Files.createTempDirectory("skiniodelete-race-");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void deleteRecursively(Path dir) {
+        try (Stream<Path> stream = Files.walk(dir)) {
+            stream.sorted(Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                    // best-effort temp cleanup
+                }
+            });
+        } catch (IOException ignored) {
+            // best-effort temp cleanup
+        }
     }
 
     /** SkinIO whose drain write blocks until the test releases it. */
