@@ -213,11 +213,10 @@ MCP stable_12; 48 unit tests, JUnit 4).
 
 ### Fail-fast hooks
 
-Tiered local gates mirroring CI (see `.githooks/` and `lefthook.yml`):
+Tiered local gates mirroring CI (see `lefthook.yml`):
 
 - **pre-commit** (<30s, sequential): aislop staged scan → test-count gate →
-  `verifyNoMixin` → offline parallel compile. Active via
-  `git config core.hooksPath .githooks` (already set in this repo).
+  `verifyNoMixin` → offline parallel compile.
 - **pre-push** (5-10 min, heavy): full unit test suite → GameTest (1.21) via
   `forge-1.21/test-infrastructure/run-gametest-local.sh` → `aislop ci
   --changes` (mirrors CI's `aislop (M2)` job). Skip once with
@@ -242,9 +241,9 @@ org.gradle.parallel=true
 org.gradle.caching=true
 ```
 
-`lefthook.yml` documents the intended lefthook adoption (Go binary, parallel
-pre-push); `.githooks/` stays active until lefthook is installed and
-`core.hooksPath` unset.
+Lefthook is the active hook manager (Go binary, parallel pre-push; see
+`lefthook.yml`). After cloning, run `bash scripts/setup-hooks.sh` to
+bootstrap Lefthook.
 
 Fresh clones bootstrap lefthook with `bash scripts/setup-hooks.sh` (idempotent;
 verifies the binary + config, then runs `lefthook install --reset-hooks-path`
