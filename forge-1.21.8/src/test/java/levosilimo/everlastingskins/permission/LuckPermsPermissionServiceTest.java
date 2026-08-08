@@ -9,13 +9,15 @@ package levosilimo.everlastingskins.permission;
 
 import levosilimo.everlastingskins.forge21.permission.LuckPermsPermissionService;
 import levosilimo.everlastingskins.forge21.permission.PermissionContext;
-import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.LuckPerms;
 import net.luckperms.api.PermissionData;
 import net.luckperms.api.User;
 import net.luckperms.api.UserManager;
 import net.luckperms.api.cacheddata.CachedPermissionData;
 import net.luckperms.api.query.QueryOptions;
+import net.luckperms.api.StubLuckPerms;
+import net.luckperms.api.StubUserManager;
 import net.luckperms.api.util.Tristate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -43,23 +46,6 @@ class LuckPermsPermissionServiceTest {
     @BeforeEach
     void setUp() {
         uuid = UUID.randomUUID();
-        LuckPerms fakeLP = mock(LuckPerms.class);
-        UserManager fakeUM = mock(UserManager.class);
-        User fakeUser = mock(User.class);
-        CachedPermissionData fakeCPD = mock(CachedPermissionData.class);
-        PermissionData fakePD = mock(PermissionData.class);
-
-        when(fakeLP.getUserManager()).thenReturn(fakeUM);
-        when(fakeLP.getAPIVersion()).thenReturn("5.5-test");
-        when(fakeUM.isLoaded(uuid)).thenReturn(true);
-        when(fakeUM.getUser(uuid)).thenReturn(fakeUser);
-        when(fakeUM.loadUser(uuid)).thenReturn(CompletableFuture.completedFuture(fakeUser));
-        when(fakeUser.getCachedData()).thenReturn(fakeCPD);
-        when(fakeCPD.getPermissionData(any(QueryOptions.class))).thenReturn(fakePD);
-        when(fakePD.checkPermission("everlastingskins.command.skin")).thenReturn(Tristate.TRUE);
-        when(fakePD.checkPermission("other.node")).thenReturn(Tristate.FALSE);
-
-        LuckPermsProvider.register(fakeLP);
     }
 
     @AfterEach
@@ -74,12 +60,17 @@ class LuckPermsPermissionServiceTest {
     @Test
     @DisplayName("tryCreate returns service when LuckPerms shadow is available")
     void tryCreate_withShadow_returnsService() {
+        LuckPermsProvider.register(new StubLuckPerms(new StubUserManager(true), "5.5-test"));
         assertNotNull(LuckPermsPermissionService.tryCreate());
     }
 
     @Test
     @DisplayName("hasPermission returns true for granted node")
     void hasPermission_granted_returnsTrue() {
+        // Map must be seeded: StubPermissionData defaults unmatched nodes to Tristate.UNDEFINED.
+        LuckPermsProvider.register(new StubLuckPerms(
+                new StubUserManager(true, false, Map.of("everlastingskins.command.skin", Tristate.TRUE)),
+                "5.5-test"));
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
         PermissionContext ctx = PermissionContext.of(uuid, 0);
         assertTrue(service.hasPermission(ctx.uuid(), ctx.opLevel(), "everlastingskins.command.skin"));
@@ -88,6 +79,9 @@ class LuckPermsPermissionServiceTest {
     @Test
     @DisplayName("hasPermission returns false for denied node")
     void hasPermission_denied_returnsFalse() {
+        LuckPermsProvider.register(new StubLuckPerms(
+                new StubUserManager(true, false, Map.of("other.node", Tristate.FALSE)),
+                "5.5-test"));
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
         PermissionContext ctx = PermissionContext.of(uuid, 0);
         assertFalse(service.hasPermission(ctx.uuid(), ctx.opLevel(), "other.node"));
@@ -96,6 +90,7 @@ class LuckPermsPermissionServiceTest {
     @Test
     @DisplayName("getActiveBackendName includes version")
     void getActiveBackendName_includesVersion() {
+        LuckPermsProvider.register(new StubLuckPerms(new StubUserManager(true), "5.5-test"));
         LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
         assertTrue(service.getActiveBackendName().startsWith("LuckPerms"));
         assertTrue(service.getActiveBackendName().contains("5.5-test"));
@@ -104,6 +99,7 @@ class LuckPermsPermissionServiceTest {
     @Test
     @DisplayName("getPriority returns 20")
     void getPriority_isHighest() {
+        LuckPermsProvider.register(new StubLuckPerms(new StubUserManager(true), "5.5-test"));
         assertEquals(20, LuckPermsPermissionService.tryCreate().getPriority());
     }
 
@@ -190,17 +186,9 @@ class LuckPermsPermissionServiceTest {
         @Test
         @DisplayName("getUser returns null → falls back to context.isOp()")
         void getUserReturnsNull_fallbackToOp() {
-            LuckPerms fakeLP = mock(LuckPerms.class);
-            UserManager fakeUM = mock(UserManager.class);
-            when(fakeLP.getUserManager()).thenReturn(fakeUM);
-            when(fakeLP.getAPIVersion()).thenReturn("5.5-test");
-            when(fakeUM.isLoaded(uuid)).thenReturn(true);
-            when(fakeUM.getUser(uuid)).thenReturn(null);
-            LuckPermsProvider.unregister();
-            LuckPermsProvider.register(fakeLP);
-
+            // nullUser=true -> isLoaded()=true but getUser()=null -> vanillaFallback
+            LuckPermsProvider.register(new StubLuckPerms(new StubUserManager(true, true), "5.5-test"));
             LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
-
             PermissionContext opCtx = PermissionContext.of(uuid, 2);
             assertTrue(service.hasPermission(opCtx.uuid(), opCtx.opLevel(), "everlastingskins.command.metrics"));
 
@@ -211,14 +199,8 @@ class LuckPermsPermissionServiceTest {
         @Test
         @DisplayName("User not loaded → returns false (no async load)")
         void userNotLoaded_returnsFalse() {
-            LuckPerms fakeLP = mock(LuckPerms.class);
-            UserManager fakeUM = mock(UserManager.class);
-            when(fakeLP.getUserManager()).thenReturn(fakeUM);
-            when(fakeLP.getAPIVersion()).thenReturn("5.5-test");
-            when(fakeUM.isLoaded(uuid)).thenReturn(false);
-            LuckPermsProvider.unregister();
-            LuckPermsProvider.register(fakeLP);
-
+            // isLoaded=false -> vanillaFallback with opLevel 0 -> false
+            LuckPermsProvider.register(new StubLuckPerms(new StubUserManager(false), "5.5-test"));
             LuckPermsPermissionService service = LuckPermsPermissionService.tryCreate();
             PermissionContext ctx = PermissionContext.of(uuid, 0);
 
