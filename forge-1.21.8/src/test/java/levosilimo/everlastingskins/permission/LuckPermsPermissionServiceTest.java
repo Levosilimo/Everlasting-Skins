@@ -10,12 +10,6 @@ package levosilimo.everlastingskins.permission;
 import levosilimo.everlastingskins.forge21.permission.LuckPermsPermissionService;
 import levosilimo.everlastingskins.forge21.permission.PermissionContext;
 import net.luckperms.api.LuckPermsProvider;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.PermissionData;
-import net.luckperms.api.User;
-import net.luckperms.api.UserManager;
-import net.luckperms.api.cacheddata.CachedPermissionData;
-import net.luckperms.api.query.QueryOptions;
 import net.luckperms.api.StubLuckPerms;
 import net.luckperms.api.StubUserManager;
 import net.luckperms.api.util.Tristate;
@@ -28,11 +22,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 class LuckPermsPermissionServiceTest {
 
