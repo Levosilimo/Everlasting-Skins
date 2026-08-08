@@ -4,7 +4,7 @@
  * https://github.com/Levosilimo/Everlasting-Skins
  */
 
-package levosilimo.everlastingskins.integration;
+package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.skinchanger.MineSkinAPI;
