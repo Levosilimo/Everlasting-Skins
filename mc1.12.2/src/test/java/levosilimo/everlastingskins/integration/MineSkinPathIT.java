@@ -10,6 +10,7 @@ import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.harness.AsyncSupport;
 import levosilimo.everlastingskins.harness.TestServerContext;
+import levosilimo.everlastingskins.skinchanger.FakeMineSkinAPI;
 import levosilimo.everlastingskins.skinchanger.SkinCommandTestAccess;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.entity.player.EntityPlayerMP;
