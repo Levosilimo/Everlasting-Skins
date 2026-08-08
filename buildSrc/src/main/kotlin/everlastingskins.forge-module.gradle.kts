@@ -133,7 +133,12 @@ sourceSets {
         // byte-identical across the 4 1.21.x lanes and import forge21.*
         // bindings (cannot live in :common); canonical copies live in the
         // root forge-test-shared dir, the 8 lane copies are deleted.
-        java.srcDir("$rootDir/forge-test-shared/src/test/java")
+        // Gated to the mapped 1.21.x lanes: 26.x lanes bind I18nUtils into
+        // their own package (forge26.*) so the forge21.* import cannot
+        // resolve there (Build (26.2) failed #350 with cannot-find-symbol).
+        if (!unobfuscated) {
+            java.srcDir("$rootDir/forge-test-shared/src/test/java")
+        }
     }
 }
 
