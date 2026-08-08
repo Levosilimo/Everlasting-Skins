@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_command_clear_removes_texture",
+  "environment": "everlastingskins_gametest:skin_command_clear_removes_texture",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 60000
+}

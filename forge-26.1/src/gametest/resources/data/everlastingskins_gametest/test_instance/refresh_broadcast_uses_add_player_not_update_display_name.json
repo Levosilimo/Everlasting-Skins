@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:refresh_broadcast_uses_add_player_not_update_display_name",
+  "environment": "everlastingskins_gametest:refresh_broadcast_uses_add_player_not_update_display_name",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

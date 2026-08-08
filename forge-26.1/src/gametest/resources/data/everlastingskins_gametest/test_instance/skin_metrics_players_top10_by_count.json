@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_metrics_players_top10_by_count",
+  "environment": "everlastingskins_gametest:skin_metrics_players_top10_by_count",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}
