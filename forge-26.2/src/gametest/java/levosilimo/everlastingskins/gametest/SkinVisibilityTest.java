@@ -1465,8 +1465,12 @@ public class SkinVisibilityTest {
 
         // Real-time budget for the async pipeline — see
         // ASYNC_PIPELINE_DEADLINE_NANOS. timeoutTicks=60000 above is only a
-        // backstop; the deadline below is the actual bound.
-        long deadlineNanos = System.nanoTime() + ASYNC_PIPELINE_DEADLINE_NANOS;
+        // backstop; the deadline below is the actual bound. The deadline must
+        // fail HARD (lib-47: GameTestAssertException-based deadlines are
+        // swallowed by the framework's per-tick retry, so the tick budget
+        // won the race and surfaced transient "got 0" messages).
+        PacketAssert.Deadline packetDeadline =
+                PacketAssert.deadline(TimeUnit.NANOSECONDS.toMillis(ASYNC_PIPELINE_DEADLINE_NANOS));
 
         try {
             placePlayer(helper, playerA);
@@ -1499,7 +1503,7 @@ public class SkinVisibilityTest {
             // futures inside succeedWhen instead: the server keeps ticking, so
             // queued broadcasts land and drain() observes them.
             helper.succeedWhen(() -> {
-                throwIfPastDeadline(deadlineNanos, "concurrent skin set");
+                PacketAssert.checkDeadline(helper, packetDeadline, "concurrent skin set");
                 if (!futureA.isDone() || !futureB.isDone()) {
                     throw new GameTestAssertException(Component.literal("waiting for concurrent dispatches to complete"), -1);
                 }
@@ -1513,14 +1517,20 @@ public class SkinVisibilityTest {
                     throw new GameTestAssertException(Component.literal("waiting for playerB to store the Mojang skin (got "
                             + (skinB == null ? "null" : skinB.getSource()) + ")"), -1);
                 }
-                long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
-                long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
-                if (obsCountA != 1) {
-                    throw new GameTestAssertException(Component.literal("observerA expected 1 packet, got " + obsCountA), -1);
-                }
-                if (obsCountB != 1) {
-                    throw new GameTestAssertException(Component.literal("observerB expected 1 packet, got " + obsCountB), -1);
-                }
+                // Packet-arrival phase: retry every tick while the deadline
+                // holds; fail at the deadline instead of racing the tick
+                // budget (lib-47: transient "expected 1 packet, got 0"
+                // surfaced as the failure on loaded runners).
+                PacketAssert.assertEventually(helper, packetDeadline, () -> {
+                    long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
+                    long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
+                    if (obsCountA != 1) {
+                        throw new GameTestAssertException(Component.literal("observerA expected 1 packet, got " + obsCountA), -1);
+                    }
+                    if (obsCountB != 1) {
+                        throw new GameTestAssertException(Component.literal("observerB expected 1 packet, got " + obsCountB), -1);
+                    }
+                });
                 removeQuietly(server, playerA);
                 removeQuietly(server, playerB);
                 removeQuietly(server, observerA);
