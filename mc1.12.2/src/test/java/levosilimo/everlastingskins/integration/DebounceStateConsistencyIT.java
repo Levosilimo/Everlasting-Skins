@@ -225,13 +225,15 @@ class DebounceStateConsistencyIT {
             "ADD broadcast must not carry stale textures");
 
         // The target's own view gets the respawn cascade so it reverts to the
-        // default skin, with no disk save enqueued for the cleared state.
-        assertTrue(AsyncSupport.await(5000, () -> targetLog.ofType(SPacketRespawn.class).size() >= 1),
-            "clear must run the respawn cascade for the target's own view");
-        assertTrue(targetLog.ofType(SPacketServerDifficulty.class).size() >= 1,
-            "clear cascade must resend server difficulty");
-        assertTrue(targetLog.ofType(SPacketPlayerAbilities.class).size() >= 1,
-            "clear cascade must resend player abilities");
+        // default skin, with no disk save enqueued for the cleared state. The
+        // cascade runs on the fetch executor thread (respawn -> difficulty ->
+        // abilities), so each packet must be awaited: observing respawn does
+        // not guarantee the following packets are recorded yet.
+        assertTrue(AsyncSupport.await(5000, () ->
+                targetLog.ofType(SPacketRespawn.class).size() >= 1
+                    && targetLog.ofType(SPacketServerDifficulty.class).size() >= 1
+                    && targetLog.ofType(SPacketPlayerAbilities.class).size() >= 1),
+            "clear cascade must resend respawn, server difficulty and player abilities");
         assertEquals(savesBefore, SkinMetrics.INSTANCE.snapshot().savesSubmitted(),
             "clear with no Mojang profile must not enqueue a disk save");
     }
