@@ -107,4 +107,49 @@ class SkinRestorerTest {
         field.setAccessible(true);
         field.set(null, value);
     }
+
+    // ======================================================================
+    //  Init  (real onInitializeServer handler)
+    // ======================================================================
+
+    @Nested
+    @DisplayName("onInitializeServer — storage initialisation")
+    class Init {
+
+        @Test
+        @DisplayName("Handler creates the EverlastingSkins data directory")
+        void createsStorageDirectory() {
+            Path skinDir = tempDir.resolve("EverlastingSkins");
+            restorer.onInitializeServer(TestForgeEvents.newServerStartingEvent(server));
+
+            assertTrue(Files.exists(skinDir), "Storage directory must exist");
+            assertTrue(Files.isDirectory(skinDir), "Storage path must be a directory");
+        }
+
+        @Test
+        @DisplayName("Handler wires skinStorage/skinIO; a saved+flushed skin lands on disk")
+        void wiresStorage() throws Exception {
+            restorer.onInitializeServer(TestForgeEvents.newServerStartingEvent(server));
+            SkinStorage storage = SkinRestorer.getSkinStorage();
+            assertNotNull(storage, "getSkinStorage() must be wired after handler");
+
+            storage.setSkin(testUuid, new CustomSkinProperty("wire-val", "wire-sig", "wire"));
+            storage.saveSkin(testUuid);
+            SkinRestorer.getSkinStorage().flushPending();
+
+            Path target = tempDir.resolve("EverlastingSkins").resolve(testUuid + ".json");
+            assertTrue(Files.exists(target), "Wired SkinIO must write <uuid>.json to the save dir");
+        }
+
+        @Test
+        @DisplayName("getSkinStorage() returns null before the handler runs")
+        void nullBeforeInit() {
+            // Explicitly clear any state; assert the pre-init contract.
+            SkinStorage.resetForTest();
+            setStaticField(SkinRestorer.class, "skinStorage", null);
+            setStaticField(SkinRestorer.class, "skinIO", null);
+
+            assertNull(SkinRestorer.getSkinStorage());
+        }
+    }
 }
