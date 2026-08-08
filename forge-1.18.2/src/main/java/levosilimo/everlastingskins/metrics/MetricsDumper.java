@@ -14,6 +14,7 @@ import levosilimo.everlastingskins.EverlastingSkins;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,7 +36,9 @@ public class MetricsDumper {
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (!Config.METRICS_ENABLED.get()) return;
-        MinecraftServer server = event.getServer();
+        // Forge 40's ServerTickEvent has no getServer() (added later);
+        // ServerLifecycleHooks is the pre-1.19.4 server accessor.
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
         int intervalTicks = Config.METRICS_DUMP_INTERVAL_SECONDS.get() * 20;
         if (intervalTicks <= 0 || server.getTickCount() % intervalTicks != 0) return;
