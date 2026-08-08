@@ -43,9 +43,10 @@ each lane is a separate build with its own wrapper and JDK:
 | `forge-1.7.10/` | 4.4.1   | 1.2.11 (GTNH/jitpack) | 8 | `cd forge-1.7.10 && JAVA_HOME=<jdk8> ./gradlew build` |
 | `forge-1.8.9/`  | 4.10.3  | 2.1-SNAPSHOT      | 8    | `cd forge-1.8.9 && JAVA_HOME=<jdk8> ./gradlew build` |
 | `forge-1.16.5/` | 7.6.4   | 5.1.77            | 8    | `cd forge-1.16.5 && JAVA_HOME=<jdk8> ./gradlew build` |
-| `forge-1.20.1/` | 8.7     | 6.0.54            | 21   | `cd forge-1.20.1 && JAVA_HOME=<jdk21> ./gradlew build` |
+| `forge-1.20.1/` | 8.14    | 6.0.54            | 21   | `cd forge-1.20.1 && JAVA_HOME=<jdk21> ./gradlew build` |
+| `forge-1.18.2/` | 8.14    | 6.0.54            | 21   | `cd forge-1.18.2 && JAVA_HOME=<jdk21> ./gradlew build` |
 
-All five source-dir share `common/src/main/java` and
+All six source-dir share `common/src/main/java` and
 `common/src/main/resources`, so shared code edits land in one place and are
 picked up by every lane. `forge-1.7.10` is the most fragile toolchain in the
 repo (Gradle 4.4.1 = FG 1.2 hard floor, Java 8 ONLY, MCP stable_12 mappings
