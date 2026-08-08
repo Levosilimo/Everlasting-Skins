@@ -194,7 +194,7 @@ registers backends).
 ./gradlew :forge-1.21:build    # full forge module (slow; downloads userdev)
 ./gradlew :forge-26.2:build    # 26.2 lane (Java 25 toolchain, unobfuscated MC, FG 7.0.17)
 ./gradlew build                # whole Forge line
-bash scripts/gradle-health.sh  # dep-hygiene sweep (manual, WARN-only; per-consumer :projectHealth)
+bash scripts/gradle-health.sh  # dep-hygiene sweep (manual; per-consumer :projectHealth; graduated lanes fail on duplicate-class)
 ```
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
@@ -279,7 +279,11 @@ false-positive source for dependency-analysis; we run WARN-only and never
 `fixDependencies` automatically until a manual triage pass confirms the
 findings are real. Rolled out in WARN-only mode; hook integration is gated
 on empirical validation on a forge-1.21.x module to catalog known false
-positives.
+positives. Duplicate-class is now graduated per-lane (P2-6): it is a
+zero-false-positive category on this codebase, so a graduated lane fails
+`projectHealth` (and therefore `check`/`build`) on a real duplicate — see
+"P2-6 dependency-analysis graduation" below. The reflection-FP categories
+(unused deps, used-transitive "declare directly") remain WARN-only.
 
 Lane policy: buildSrc classpath (lane 1) + convention plugin (lane 2) +
 `scripts/gradle-health.sh` (manual runs, this lane) are in place.
@@ -287,6 +291,34 @@ Out-of-band lanes (mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 /
 forge-1.20.1) are NOT eligible for dependency-analysis due to their Gradle
 version constraints (verified Feb 2026; forge-1.8.9 runs Gradle 4.10.3 <
 8.11 minimum) — they continue to rely on AFT/Qartez/Codegraph.
+
+### P2-6 dependency-analysis graduation
+
+Duplicate-class dep-analysis is now graduated per-lane (P2-6). A graduated lane
+sets `depAnalysis.graduateDuplicateClass=true` in its `gradle.properties`; the
+convention gates three things on that single property:
+
+- `onDuplicateClassWarnings { severity("fail") }` — precedence over the WARN-forever `onAny`;
+- the `projectsEvaluated` wiring of `check -> projectHealth` (so a finding fails `build` and the CI `Build (X)` cell);
+- the test-variant #960 edges (`ClassListExploderTask` / `AbiAnalysisTask -> dependsOn processTestResources`).
+
+Graduated lanes (duplicate-class is a zero-false-positive category here):
+forge-1.21, forge-1.21.1, forge-1.21.4, forge-1.21.8, forge-26.2. `:common`
+stays WARN-forever by design (aggregate-jar false positives, no Forge runtime)
+and must never set the property.
+
+Rollback: flip `depAnalysis.graduateDuplicateClass` back to `false` (or delete
+it) — instantly reverts BOTH the severity change and the check-wiring with no
+rebuild and no branch-protection change. Do not add a dedicated ci-health
+required check.
+
+Contributor guide — graduating a new lane: set the property, then run
+`./gradlew --offline :<lane>:projectHealth` and confirm duplicate-class is 0
+(zero-FP category, so any finding is a real duplicate). A lane that sets the
+property without being zero-FP will fail its `Build (X)` cell.
+
+The tooling gap note: `scripts/gradle-health.sh` CONSUMERS is enumerated (not
+globbed) — every new forge module must be appended there (see the script header).
 
 ## Branch policy & required checks
 

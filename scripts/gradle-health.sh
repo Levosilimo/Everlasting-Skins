@@ -3,8 +3,10 @@
 # in offline mode. Knip-equivalent dep hygiene (unused deps, wrong-config,
 # undeclared transitives) for the Gradle root build.
 #
-# WARN-only hygiene: exits 0 always; never a fail gate until false positives
-# (Forge reflection) are catalogued.
+# Per-lane failure semantics: WARN-only lanes and :common exit 0 always;
+# graduated lanes (depAnalysis.graduateDuplicateClass=true) FAIL on a
+# duplicate-class finding, matching the now-real Build (X) CI gate. The
+# reflection-FP categories remain warn-only.
 #
 # Usage: bash scripts/gradle-health.sh [-v]
 
