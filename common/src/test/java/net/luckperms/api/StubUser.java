@@ -8,6 +8,8 @@
 package net.luckperms.api;
 
 import net.luckperms.api.cacheddata.CachedPermissionData;
+import net.luckperms.api.util.Tristate;
+import java.util.Map;
 
 /**
  * Public LuckPerms API stub for unit tests (see StubUserManager for why the
@@ -15,8 +17,18 @@ import net.luckperms.api.cacheddata.CachedPermissionData;
  */
 public class StubUser implements User {
 
+    private final Map<String, Tristate> permissions;
+
+    public StubUser() {
+        this(java.util.Collections.emptyMap());
+    }
+
+    public StubUser(Map<String, Tristate> permissions) {
+        this.permissions = permissions;
+    }
+
     @Override
     public CachedPermissionData getCachedData() {
-        return null;
+        return new StubCachedPermissionData(permissions);
     }
 }
