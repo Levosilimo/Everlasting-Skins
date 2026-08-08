@@ -23,7 +23,11 @@ pre-commit:
   parallel: false
   commands:
     aislop:
-      run: bash -c 'if command -v bunx >/dev/null 2>&1; then RUNNER=bunx; elif command -v npx >/dev/null 2>&1; then RUNNER=npx; else echo "[aislop] neither bunx nor npx found on PATH; skipping scan" >&2; exit 0; fi; $RUNNER aislop scan --staged'
+      run: >-
+        bash -c 'if command -v bunx >/dev/null 2>&1; then RUNNER=bunx;
+        elif command -v npx >/dev/null 2>&1; then RUNNER=npx; else
+        echo "[aislop] neither bunx nor npx found on PATH; skipping scan" >&2;
+        exit 0; fi; $RUNNER aislop scan --staged'
     test-count:
       run: bash scripts/test-count-gate.sh
     verify-no-mixin:
