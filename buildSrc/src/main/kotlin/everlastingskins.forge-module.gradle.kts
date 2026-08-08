@@ -122,6 +122,11 @@ sourceSets {
         compileClasspath += sourceSets.main.get().output
         runtimeClasspath += output + sourceSets.main.get().output
     }
+    // Shared LuckPerms API test stubs live in :common's test source-set
+    // (canonical copy; the forge lanes deleted their duplicates).
+    test {
+        java.srcDir("$rootDir/common/src/test/java/net/luckperms")
+    }
 }
 
 configurations {

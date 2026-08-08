@@ -92,6 +92,9 @@ sourceSets {
     // into main above (same shape as the 1.21 lane, where tests compile
     // against the :common jar).
     test {
+        // Shared LuckPerms API test stubs live in :common's test
+        // source-set (canonical copy; this lane deleted its duplicates).
+        java.srcDir(projectDir.parentFile.resolve("common/src/test/java/net/luckperms"))
     }
 }
 
