@@ -38,16 +38,16 @@ pre-commit:
     test-count:
       run: bash scripts/test-count-gate.sh
     verify-no-mixin:
-      run: ./gradlew --no-daemon --offline :common:verifyNoMixin :forge-1.21:verifyNoMixin
+      run: bash -c 'source scripts/ensure-jdk17.sh && exec ./gradlew --no-daemon --offline :common:verifyNoMixin :forge-1.21:verifyNoMixin'
     compile:
-      run: ./gradlew --no-daemon --offline :common:compileJava :forge-1.21:compileJava --parallel
+      run: bash -c 'source scripts/ensure-jdk17.sh && exec ./gradlew --no-daemon --offline :common:compileJava :forge-1.21:compileJava --parallel'
 
 pre-push:
   parallel: true
   commands:
     unit-tests:
-      run: ./gradlew --no-daemon --offline test --parallel
+      run: bash -c 'source scripts/ensure-jdk17.sh && exec ./gradlew --no-daemon --offline test --parallel'
     gametest:
-      run: forge-1.21/test-infrastructure/run-gametest-local.sh
+      run: bash -c 'source scripts/ensure-jdk17.sh && exec forge-1.21/test-infrastructure/run-gametest-local.sh'
     aislop-ci:
       run: bash -c 'if command -v bunx >/dev/null 2>&1; then bunx aislop ci --changes --base origin/main; else npx -y aislop ci --changes --base origin/main; fi'
