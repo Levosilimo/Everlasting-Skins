@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:skin_refresh_run_command_success_path",
+  "environment": "everlastingskins_gametest:skin_refresh_run_command_success_path",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 60000
+}

@@ -32,6 +32,7 @@ CONSUMERS=(
     ":forge-1.21.4"
     ":forge-1.21.8"
     ":forge-26.2"
+    ":forge-26.1"
 )
 
 for c in "${CONSUMERS[@]}"; do

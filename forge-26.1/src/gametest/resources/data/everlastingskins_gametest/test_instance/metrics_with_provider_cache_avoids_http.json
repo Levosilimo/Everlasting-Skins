@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:metrics_with_provider_cache_avoids_http",
+  "environment": "everlastingskins_gametest:metrics_with_provider_cache_avoids_http",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 200
+}

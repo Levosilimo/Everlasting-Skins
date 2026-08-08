@@ -1,0 +1,7 @@
+{
+  "type": "function",
+  "function": "everlastingskins_gametest:concurrent_skin_set_two_players",
+  "environment": "everlastingskins_gametest:concurrent_skin_set_two_players",
+  "structure": "everlastingskins:empty",
+  "max_ticks": 60000
+}

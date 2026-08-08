@@ -54,6 +54,10 @@ jobs:
             mc: "26.2"
             java: "25"
             timeout: 45   # heaviest: Java 25 + unobfuscated MC + FG 7.0.17
+          - module: forge-26.1
+            mc: "26.1"
+            java: "25"
+            timeout: 45   # heaviest: Java 25 + unobfuscated MC + FG 7.0.17
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Set up JDK ${{ matrix.java || '21' }}
