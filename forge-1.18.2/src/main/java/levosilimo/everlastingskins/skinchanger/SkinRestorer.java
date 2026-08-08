@@ -16,7 +16,6 @@ import levosilimo.everlastingskins.metrics.SkinMetrics;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraft.FileUtil;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -26,6 +25,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -55,7 +55,7 @@ public class SkinRestorer {
         server = event.getServer();
         Path path = event.getServer().getFile("EverlastingSkins").toPath();
         try {
-            FileUtil.createDirectoriesSafe(path);
+            Files.createDirectories(path);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
