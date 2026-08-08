@@ -93,6 +93,21 @@ copy; no JPMS on Java 8).
 `act --dryrun --workflows .github/workflows/ci.yml` validates workflow syntax
 locally with no Docker. See AGENTS.md → "Local CI validation with act".
 
+## Hooks
+
+Git hooks are managed by [Lefthook](https://lefthook.dev/) (`lefthook.yml`),
+not by `.git/hooks` scripts. Fresh clones bootstrap the hooks with:
+
+```bash
+bash scripts/setup-hooks.sh
+```
+
+This verifies the Lefthook binary + config and runs
+`lefthook install --reset-hooks-path` to write the `.git/hooks/` shims.
+The pre-commit hook runs the staged aislop scan; the pre-push hook runs the
+full unit test suite, the 1.21 GameTest, and `aislop ci --changes` (skip once
+with `git push --no-verify`).
+
 ## Notes / known state
 
 - **Source layout (post-M2):** `:common` is the single canonical copy of
