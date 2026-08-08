@@ -18,14 +18,16 @@ public final class AsyncSupport {
 
     public static boolean await(long deadlineMs, BooleanSupplier condition) {
         long deadline = System.currentTimeMillis() + deadlineMs;
+        long pollMs = 1;
         while (System.currentTimeMillis() < deadline) {
             if (condition.getAsBoolean()) return true;
             try {
-                Thread.sleep(10);
+                Thread.sleep(pollMs);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return false;
             }
+            pollMs = Math.min(100, pollMs * 2);  // 1 -> 2 -> 4 -> ... -> 100ms cap
         }
         return condition.getAsBoolean();
     }
