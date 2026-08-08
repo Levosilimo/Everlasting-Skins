@@ -2,7 +2,6 @@ name: Publish
 
 permissions:
   contents: write
-  releases: write
 
 on:
   push:
@@ -27,7 +26,10 @@ jobs:
     name: Publish (${{ matrix.game-version }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    if: startsWith(github.ref_name, matrix.prefix)
+    # NOTE: the tag gate lives on the steps, NOT the job: GitHub's
+    # context-availability table excludes `matrix` from jobs.<job_id>.if,
+    # and a matrix ref there rejects the whole file at registration
+    # ("workflow file issue"). Step-level if supports matrix.
     strategy:
       fail-fast: false
       matrix:
@@ -79,10 +81,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build
+        if: startsWith(github.ref_name, matrix.prefix)
         run: ./gradlew :${{ matrix.module }}:build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
       - name: Publish to CurseForge, Modrinth, GitHub Releases
+        if: startsWith(github.ref_name, matrix.prefix)
         uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
         with:
           curseforge-id: 538149
