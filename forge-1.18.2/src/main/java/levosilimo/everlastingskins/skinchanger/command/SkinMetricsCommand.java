@@ -18,7 +18,7 @@ import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Map;
@@ -57,7 +57,7 @@ public final class SkinMetricsCommand {
     }
 
     private static int metrics(CommandContext<CommandSourceStack> context, boolean asJson) {
-        ServerPlayer player = context.getSource().getPlayer();
+        ServerPlayer player = context.getSource().getEntity() instanceof ServerPlayer p ? p : null;
         if (player == null) {
             context.getSource().sendFailure(I18nUtils.getLocalizedComponent("player_only", player));
             return 0;
@@ -65,12 +65,12 @@ public final class SkinMetricsCommand {
         if (!hasPermission(context, "everlastingskins.command.metrics")) return 0;
         Snapshot snapshot = SkinMetrics.INSTANCE.snapshot();
         String output = asJson ? MetricsFormat.json(snapshot) : MetricsFormat.human(snapshot);
-        context.getSource().sendSuccess(() -> Component.literal(output), false);
+        context.getSource().sendSuccess(new TextComponent(output), false);
         return 1;
     }
 
     private static int players(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = context.getSource().getPlayer();
+        ServerPlayer player = context.getSource().getEntity() instanceof ServerPlayer p ? p : null;
         if (player == null || !hasPermission(context, "everlastingskins.command.metrics")) return 0;
         StringBuilder sb = new StringBuilder(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_top_players", player));
         int rank = 0;
@@ -80,32 +80,34 @@ public final class SkinMetricsCommand {
                     .append(e.getValue().refreshCount()).append(I18nUtils.formatMessage("metrics_refreshes", player));
         }
         if (rank == 0) sb.append("\n  ").append(I18nUtils.formatMessage("metrics_no_refreshes", player));
-        context.getSource().sendSuccess(() -> Component.literal(sb.toString()), false);
+        context.getSource().sendSuccess(new TextComponent(sb.toString()), false);
         return 1;
     }
 
     private static int cleanup(CommandContext<CommandSourceStack> context) {
         if (!hasPermission(context, "everlastingskins.command.metrics.reset")) return 0;
         int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(CLEANUP_OLDER_THAN_MS);
-        context.getSource().sendSuccess(() -> Component.literal(
-                FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_cleanup", context.getSource().getPlayer(), removed)), false);
+        context.getSource().sendSuccess(new TextComponent(
+                FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_cleanup",
+                        context.getSource().getEntity() instanceof ServerPlayer p ? p : null, removed)), false);
         return 1;
     }
 
     private static int reset(CommandContext<CommandSourceStack> context) {
         if (!hasPermission(context, "everlastingskins.command.metrics.reset")) return 0;
         SkinMetrics.INSTANCE.reset();
-        context.getSource().sendSuccess(() -> Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_reset", context.getSource().getPlayer())), false);
+        context.getSource().sendSuccess(new TextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("metrics_reset",
+                context.getSource().getEntity() instanceof ServerPlayer p ? p : null)), false);
         return 1;
     }
 
     private static boolean hasPermission(CommandContext<CommandSourceStack> context, String node) {
-        ServerPlayer player = context.getSource().getPlayer();
+        ServerPlayer player = context.getSource().getEntity() instanceof ServerPlayer p ? p : null;
         if (player == null) return false;
         PermissionContext ctx = PermissionContext.of(player.getUUID(), player);
         boolean allowed = PermissionServiceManager.hasPermission(ctx.uuid(), ctx.opLevel(), node);
         if (!allowed) {
-            context.getSource().sendFailure(Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", player)));
+            context.getSource().sendFailure(new TextComponent(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("permission_denied", player)));
         }
         return allowed;
     }
