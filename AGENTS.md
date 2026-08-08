@@ -302,19 +302,22 @@ and `mc1.12.2` remain as frozen stable aliases (tagged
 
 Required checks (contract on `main`) are enforced via the gh API — do not edit
 branch protection in-repo. The contract is strict (`enforce_admins`, no
-force pushes/deletions) with 15 contexts: `YAML Lint`, the `Build
-(common)` / `Build (1.21.x)` / `Build (26.2)` matrix, `Build (mc1.12.2)`,
+force pushes/deletions) with 16 contexts: `YAML Lint`, the `Build
+ (common)` / `Build (1.21.x)` / `Build (26.2)` matrix, `Build (mc1.12.2)`,
 `E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
 `(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
-/ `Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes, and `aislop
-(M2)`. CI job names must match the required-check strings exactly.
+/ `Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes, `aislop
+(M2)`, and `CI Health` (informational -> required, lib-69). CI job names
+must match the required-check strings exactly.
 
 Required-check contract count progression (three-lane expansion, deepwork
 merge order forge-26.2 → forge-1.8.9 → forge-1.7.10): 12 → 13 after
 `Build (26.2)` lands (forge-26.2 lane, PR #310) → 14 after
 `Build (forge-1.8.9)` (PR #311) → 15 after `Build (forge-1.7.10)` lands
-(this lane's CI cell, PR #312). Each lane is added to the contract via
-the `gh-api-bump-<lane>.sh` script (out-of-repo tooling) at PR-open time.
+(PR #312) → 16 after `CI Health` is promoted via
+`scripts/gh-api-bump/CI-Health.sh` (lib-69). Each lane is added to the
+contract via the `gh-api-bump-<lane>.sh` script (out-of-repo tooling) at
+PR-open time.
 
 ### Branch protection bump scripts
 
