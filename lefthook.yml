@@ -3,6 +3,13 @@
 # `git config core.hooksPath` is unset (default git-managed hooks), and the
 # former `.githooks/` path is retired so the two cannot drift.
 #
+# ACTIVE: lefthook is the adopted hook manager; the legacy `.githooks/`
+# scripts were removed and no longer exist. Behavior is identical to the
+# retired scripts (same commands, same order).
+#
+# Bootstrap after cloning (operational):
+#   bash scripts/setup-hooks.sh      # installs lefthook + writes hooks
+#
 # Reinstall after clone:
 #   lefthook install
 #
