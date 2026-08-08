@@ -177,11 +177,12 @@ public class SkinRefreshHandler {
 
     /**
      * Respawn cascade for the target's own view: respawn is the only way the
-     * client rebuilds its own player model with the new textures. KEEP_ALL_DATA
-     * == (byte) 3 in 1.21 (1/2/3 flags) — preserves the client-side inventory.
+     * client rebuilds its own player model with the new textures. The 1.18.2
+     * ClientboundRespawnPacket takes a boolean keepAllPlayerData — true
+     * preserves the client-side inventory.
      */
     private static void recordCascade(ServerPlayer player) {
-        ServerLevel serverLevel = player.serverLevel();
+        ServerLevel serverLevel = player.getLevel();
         PlayerList playerlist = player.getServer().getPlayerList();
         double x = player.position().x;
         double y = player.position().y;
@@ -191,20 +192,19 @@ public class SkinRefreshHandler {
         long start = System.nanoTime();
 
         player.connection.send(new ClientboundRespawnPacket(
-                player.level().dimensionTypeId(),
-                player.level().dimension(),
+                player.getLevel().dimensionTypeRegistration(),
+                player.getLevel().dimension(),
                 BiomeManager.obfuscateSeed(serverLevel.getSeed()),
                 player.gameMode.getGameModeForPlayer(),
                 player.gameMode.getPreviousGameModeForPlayer(),
-                player.level().isDebug(),
+                player.getLevel().isDebug(),
                 serverLevel.isFlat(),
-                ClientboundRespawnPacket.KEEP_ALL_DATA,
-                player.getLastDeathLocation(),
-                player.getPortalCooldown()));
+                true));
         player.setPos(x, y, z);
         player.setYRot(yaw);
         player.setXRot(pitch);
-        player.connection.send(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0));
+        // 8th arg is dismountVehicle (1.18.2 ctor; dropped in 1.20.1).
+        player.connection.send(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0, false));
         playerlist.sendLevelInfo(player, serverLevel);
         playerlist.sendPlayerPermissionLevel(player);
         playerlist.sendAllPlayerInfo(player);
@@ -218,7 +218,7 @@ public class SkinRefreshHandler {
         }
 
         SkinMetrics.INSTANCE.recordSpikeCascade(System.nanoTime() - start);
-        SkinMetrics.INSTANCE.recordBroadcast(wireSize(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0))
+        SkinMetrics.INSTANCE.recordBroadcast(wireSize(new ClientboundPlayerPositionPacket(x, y, z, yaw, pitch, Collections.emptySet(), 0, false))
                 + wireSize(new ClientboundPlayerAbilitiesPacket(player.getAbilities()))
                 + CASCADE_SEND_LEVEL_INFO_BYTES + CASCADE_SEND_PERMISSION_BYTES
                 + CASCADE_SEND_ALL_PLAYER_INFO_BYTES + CASCADE_SEND_EFFECTS_BYTES);
