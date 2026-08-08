@@ -7,12 +7,13 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 - `:common` — version-independent core, `--release 8`. NEVER add a forge
   binding here; never raise the release level. Consumer of last resort:
   every `forge-*` module and the mc1.12.2 lane.
-- `:forge-1.21`, `:forge-1.21.1`, `:forge-1.21.4`, `:forge-1.21.8`, `:forge-26.2` —
+- `:forge-1.21`, `:forge-1.21.1`, `:forge-1.21.4`, `:forge-1.21.8`, `:forge-26.1`, `:forge-26.2` —
   thin binding layers applying `everlastingskins.forge-module`; MC/Forge
-  versions live in each subproject's `gradle.properties`. forge-26.2 is the
-  newest line (MC 26.2 / Forge 65.0.9 / Java 25 / unobfuscated MC, FG 7.0.17
-  on the buildSrc classpath; `minecraft.unobfuscated=true` gates the
-  convention's mappings() call).
+  versions live in each subproject's `gradle.properties`. forge-26.1 and
+  forge-26.2 are the newest 26.x lines (MC 26.1 / Forge 62.0.9 / Java 25 /
+  unobfuscated MC / EventBus 7.0.1 and MC 26.2 / Forge 65.0.9 / Java 25 /
+  unobfuscated MC / EventBus 7; FG 7.0.17 on the buildSrc classpath;
+  `minecraft.unobfuscated=true` gates the convention's mappings() call).
 - `mc1.12.2/` — NOT a subproject (FG 2.3.4 needs Gradle 4.x + Java 8). It
   stays on its own wrapper (4.10.3), builds out-of-band, and consumes `:common`
   via a source-dir share (`srcDir '../common/src/main/java'` in its
@@ -23,7 +24,7 @@ One Gradle root (9.3.1) for the Forge line. Modules:
 ## Convention plugins (`buildSrc/src/main/kotlin/`)
 
 - `everlastingskins.forge-module.gradle.kts` — FG 7.x (consumed at 7.0.17)
-  + parameterized toolchain (Java 21 for 1.21.x, Java 25 for 26.2 via
+  + parameterized toolchain (Java 21 for 1.21.x, Java 25 for 26.x via
   `java.toolchain.version`). All forge build logic lives here; subproject
   build scripts are just `plugins { id("everlastingskins.forge-module") }`.
   Parameterization is via gradle.properties, never via editing build
@@ -132,6 +133,9 @@ hardening, not scope creep: jitpack uptime is a real CI risk. Mitigations:
    point releases. forge-26.2 is a new MC major (new Forge line), not a
    point release of 1.21 — it is governed by its own tag prefix
    `mc26.2-v*` (colloquial '26.2', matching the Forge 65.x line naming).
+   forge-26.1 follows the same 26.x line pattern — own tag prefix
+   `mc26.1-v*` (matching the Forge 62.x line naming), mod_version
+   2.1.0-beta.1.
 6. **`:common` consumed unconditionally:** every forge-* subproject depends
    on `:common` via `implementation(project(":common"))` in
    buildSrc `everlastingskins.forge-module.gradle.kts`; there is no opt-out.
@@ -192,6 +196,7 @@ registers backends).
 ```bash
 ./gradlew :common:build        # fast gate after :common changes
 ./gradlew :forge-1.21:build    # full forge module (slow; downloads userdev)
+./gradlew :forge-26.1:build verifyNoMixin  # 26.1 lane (Java 25 toolchain, unobfuscated MC, FG 7.0.17, EventBus 7.0.1)
 ./gradlew :forge-26.2:build    # 26.2 lane (Java 25 toolchain, unobfuscated MC, FG 7.0.17)
 ./gradlew build                # whole Forge line
 bash scripts/gradle-health.sh  # dep-hygiene sweep (manual; per-consumer :projectHealth; graduated lanes fail on duplicate-class)
@@ -208,7 +213,8 @@ buildable in CI.
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), the 1.21.1 / 1.21.4 / 1.21.8 point releases
 (post-#278 / #280 / #281), forge-26.2 (Java 25, unobfuscated MC,
-EventBus 7; data-driven GameTest green), and forge-1.7.10 (GTNH FG 1.2.11 +
+EventBus 7; data-driven GameTest green), forge-26.1 (Java 25, unobfuscated
+MC, EventBus 7.0.1), and forge-1.7.10 (GTNH FG 1.2.11 +
 MCP stable_12; 48 unit tests, JUnit 4).
 
 ### Fail-fast hooks
@@ -353,6 +359,10 @@ merge order forge-26.2 → forge-1.8.9 → forge-1.7.10): 12 → 13 after
 `scripts/gh-api-bump/CI-Health.sh` (lib-69). Each lane is added to the
 contract via the `gh-api-bump-<lane>.sh` script (out-of-repo tooling) at
 PR-open time.
+
+Future state (forge-26.1, lib-65): once the lane's PR lands (post-Phase 9),
+`Build (26.1)` joins the contract as a 17th context via the same gh-api-bump
+mechanism (current contract stays at 16 until then).
 
 ### Branch protection bump scripts
 
