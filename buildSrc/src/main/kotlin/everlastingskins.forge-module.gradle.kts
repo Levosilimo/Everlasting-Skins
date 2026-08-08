@@ -40,7 +40,6 @@ val forgeVersion: String = requireNotNull(project.findProperty("forge_version")?
 val modVersion: String = project.findProperty("mod_version")?.toString() ?: "1.0.0"
 val modName: String = project.findProperty("mod_name")?.toString() ?: "EverlastingSkins"
 val modVendor: String = project.findProperty("mod_vendor")?.toString() ?: "Levosilimo"
-val mixinId: String = project.findProperty("mixin_id")?.toString() ?: "everlastingskins"
 val toolchainVersion: Int = project.findProperty("java.toolchain.version")?.toString()?.toInt() ?: 21
 val mcRunDir: String = project.findProperty("mc.runDir")?.toString() ?: "run"
 val mcRunDir2: String = project.findProperty("mc.runDir2")?.toString() ?: "run2"
@@ -264,19 +263,10 @@ dependencies {
     // forge-* lane needs vendored :common copies for tooling reasons,
     // re-add the gate + opt-out property here.
     api(project(":common"))
-    implementation("org.apache.httpcomponents:httpclient:4.5.13")
     api(minecraft.dependency("net.minecraftforge:forge:${minecraftVersion}-${forgeVersion}"))
-    // MUST be declared before the mixin processor: mixin-0.8.7-processor.jar
-    // bundles an unrelocated OLD Guava (no ImmutableMap.Builder.buildOrThrow),
-    // which would shadow ErrorProne's Guava 33 on the annotation processor
-    // path and crash it with NoSuchMethodError (ErrorProne integration).
+    // Guava on the annotation processor path keeps ErrorProne stable (it
+    // previously shadowed the OLD Guava bundled in mixin-0.8.7-processor.jar).
     annotationProcessor("com.google.guava:guava:33.5.0-jre")
-    annotationProcessor("org.spongepowered:mixin:0.8.7:processor")
-    // Hack fix for now, force jopt-simple to be exactly 5.0.4 because Mojang
-    // ships that version, but some transitive dependencies request 6.0+.
-    implementation("net.sf.jopt-simple:jopt-simple:5.0.4") {
-        version { strictly("5.0.4") }
-    }
 
     compileOnly("net.luckperms:api:5.5")
     compileOnly("me.clip:placeholderapi:2.12.3")
@@ -291,17 +281,20 @@ dependencies {
     testImplementation("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
     compileOnly("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
 
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.3")
-    testImplementation("net.jqwik:jqwik:1.9.0")
+    testImplementation(platform("org.junit:junit-bom:5.10.3"))
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.3")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.10.3")
+    testImplementation("net.jqwik:jqwik-api:1.9.0")
     testImplementation("me.clip:placeholderapi:2.12.3")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.12.0")
 
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.3")
+    testRuntimeOnly("net.jqwik:jqwik-engine:1.9.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
 
     "gametestImplementation"(sourceSets.main.get().output)
     "gametestImplementation"("org.junit.jupiter:junit-jupiter-api:5.10.3")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.3")
     "gametestRuntimeOnly"("org.junit.platform:junit-platform-launcher:1.10.3")
 }
 
@@ -319,6 +312,9 @@ configurations.getByName("testRuntimeClasspath") {
 
 configurations.all {
     resolutionStrategy.eachDependency {
+        if (requested.group == "net.sf.jopt-simple") {
+            useVersion("5.0.4")
+        }
         if (requested.group == "org.slf4j") {
             useVersion("2.0.9")
         }
@@ -355,10 +351,7 @@ tasks.jar {
             "Implementation-Vendor" to modVendor,
             "Implementation-Timestamp" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(Date()),
             "Built-On-Java" to "${System.getProperty("java.vm.version")} (${System.getProperty("java.vm.vendor")})",
-            "Built-On" to forgeVersion,
-            "TweakClass" to "org.spongepowered.asm.launch.MixinTweaker",
-            "TweakOrder" to 0,
-            "MixinConfigs" to "${mixinId}.mixins.json"
+            "Built-On" to forgeVersion
         )
     }
 }

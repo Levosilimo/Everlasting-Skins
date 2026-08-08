@@ -1,0 +1,26 @@
+tasks.register('verifyNoMixin') {
+    description = 'Fails the build if any @Mixin annotations, mixingradle, mixin plugin id, mixins.json bundling, or @Mixin classes are detected in source or build files.'
+    doLast {
+        def sourceRoots = sourceSets.main.allSource.srcDirs.collect{ it.toString() }
+        def buildFiles = [buildFile.path]
+        def violations = []
+        sourceRoots.each { root ->
+            fileTree(root).matching { include '**/*.java' }.each { f ->
+                def text = f.text
+                if (text.contains('@Mixin')) violations << "${f}: contains @Mixin annotation"
+            }
+        }
+        buildFiles.each { f ->
+            def text = new File(f).text
+            if (text.contains('mixingradle')) violations << "${f}: references mixingradle"
+            if (text.contains("'mixin'") || text.contains('"mixin"')) violations << "${f}: references mixin plugin"
+        }
+        fileTree(projectDir).matching { include '**/mixins.json' }.each { f ->
+            violations << "${f}: mixins.json bundling detected"
+        }
+        if (!violations.isEmpty()) {
+            throw new GradleException("verifyNoMixin failed:\n  - " + violations.join("\n  - "))
+        }
+    }
+}
+build.dependsOn 'verifyNoMixin'

@@ -160,3 +160,7 @@ jar {
         ])
     }
 }
+
+// Mixin-usage gate (Groovy port of the root buildSrc no-mixin.gradle.kts;
+// Gradle 4.10.3 cannot compile the Kotlin-DSL convention).
+apply from: 'gradle/verify-no-mixin.gradle'
