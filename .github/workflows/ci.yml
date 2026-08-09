@@ -80,7 +80,7 @@ jobs:
         # CI-IMPROVEMENT-ROADMAP P0-5: run once on the common leg instead of
         # once per matrix leg (8 identical greps today). Regex aligned with
         # scripts/test-count-gate.sh (@Test OR @ParameterizedTest).
-        if: matrix.mc == "common"
+        if: matrix.mc == 'common'
         run: |
           COUNT=$(grep -rE "@(Test|ParameterizedTest)\b" --include="*.java" common/src forge-1.21/src 2>/dev/null | wc -l)
           echo "Test count: $COUNT"
