@@ -1,45 +1,59 @@
-// forge-1.6.4 — standalone vendored-deobf build for the Minecraft 1.6.4 lane.
+// forge-1.5.2 — standalone vendored-deobf build for the Minecraft 1.5.2 lane.
 //
 // LANE SEPARATION (out-of-band, per monorepo doctrine): this lane cannot use
-// any ForgeGradle. fix-3 (2026-08-08) verified empirically that GTNH FG
-// 1.2.11 rejects forge 9.11.1.1345 at configuration time, MCP-Archive has
-// zero 1.6.4 channels, and de.oceanlabs.mcp:mcp:1.6.4 404s on the Forge
-// maven. So the lane toolchain IS the vendored remap harness proven by the
-// 0.5-day SpecialSource spike (feature/lane-forge-1.6.4-vendored-spike,
-// 3d30c29): remap-only (SpecialSource 1.7.4 bytecode remapping against the
-// MCP 8.11 conf bundled in the forge src zip), no decompiler, no FG, no
-// jitpack, no archive.org. This build is its own wrapper (Gradle 4.4.1,
-// Java 8 ONLY), never included in settings.gradle.kts, no buildSrc, no
-// `everlastingskins.forge-module` convention, no dependency-analysis
-// (out-of-band policy, same as forge-1.7.10 / forge-1.8.9 / mc1.12.2).
+// any ForgeGradle. The spike verdict (spike-1-5-2-toolchain.json, 2026-08-09)
+// verified empirically that GTNH FG 1.2.11 rejects forge 7.8.1.738 at
+// configuration time (doVersionChecks gate: min 10.12.0.1048 '1.7', max
+// 11.14.3.1503 '1.8'), MCP-Archive has zero 1.5.2 channels, and
+// de.oceanlabs.mcp:mcp:1.5.2 404s on the Forge maven. So the lane toolchain IS
+// the vendored remap harness proven by the 0.5-day SpecialSource spike
+// (feature/lane-forge-1.5.2-vendored-spike): remap-only (SpecialSource 1.7.4
+// bytecode remapping against the MCP 7.51 conf bundled in the forge src zip),
+// no decompiler, no FG, no jitpack, no archive.org. This build is its own
+// wrapper (Gradle 4.4.1, Java 8 ONLY), never included in settings.gradle.kts,
+// no buildSrc, no `everlastingskins.forge-module` convention, no
+// dependency-analysis (out-of-band policy, same as forge-1.6.4 /
+// forge-1.7.10 / forge-1.8.9 / mc1.12.2).
 //
-// NAME DOMAINS (empirical, spike-verified against the piston server jar):
-//   - production runtime = OBFUSCATED. minecraft_server.1.6.4.jar ships
-//     proguard names: root-package classes (`ea`, `ey`, ...) EXCEPT identity
-//     classes like net/minecraft/server/MinecraftServer which keep their
-//     names; members are always obf (MinecraftServer.F(), Packet250CustomPayload
-//     field `a`). FMLDeobfTweaker registers an empty remapper in production
-//     (identity), so the shipped mod jar MUST be reobfuscated to this domain.
-//   - MCP 8.11 conf (bundled in forge-1.6.4-9.11.1.1345-src.zip at
-//     forge/fml/conf/, version.cfg asserts MCPVersion=8.11): joined.srg CL
+// NAME DOMAINS (empirical, spike-verified against the piston server jar and
+// the universal zip):
+//   - production runtime = OBFUSCATED. minecraft_server.1.5.2.jar ships
+//     proguard names: root-package classes (`dk` = Packet250CustomPayload,
+//     `gv` = IServer, ...) EXCEPT identity classes like
+//     net/minecraft/server/MinecraftServer which keep their names; members
+//     are always obf (MinecraftServer.D() = getServer, MinecraftServer.f =
+//     logInfo, Packet250CustomPayload field `a` = channel). FML 5.2 has no
+//     deobfuscating remapper in production, so the shipped mod jar MUST be
+//     reobfuscated to this domain.
+//   - MCP 7.51 conf (bundled in forge-1.5.2-7.8.1.738-src.zip at
+//     forge/fml/conf/, version.cfg asserts MCPVersion = 7.51): joined.srg CL
 //     lines map obf-class -> srg-class (net/minecraft/src/*); MD lines key by
-//     (obf-owner, obf-method, OBF-desc) and carry per-side #C/#S variants;
-//     FD lines key by (obf-owner, obf-field). methods.csv/fields.csv map
-//     func_/field_ -> readable deobf names.
-//   - THE UNIVERSAL JAR IS OBF-DOMAIN FOR CLASSES AND FIELDS, READABLE FOR
-//     METHODS (spike javap of the RAW jar: `Method ka.sendPacketToPlayer`,
-//     `Field jv.a`, `registerServerCommand(ab)`). The spike's separate
-//     srg->deobf pass with an EMPTY CL map therefore remapped nothing FML
-//     uses — the stub compiled only because it never touched an FML API
-//     whose signature mentions an MC type. The lane implements
-//     IPacketHandler / IConnectionHandler / ICommand, so the universal jar
-//     MUST be remapped with the same obf->deobf CL+FD map as the server jar
-//     (class refs cm/ea/ab/jv/ka/ey -> net/minecraft/src/*, field refs like
-//     jv.a -> EntityPlayerMP.playerNetServerHandler); readable method refs
-//     simply have no MD entry and pass through untouched.
+//     (obf-owner, obf-method, OBF-desc); FD lines key by (obf-owner,
+//     obf-field). 7.51 joined.srg has NO #C/#S side tags (0 matches, verified
+//     in the spike). methods.csv/fields.csv map func_/field_ -> readable deobf
+//     names; the 7.51 CSVs have NO notch column (searge,name,side,desc) — the
+//     harness only reads the first two columns, so the shape is a no-op.
+//   - THE UNIVERSAL ZIP IS OBF-DOMAIN TOO (single obf->deobf leg for both
+//     jars): spike javap of the RAW zip shows
+//     `public static net.minecraft.server.MinecraftServer D();` (identity
+//     class, obf member) and net/minecraft/server/MinecraftServer.ad member
+//     refs. It is actually a JAR (PK header) despite the .zip extension — the
+//     naming quirk is REVERSED vs 1.6.4 (there, universal.jar was live and
+//     universal.zip 404'd; here universal.zip is live and universal.jar
+//     404s). It ALSO carries 4 patched MC classes (patched MinecraftServer,
+//     28,191 B vs the vanilla 18,709 B, plus 3 client additions) — the merge
+//     step must let universal's patched copies OVERRIDE the server jar's
+//     originals (spike MERGE RULE delta).
 //   - dev classpath = build/deobf/merged-deobf.jar (server.jar obf->deobf +
-//     universal.jar obf->deobf, merged). Ship artifact = the mod jar
-//     reobf'd deobf->obf (composite: csv reverse + joined.srg reverse).
+//     universal.zip obf->deobf, merged, universal wins collisions). Ship
+//     artifact = the mod jar reobf'd deobf->obf (composite: csv reverse +
+//     joined.srg reverse).
+//
+// FML 5.2 surface (vs 7.x on 1.6.4): near-match for this mod's touchpoints —
+// `@Mod(modid,name,version)` + `@Mod.EventHandler`, and
+// NetworkRegistry.instance().registerChannel(IPacketHandler,String) are the
+// SAME API (FML 5.2 NetworkRegistry.java:99-120), so the 1.6.4 adapter's
+// programmatic channel path carries over unchanged.
 
 plugins {
     id 'java'
@@ -47,15 +61,15 @@ plugins {
 
 version = "${mod_version}"
 group = 'levosilimo.everlastingskins'
-archivesBaseName = 'everlastingskins-1.6.4'
+archivesBaseName = 'everlastingskins-1.5.2'
 
 sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
 
 repositories {
     mavenCentral()
-    // authlib is NOT on the 1.6.4 server classpath (verified: no authlib in
-    // install_profile.json / piston-meta 1.6.4.json — it arrived in later MC
-    // lines) and NOT on mavenCentral; Mojang's own maven hosts it. Needed at
+    // authlib is NOT on the 1.5.2 server classpath (verified: no authlib in
+    // the 1.5.2 server jar / install profile — it arrived in later MC lines)
+    // and NOT on mavenCentral; Mojang's own maven hosts it. Needed at
     // compile time because :common's CustomSkinProperty binds authlib's
     // Property type (compile-only; runtime caveat documented above).
     maven {
@@ -85,26 +99,27 @@ dependencies {
     specialsource 'net.md-5:SpecialSource:1.7.4'
 
     // :common is consumed by source-dir sharing and binds three Maven
-    // artifacts at compile time that the 1.6.4 server does NOT ship
-    // (verified against install_profile.json + piston-meta 1.6.4.json —
-    // authlib and log4j2 arrived in later MC lines; gson IS on the 1.6.4
-    // classpath at 2.2.2). Rule-4 lane decision: declare them explicitly
-    // with the exact 1.6.4-era versions. Runtime note (documented in the
-    // coverage report): a deployment must add authlib + log4j-api jars to
-    // the server classpath, since the mod (like every lane) stores
-    // :common's authlib-backed CustomSkinProperty.
-    compile 'com.google.code.findbugs:jsr305:3.0.2'          // :common @Nullable (not on 1.6.4 classpath)
-    compile 'com.google.code.gson:gson:2.2.2'                // :common SkinIO/JsonUtils (exact 1.6.4 version)
+    // artifacts at compile time that the 1.5.2 server does NOT ship
+    // (verified against the server jar listing — authlib and log4j arrived
+    // in later MC lines; gson is not bundled either). Rule-4 lane decision:
+    // declare them explicitly with the 1.6.4-proven pins (exact 1.5.2-era
+    // gson is 2.1 — version refinement is a port-time decision, not a spike
+    // concern). Runtime note (documented in the coverage report): a
+    // deployment must add authlib + log4j-api jars to the server classpath,
+    // since the mod (like every lane) stores :common's authlib-backed
+    // CustomSkinProperty.
+    compile 'com.google.code.findbugs:jsr305:3.0.2'          // :common @Nullable (not on 1.5.2 classpath)
+    compile 'com.google.code.gson:gson:2.2.2'                // :common SkinIO/JsonUtils (1.6.4-proven pin)
     compile 'com.mojang:authlib:1.5.16'                      // :common CustomSkinProperty (hosted on libraries.minecraft.net)
-    compile 'org.apache.logging.log4j:log4j-api:2.8.1'       // :common LogManager (not on 1.6.4 classpath)
+    compile 'org.apache.logging.log4j:log4j-api:2.8.1'       // :common LogManager (not on 1.5.2 classpath)
 
     // authlib 1.5.16 transitively pulls log4j-core:2.0-beta9, whose
     // Log4jContextFactory does not match log4j-api 2.8.1's interface — the
     // ServiceLoader picks the beta core at TEST runtime and
-    // LogManager.getLogger throws AbstractMethodError (backported from the
-    // forge-1.5.2 lane fix, commit 04c18ee). Version-match the core at test
-    // scope only: no new Maven coordinate (log4j-core is already on the test
-    // classpath via authlib), and the ship jar never bundles it.
+    // LogManager.getLogger throws AbstractMethodError (23 test failures,
+    // 2026-08-09, build #1). Version-match the core at test scope only: no
+    // new Maven coordinate (log4j-core is already on the test classpath via
+    // authlib), and the ship jar never bundles it.
     testCompile 'org.apache.logging.log4j:log4j-core:2.8.1'  // test-runtime match for log4j-api 2.8.1 (authlib beta conflict)
 
     // The merged-deobf jar (MC + FML + Forge) is produced by deobfClasspath;
@@ -112,7 +127,7 @@ dependencies {
     compile files(mergedDeobfJar)
 
     // Rule 4 lane decision: JUnit 4.13.2 + mockito-core 2.28.2, mirroring
-    // forge-1.7.10 (Gradle 4.4.1 floor; 4.4.1 lanes use JUnit 4).
+    // forge-1.7.10 / forge-1.6.4 (Gradle 4.4.1 floor; 4.4.1 lanes use JUnit 4).
     testCompile 'junit:junit:4.13.2'
     testCompile 'org.mockito:mockito-core:2.28.2'
 }
@@ -143,18 +158,20 @@ sourceSets {
 // with -Pvendored.offline (fails instead of downloading).
 def vendoredDir = project.hasProperty('vendored.dir')
     ? file(project.property('vendored.dir'))
-    : file("${gradle.gradleUserHomeDir}/everlastingskins-vendored/1.6.4")
+    : file("${gradle.gradleUserHomeDir}/everlastingskins-vendored/1.5.2")
 
 def vendoredInputs = [
-    [name: 'forge-1.6.4-9.11.1.1345-src.zip',
-     url: 'https://maven.minecraftforge.net/net/minecraftforge/forge/1.6.4-9.11.1.1345/forge-1.6.4-9.11.1.1345-src.zip',
-     algo: 'MD5', digest: 'ba1b7de42be281e9db98f7cc7064e672'],
-    [name: 'forge-1.6.4-9.11.1.1345-universal.jar',
-     url: 'https://maven.minecraftforge.net/net/minecraftforge/forge/1.6.4-9.11.1.1345/forge-1.6.4-9.11.1.1345-universal.jar',
-     algo: 'MD5', digest: 'a4d84569831a19d562b690343634cbac'],
-    [name: 'minecraft_server.1.6.4.jar',
-     url: 'https://piston-data.mojang.com/v1/objects/050f93c1f3fe9e2052398f7bd6aca10c63d64a87/server.jar',
-     algo: 'SHA-1', digest: '050f93c1f3fe9e2052398f7bd6aca10c63d64a87'],
+    [name: 'forge-1.5.2-7.8.1.738-src.zip',
+     url: 'https://maven.minecraftforge.net/net/minecraftforge/forge/1.5.2-7.8.1.738/forge-1.5.2-7.8.1.738-src.zip',
+     algo: 'MD5', digest: '82d0c238e13dda7b62d7c9ebb8714866'],
+    // NAMING QUIRK (reversed vs 1.6.4): the compiled FML 5.2 + Forge artifact
+    // is universal.ZIP (actually a JAR — PK header); universal.jar 404s.
+    [name: 'forge-1.5.2-7.8.1.738-universal.zip',
+     url: 'https://maven.minecraftforge.net/net/minecraftforge/forge/1.5.2-7.8.1.738/forge-1.5.2-7.8.1.738-universal.zip',
+     algo: 'MD5', digest: '8889a0e9fa22a71f4dfa63aab16c495b'],
+    [name: 'minecraft_server.1.5.2.jar',
+     url: 'https://launcher.mojang.com/v1/objects/f9ae3f651319151ce99a0bfad6b34fa16eb6775f/server.jar',
+     algo: 'SHA-1', digest: 'f9ae3f651319151ce99a0bfad6b34fa16eb6775f'],
 ]
 
 def digestOf = { File f, String algo ->
@@ -169,7 +186,7 @@ def digestOf = { File f, String algo ->
 
 task resolveVendored {
     group = 'everlastingskins'
-    description = 'Download + checksum-verify the 3 vendored inputs (forge src zip, forge universal jar, vanilla 1.6.4 server jar) into a cache dir; pre-seed the dir or pass -Pvendored.offline for offline builds.'
+    description = 'Download + checksum-verify the 3 vendored inputs (forge src zip, forge universal zip, vanilla 1.5.2 server jar) into a cache dir; pre-seed the dir or pass -Pvendored.offline for offline builds.'
     outputs.dir vendoredDir
     doLast {
         def offline = project.hasProperty('vendored.offline')
@@ -200,17 +217,17 @@ task resolveVendored {
 }
 
 // ---------------------------------------------------------------------------
-// MCP 8.11 conf extraction (extractMcpConf)
+// MCP 7.51 conf extraction (extractMcpConf)
 // ---------------------------------------------------------------------------
-def mcpConfDir = file("$buildDir/mcp811")
+def mcpConfDir = file("$buildDir/mcp751")
 
 task extractMcpConf(dependsOn: resolveVendored) {
     group = 'everlastingskins'
-    description = 'Extract the bundled MCP 8.11 conf (forge/fml/conf/*) from the forge src zip and assert MCPVersion=8.11.'
-    inputs.file { new File(vendoredDir, 'forge-1.6.4-9.11.1.1345-src.zip') }
+    description = 'Extract the bundled MCP 7.51 conf (forge/fml/conf/*) from the forge src zip and assert MCPVersion=7.51.'
+    inputs.file { new File(vendoredDir, 'forge-1.5.2-7.8.1.738-src.zip') }
     outputs.dir mcpConfDir
     doLast {
-        def srcZip = new File(vendoredDir, 'forge-1.6.4-9.11.1.1345-src.zip')
+        def srcZip = new File(vendoredDir, 'forge-1.5.2-7.8.1.738-src.zip')
         delete mcpConfDir
         ant.unzip(src: srcZip, dest: mcpConfDir) {
             patternset {
@@ -231,18 +248,19 @@ task extractMcpConf(dependsOn: resolveVendored) {
             }
         }
         def versionCfg = new File(mcpConfDir, 'version.cfg').getText('UTF-8')
-        if (!versionCfg.contains('MCPVersion = 8.11')) {
-            throw new GradleException("extractMcpConf: version.cfg does not assert MCPVersion = 8.11:\n${versionCfg}")
+        if (!versionCfg.contains('MCPVersion = 7.51')) {
+            throw new GradleException("extractMcpConf: version.cfg does not assert MCPVersion = 7.51:\n${versionCfg}")
         }
-        logger.lifecycle('extractMcpConf: MCP 8.11 conf extracted and asserted (MCPVersion = 8.11, 1.6.4)')
+        logger.lifecycle('extractMcpConf: MCP 7.51 conf extracted and asserted (MCPVersion = 7.51, 1.5.2)')
     }
 }
 
 // ---------------------------------------------------------------------------
 // MCP conf parsers (shared by the mapping builders)
 // ---------------------------------------------------------------------------
-// methods.csv/fields.csv rows: searge,name,side,desc — the desc column is
-// quoted and may contain commas; only the first two fields are needed.
+// methods.csv/fields.csv rows: searge,name,side,desc — 7.51 has NO notch
+// column (unlike 8.11); the desc column is quoted and may contain commas.
+// Only the first two fields are needed.
 def parseCsvMappings = { File csv ->
     def map = [:]
     csv.eachLine('UTF-8') { line, idx ->
@@ -255,8 +273,9 @@ def parseCsvMappings = { File csv ->
     map
 }
 
-// joined.srg lines (tokens after the ':' separator; trailing '#C'/'#S' side
-// tags are dropped):
+// joined.srg lines (tokens after the ':' separator; 7.51 has NO trailing
+// #C/#S side tags — 0 matches verified in the spike — but the tag drop is
+// kept for shape parity with 8.11):
 //   CL: <obfClass> <srgClass>
 //   MD: <obfOwner>/<obfMethod> <OBF-desc> <srgOwner>/<funcName> <srg-desc>
 //   FD: <obfOwner>/<obfField> <srgOwner>/<fieldName>
@@ -325,18 +344,18 @@ def runSpecialSource = { String inJar, String outJar, String srgIn ->
 // Subclass-owner expansion (javac receiver-owner shape)
 // ---------------------------------------------------------------------------
 // javac emits invokevirtual refs with the RECEIVER's static type as owner
-// (verified 2026-08-09 with javac 8): `player.getCommandSenderName()` on an
-// EntityPlayerMP-typed player produces `Methodref EntityPlayerMP.getCommandSenderName`
+// (verified 2026-08-09 with javac 8): `p.getCommandSenderName()` on an
+// EntityPlayerMP-typed p produces `Methodref EntityPlayerMP.getCommandSenderName`
 // even though the method is DECLARED on EntityPlayer. SpecialSource remaps
 // refs by exact (owner,name,desc) match, so a ref on a subclass owner misses
 // the MD entry and leaks the readable name into the obf jar with only the
-// owner CL-remapped (observed: `jv.getCommandSenderName` in the ship jar — a
-// NoSuchMethodError on the obf runtime, where jv inherits c_ from uf). The
-// spike stub never exercised this (its two surfaces — MinecraftServer.getServer
-// and Packet250CustomPayload.channel — are declared on their owners); the
+// owner CL-remapped (observed: `jc.getCommandSenderName` in the ship jar — a
+// NoSuchMethodError on the obf runtime, where jc declares c_). The spike stub
+// never exercised this (its two surfaces — MinecraftServer.getServer and
+// Packet250CustomPayload.channel — are declared on their owners); the
 // production adapter does. Fix: expand each reverse MD entry to every
 // srg-domain subclass of the declaring owner, so subclass-owner refs remap to
-// the obf subclass + obf name (jv.c_ — JVM resolution walks jv -> uf and
+// the obf subclass + obf name (jc.c_ — JVM resolution walks jc -> sq and
 // finds c_). Fields need no expansion (javac always emits the declaring owner
 // for getfield).
 
@@ -419,7 +438,7 @@ def expandSubclassMethods = { Map mdMapC, Map hier, Map clRevMap ->
         // list stored in `subclasses` — a drained list silently starves every
         // later mdMapC entry with the same owner (observed 2026-08-09: only
         // the first EntityPlayer-declared method expanded; getCommandSenderName
-        // leaked as jv.getCommandSenderName).
+        // leaked as jc.getCommandSenderName).
         def queue = new ArrayList(subclasses.get(owner, []) ?: [])
         def seen = [(owner): true]
         while (!queue.isEmpty()) {
@@ -436,16 +455,17 @@ def expandSubclassMethods = { Map mdMapC, Map hier, Map clRevMap ->
 
 // ---------------------------------------------------------------------------
 // Deobf classpath (deobfClasspath): compose the obf->deobf mapping, run
-// SpecialSource on the server jar AND the universal jar (both are
-// obf-domain for classes/fields), merge into build/deobf/merged-deobf.jar.
+// SpecialSource on the server jar AND the universal zip (BOTH are
+// obf-domain for classes/fields — single obf->deobf leg), merge into
+// build/deobf/merged-deobf.jar.
 // ---------------------------------------------------------------------------
 task deobfClasspath(dependsOn: extractMcpConf) {
     group = 'everlastingskins'
-    description = 'Compose the obf->deobf mapping from the MCP 8.11 conf, run SpecialSource on the server jar AND the FML universal jar (both reference MC classes/fields by obf names), and merge them into build/deobf/merged-deobf.jar — the FG "minecraft" classpath equivalent.'
+    description = 'Compose the obf->deobf mapping from the MCP 7.51 conf, run SpecialSource on the server jar AND the FML universal zip (both reference MC classes/fields by obf names), and merge them into build/deobf/merged-deobf.jar — the FG "minecraft" classpath equivalent. Universal\'s 4 patched MC classes (patched MinecraftServer + 3 client additions) override the server jar\'s originals in the merge.'
     inputs.dir mcpConfDir
     inputs.files {
-        [new File(vendoredDir, 'minecraft_server.1.6.4.jar'),
-         new File(vendoredDir, 'forge-1.6.4-9.11.1.1345-universal.jar')]
+        [new File(vendoredDir, 'minecraft_server.1.5.2.jar'),
+         new File(vendoredDir, 'forge-1.5.2-7.8.1.738-universal.zip')]
     }
     outputs.files mergedDeobfJar, deobfServerJar, deobfUniversalJar, obfToDeobfSrg, deobfToObfSrg
     doLast {
@@ -454,7 +474,7 @@ task deobfClasspath(dependsOn: extractMcpConf) {
         def srg = parseJoinedSrg(new File(mcpConfDir, 'joined.srg'))
         mappingDir.mkdirs()
 
-        // --- obf -> deobf (server jar + universal jar) -------------------
+        // --- obf -> deobf (server jar + universal zip) ------------------
         // Bytecode refs: (obfOwner, obfMethod, OBF-desc) + (obfOwner, obfField).
         // The conf MD input side already carries the OBF desc; the owner is
         // obf (identity classes map to themselves via clRev fallback).
@@ -477,19 +497,24 @@ task deobfClasspath(dependsOn: extractMcpConf) {
 
         // --- remap + merge -------------------------------------------------
         new File("$buildDir/deobf").mkdirs()
-        runSpecialSource(new File(vendoredDir, 'minecraft_server.1.6.4.jar').absolutePath,
+        runSpecialSource(new File(vendoredDir, 'minecraft_server.1.5.2.jar').absolutePath,
             deobfServerJar.absolutePath, obfToDeobfSrg.absolutePath)
-        runSpecialSource(new File(vendoredDir, 'forge-1.6.4-9.11.1.1345-universal.jar').absolutePath,
+        runSpecialSource(new File(vendoredDir, 'forge-1.5.2-7.8.1.738-universal.zip').absolutePath,
             deobfUniversalJar.absolutePath, obfToDeobfSrg.absolutePath)
 
-        // Merge: server-deobf first, universal-deobf on top. The two jars are
-        // disjoint by construction (server: net/minecraft + leftover obf
-        // classes; universal: cpw.mods.fml + net.minecraftforge).
+        // MERGE RULE (1.5.2 delta vs 1.6.4): the universal zip carries 4
+        // patched MC classes (patched MinecraftServer 28,191 B vs vanilla
+        // 18,709 B, plus 3 client additions) that collide with the server
+        // jar's originals. The first-seen entry wins the dedupe, so the
+        // universal jar must be merged FIRST — its patched copies override.
+        // Everything else is disjoint by construction (server: net/minecraft
+        // + leftover obf classes; universal: cpw.mods.fml + net.minecraftforge
+        // + the patched MC classes).
         def seen = new HashSet()
         mergedDeobfJar.withOutputStream { os ->
             def zos = new java.util.zip.ZipOutputStream(os)
             try {
-                [deobfServerJar, deobfUniversalJar].each { jar ->
+                [deobfUniversalJar, deobfServerJar].each { jar ->
                     new java.util.zip.ZipFile(jar).withCloseable { zf ->
                         zf.entries().each { entry ->
                             if (entry.isDirectory() || !seen.add(entry.name)) return
@@ -531,7 +556,7 @@ task deobfClasspath(dependsOn: extractMcpConf) {
         expandSubclassMethods(mdMapC, scanHierarchy(mergedDeobfJar), clRevMap)
         writeSrgMapping(deobfToObfSrg, clRevMap, mdMapC, fdMapC)
 
-        logger.lifecycle("deobfClasspath: ${mergedDeobfJar.name} built (server obf->deobf + universal obf->deobf)")
+        logger.lifecycle("deobfClasspath: ${mergedDeobfJar.name} built (server obf->deobf + universal obf->deobf, universal patched MC wins)")
     }
 }
 
@@ -557,9 +582,9 @@ task generateVersionSource {
     description = 'Generate ModVersion.VERSION from gradle.properties mod_version (no FG replace on this harness).'
     outputs.dir versionSourceDir
     doLast {
-        def f = new File(versionSourceDir, 'levosilimo/everlastingskins/forge164/ModVersion.java')
+        def f = new File(versionSourceDir, 'levosilimo/everlastingskins/forge152/ModVersion.java')
         f.parentFile.mkdirs()
-        f.text = """package levosilimo.everlastingskins.forge164;
+        f.text = """package levosilimo.everlastingskins.forge152;
 
 /** Generated from gradle.properties mod_version — keeps @Mod's version in sync. */
 public final class ModVersion {
@@ -622,7 +647,7 @@ task reobf(dependsOn: [jar, deobfClasspath]) {
 // ---------------------------------------------------------------------------
 task assertNameDomain(dependsOn: reobf) {
     group = 'verification'
-    description = 'Self-check: javap the reobf\'d mod jar and fail if any MC reference is still srg/deobf-named. Forbidden tokens are scoped to the srg domain (func_, field_, net/minecraft/src/) plus the lane\'s known MC member surfaces. Two owner-qualified tokens cover declared-on-owner refs (MinecraftServer.getServer -> F, Packet250CustomPayload.channel -> a); the bare member-name tokens (getCommandSenderName, getConfigurationManager, getFile, playerNetServerHandler, netManager, playerEntityList) cover the javac receiver-owner shape — a readable MC member name on ANY owner (deobf or obf) in the shipped jar is a leaked reobf, and none of these names is used by the mod\'s own classes or the FML API, so they cannot false-positive. FML API refs like FMLServerStartingEvent.getServer() legitimately stay readable and are NOT flagged (owner-qualified token).'
+    description = 'Self-check: javap the reobf\'d mod jar and fail if any MC reference is still srg/deobf-named. Forbidden tokens are scoped to the srg domain (func_, field_, net/minecraft/src/) plus the lane\'s known MC member surfaces. Two owner-qualified tokens cover declared-on-owner refs (MinecraftServer.getServer -> D, Packet250CustomPayload.channel -> dk.a); the bare member-name tokens (getCommandSenderName, getConfigurationManager, getFile, playerNetServerHandler, netManager, playerEntityList) cover the javac receiver-owner shape — a readable MC member name on ANY owner (deobf or obf) in the shipped jar is a leaked reobf, and none of these names is used by the mod\'s own classes or the FML API, so they cannot false-positive. FML API refs like FMLServerStartingEvent.getServer() legitimately stay readable and are NOT flagged (owner-qualified token).'
     doLast {
         def jarFile = jar.archivePath
         def classes = []
@@ -651,12 +676,12 @@ task assertNameDomain(dependsOn: reobf) {
         // Leaked-domain tokens. net/minecraft/src/ is the renamed-class srg
         // package (any such ref is a missed CL remap); func_/field_ are srg
         // member names; the owner-qualified MC member surfaces must be obf
-        // after reobf (MinecraftServer.getServer -> F, Packet250CustomPayload
-        // .channel -> a). The bare member-name tokens catch the javac
+        // after reobf (MinecraftServer.getServer -> D, Packet250CustomPayload
+        // .channel -> dk.a). The bare member-name tokens catch the javac
         // receiver-owner leak shape (readable name on an obf owner, e.g.
-        // jv.getCommandSenderName after a missed inherited-method remap).
-        // FML API names (getServer, registerChannel) are never obfuscated
-        // and are excluded by the owner qualification / not being in the list.
+        // jc.getCommandSenderName after a missed inherited-method remap).
+        // FML API names (getServer, registerChannel) are never obfuscated and
+        // are excluded by the owner qualification / not being in the list.
         def forbidden = ['func_', 'field_', 'net/minecraft/src/',
                          'net/minecraft/server/MinecraftServer.getServer',
                          'Packet250CustomPayload.channel',

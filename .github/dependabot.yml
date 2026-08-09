@@ -1,0 +1,38 @@
+# Dependabot config (P2-20, lib-11): cheapest durable supply-chain win from
+# the P2/P3 backlog. Weekly scans for gradle + github-actions; PRs target
+# main only. The in-root lanes (forge-1.21 / 1.21.1 / 1.21.4 / 1.21.8 /
+# 26.1 / 26.2) are subprojects of the root Gradle build (directory: "/"),
+# not branches — a single "/" entry covers them via settings.gradle.kts.
+# Out-of-band lanes (mc1.12.2, forge-1.6.4 / 1.7.10 / 1.8.9 / 1.10.2 /
+# 1.16.5 / 1.18.2 / 1.20.1) are not declared in settings.gradle.kts and are
+# intentionally not scanned: their ForgeGradle / MCP pins must stay fixed
+# (supply-chain pinning per AGENTS.md).
+# Auto-merge is intentionally disabled (no auto-merge rules): updates to
+# convention plugins / buildSrc always need review.
+version: 2
+updates:
+  # Gradle: root build + buildSrc + all in-root lane subprojects.
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "main"
+    assignees:
+      - "levosilimo"
+    labels:
+      - "dependencies"
+      - "ci"
+    open-pull-requests-limit: 10
+
+  # GitHub Actions: .github/workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "main"
+    assignees:
+      - "levosilimo"
+    labels:
+      - "dependencies"
+      - "ci"
+    open-pull-requests-limit: 5
