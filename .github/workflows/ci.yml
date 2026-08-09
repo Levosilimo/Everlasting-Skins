@@ -71,14 +71,18 @@ jobs:
           path: |
             ~/.gradle/wrapper/dists
             ~/.gradle/caches
-          key: gradle-${{ runner.os }}-m2-${{ hashFiles('**/gradle-wrapper.properties') }}
+          key: gradle-${{ runner.os }}-m2-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-${{ runner.os }}-m2-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Verify test count meets minimum
+        # CI-IMPROVEMENT-ROADMAP P0-5: run once on the common leg instead of
+        # once per matrix leg (8 identical greps today). Regex aligned with
+        # scripts/test-count-gate.sh (@Test OR @ParameterizedTest).
+        if: matrix.mc == 'common'
         run: |
-          COUNT=$(grep -r "@Test" --include="*.java" common/src forge-1.21/src 2>/dev/null | wc -l)
+          COUNT=$(grep -rE "@(Test|ParameterizedTest)\b" --include="*.java" common/src forge-1.21/src 2>/dev/null | wc -l)
           echo "Test count: $COUNT"
           if [ "$COUNT" -lt 150 ]; then
             echo "ERROR: Test count dropped below 150 (got $COUNT)"
@@ -427,7 +431,7 @@ jobs:
   gametest-121:
     name: GameTest (1.21)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     needs: lint-yaml
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
@@ -442,14 +446,19 @@ jobs:
           path: |
             ~/.gradle/wrapper/dists
             ~/.gradle/caches
-          key: gradle-${{ runner.os }}-m2-gametest-${{ hashFiles('**/gradle-wrapper.properties') }}
+          key: gradle-${{ runner.os }}-m2-gametest-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-${{ runner.os }}-m2-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
+        # CI-IMPROVEMENT-ROADMAP P1-8: 15 min is correct for a warm cache but
+        # turns a cold-cache PR run into a guaranteed red check + manual
+        # re-run (fix-10: cancelled at 15m15s on PR #314 cold cache; warm runs
+        # finish in 2.5-6 min). 30 min bounds the runaway case while
+        # tolerating cache misses.
         run: ./gradlew :forge-1.21:runGameTestServer --no-daemon --console=plain
-        timeout-minutes: 15
+        timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
             -Dorg.gradle.jvmargs="-Dfile.encoding=UTF-8
