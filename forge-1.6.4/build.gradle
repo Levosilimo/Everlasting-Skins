@@ -95,7 +95,17 @@ dependencies {
     // :common's authlib-backed CustomSkinProperty.
     compile 'com.google.code.findbugs:jsr305:3.0.2'          // :common @Nullable (not on 1.6.4 classpath)
     compile 'com.google.code.gson:gson:2.2.2'                // :common SkinIO/JsonUtils (exact 1.6.4 version)
-    compile 'com.mojang:authlib:1.5.16'                      // :common CustomSkinProperty (hosted on libraries.minecraft.net)    compile 'org.apache.logging.log4j:log4j-api:2.8.1'       // :common LogManager (not on 1.6.4 classpath)
+    compile 'com.mojang:authlib:1.5.16'                      // :common CustomSkinProperty (hosted on libraries.minecraft.net)
+    compile 'org.apache.logging.log4j:log4j-api:2.8.1'       // :common LogManager (not on 1.6.4 classpath)
+
+    // authlib 1.5.16 transitively pulls log4j-core:2.0-beta9, whose
+    // Log4jContextFactory does not match log4j-api 2.8.1's interface — the
+    // ServiceLoader picks the beta core at TEST runtime and
+    // LogManager.getLogger throws AbstractMethodError (backported from the
+    // forge-1.5.2 lane fix, commit 04c18ee). Version-match the core at test
+    // scope only: no new Maven coordinate (log4j-core is already on the test
+    // classpath via authlib), and the ship jar never bundles it.
+    testCompile 'org.apache.logging.log4j:log4j-core:2.8.1'  // test-runtime match for log4j-api 2.8.1 (authlib beta conflict)
 
     // The merged-deobf jar (MC + FML + Forge) is produced by deobfClasspath;
     // `compile files(...)` resolves lazily, after the producing task runs.
@@ -312,6 +322,119 @@ def runSpecialSource = { String inJar, String outJar, String srgIn ->
 }
 
 // ---------------------------------------------------------------------------
+// Subclass-owner expansion (javac receiver-owner shape)
+// ---------------------------------------------------------------------------
+// javac emits invokevirtual refs with the RECEIVER's static type as owner
+// (verified 2026-08-09 with javac 8): `player.getCommandSenderName()` on an
+// EntityPlayerMP-typed player produces `Methodref EntityPlayerMP.getCommandSenderName`
+// even though the method is DECLARED on EntityPlayer. SpecialSource remaps
+// refs by exact (owner,name,desc) match, so a ref on a subclass owner misses
+// the MD entry and leaks the readable name into the obf jar with only the
+// owner CL-remapped (observed: `jv.getCommandSenderName` in the ship jar — a
+// NoSuchMethodError on the obf runtime, where jv inherits c_ from uf). The
+// spike stub never exercised this (its two surfaces — MinecraftServer.getServer
+// and Packet250CustomPayload.channel — are declared on their owners); the
+// production adapter does. Fix: expand each reverse MD entry to every
+// srg-domain subclass of the declaring owner, so subclass-owner refs remap to
+// the obf subclass + obf name (jv.c_ — JVM resolution walks jv -> uf and
+// finds c_). Fields need no expansion (javac always emits the declaring owner
+// for getfield).
+
+// Minimal class-file scan: returns [className -> superClassName] for every
+// .class in a jar, from the constant pool (magic/minor/major + cpCount only).
+def scanHierarchy = { File jar ->
+    def hier = [:]
+    new java.util.zip.ZipFile(jar).withCloseable { zf ->
+        zf.entries().each { entry ->
+            if (!entry.name.endsWith('.class')) return
+            byte[] bytes = zf.getInputStream(entry).bytes
+            def pos = 8 // magic(4) + minor(2) + major(2)
+            def cpCount = ((bytes[pos] & 0xFF) << 8) | (bytes[pos + 1] & 0xFF)
+            pos += 2
+            def utf8 = [:]
+            def classNames = [:]
+            def i = 1
+            while (i < cpCount) {
+                def tag = bytes[pos] & 0xFF
+                pos += 1
+                switch (tag) {
+                    case 1: // CONSTANT_Utf8
+                        def len = ((bytes[pos] & 0xFF) << 8) | (bytes[pos + 1] & 0xFF)
+                        pos += 2
+                        utf8[i] = new String(bytes, pos, len, 'UTF-8')
+                        pos += len
+                        break
+                    case 7: // CONSTANT_Class -> name_index
+                        classNames[i] = ((bytes[pos] & 0xFF) << 8) | (bytes[pos + 1] & 0xFF)
+                        pos += 2
+                        break
+                    case 5: case 6: // CONSTANT_Long / Double (2 slots)
+                        pos += 8
+                        i += 1
+                        break
+                    case 15: // CONSTANT_MethodHandle
+                        pos += 3
+                        break
+                    case 8: case 16: // CONSTANT_String / MethodType
+                        pos += 2
+                        break
+                    default: // int, float, Fieldref, Methodref, InterfaceMethodref,
+                             // NameAndType, Dynamic, InvokeDynamic
+                        pos += 4
+                        break
+                }
+                i += 1
+            }
+            pos += 2 // access_flags
+            def thisIdx = ((bytes[pos] & 0xFF) << 8) | (bytes[pos + 1] & 0xFF)
+            def superIdx = ((bytes[pos + 2] & 0xFF) << 8) | (bytes[pos + 3] & 0xFF)
+            def thisName = utf8[classNames[thisIdx]]
+            if (thisName != null) {
+                hier[thisName] = superIdx == 0 ? null : utf8[classNames[superIdx]]
+            }
+        }
+    }
+    hier
+}
+
+// For each reverse MD entry (declaringOwner, readable, srgDesc) ->
+// (obfOwner, obfName, obfDesc), add entries for every srg-domain subclass of
+// the declaring owner (transitive), with the subclass's obf name as output
+// owner. Only srg-domain classes (net/minecraft/src, net/minecraft/server)
+// participate — FML classes are never obfuscated and never appear as
+// declaring owners in the MD map.
+def expandSubclassMethods = { Map mdMapC, Map hier, Map clRevMap ->
+    def subclasses = [:]
+    hier.each { name, superName ->
+        if (superName != null) {
+            def list = subclasses.get(superName, [])
+            list << name
+            subclasses[superName] = list
+        }
+    }
+    def extra = [:]
+    mdMapC.each { key, value ->
+        def owner = key[0]
+        // COPY the subclass list: queue.remove(0) below must not drain the
+        // list stored in `subclasses` — a drained list silently starves every
+        // later mdMapC entry with the same owner (observed 2026-08-09: only
+        // the first EntityPlayer-declared method expanded; getCommandSenderName
+        // leaked as jv.getCommandSenderName).
+        def queue = new ArrayList(subclasses.get(owner, []) ?: [])
+        def seen = [(owner): true]
+        while (!queue.isEmpty()) {
+            def sub = queue.remove(0)
+            if (seen[sub]) continue
+            seen[sub] = true
+            def obfSub = clRevMap[sub] ?: sub
+            extra[[sub, key[1], key[2]]] = [obfSub, value[1], value[2]]
+            queue.addAll(new ArrayList(subclasses.get(sub, []) ?: []))
+        }
+    }
+    extra.each { k, v -> mdMapC[k] = v }
+}
+
+// ---------------------------------------------------------------------------
 // Deobf classpath (deobfClasspath): compose the obf->deobf mapping, run
 // SpecialSource on the server jar AND the universal jar (both are
 // obf-domain for classes/fields), merge into build/deobf/merged-deobf.jar.
@@ -352,29 +475,6 @@ task deobfClasspath(dependsOn: extractMcpConf) {
         }
         writeSrgMapping(obfToDeobfSrg, clMap, mdMap, fdMap)
 
-        // --- deobf -> obf (mod jar reobf, composite reverse) ------------
-        // Bytecode refs after compiling against merged-deobf.jar:
-        // (srgOwner, readable, srg-desc) + (srgOwner, readableField).
-        // Reverse each conf line through the csvs; identity classes keep
-        // their names, so they are excluded from the CL reverse map.
-        def clRevMap = [:]
-        srg.clRev.each { srgName, obf -> if (srgName != obf) clRevMap[srgName] = obf }
-        def mdMapC = [:]
-        def fdMapC = [:]
-        srg.md.each { key, value ->
-            def readable = methods[value[1]]
-            if (readable == null) return
-            def obfOwner = clRevMap[value[0]] ?: value[0]
-            mdMapC[[value[0], readable, value[2]]] = [obfOwner, key[1], obfifyDesc(value[2], clRevMap)]
-        }
-        srg.fd.each { key, value ->
-            def readable = fields[value[1]]
-            if (readable == null) return
-            def obfOwner = clRevMap[value[0]] ?: value[0]
-            fdMapC[[value[0], readable]] = [obfOwner, key[1]]
-        }
-        writeSrgMapping(deobfToObfSrg, clRevMap, mdMapC, fdMapC)
-
         // --- remap + merge -------------------------------------------------
         new File("$buildDir/deobf").mkdirs()
         runSpecialSource(new File(vendoredDir, 'minecraft_server.1.6.4.jar').absolutePath,
@@ -403,6 +503,34 @@ task deobfClasspath(dependsOn: extractMcpConf) {
                 zos.close()
             }
         }
+
+        // --- deobf -> obf (mod jar reobf, composite reverse) ------------
+        // Bytecode refs after compiling against merged-deobf.jar:
+        // (srgOwner, readable, srg-desc) + (srgOwner, readableField).
+        // Reverse each conf line through the csvs; identity classes keep
+        // their names, so they are excluded from the CL reverse map.
+        // Built AFTER the merge: the subclass-owner expansion
+        // (expandSubclassMethods) scans the merged jar's hierarchy, which
+        // only exists once both legs are remapped and combined.
+        def clRevMap = [:]
+        srg.clRev.each { srgName, obf -> if (srgName != obf) clRevMap[srgName] = obf }
+        def mdMapC = [:]
+        def fdMapC = [:]
+        srg.md.each { key, value ->
+            def readable = methods[value[1]]
+            if (readable == null) return
+            def obfOwner = clRevMap[value[0]] ?: value[0]
+            mdMapC[[value[0], readable, value[2]]] = [obfOwner, key[1], obfifyDesc(value[2], clRevMap)]
+        }
+        srg.fd.each { key, value ->
+            def readable = fields[value[1]]
+            if (readable == null) return
+            def obfOwner = clRevMap[value[0]] ?: value[0]
+            fdMapC[[value[0], readable]] = [obfOwner, key[1]]
+        }
+        expandSubclassMethods(mdMapC, scanHierarchy(mergedDeobfJar), clRevMap)
+        writeSrgMapping(deobfToObfSrg, clRevMap, mdMapC, fdMapC)
+
         logger.lifecycle("deobfClasspath: ${mergedDeobfJar.name} built (server obf->deobf + universal obf->deobf)")
     }
 }
@@ -494,7 +622,7 @@ task reobf(dependsOn: [jar, deobfClasspath]) {
 // ---------------------------------------------------------------------------
 task assertNameDomain(dependsOn: reobf) {
     group = 'verification'
-    description = 'Self-check: javap the reobf\'d mod jar and fail if any MC reference is still srg/deobf-named. Forbidden tokens are scoped to the srg domain (func_, field_, net/minecraft/src/) plus the lane\'s two known MC member surfaces (MinecraftServer.getServer -> F, Packet250CustomPayload.channel -> a); FML API refs like FMLServerStartingEvent.getServer() legitimately stay readable and are NOT flagged (owner-qualified token).'
+    description = 'Self-check: javap the reobf\'d mod jar and fail if any MC reference is still srg/deobf-named. Forbidden tokens are scoped to the srg domain (func_, field_, net/minecraft/src/) plus the lane\'s known MC member surfaces. Two owner-qualified tokens cover declared-on-owner refs (MinecraftServer.getServer -> F, Packet250CustomPayload.channel -> a); the bare member-name tokens (getCommandSenderName, getConfigurationManager, getFile, playerNetServerHandler, netManager, playerEntityList) cover the javac receiver-owner shape — a readable MC member name on ANY owner (deobf or obf) in the shipped jar is a leaked reobf, and none of these names is used by the mod\'s own classes or the FML API, so they cannot false-positive. FML API refs like FMLServerStartingEvent.getServer() legitimately stay readable and are NOT flagged (owner-qualified token).'
     doLast {
         def jarFile = jar.archivePath
         def classes = []
@@ -524,11 +652,20 @@ task assertNameDomain(dependsOn: reobf) {
         // package (any such ref is a missed CL remap); func_/field_ are srg
         // member names; the owner-qualified MC member surfaces must be obf
         // after reobf (MinecraftServer.getServer -> F, Packet250CustomPayload
-        // .channel -> a). FML API names (getServer, registerChannel) are
-        // never obfuscated and are excluded by the owner qualification.
+        // .channel -> a). The bare member-name tokens catch the javac
+        // receiver-owner leak shape (readable name on an obf owner, e.g.
+        // jv.getCommandSenderName after a missed inherited-method remap).
+        // FML API names (getServer, registerChannel) are never obfuscated
+        // and are excluded by the owner qualification / not being in the list.
         def forbidden = ['func_', 'field_', 'net/minecraft/src/',
                          'net/minecraft/server/MinecraftServer.getServer',
-                         'Packet250CustomPayload.channel']
+                         'Packet250CustomPayload.channel',
+                         'getCommandSenderName',
+                         'getConfigurationManager',
+                         'net/minecraft/server/MinecraftServer.getFile',
+                         'playerNetServerHandler',
+                         'netManager',
+                         'playerEntityList']
         def offenders = forbidden.findAll { text.contains(it) }
         if (!offenders.isEmpty()) {
             throw new GradleException(
