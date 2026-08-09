@@ -295,6 +295,39 @@ jobs:
           path: forge-1.5.2/build/libs/*.jar
           if-no-files-found: warn
 
+  # ── forge-1.4.7 out-of-band lane (own wrapper, JDK 8, vendored SpecialSource) ──
+  build-forge-1_4_7:
+    name: Build (forge-1.4.7)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: lint-yaml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Set up JDK 8
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: "8"
+          distribution: temurin
+      - name: Cache Gradle wrapper and caches
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ runner.os }}-forge-1.4.7-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-forge-1.4.7-
+      - name: Grant execute permission for gradlew
+        run: chmod +x forge-1.4.7/gradlew
+      - name: Build and test
+        run: cd forge-1.4.7 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
+      - name: Upload built jar
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: mod-forge-1.4.7
+          path: forge-1.4.7/build/libs/*.jar
+          if-no-files-found: warn
+
   # ── forge-1.20.1 out-of-band lane (own wrapper, JDK 21) ────────
   build-forge-1_20_1:
     name: Build (forge-1.20.1)
