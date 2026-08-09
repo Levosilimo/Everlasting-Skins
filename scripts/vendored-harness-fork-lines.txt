@@ -3,8 +3,9 @@
 # are dropped from BOTH sides of the diff-guard comparison: they are the
 # documented behavioral forks that legitimately differ between lanes.
 # Any other divergence fails the guard.
-# Fork 1: merge order in deobfClasspath (server-first vs universal-first).
-\[deobfServerJar, deobfUniversalJar\]\.each|\[deobfUniversalJar, deobfServerJar\]\.each
+# Fork 1: merge order in deobfClasspath (server-first vs universal-first),
+# including the lifecycle line that documents the universal-wins behavior.
+\[deobfServerJar, deobfUniversalJar\]\.each|\[deobfUniversalJar, deobfServerJar\]\.each|deobfClasspath: \$\{mergedDeobfJar\.name\} built
 # Fork 2: subclass-owner expansion (scanHierarchy / expandSubclassMethods).
 scanHierarchy|expandSubclassMethods|subclassOwner
 # Fork 3: assertNameDomain forbidden-token set (per-MC-version surface).

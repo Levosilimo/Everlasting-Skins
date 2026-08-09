@@ -1,116 +1,35 @@
-// forge-LANE — standalone vendored-deobf build for the Minecraft MCVER lane.
-//
-// LANE SEPARATION (out-of-band, per monorepo doctrine): this lane cannot use
-// any ForgeGradle. fix-3 (2026-08-08) verified empirically that GTNH FG
-// 1.2.11 rejects forge FORGEVER at configuration time, MCP-Archive has
-// zero MCVER channels, and de.oceanlabs.mcp:mcp:MCVER 404s on the Forge
-// maven. So the lane toolchain IS the vendored remap harness proven by the
-// 0.5-day SpecialSource spike (feature/lane-forge-LANE-vendored-spike,
-// 3d30c29): remap-only (SpecialSource 1.7.4 bytecode remapping against the
-// MCP MCPVER conf bundled in the forge src zip), no decompiler, no FG, no
-// jitpack, no archive.org. This build is its own wrapper (Gradle 4.4.1,
-// Java 8 ONLY), never included in settings.gradle.kts, no buildSrc, no
-// `everlastingskins.forge-module` convention, no dependency-analysis
-// (out-of-band policy, same as forge-1.7.10 / forge-1.8.9 / mc1.12.2).
-//
-// NAME DOMAINS (empirical, spike-verified against the piston server jar):
-//   - production runtime = OBFUSCATED. minecraft_server.MCVER.jar ships
-//     proguard names: root-package classes (`ea`, `ey`, ...) EXCEPT identity
-//     classes like net/minecraft/server/MinecraftServer which keep their
-//     names; members are always obf (MinecraftServer.F(), Packet250CustomPayload
-//     field `a`). FMLDeobfTweaker registers an empty remapper in production
-//     (identity), so the shipped mod jar MUST be reobfuscated to this domain.
-//   - MCP MCPVER conf (bundled in forge-LANE-FORGEVER-src.zip at
-//     forge/fml/conf/, version.cfg asserts MCPVersion = MCPVER): joined.srg CL
-//     lines map obf-class -> srg-class (net/minecraft/src/*); MD lines key by
-//     (obf-owner, obf-method, OBF-desc) and carry per-side #C/#S variants;
-//     FD lines key by (obf-owner, obf-field). methods.csv/fields.csv map
-//     func_/field_ -> readable deobf names.
-//   - THE UNIVERSAL JAR IS OBF-DOMAIN FOR CLASSES AND FIELDS, READABLE FOR
-//     METHODS (spike javap of the RAW jar: `Method ka.sendPacketToPlayer`,
-//     `Field jv.a`, `registerServerCommand(ab)`). The spike's separate
-//     srg->deobf pass with an EMPTY CL map therefore remapped nothing FML
-//     uses — the stub compiled only because it never touched an FML API
-//     whose signature mentions an MC type. The lane implements
-//     IPacketHandler / IConnectionHandler / ICommand, so the universal jar
-//     MUST be remapped with the same obf->deobf CL+FD map as the server jar
-//     (class refs cm/ea/ab/jv/ka/ey -> net/minecraft/src/*, field refs like
-//     jv.a -> EntityPlayerMP.playerNetServerHandler); readable method refs
-//     simply have no MD entry and pass through untouched.
-//   - dev classpath = build/deobf/merged-deobf.jar (server.jar obf->deobf +
-//     universal.jar obf->deobf, merged). Ship artifact = the mod jar
-//     reobf'd deobf->obf (composite: csv reverse + joined.srg reverse).
-
 plugins {
     id 'java'
 }
-
 version = "${mod_version}"
-group = 'levosilimo.everlastingskins'
 archivesBaseName = 'everlastingskins-LANE'
-
 sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
-
 repositories {
     mavenCentral()
-    // authlib is NOT on the MCVER server classpath (verified: no authlib in
-    // install_profile.json / piston-meta MCVER.json — it arrived in later MC
-    // lines) and NOT on mavenCentral; Mojang's own maven hosts it. Needed at
-    // compile time because :common's CustomSkinProperty binds authlib's
-    // Property type (compile-only; runtime caveat documented above).
     maven {
         name = 'minecraft-libraries'
         url = 'https://libraries.minecraft.net'
     }
 }
-
 configurations {
-    // SpecialSource 1.7.4 + its transitives (asm-debug-all 5.1, jopt-simple
-    // 5.0.1, guava 19.0) — resolved from mavenCentral, hash-verified by
-    // Gradle. This is the ONLY toolchain dependency; the buildscript block
-    // (and its FG/jitpack/forge-maven repos) is intentionally absent.
     specialsource
 }
-
-// Harness output paths (defined before `dependencies` so the lazy
-// `compile files(...)` reference can see them).
 def mappingDir = file("$buildDir/mappings")
 def obfToDeobfSrg = file("$mappingDir/obf-to-deobf.srg")
 def deobfToObfSrg = file("$mappingDir/deobf-to-obf.srg")
 def deobfServerJar = file("$buildDir/deobf/server-deobf.jar")
 def deobfUniversalJar = file("$buildDir/deobf/universal-deobf.jar")
 def mergedDeobfJar = file("$buildDir/deobf/merged-deobf.jar")
-
 dependencies {
     specialsource 'net.md-5:SpecialSource:1.7.4'
-
-    // :common is consumed by source-dir sharing and binds three Maven
-    // artifacts at compile time that the MCVER server does NOT ship
-    // (verified against install_profile.json + piston-meta MCVER.json —
-    // authlib and log4j2 arrived in later MC lines; gson IS on the MCVER
-    // classpath at 2.2.2). Rule-4 lane decision: declare them explicitly
-    // with the exact MCVER-era versions. Runtime note (documented in the
-    // coverage report): a deployment must add authlib + log4j-api jars to
-    // the server classpath, since the mod (like every lane) stores
-    // :common's authlib-backed CustomSkinProperty.
-    compile 'com.google.code.findbugs:jsr305:3.0.2'          // :common @Nullable (not on MCVER classpath)
-    compile 'com.google.code.gson:gson:2.2.2'                // :common SkinIO/JsonUtils (exact MCVER version)
-    compile 'com.mojang:authlib:1.5.16'                      // :common CustomSkinProperty (hosted on libraries.minecraft.net)    compile 'org.apache.logging.log4j:log4j-api:2.8.1'       // :common LogManager (not on MCVER classpath)
-
-    // The merged-deobf jar (MC + FML + Forge) is produced by deobfClasspath;
-    // `compile files(...)` resolves lazily, after the producing task runs.
+    compile 'com.google.code.findbugs:jsr305:3.0.2'
+    compile 'com.google.code.gson:gson:2.2.2'
+    compile 'com.mojang:authlib:1.5.16'
+    compile 'org.apache.logging.log4j:log4j-api:2.8.1'
     compile files(mergedDeobfJar)
-
-    // Rule 4 lane decision: JUnit 4.13.2 + mockito-core 2.28.2, mirroring
-    // forge-1.7.10 (Gradle 4.4.1 floor; 4.4.1 lanes use JUnit 4).
     testCompile 'junit:junit:4.13.2'
     testCompile 'org.mockito:mockito-core:2.28.2'
 }
-
-// :common is consumed by source-dir sharing: this is a standalone build and
-// cannot use project(":common"). Classes that also exist under src/main/java
-// must be deleted from the lane — javac fails on the duplicate via the share
-// (Rule 1; :common is canonical).
 sourceSets {
     main {
         java {
@@ -123,30 +42,20 @@ sourceSets {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Vendored inputs (resolveVendored)
-// ---------------------------------------------------------------------------
-// Cache dir mirrors the forge-1.7.10 jitpack vendor-fallback pattern: files
-// land outside the repo (under the Gradle user home) and can be pre-seeded
-// for offline builds. Override with -Pvendored.dir=<path>; force offline
-// with -Pvendored.offline (fails instead of downloading).
 def vendoredDir = project.hasProperty('vendored.dir')
     ? file(project.property('vendored.dir'))
     : file("${gradle.gradleUserHomeDir}/everlastingskins-vendored/MCVER")
-
 def vendoredInputs = [
     [name: 'forge-LANE-FORGEVER-src.zip',
      url: 'https://maven.minecraftforge.net/net/minecraftforge/forge/MCVER-FORGEVER/forge-LANE-FORGEVER-src.zip',
      algo: 'MD5', digest: 'DIGEST'],
-    [name: 'forge-LANE-FORGEVER-universal.jar',
-     url: 'https://maven.minecraftforge.net/net/minecraftforge/forge/MCVER-FORGEVER/forge-LANE-FORGEVER-universal.jar',
+    [name: 'forge-LANE-FORGEVER-universal.ART',
+     url: 'https://maven.minecraftforge.net/net/minecraftforge/forge/MCVER-FORGEVER/forge-LANE-FORGEVER-universal.ART',
      algo: 'MD5', digest: 'DIGEST'],
     [name: 'minecraft_server.MCVER.jar',
-     url: 'https://piston-data.mojang.com/v1/objects/SHA1/server.jar',
+     url: 'https://MOJANG_HOST/v1/objects/SHA1/server.jar',
      algo: 'SHA-1', digest: 'DIGEST'],
 ]
-
 def digestOf = { File f, String algo ->
     def md = java.security.MessageDigest.getInstance(algo)
     f.withInputStream { is ->
@@ -156,10 +65,7 @@ def digestOf = { File f, String algo ->
     }
     md.digest().collect { String.format('%02x', it) }.join('')
 }
-
 task resolveVendored {
-    group = 'everlastingskins'
-    description = 'Download + checksum-verify the 3 vendored inputs (forge src zip, forge universal jar, vanilla MCVER server jar) into a cache dir; pre-seed the dir or pass -Pvendored.offline for offline builds.'
     outputs.dir vendoredDir
     doLast {
         def offline = project.hasProperty('vendored.offline')
@@ -188,15 +94,8 @@ task resolveVendored {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// MCP MCPVER conf extraction (extractMcpConf)
-// ---------------------------------------------------------------------------
 def mcpConfDir = file("$buildDir/mcpMCP")
-
 task extractMcpConf(dependsOn: resolveVendored) {
-    group = 'everlastingskins'
-    description = 'Extract the bundled MCP MCPVER conf (forge/fml/conf/*) from the forge src zip and assert MCPVersion = MCPVER'
     inputs.file { new File(vendoredDir, 'forge-LANE-FORGEVER-src.zip') }
     outputs.dir mcpConfDir
     doLast {
@@ -207,14 +106,12 @@ task extractMcpConf(dependsOn: resolveVendored) {
                 include(name: 'forge/fml/conf/**')
             }
         }
-        // Flatten the forge/fml/conf/ nesting so consumers see plain files.
         def nested = new File(mcpConfDir, 'forge/fml/conf')
         if (!nested.isDirectory()) {
             throw new GradleException("extractMcpConf: no forge/fml/conf/ in ${srcZip.name}")
         }
         nested.listFiles().each { f -> f.renameTo(new File(mcpConfDir, f.name)) }
         delete new File(mcpConfDir, 'forge')
-
         ['joined.srg', 'methods.csv', 'fields.csv', 'params.csv', 'packages.csv', 'version.cfg'].each { name ->
             if (!new File(mcpConfDir, name).isFile()) {
                 throw new GradleException("extractMcpConf: missing ${name} after extraction")
@@ -227,12 +124,6 @@ task extractMcpConf(dependsOn: resolveVendored) {
         logger.lifecycle('extractMcpConf: MCP MCPVER conf extracted and asserted (MCPVersion = MCPVER, MCVER)')
     }
 }
-
-// ---------------------------------------------------------------------------
-// MCP conf parsers (shared by the mapping builders)
-// ---------------------------------------------------------------------------
-// methods.csv/fields.csv rows: searge,name,side,desc — the desc column is
-// quoted and may contain commas; only the first two fields are needed.
 def parseCsvMappings = { File csv ->
     def map = [:]
     csv.eachLine('UTF-8') { line, idx ->
@@ -244,17 +135,11 @@ def parseCsvMappings = { File csv ->
     }
     map
 }
-
-// joined.srg lines (tokens after the ':' separator; trailing '#C'/'#S' side
-// tags are dropped):
-//   CL: <obfClass> <srgClass>
-//   MD: <obfOwner>/<obfMethod> <OBF-desc> <srgOwner>/<funcName> <srg-desc>
-//   FD: <obfOwner>/<obfField> <srgOwner>/<fieldName>
 def parseJoinedSrg = { File srg ->
-    def cl = [:]      // obf class -> srg class
-    def clRev = [:]   // srg class -> obf class
-    def md = [:]      // [obfOwner, obfMethod, obfDesc] -> [srgOwner, funcName, srgDesc]
-    def fd = [:]      // [obfOwner, obfField] -> [srgOwner, srgField]
+    def cl = [:]
+    def clRev = [:]
+    def md = [:]
+    def fd = [:]
     srg.eachLine('UTF-8') { line ->
         line = line.trim()
         if (line.isEmpty() || line.startsWith('#')) return
@@ -283,7 +168,6 @@ def parseJoinedSrg = { File srg ->
     }
     [cl: cl, clRev: clRev, md: md, fd: fd]
 }
-
 def writeSrgMapping = { File out, Map clMap, Map mdMap, Map fdMap ->
     def w = out.newWriter('UTF-8')
     try {
@@ -294,15 +178,12 @@ def writeSrgMapping = { File out, Map clMap, Map mdMap, Map fdMap ->
         w.close()
     }
 }
-
-// Rewrite every class reference in a descriptor to the obf domain.
 def obfifyDesc = { String desc, Map clRev ->
     desc.replaceAll(/L([^;]+);/) { m ->
         def obf = clRev[m[1]]
         obf ? "L${obf};" : m[0]
     }
 }
-
 def runSpecialSource = { String inJar, String outJar, String srgIn ->
     javaexec {
         classpath = configurations.specialsource
@@ -310,19 +191,87 @@ def runSpecialSource = { String inJar, String outJar, String srgIn ->
         args '-i', inJar, '-o', outJar, '-m', srgIn, '-q'
     }
 }
-
-// ---------------------------------------------------------------------------
-// Deobf classpath (deobfClasspath): compose the obf->deobf mapping, run
-// SpecialSource on the server jar AND the universal jar (both are
-// obf-domain for classes/fields), merge into build/deobf/merged-deobf.jar.
-// ---------------------------------------------------------------------------
+    def hier = [:]
+    new java.util.zip.ZipFile(jar).withCloseable { zf ->
+        zf.entries().each { entry ->
+            if (!entry.name.endsWith('.class')) return
+            byte[] bytes = zf.getInputStream(entry).bytes
+            def pos = 8
+            def cpCount = ((bytes[pos] & 0xFF) << 8) | (bytes[pos + 1] & 0xFF)
+            pos += 2
+            def utf8 = [:]
+            def classNames = [:]
+            def i = 1
+            while (i < cpCount) {
+                def tag = bytes[pos] & 0xFF
+                pos += 1
+                switch (tag) {
+                    case 1:
+                        def len = ((bytes[pos] & 0xFF) << 8) | (bytes[pos + 1] & 0xFF)
+                        pos += 2
+                        utf8[i] = new String(bytes, pos, len, 'UTF-8')
+                        pos += len
+                        break
+                    case 7:
+                        classNames[i] = ((bytes[pos] & 0xFF) << 8) | (bytes[pos + 1] & 0xFF)
+                        pos += 2
+                        break
+                    case 5: case 6:
+                        pos += 8
+                        i += 1
+                        break
+                    case 15:
+                        pos += 3
+                        break
+                    case 8: case 16:
+                        pos += 2
+                        break
+                    default:
+                        pos += 4
+                        break
+                }
+                i += 1
+            }
+            pos += 2
+            def thisIdx = ((bytes[pos] & 0xFF) << 8) | (bytes[pos + 1] & 0xFF)
+            def superIdx = ((bytes[pos + 2] & 0xFF) << 8) | (bytes[pos + 3] & 0xFF)
+            def thisName = utf8[classNames[thisIdx]]
+            if (thisName != null) {
+                hier[thisName] = superIdx == 0 ? null : utf8[classNames[superIdx]]
+            }
+        }
+    }
+    hier
+}
+    def subclasses = [:]
+    hier.each { name, superName ->
+        if (superName != null) {
+            def list = subclasses.get(superName, [])
+            list << name
+            subclasses[superName] = list
+        }
+    }
+    def extra = [:]
+    mdMapC.each { key, value ->
+        def owner = key[0]
+        def queue = new ArrayList(subclasses.get(owner, []) ?: [])
+        def seen = [(owner): true]
+        while (!queue.isEmpty()) {
+            def sub = queue.remove(0)
+            if (seen[sub]) continue
+            seen[sub] = true
+            def obfSub = clRevMap[sub] ?: sub
+            extra[[sub, key[1], key[2]]] = [obfSub, value[1], value[2]]
+            queue.addAll(new ArrayList(subclasses.get(sub, []) ?: []))
+        }
+    }
+    extra.each { k, v -> mdMapC[k] = v }
+}
 task deobfClasspath(dependsOn: extractMcpConf) {
-    group = 'everlastingskins'
-    description = 'Compose the obf->deobf mapping from the MCP MCPVER conf, run SpecialSource on the server jar AND the FML universal jar (both reference MC classes/fields by obf names), and merge them into build/deobf/merged-deobf.jar — the FG "minecraft" classpath equivalent.'
     inputs.dir mcpConfDir
     inputs.files {
         [new File(vendoredDir, 'minecraft_server.MCVER.jar'),
-         new File(vendoredDir, 'forge-LANE-FORGEVER-universal.jar')]
+         new File(vendoredDir, 'forge-LANE-FORGEVER-universal.ART')]
     }
     outputs.files mergedDeobfJar, deobfServerJar, deobfUniversalJar, obfToDeobfSrg, deobfToObfSrg
     doLast {
@@ -330,11 +279,6 @@ task deobfClasspath(dependsOn: extractMcpConf) {
         def fields = parseCsvMappings(new File(mcpConfDir, 'fields.csv'))
         def srg = parseJoinedSrg(new File(mcpConfDir, 'joined.srg'))
         mappingDir.mkdirs()
-
-        // --- obf -> deobf (server jar + universal jar) -------------------
-        // Bytecode refs: (obfOwner, obfMethod, OBF-desc) + (obfOwner, obfField).
-        // The conf MD input side already carries the OBF desc; the owner is
-        // obf (identity classes map to themselves via clRev fallback).
         def clMap = [:]
         def mdMap = [:]
         def fdMap = [:]
@@ -348,43 +292,14 @@ task deobfClasspath(dependsOn: extractMcpConf) {
         srg.fd.each { key, value ->
             def readable = fields[value[1]]
             if (readable == null) return
-            fdMap[[key[0], key[1]]] = [value[0], readable] // key = (obfOwner, obfField)
+            fdMap[[key[0], key[1]]] = [value[0], readable]
         }
         writeSrgMapping(obfToDeobfSrg, clMap, mdMap, fdMap)
-
-        // --- deobf -> obf (mod jar reobf, composite reverse) ------------
-        // Bytecode refs after compiling against merged-deobf.jar:
-        // (srgOwner, readable, srg-desc) + (srgOwner, readableField).
-        // Reverse each conf line through the csvs; identity classes keep
-        // their names, so they are excluded from the CL reverse map.
-        def clRevMap = [:]
-        srg.clRev.each { srgName, obf -> if (srgName != obf) clRevMap[srgName] = obf }
-        def mdMapC = [:]
-        def fdMapC = [:]
-        srg.md.each { key, value ->
-            def readable = methods[value[1]]
-            if (readable == null) return
-            def obfOwner = clRevMap[value[0]] ?: value[0]
-            mdMapC[[value[0], readable, value[2]]] = [obfOwner, key[1], obfifyDesc(value[2], clRevMap)]
-        }
-        srg.fd.each { key, value ->
-            def readable = fields[value[1]]
-            if (readable == null) return
-            def obfOwner = clRevMap[value[0]] ?: value[0]
-            fdMapC[[value[0], readable]] = [obfOwner, key[1]]
-        }
-        writeSrgMapping(deobfToObfSrg, clRevMap, mdMapC, fdMapC)
-
-        // --- remap + merge -------------------------------------------------
         new File("$buildDir/deobf").mkdirs()
         runSpecialSource(new File(vendoredDir, 'minecraft_server.MCVER.jar').absolutePath,
             deobfServerJar.absolutePath, obfToDeobfSrg.absolutePath)
-        runSpecialSource(new File(vendoredDir, 'forge-LANE-FORGEVER-universal.jar').absolutePath,
+        runSpecialSource(new File(vendoredDir, 'forge-LANE-FORGEVER-universal.ART').absolutePath,
             deobfUniversalJar.absolutePath, obfToDeobfSrg.absolutePath)
-
-        // Merge: server-deobf first, universal-deobf on top. The two jars are
-        // disjoint by construction (server: net/minecraft + leftover obf
-        // classes; universal: cpw.mods.fml + net.minecraftforge).
         def seen = new HashSet()
         mergedDeobfJar.withOutputStream { os ->
             def zos = new java.util.zip.ZipOutputStream(os)
@@ -402,49 +317,46 @@ task deobfClasspath(dependsOn: extractMcpConf) {
                 zos.close()
             }
         }
-        logger.lifecycle("deobfClasspath: ${mergedDeobfJar.name} built (server obf->deobf + universal obf->deobf)")
+        def clRevMap = [:]
+        srg.clRev.each { srgName, obf -> if (srgName != obf) clRevMap[srgName] = obf }
+        def mdMapC = [:]
+        def fdMapC = [:]
+        srg.md.each { key, value ->
+            def readable = methods[value[1]]
+            if (readable == null) return
+            def obfOwner = clRevMap[value[0]] ?: value[0]
+            mdMapC[[value[0], readable, value[2]]] = [obfOwner, key[1], obfifyDesc(value[2], clRevMap)]
+        }
+        srg.fd.each { key, value ->
+            def readable = fields[value[1]]
+            if (readable == null) return
+            def obfOwner = clRevMap[value[0]] ?: value[0]
+            fdMapC[[value[0], readable]] = [obfOwner, key[1]]
+        }
+        writeSrgMapping(deobfToObfSrg, clRevMap, mdMapC, fdMapC)
     }
 }
-
-// ---------------------------------------------------------------------------
-// Compile (compileJava): javac against merged-deobf.jar + declared deps.
-// ---------------------------------------------------------------------------
 compileJava {
     dependsOn deobfClasspath
     options.encoding = 'UTF-8'
 }
-
-// ---------------------------------------------------------------------------
-// @Mod version constant (generateVersionSource)
-// ---------------------------------------------------------------------------
-// The @Mod annotation needs a compile-time version constant; without FG's
-// `replace` token, a generated source keeps @Mod's version in sync with
-// gradle.properties mod_version (mcmod.info is expanded separately in
-// processResources).
 def versionSourceDir = file("$buildDir/generated/version")
-
 task generateVersionSource {
-    group = 'everlastingskins'
-    description = 'Generate ModVersion.VERSION from gradle.properties mod_version (no FG replace on this harness).'
     outputs.dir versionSourceDir
     doLast {
         def f = new File(versionSourceDir, 'levosilimo/everlastingskins/forgePKG/ModVersion.java')
         f.parentFile.mkdirs()
         f.text = """package levosilimo.everlastingskins.forgePKG;
-
 /** Generated from gradle.properties mod_version — keeps @Mod's version in sync. */
 public final class ModVersion {
     public static final String VERSION = "${project.version}";
-
     private ModVersion() {}
 }
 """
     }
 }
-
 sourceSets.main.java.srcDir versionSourceDir
 compileJava.dependsOn generateVersionSource
-
 jar {
     manifest {
         attributes([
@@ -457,7 +369,6 @@ jar {
         ])
     }
 }
-
 processResources {
     from(sourceSets.main.resources.srcDirs) {
         include 'mcmod.info'
@@ -467,13 +378,7 @@ processResources {
         exclude 'mcmod.info'
     }
 }
-
-// ---------------------------------------------------------------------------
-// Reobf (reobf): composite deobf->obf remap of the mod jar, in place.
-// ---------------------------------------------------------------------------
 task reobf(dependsOn: [jar, deobfClasspath]) {
-    group = 'everlastingskins'
-    description = 'Reobfuscate the mod jar deobf->obf (csv reverse + joined.srg reverse) with SpecialSource — production runs obfuscated, so the ship artifact must be obf-named.'
     inputs.file jar.archivePath
     inputs.file deobfToObfSrg
     outputs.file jar.archivePath
@@ -486,13 +391,7 @@ task reobf(dependsOn: [jar, deobfClasspath]) {
         logger.lifecycle("reobf: ${inJar.name} remapped deobf->obf")
     }
 }
-
-// ---------------------------------------------------------------------------
-// Self-check (assertNameDomain): javap the reobf'd mod jar and fail on any
-// leaked srg/deobf MC reference.
-// ---------------------------------------------------------------------------
 task assertNameDomain(dependsOn: reobf) {
-    group = 'verification'
     doLast {
         def jarFile = jar.archivePath
         def classes = []
@@ -504,11 +403,9 @@ task assertNameDomain(dependsOn: reobf) {
             }
         }
         if (classes.isEmpty()) throw new GradleException("assertNameDomain: no classes in ${jarFile}")
-
         def javapBin = new File(System.getProperty('java.home'), 'bin/javap')
         if (!javapBin.isFile()) javapBin = new File(System.getProperty('java.home'), '../bin/javap')
         if (!javapBin.isFile()) throw new GradleException("assertNameDomain: javap not found (${javapBin})")
-
         def out = new ByteArrayOutputStream()
         def javapArgs = [javapBin.absolutePath, '-c', '-p', '-classpath', jarFile.absolutePath] + classes
         exec {
@@ -517,12 +414,12 @@ task assertNameDomain(dependsOn: reobf) {
             errorOutput = out
         }
         def text = out.toString('UTF-8')
-
-        // Leaked-domain tokens. net/minecraft/src/ is the renamed-class srg
-        // package (any such ref is a missed CL remap); func_/field_ are srg
-        // member names; the owner-qualified MC member surfaces must be obf
-        // .channel -> a). FML API names (getServer, registerChannel) are
-        // never obfuscated and are excluded by the owner qualification.
+                         'getCommandSenderName',
+                         'getConfigurationManager',
+                         'net/minecraft/server/MinecraftServer.getFile',
+                         'playerNetServerHandler',
+                         'netManager',
+                         'playerEntityList']
         if (!offenders.isEmpty()) {
             throw new GradleException(
                 "assertNameDomain FAILED: leaked srg/deobf references in ${jarFile.name}: ${offenders.join(', ')}\n" +
@@ -532,23 +429,15 @@ task assertNameDomain(dependsOn: reobf) {
         logger.lifecycle("assertNameDomain: ${jarFile.name} is fully obf-named (no func_, field_, or net/minecraft/src/ refs)")
     }
 }
-
-// ---------------------------------------------------------------------------
-// no-mixin gate (inlined from buildSrc no-mixin.gradle.kts via the
-// forge-1.7.10/build.gradle:135-209 template, which this standalone build
-// cannot reference)
-// ---------------------------------------------------------------------------
 def bannedLiterals = [
     [label: 'mixingradle coordinate', literal: 'org.spongepowered' + ':mixingradle'],
     [label: 'mixin plugin id', literal: 'org.spongepowered' + '.mixin'],
     [label: 'mixin config bundling', literal: 'everlastingskins' + '.mixins.json'],
 ]
-
 def bannedPatterns = [
     [label: 'Mixin annotation', pattern: java.util.regex.Pattern.compile('@' + 'Mixin' + '\\b')],
     [label: 'mixin block', pattern: java.util.regex.Pattern.compile('^\\s*' + 'mixin' + '\\s*\\{')],
 ]
-
 def scanFile = { File file, List<String> offenders ->
     if (!file.isFile()) return
     def text = file.getText('UTF-8')
@@ -565,14 +454,9 @@ def scanFile = { File file, List<String> offenders ->
         }
     }
 }
-
 task verifyNoMixin {
-    group = 'verification'
-    description = 'Fails the build if any Mixin usage is detected: annotations, mixingradle, the mixin plugin id, mixin {} blocks, or mixins.json bundling.'
-
     doLast {
         def offenders = []
-
         def sourceRoots = []
         sourceSets.each { ss ->
             ss.allSource.srcDirs.each { dir ->
@@ -586,12 +470,10 @@ task verifyNoMixin {
                 }
             }
         }
-
         ['build.gradle', 'settings.gradle', 'gradle.properties'].each { name ->
             def f = new File(projectDir, name)
             if (f.isFile()) scanFile(f, offenders)
         }
-
         if (!offenders.isEmpty()) {
             throw new GradleException(
                 "Mixin policy violated:\n" +
@@ -604,11 +486,9 @@ task verifyNoMixin {
         logger.lifecycle('Mixin check passed: zero Mixin annotations, zero mixingradle references.')
     }
 }
-
 test {
     testLogging {
         events "passed", "skipped", "failed"
     }
 }
-
 build.dependsOn verifyNoMixin, assertNameDomain

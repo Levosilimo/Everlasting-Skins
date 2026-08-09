@@ -12,7 +12,10 @@
 # Mechanics:
 #   1. sed-normalize each lane's build.gradle: strip the allowed
 #      substitution set (MC version, forge version, MCP version, mcp* conf
-#      dir, forge* package, archivesBaseName, vendored artifact digests).
+#      dir, forge* package, archivesBaseName, vendored artifact digests,
+#      artifact extension jar/zip, mojang download host) and strip prose
+#      that carries no build logic (comment lines, trailing comments,
+#      group/description metadata lines).
 #   2. Drop lines matching the whitelisted per-lane fork patterns
 #      (scripts/vendored-harness-fork-lines.txt) from BOTH sides.
 #   3. diff against the checked-in canonical expected-normalized pattern
@@ -34,12 +37,12 @@ FORK_LINES="$ROOT/scripts/vendored-harness-fork-lines.txt"
 
 # Vendored-harness lanes, oldest first. The first lane present is the
 # canonical reference; later lanes must match it modulo the substitution
-# set and the fork whitelist. Missing lanes are skipped (forge-1.5.2 and
-# forge-1.4.7 do not exist in the monorepo yet; the guard picks them up
-# automatically when they land).
+# set and the fork whitelist. Missing lanes are skipped (the guard picks
+# them up automatically when they land).
 LANES=(forge-1.6.4 forge-1.5.2 forge-1.4.7)
 
-# sed-normalize a build.gradle: strip the allowed substitution set.
+# sed-normalize a build.gradle: strip the allowed substitution set, then
+# strip prose (comments, group/description metadata).
 normalize() {
     sed -E \
         -e 's/forge-1\.(6\.4|5\.2|4\.7)/forge-LANE/g' \
@@ -52,7 +55,29 @@ normalize() {
         -e "s/archivesBaseName = '[^']*'/archivesBaseName = 'everlastingskins-LANE'/" \
         -e "s/digest: '[0-9a-fA-F]{16,64}'/digest: 'DIGEST'/g" \
         -e 's/[0-9a-f]{40}/SHA1/g' \
-        "$1"
+        -e 's/universal\.(jar|zip)/universal.ART/g' \
+        -e 's/piston-data\.mojang\.com|launcher\.mojang\.com/MOJANG_HOST/g' \
+        "$1" | strip_prose
+}
+
+# Quote-aware comment strip (a '//' inside a quoted URL must survive) +
+# drop group/description metadata lines (prose, no build logic).
+strip_prose() {
+    awk '
+{
+    line = $0
+    inq = 0
+    for (i = 1; i <= length(line); i++) {
+        c = substr(line, i, 1)
+        if (c == "\x27") inq = !inq
+        else if (c == "/" && substr(line, i+1, 1) == "/" && !inq) {
+            line = substr(line, 1, i-1)
+            break
+        }
+    }
+    sub(/[[:space:]]+$/, "", line)
+    if (line != "" && line !~ /^[[:space:]]*(group|description) = /) print line
+}'
 }
 
 # Whitelisted per-lane fork patterns, one ERE per non-comment line.
