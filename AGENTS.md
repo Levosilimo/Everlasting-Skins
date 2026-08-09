@@ -235,9 +235,11 @@ mod-list line names everlastingskins; PR #376), and out-of-band
 `Build (forge-1.7.10)` / `Build (forge-1.18.2)` / `Build (forge-1.10.2)` /
 `Build (forge-1.6.4)` / `Build (forge-1.5.2)`
 lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8 / JDK 21 / JDK 8 / JDK 8 / JDK 8).
-A `Vendored harness diff-guard` job (lib-12, PR #376) fails CI when a
-vendored-harness lane's build.gradle drifts from the canonical
-normalized harness pattern beyond the allowed substitution set (see
+A `Vendored harness diff-guard` job (lib-12) fails CI when a
+vendored-harness lane stops applying the shared harness script
+(harness/specialsource-harness.gradle, Option B graduation — extracted from
+forge-1.6.4/build.gradle post-PR-#374), re-defines a harness task locally,
+or drops a required harnessConfig key (see
 scripts/ci-vendored-harness-diff-guard.sh). `Build (forge-1.4.7)` joins
 the matrix once the in-flight lane lands. Treat the matrix as
 authoritative for what is buildable in CI.
