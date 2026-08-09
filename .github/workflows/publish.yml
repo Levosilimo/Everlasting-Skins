@@ -23,6 +23,7 @@ on:
       - 'mc1.16.5-v*'
       - 'mc1.7.10-v*'
       - 'mc1.6.4-v*'
+      - 'mc1.5.2-v*'
       # NOTE: NeoForge intentionally dropped — no mcneoforge lane.
 
 jobs:
@@ -63,26 +64,29 @@ jobs:
             module: forge-26.1
             game-version: "26.1"
             java: "25"
-          # NOTE: mc1.20.1 / mc1.16.5 / mc1.18.2 / mc1.10.2 / mc1.6.4 have NO
+          # NOTE: mc1.20.1 / mc1.16.5 / mc1.18.2 / mc1.10.2 / mc1.6.4 /
+          # mc1.5.2 have NO
           # matrix entries: since the FG lane separation (PR #2xx) they are
           # standalone builds with their own wrappers (forge-1.16.5 → Gradle
           # 7.6.4/Java 8 + FG 5.1.77; forge-1.20.1 → Gradle 8.14/Java 21 +
           # FG 6.0.54; forge-1.18.2 → Gradle 8.14/Java 21 + FG 6.0.54;
           # forge-1.10.2 → Gradle 4.10.3/Java 8 + FG 2.2.5; forge-1.6.4 →
           # Gradle 4.4.1/Java 8 + vendored SpecialSource 1.7.4 deobf
-          # harness), so the shared
+          # harness; forge-1.5.2 → Gradle 4.4.1/Java 8 + vendored
+          # SpecialSource 1.7.4 deobf harness), so the shared
           # `./gradlew :${{ matrix.module }}:build` step cannot build them.
           # They publish via the dedicated publish-mc1_16_5 / publish-mc1_20_1
-          # / publish-mc1_18_2 / publish-mc1_10_2 / publish-mc1_6_4 jobs below.
+          # / publish-mc1_18_2 / publish-mc1_10_2 / publish-mc1_6_4 /
+          # publish-mc1_5_2 jobs below.
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -127,7 +131,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -136,7 +140,7 @@ jobs:
           distribution: temurin
 
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -182,7 +186,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -191,7 +195,7 @@ jobs:
           distribution: temurin
 
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -237,7 +241,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -246,7 +250,7 @@ jobs:
           distribution: temurin
 
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -292,7 +296,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -301,7 +305,7 @@ jobs:
           distribution: temurin
 
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -347,7 +351,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -356,7 +360,7 @@ jobs:
           distribution: temurin
 
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -402,7 +406,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -411,7 +415,7 @@ jobs:
           distribution: temurin
 
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -457,7 +461,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -466,7 +470,7 @@ jobs:
           distribution: temurin
 
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -512,7 +516,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
@@ -521,7 +525,7 @@ jobs:
           distribution: temurin
 
       - name: Cache Gradle
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -555,6 +559,61 @@ jobs:
           game-version-filter: releases
           environment: server
           files: forge-1.6.4/build/libs/*.jar
+          fail-mode: fail
+          retry-attempts: 3
+          retry-delay: 15000
+
+  # ── forge-1.5.2 out-of-band lane (own wrapper, JDK 8, vendored SpecialSource harness) ──
+  publish-mc1_5_2:
+    name: Publish (mc1.5.2)
+    if: startsWith(github.ref_name, 'mc1.5.2-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: "8"
+          distribution: temurin
+
+      - name: Cache Gradle
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ runner.os }}-forge-1.5.2
+          restore-keys: |
+            gradle-${{ runner.os }}-forge-1.5.2-
+            gradle-${{ runner.os }}-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x forge-1.5.2/gradlew
+
+      - name: Build
+        run: cd forge-1.5.2 && ./gradlew build --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+
+      - name: Publish to CurseForge, Modrinth, GitHub Releases
+        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
+        with:
+          curseforge-id: 538149
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          modrinth-id: everlasting-skins
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ github.ref_name }}
+          name: "Everlasting Skins ${{ github.ref_name }}"
+          version-type: release
+          loaders: forge
+          game-versions: "1.5.2"
+          game-version-filter: releases
+          environment: server
+          files: forge-1.5.2/build/libs/*.jar
           fail-mode: fail
           retry-attempts: 3
           retry-delay: 15000

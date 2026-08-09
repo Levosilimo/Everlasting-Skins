@@ -29,13 +29,23 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Monorepo layout: the script lives at mc1.12.2/test-infrastructure/, so
+# PROJECT_DIR is already the lane dir and BRANCH_DIR must not be
+# re-appended. The fork layout keeps test-infrastructure/ beside the lane
+# dir; keep the legacy PROJECT_DIR/$BRANCH_DIR join for that case.
+if [ "$(basename "$PROJECT_DIR")" = "$BRANCH_DIR" ]; then
+    LANE_DIR="$PROJECT_DIR"
+else
+    LANE_DIR="$PROJECT_DIR/$BRANCH_DIR"
+fi
+
 echo "=== EverlastingSkins E2E Test ==="
 echo "Branch:    $BRANCH (MC $MC_VERSION, Forge $FORGE_VERSION)"
 echo
 
 # 1. Build the mod
 echo "[1/6] Building mod..."
-cd "$PROJECT_DIR/$BRANCH_DIR"
+cd "$LANE_DIR"
 if [ ! -x gradlew ]; then
     chmod +x gradlew
 fi
