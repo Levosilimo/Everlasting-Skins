@@ -225,12 +225,22 @@ bash scripts/gradle-health.sh  # dep-hygiene sweep (manual; per-consumer :projec
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
 `:common` + the four 1.21.x modules + forge-26.2 (`Build (26.2)`, Java 25),
-plus the out-of-band mc1.12.2 build, `E2E (mc1.12.2)` stub, and out-of-band
+plus the out-of-band mc1.12.2 build, `E2E (mc1.12.2)` (P1-6 LIVE — no
+longer a stub: mc1.12.2/test-infrastructure/run-e2e.sh builds the lane,
+boots a real Forge 14.23.5.2847 server with the mod, launches a
+HeadlessMC client (TestPlayer) under xvfb, and asserts on the server
+log that the server booted, the client joined, and the FML handshake
+mod-list line names everlastingskins; PR #376), and out-of-band
 `Build (forge-1.8.9)` / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` /
 `Build (forge-1.7.10)` / `Build (forge-1.18.2)` / `Build (forge-1.10.2)` /
 `Build (forge-1.6.4)` / `Build (forge-1.5.2)`
 lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8 / JDK 21 / JDK 8 / JDK 8 / JDK 8).
-Treat the matrix as authoritative for what is buildable in CI.
+A `Vendored harness diff-guard` job (lib-12, PR #376) fails CI when a
+vendored-harness lane's build.gradle drifts from the canonical
+normalized harness pattern beyond the allowed substitution set (see
+scripts/ci-vendored-harness-diff-guard.sh). `Build (forge-1.4.7)` joins
+the matrix once the in-flight lane lands. Treat the matrix as
+authoritative for what is buildable in CI.
 
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), the 1.21.1 / 1.21.4 / 1.21.8 point releases
@@ -244,6 +254,8 @@ forge-1.10.2 (Gradle 4.10.3 / Java 8 / MCP stable_29), and forge-1.6.4
 (Gradle 4.4.1 / Java 8 / vendored SpecialSource 1.7.4 deobf harness,
 MCP 8.11 conf; 40 unit tests, JUnit 4), and forge-1.5.2 (Gradle 4.4.1 /
 Java 8 / vendored SpecialSource 1.7.4 deobf harness, MCP 7.51 conf).
+forge-1.4.7 is in flight (next in the pre-1.7.10 vendored-harness
+chain, per the 1.5.2-final-report carry-forward).
 
 ### Fail-fast hooks
 
@@ -345,9 +357,14 @@ convention gates three things on that single property:
 - the test-variant #960 edges (`ClassListExploderTask` / `AbiAnalysisTask -> dependsOn processTestResources`).
 
 Graduated lanes (duplicate-class is a zero-false-positive category here):
-forge-1.21, forge-1.21.1, forge-1.21.4, forge-1.21.8, forge-26.2. `:common`
+forge-1.21, forge-1.21.1, forge-1.21.4, forge-1.21.8, forge-26.2,
+forge-26.1. `:common`
 stays WARN-forever by design (aggregate-jar false positives, no Forge runtime)
-and must never set the property.
+and must never set the property. No other lane should graduate: forge-1.18.2
+did NOT set the property (lib-9 verified on disk), and the out-of-band lanes
+(mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.10.2 / forge-1.16.5 /
+forge-1.20.1 / forge-1.18.2 / forge-1.6.4 / forge-1.5.2) sit below the
+plugin's Gradle 8.11 minimum (see the lane-policy paragraph above).
 
 Rollback: flip `depAnalysis.graduateDuplicateClass` back to `false` (or delete
 it) — instantly reverts BOTH the severity change and the check-wiring with no
@@ -376,11 +393,14 @@ and `mc1.12.2` remain as frozen stable aliases (tagged
 
 Required checks (contract on `main`) are enforced via the gh API — do not edit
 branch protection in-repo. The contract is strict (`enforce_admins`, no
-force pushes/deletions) with 16 contexts: `YAML Lint`, the `Build
- (common)` / `Build (1.21.x)` / `Build (26.2)` matrix, `Build (mc1.12.2)`,
+force pushes/deletions) with 21 contexts: `YAML Lint`, the `Build
+ (common)` / `Build (1.21.x)` / `Build (26.2)` / `Build (26.1)` matrix,
+`Build (mc1.12.2)`,
 `E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
 `(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
-/ `Build (forge-1.16.5)` / `Build (forge-1.20.1)` lanes, `aislop
+/ `Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.18.2)`
+/ `Build (forge-1.10.2)` / `Build (forge-1.6.4)` / `Build (forge-1.5.2)`
+lanes, `aislop
 (M2)`, and `CI Health` (informational -> required, lib-69). CI job names
 must match the required-check strings exactly.
 
@@ -400,47 +420,29 @@ it as a real failure when an actual assertion/text failure (or a non-
 Mavenizer stack trace) is present. Mavenizer cache-miss noise alone must
 not block a merge or trigger a bug hunt.
 
-Required-check contract count progression (three-lane expansion, deepwork
-merge order forge-26.2 → forge-1.8.9 → forge-1.7.10): 12 → 13 after
-`Build (26.2)` lands (forge-26.2 lane, PR #310) → 14 after
+Required-check contract count progression (legacy-lane expansion): 12 → 13
+after `Build (26.2)` lands (forge-26.2 lane, PR #310) → 14 after
 `Build (forge-1.8.9)` (PR #311) → 15 after `Build (forge-1.7.10)` lands
 (PR #312) → 16 after `CI Health` is promoted via
-`scripts/gh-api-bump/CI-Health.sh` (lib-69). Each lane is added to the
+`scripts/gh-api-bump/CI-Health.sh` (lib-69) → 17 after `Build (26.1)`
+(forge-26.1 lane, gh-api-bump/26.1.sh) → 18 after `Build (forge-1.18.2)`
+(gh-api-bump/1.18.2.sh) → 19 after `Build (forge-1.10.2)`
+(gh-api-bump/1.10.2.sh) → 20 after `Build (forge-1.6.4)`
+(gh-api-bump/1.6.4.sh) → 21 after `Build (forge-1.5.2)`
+(gh-api-bump/1.5.2.sh). Each lane is added to the
 contract via the `gh-api-bump-<lane>.sh` script (out-of-repo tooling) at
 PR-open time.
 
-Future state (forge-26.1, lib-65): once the lane's PR lands (post-Phase 9),
-`Build (26.1)` joins the contract as a 17th context via the same gh-api-bump
-mechanism (current contract stays at 16 until then).
-
-Future state (forge-1.18.2, lib-13): once the lane's PR lands, `Build
-(forge-1.18.2)` joins the contract as an additional context (16 → 17) via
-the same gh-api-bump mechanism; the lane's one-shot bump script is phase 5
-of the lane plan, done separately. The current contract stays at 16 until
-then.
-
-Future state (forge-1.10.2, lane plan phase 5): once the lane's PR lands,
-`Build (forge-1.10.2)` joins the contract as an additional context via the
-same gh-api-bump mechanism; the lane's one-shot bump script is phase 5 of
-the lane plan, done separately. The current contract (17 contexts; Build
-(26.1) holds the 17th ordinal per the gh-api-bump/1.18.2.sh header) is
-untouched until then.
-
-Future state (forge-1.6.4, lane plan phase 5): once the lane's PR lands,
-`Build (forge-1.6.4)` joins the contract as an additional context via the
-same gh-api-bump mechanism (19→20, after gh-api-bump/1.10.2.sh has applied
-18→19); the lane's one-shot bump script is phase 5 of the lane plan, done
-separately. The current contract is untouched until then.
-
-Future state (forge-1.5.2, lane plan phase 5): once the lane's PR lands,
-`Build (forge-1.5.2)` joins the contract as an additional context via the
-same gh-api-bump mechanism (20→21, after gh-api-bump/1.6.4.sh has applied
-19→20); the lane's one-shot bump script is phase 5 of the lane plan, done
-separately. The current contract is untouched until then.
+Future state (forge-1.4.7, lane plan phase 5): once the lane's PR lands,
+`Build (forge-1.4.7)` joins the contract as a 22nd context via the same
+gh-api-bump mechanism (21→22, after gh-api-bump/1.5.2.sh has applied
+20→21); the lane's one-shot bump script is phase 5 of the lane plan, done
+separately. The current contract stays at 21 until then.
 
 ### Branch protection bump scripts
 
-`scripts/gh-api-bump/{26.2,1.8.9,1.7.10}.sh` are one-shot gh-API scripts that
+`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2}.sh`
+are one-shot gh-API scripts that
 atomically add a new required-status context to the branch-protection contract
 on both `main` and (if it still exists) `integration/m2-monorepo`. They use
 `gh api -X PATCH` on `/branches/<branch>/protection/required_status_checks`
@@ -466,7 +468,7 @@ their module: `mc1.21-v*` / `mc1.21.1-v*` / `mc1.21.4-v*` / `mc1.21.8-v*`
 the leading '1.' — the Forge 65.x line naming), plus the out-of-band lanes
 `mc1.12.2-v*` / `mc1.8.9-v*` / `mc1.10.2-v*` / `mc1.16.5-v*` /
 `mc1.20.1-v*` / `mc1.18.2-v*` / `mc1.7.10-v*` / `mc1.6.4-v*` /
-`mc1.5.2-v*`.
+`mc1.5.2-v*` (with `mc1.4.7-v*` once the in-flight lane lands).
 NeoForge is intentionally absent (no `mcneoforge` lane).
 
 Each publish job is a per-prefix matrix entry (`prefix` → Gradle subproject →
