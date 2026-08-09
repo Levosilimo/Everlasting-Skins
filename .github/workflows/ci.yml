@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Run yamllint
         uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3
         with:
@@ -59,7 +59,7 @@ jobs:
             java: "25"
             timeout: 45   # heaviest: Java 25 + unobfuscated MC + FG 7.0.17
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK ${{ matrix.java || '21' }}
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -91,7 +91,7 @@ jobs:
       - name: Build module
         run: ./gradlew :${{ matrix.module }}:build --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-${{ matrix.mc }}
           path: ${{ matrix.module }}/build/libs/*.jar
@@ -104,7 +104,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -124,7 +124,7 @@ jobs:
       - name: Build and test
         run: cd mc1.12.2 && ./gradlew build --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-mc1.12.2
           path: mc1.12.2/build/libs/*.jar
@@ -137,7 +137,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -157,7 +157,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.16.5 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.16.5
           path: forge-1.16.5/build/libs/*.jar
@@ -170,7 +170,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -190,7 +190,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.8.9 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.8.9
           path: forge-1.8.9/build/libs/*.jar
@@ -203,7 +203,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -223,7 +223,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.10.2 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.10.2
           path: forge-1.10.2/build/libs/*.jar
@@ -236,7 +236,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -256,7 +256,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.6.4 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.6.4
           path: forge-1.6.4/build/libs/*.jar
@@ -269,7 +269,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -289,7 +289,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.5.2 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.5.2
           path: forge-1.5.2/build/libs/*.jar
@@ -302,7 +302,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -322,7 +322,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.20.1 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.20.1
           path: forge-1.20.1/build/libs/*.jar
@@ -335,7 +335,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -355,7 +355,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.18.2 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.18.2
           path: forge-1.18.2/build/libs/*.jar
@@ -368,7 +368,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -388,7 +388,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.7.10 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.7.10
           path: forge-1.7.10/build/libs/*.jar
@@ -409,7 +409,7 @@ jobs:
     timeout-minutes: 45
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -448,7 +448,7 @@ jobs:
     timeout-minutes: 5
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Run vendored harness diff-guard
         run: bash scripts/ci-vendored-harness-diff-guard.sh
 
@@ -459,7 +459,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -500,7 +500,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -536,7 +536,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -572,7 +572,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -608,7 +608,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 25
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -644,7 +644,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 25
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
@@ -680,11 +680,11 @@ jobs:
     timeout-minutes: 5
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: 20
       - name: Run aislop gate on PR changes
@@ -701,7 +701,7 @@ jobs:
     timeout-minutes: 30
     needs: lint-yaml
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
