@@ -1,0 +1,13 @@
+# Vendored SpecialSource harness per-lane fork lines (lib-12,
+# research-vendored-harness-abstraction.json). Lines matching these EREs
+# are dropped from BOTH sides of the diff-guard comparison: they are the
+# documented behavioral forks that legitimately differ between lanes.
+# Any other divergence fails the guard.
+# Fork 1: merge order in deobfClasspath (server-first vs universal-first).
+\[deobfServerJar, deobfUniversalJar\]\.each|\[deobfUniversalJar, deobfServerJar\]\.each
+# Fork 2: subclass-owner expansion (scanHierarchy / expandSubclassMethods).
+scanHierarchy|expandSubclassMethods|subclassOwner
+# Fork 3: assertNameDomain forbidden-token set (per-MC-version surface).
+forbidden|MinecraftServer\.getServer|Packet250CustomPayload\.channel
+# Fork 4: test-runtime dependency (1.5.2 adds log4j-core for authlib-beta).
+log4j-core
