@@ -1,0 +1,185 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ */
+
+package levosilimo.everlastingskins.command;
+
+import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.skinchanger.MojangAPI;
+import levosilimo.everlastingskins.skinchanger.MojangApiHttpImpl;
+import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
+import levosilimo.everlastingskins.util.CustomSkinProperty;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.src.EntityPlayerMP;
+import net.minecraft.src.ICommand;
+import net.minecraft.src.ICommandSender;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * The 1.5.2 {@code /skin} command over the legacy {@link ICommand} surface.
+ *
+ * <p>1.5.2 ICommand surface (MCP 7.51): {@code getCommandName} /
+ * {@code getCommandAliases} / {@code getCommandUsage} / {@code processCommand}
+ * / {@code canCommandSenderUseCommand} / {@code addTabCompletionOptions} /
+ * {@code isUsernameIndex} — no {@code LiteralArgumentBuilder} (1.13+) and no
+ * {@code getName} (1.8+). Sender chat goes through
+ * {@link ICommandSender#sendChatToPlayer(String)} — the plain-String surface
+ * (1.5.2 predates {@code ChatMessageComponent}, which arrived in 1.6).
+ *
+ * <p>Permission gating is delegated to {@link PermissionServiceManager} (the
+ * Forge ops backend resolves the player by username-derived UUID — memory
+ * #1123: UUID-only keying, never the player object). The manager fails closed
+ * until a backend is registered.
+ *
+ * <p>No GameProfile on this line: targets resolve by username
+ * ({@code getCommandSenderName()}) and storage keys are derived via
+ * {@link SkinRestorer#uuidOf(String)}.
+ */
+public class SkinRestorerCommand implements ICommand {
+
+    private static final String NODE_PREFIX = "everlastingskins.command";
+    private static final String NODE_SKIN = NODE_PREFIX + ".skin";
+    private static final String NODE_SKIN_CLEAR = NODE_PREFIX + ".skin.clear";
+    private static final String NODE_SKIN_SOURCE = NODE_PREFIX + ".skin.source";
+
+    private static volatile MojangAPI mojangApi = new MojangApiHttpImpl();
+    private static volatile MinecraftServer serverOverride;
+
+    @Override
+    public String getCommandName() {
+        return "skin";
+    }
+
+    @Override
+    public List getCommandAliases() {
+        return Arrays.asList("skins", "setskin");
+    }
+
+    @Override
+    public String getCommandUsage(ICommandSender sender) {
+        return "/skin <set <username>|clear|source> [player]";
+    }
+
+    @Override
+    public boolean canCommandSenderUseCommand(ICommandSender sender) {
+        // Dispatch-time gating happens in processCommand via the permission
+        // manager (fail-closed); the ICommand hook is a pre-filter only,
+        // mirroring the sibling lanes.
+        return true;
+    }
+
+    @Override
+    public void processCommand(ICommandSender sender, String[] args) {
+        if (args.length < 1) {
+            sender.sendChatToPlayer(getCommandUsage(sender));
+            return;
+        }
+        String action = args[0];
+        EntityPlayerMP target = resolveTarget(sender, args);
+        if (target == null) {
+            sender.sendChatToPlayer("Player not found.");
+            return;
+        }
+        UUID uuid = SkinRestorer.uuidOf(target.getCommandSenderName());
+
+        switch (action) {
+            case "clear":
+                if (!checkPermission(sender, uuid, NODE_SKIN_CLEAR)) return;
+                SkinRestorer.clearSkin(uuid);
+                sender.sendChatToPlayer("Skin cleared.");
+                break;
+            case "source":
+                if (!checkPermission(sender, uuid, NODE_SKIN_SOURCE)) return;
+                String source = SkinRestorer.getSource(uuid);
+                sender.sendChatToPlayer(
+                    source != null ? "Skin source: " + source : "No custom skin stored.");
+                break;
+            case "set":
+                if (!checkPermission(sender, uuid, NODE_SKIN)) return;
+                if (args.length < 2) {
+                    sender.sendChatToPlayer(getCommandUsage(sender));
+                    return;
+                }
+                setSkin(sender, uuid, args[1]);
+                break;
+            default:
+                sender.sendChatToPlayer(getCommandUsage(sender));
+        }
+    }
+
+    private void setSkin(ICommandSender sender, UUID uuid, String username) {
+        // 1.5.2 has no per-player permission nodes beyond the op model; the
+        // vanilla Mojang lookup is the only authoritative source (no
+        // MineSkin/URL generation on this legacy surface).
+        MojangAPI api = mojangApi;
+        if (api == null) {
+            sender.sendChatToPlayer("Skin resolver unavailable.");
+            return;
+        }
+        Optional<MojangSkinDataResult> result = api.getSkin(username);
+        if (!result.isPresent()) {
+            sender.sendChatToPlayer("Could not resolve a skin for '" + username + "'.");
+            return;
+        }
+        CustomSkinProperty skin = result.get().skinProperty();
+        SkinRestorer.applySkin(uuid, skin);
+        sender.sendChatToPlayer("Skin applied.");
+    }
+
+    private boolean checkPermission(ICommandSender sender, UUID uuid, String node) {
+        int opLevel = sender instanceof EntityPlayerMP ? 4 : 0;
+        if (!PermissionServiceManager.hasPermission(uuid, opLevel, node)) {
+            sender.sendChatToPlayer("You do not have permission to use this command.");
+            return false;
+        }
+        return true;
+    }
+
+    private EntityPlayerMP resolveTarget(ICommandSender sender, String[] args) {
+        if (args.length >= 2 && !args[1].isEmpty()) {
+            MinecraftServer server = serverOverride != null ? serverOverride : MinecraftServer.getServer();
+            if (server != null && server.getConfigurationManager() != null) {
+                for (Object o : server.getConfigurationManager().playerEntityList) {
+                    if (o instanceof EntityPlayerMP) {
+                        EntityPlayerMP p = (EntityPlayerMP) o;
+                        if (p.getCommandSenderName().equalsIgnoreCase(args[1])) return p;
+                    }
+                }
+            }
+            return null;
+        }
+        return sender instanceof EntityPlayerMP ? (EntityPlayerMP) sender : null;
+    }
+
+    @Override
+    public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+        return null;
+    }
+
+    @Override
+    public boolean isUsernameIndex(String[] args, int index) {
+        return index == 1;
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        return getCommandName().compareTo(((ICommand) o).getCommandName());
+    }
+
+    /** Test seam — deterministic fakes only (memory #1115; no live HTTP). */
+    static void setMojangApiForTest(MojangAPI api) {
+        mojangApi = api;
+    }
+
+    /** Test seam — mirrors the mc1.12.2 SkinRestorer.setServer pattern. */
+    static void setServerOverrideForTest(MinecraftServer server) {
+        serverOverride = server;
+    }
+}
