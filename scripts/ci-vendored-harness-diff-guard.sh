@@ -48,9 +48,9 @@ normalize() {
         -e 's/forge-1\.(6\.4|5\.2|4\.7)/forge-LANE/g' \
         -e 's/1\.(6\.4|5\.2|4\.7)/MCVER/g' \
         -e 's/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/FORGEVER/g' \
-        -e 's/mcp[0-9]+/mcpMCP/g' \
-        -e 's/MCPVersion ?= ?[0-9.]+/MCPVersion = MCPVER/g' \
-        -e 's/MCP [0-9.]+ conf/MCP MCPVER conf/g' \
+        -e 's/mcp[0-9]+[a-z]?/mcpMCP/g' \
+        -e 's/MCPVersion ?= ?[0-9.]+[a-z]?/MCPVersion = MCPVER/g' \
+        -e 's/MCP [0-9.]+[a-z]? conf/MCP MCPVER conf/g' \
         -e 's/forge[0-9]+/forgePKG/g' \
         -e "s/archivesBaseName = '[^']*'/archivesBaseName = 'everlastingskins-LANE'/" \
         -e "s/digest: '[0-9a-fA-F]{16,64}'/digest: 'DIGEST'/g" \
