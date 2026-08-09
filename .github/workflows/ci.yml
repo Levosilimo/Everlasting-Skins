@@ -472,9 +472,10 @@ jobs:
 
   # ── Vendored harness diff-guard (lib-12) ───────────────────────
   # Fails when a vendored SpecialSource harness lane (forge-1.6.4,
-  # forge-1.5.2, future forge-1.4.7) drifts from the canonical harness
-  # beyond the allowed substitution set and the whitelisted per-lane fork
-  # lines. See scripts/ci-vendored-harness-diff-guard.sh.
+  # forge-1.5.2, forge-1.4.7) stops applying the shared harness script
+  # (harness/specialsource-harness.gradle, Option B graduation), re-defines
+  # a harness task locally, or drops a required harnessConfig key.
+  # See scripts/ci-vendored-harness-diff-guard.sh.
   vendored-harness-diff-guard:
     name: Vendored harness diff-guard
     runs-on: ubuntu-24.04
