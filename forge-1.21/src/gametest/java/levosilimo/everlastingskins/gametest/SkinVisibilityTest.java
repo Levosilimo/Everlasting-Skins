@@ -1451,7 +1451,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", batch = "concurrentSkinSet_twoPlayers", timeoutTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", batch = "concurrentSkinSet_twoPlayers", timeoutTicks = 600000)
     public void concurrentSkinSet_twoPlayers(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1466,9 +1466,15 @@ public class SkinVisibilityTest {
         UUID uuidB = playerB.getUUID();
 
         // Real-time budget for the async pipeline — see
-        // ASYNC_PIPELINE_DEADLINE_NANOS. timeoutTicks=60000 above is only a
-        // backstop; the deadline below is the actual bound.
-        long deadlineNanos = System.nanoTime() + ASYNC_PIPELINE_DEADLINE_NANOS;
+        // ASYNC_PIPELINE_DEADLINE_NANOS. timeoutTicks=600000 above is only a
+        // backstop; the deadline below is the actual bound (lib-47: the tick
+        // budget alone raced the concurrent dispatches on loaded CI runners).
+        long startedNanos = System.nanoTime();
+        long deadlineNanos = startedNanos + ASYNC_PIPELINE_DEADLINE_NANOS;
+        // Progress-log throttle: surface the stall once per ~5s of wall time
+        // instead of spamming every poll (initialized to start so the first
+        // poll does not log).
+        final long[] lastLogNanos = {startedNanos};
 
         try {
             placePlayer(helper, playerA);
@@ -1501,7 +1507,23 @@ public class SkinVisibilityTest {
             // futures inside succeedWhen instead: the server keeps ticking, so
             // queued broadcasts land and drain() observes them.
             helper.succeedWhen(() -> {
-                throwIfPastDeadline(deadlineNanos, "concurrent skin set");
+                // Terminal deadline enforcement. throwIfPastDeadline inside
+                // this poll only throws GameTestAssertException, which the
+                // 1.21 framework swallows as "keep waiting" (GameTestSequence
+                // re-polls next tick); the deadline would otherwise never
+                // terminate the test and the failure would race the tick
+                // budget (60000 CPU-speed ticks can elapse in <20s on fast
+                // machines, surfacing the raw transient "observerA expected 1
+                // packet, got 0" before the wall-clock deadline — the
+                // concurrentSkinSet_twoPlayers flake family). GameTestInfo
+                // records ANY exception from a delayed runnable as a terminal
+                // failure, so route the expiry through runAfterDelay: the test
+                // then fails AT the deadline with a clear message instead of
+                // racing the tick budget.
+                if (System.nanoTime() > deadlineNanos) {
+                    helper.runAfterDelay(1, () -> helper.fail("timed out after 20s wall-clock waiting for "
+                            + "concurrent skin set (ticks=" + helper.getTick() + ")"));
+                }
                 if (!futureA.isDone() || !futureB.isDone()) {
                     throw new GameTestAssertException("waiting for concurrent dispatches to complete");
                 }
@@ -1514,6 +1536,13 @@ public class SkinVisibilityTest {
                 if (skinB == null || !SkinActionCommand.SOURCE_MOJANG.equals(skinB.getSource())) {
                     throw new GameTestAssertException("waiting for playerB to store the Mojang skin (got "
                             + (skinB == null ? "null" : skinB.getSource()) + ")");
+                }
+                long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+                long nowNanos = System.nanoTime();
+                if (nowNanos - lastLogNanos[0] >= TimeUnit.SECONDS.toNanos(5)) {
+                    lastLogNanos[0] = nowNanos;
+                    EverlastingSkins.logger.info("concurrentskinset_twoplayers: storage updated, still waiting for "
+                            + "observer ADD_PLAYER packets after {}ms (ticks={})", elapsedMs, helper.getTick());
                 }
                 long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
                 long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
