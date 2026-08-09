@@ -68,7 +68,7 @@ dependencies {
 
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.3")
     testRuntimeOnly("net.jqwik:jqwik-engine:1.10.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.2")
     // Default log4j2 config (ERROR-only) so test output stays quiet.
     testRuntimeOnly("org.apache.logging.log4j:log4j-core:2.26.1")
 }
