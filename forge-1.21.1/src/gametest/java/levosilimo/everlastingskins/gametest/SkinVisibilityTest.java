@@ -227,7 +227,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", batch = "skinCommand_clear_removesTexture", timeoutTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", batch = "skinCommand_clear_removesTexture", timeoutTicks = 600000)
     public void skinCommand_clear_removesTexture(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -248,12 +248,31 @@ public class SkinVisibilityTest {
 
         fake.fail = true;
         long deadlineNanos = System.nanoTime() + ASYNC_PIPELINE_DEADLINE_NANOS;
+        long startedNanos = System.nanoTime();
+        // Progress-log throttle: surface the stall once per ~5s of wall time
+        // instead of spamming every poll (initialized to start so the first
+        // poll does not log).
+        final long[] lastLogNanos = {startedNanos};
         int result = dispatch(server, "skin clear", playerA.createCommandSourceStack(), helper);
         helper.assertTrue(result == 1, "command should report 1 target, got " + result);
 
         Path skinFile = server.getFile("EverlastingSkins").resolve(playerId + ".json");
         helper.succeedWhen(() -> {
-            throwIfPastDeadline(deadlineNanos, "/skin clear to finish");
+            // Terminal deadline enforcement. throwIfPastDeadline inside this
+            // poll only throws GameTestAssertException, which the 1.21.1
+            // framework swallows as "keep waiting" (GameTestSequence re-polls
+            // next tick); the deadline would otherwise never terminate the
+            // test and the failure would race the tick budget (60000 CPU-speed
+            // ticks can elapse in <20s on fast machines, surfacing the raw
+            // transient "got 0" before the wall-clock deadline). GameTestInfo
+            // records ANY exception from a delayed runnable as a terminal
+            // failure, so route the expiry through runAfterDelay: the test
+            // then fails AT the deadline with a clear message instead of
+            // racing the tick budget.
+            if (System.nanoTime() > deadlineNanos) {
+                helper.runAfterDelay(1, () -> helper.fail("timed out after 20s wall-clock waiting for "
+                        + "/skin clear to finish (ticks=" + helper.getTick() + ")"));
+            }
             if (storage.getSkin(playerId) != null) {
                 throw new GameTestAssertException("waiting for /skin clear to remove skin from storage");
             }
@@ -264,6 +283,13 @@ public class SkinVisibilityTest {
                 SkinRefreshHandler.task(playerA);
             } catch (RuntimeException e) {
                 throw new GameTestAssertException("task() must not throw on a cleared (null) skin: " + e);
+            }
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+            long nowNanos = System.nanoTime();
+            if (nowNanos - lastLogNanos[0] >= TimeUnit.SECONDS.toNanos(5)) {
+                lastLogNanos[0] = nowNanos;
+                EverlastingSkins.logger.info("skinclear_removestexture: skin cleared from storage+disk, still "
+                        + "waiting for task() no-broadcast after {}ms (ticks={})", elapsedMs, helper.getTick());
             }
             if (findTexturesFor(drain(observer), playerId) != null) {
                 throw new GameTestAssertException("task() on a cleared skin must not broadcast textures");
@@ -468,7 +494,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", batch = "skinRefresh_runCommandSuccessPath", timeoutTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", batch = "skinRefresh_runCommandSuccessPath", timeoutTicks = 600000)
     public void skinRefresh_runCommandSuccessPath(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -483,16 +509,42 @@ public class SkinVisibilityTest {
 
         fake.fail = false;
         long deadlineNanos = System.nanoTime() + ASYNC_PIPELINE_DEADLINE_NANOS;
+        long startedNanos = System.nanoTime();
+        // Progress-log throttle: surface the stall once per ~5s of wall time
+        // instead of spamming every poll (initialized to start so the first
+        // poll does not log).
+        final long[] lastLogNanos = {startedNanos};
         int result = dispatch(server, "skin set mojang Notch TestPlayerA", playerA.createCommandSourceStack(), helper);
         helper.assertTrue(result == 1, "command should report 1 target, got " + result);
 
         helper.succeedWhen(() -> {
-            throwIfPastDeadline(deadlineNanos, "skin set mojang to store skin");
+            // Terminal deadline enforcement. throwIfPastDeadline inside this
+            // poll only throws GameTestAssertException, which the 1.21.1
+            // framework swallows as "keep waiting" (GameTestSequence re-polls
+            // next tick); the deadline would otherwise never terminate the
+            // test and the failure would race the tick budget (60000 CPU-speed
+            // ticks can elapse in <20s on fast machines, surfacing the raw
+            // transient "got 0" before the wall-clock deadline). GameTestInfo
+            // records ANY exception from a delayed runnable as a terminal
+            // failure, so route the expiry through runAfterDelay: the test
+            // then fails AT the deadline with a clear message instead of
+            // racing the tick budget.
+            if (System.nanoTime() > deadlineNanos) {
+                helper.runAfterDelay(1, () -> helper.fail("timed out after 20s wall-clock waiting for "
+                        + "skin set mojang to store skin (ticks=" + helper.getTick() + ")"));
+            }
             CustomSkinProperty stored = storage.getSkin(playerId);
             if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
                 throw new GameTestAssertException("waiting for /skin set mojang Notch TestPlayerA to store source="
                         + SkinActionCommand.SOURCE_MOJANG + " (got "
                         + (stored == null ? "null" : stored.getSource()) + ")");
+            }
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+            long nowNanos = System.nanoTime();
+            if (nowNanos - lastLogNanos[0] >= TimeUnit.SECONDS.toNanos(5)) {
+                lastLogNanos[0] = nowNanos;
+                EverlastingSkins.logger.info("skinrefresh_runcommandsuccesspath: skin stored, still waiting for "
+                        + "observer ADD_PLAYER with textures after {}ms (ticks={})", elapsedMs, helper.getTick());
             }
             Property textures = findTexturesFor(drain(observer), playerId);
             if (textures == null) {
@@ -1451,7 +1503,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(template = "everlastingskins:empty", batch = "concurrentSkinSet_twoPlayers", timeoutTicks = 60000)
+    @GameTest(template = "everlastingskins:empty", batch = "concurrentSkinSet_twoPlayers", timeoutTicks = 600000)
     public void concurrentSkinSet_twoPlayers(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1466,9 +1518,15 @@ public class SkinVisibilityTest {
         UUID uuidB = playerB.getUUID();
 
         // Real-time budget for the async pipeline — see
-        // ASYNC_PIPELINE_DEADLINE_NANOS. timeoutTicks=60000 above is only a
-        // backstop; the deadline below is the actual bound.
-        long deadlineNanos = System.nanoTime() + ASYNC_PIPELINE_DEADLINE_NANOS;
+        // ASYNC_PIPELINE_DEADLINE_NANOS. timeoutTicks=600000 above is only a
+        // backstop; the deadline below is the actual bound (lib-47: the tick
+        // budget alone raced the concurrent dispatches on loaded CI runners).
+        long startedNanos = System.nanoTime();
+        long deadlineNanos = startedNanos + ASYNC_PIPELINE_DEADLINE_NANOS;
+        // Progress-log throttle: surface the stall once per ~5s of wall time
+        // instead of spamming every poll (initialized to start so the first
+        // poll does not log).
+        final long[] lastLogNanos = {startedNanos};
 
         try {
             placePlayer(helper, playerA);
@@ -1501,7 +1559,23 @@ public class SkinVisibilityTest {
             // futures inside succeedWhen instead: the server keeps ticking, so
             // queued broadcasts land and drain() observes them.
             helper.succeedWhen(() -> {
-                throwIfPastDeadline(deadlineNanos, "concurrent skin set");
+                // Terminal deadline enforcement. throwIfPastDeadline inside
+                // this poll only throws GameTestAssertException, which the
+                // 1.21.1 framework swallows as "keep waiting" (GameTestSequence
+                // re-polls next tick); the deadline would otherwise never
+                // terminate the test and the failure would race the tick
+                // budget (60000 CPU-speed ticks can elapse in <20s on fast
+                // machines, surfacing the raw transient "observerA expected 1
+                // packet, got 0" before the wall-clock deadline — the
+                // concurrentSkinSet_twoPlayers flake family). GameTestInfo
+                // records ANY exception from a delayed runnable as a terminal
+                // failure, so route the expiry through runAfterDelay: the test
+                // then fails AT the deadline with a clear message instead of
+                // racing the tick budget.
+                if (System.nanoTime() > deadlineNanos) {
+                    helper.runAfterDelay(1, () -> helper.fail("timed out after 20s wall-clock waiting for "
+                            + "concurrent skin set (ticks=" + helper.getTick() + ")"));
+                }
                 if (!futureA.isDone() || !futureB.isDone()) {
                     throw new GameTestAssertException("waiting for concurrent dispatches to complete");
                 }
@@ -1514,6 +1588,13 @@ public class SkinVisibilityTest {
                 if (skinB == null || !SkinActionCommand.SOURCE_MOJANG.equals(skinB.getSource())) {
                     throw new GameTestAssertException("waiting for playerB to store the Mojang skin (got "
                             + (skinB == null ? "null" : skinB.getSource()) + ")");
+                }
+                long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+                long nowNanos = System.nanoTime();
+                if (nowNanos - lastLogNanos[0] >= TimeUnit.SECONDS.toNanos(5)) {
+                    lastLogNanos[0] = nowNanos;
+                    EverlastingSkins.logger.info("concurrentskinset_twoplayers: storage updated, still waiting for "
+                            + "observer ADD_PLAYER packets after {}ms (ticks={})", elapsedMs, helper.getTick());
                 }
                 long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
                 long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
@@ -1760,12 +1841,6 @@ public class SkinVisibilityTest {
      * timeoutTicks is only a far backstop.
      */
     private static final long ASYNC_PIPELINE_DEADLINE_NANOS = TimeUnit.SECONDS.toNanos(20);
-
-    private static void throwIfPastDeadline(long deadlineNanos, String what) {
-        if (System.nanoTime() > deadlineNanos) {
-            throw new GameTestAssertException("timed out after 20s wall-clock waiting for " + what);
-        }
-    }
 
     private static List<Packet<?>> drain(ServerPlayer player) {
         List<Packet<?>> packets = new ArrayList<>();
