@@ -12,6 +12,7 @@ import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.command.SkinRestorerCommand;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerMP;
 import net.minecraft.src.INetworkManager;
 
@@ -83,7 +84,7 @@ public final class SkinRestorer {
         }
         for (Object o : srv.getConfigurationManager().playerEntityList) {
             if (o instanceof EntityPlayerMP) {
-                EntityPlayerMP player = (EntityPlayerMP) o;
+                EntityPlayer player = (EntityPlayer) o;
                 UUID uuid = uuidOf(player.getCommandSenderName());
                 if (s.getSkin(uuid) != null) {
                     s.saveSkin(uuid);
@@ -97,7 +98,7 @@ public final class SkinRestorer {
      * Player-keyed login: re-broadcast the stored skin over the channel when
      * one exists (the 1.6.4 restore surface — no GameProfile to mutate).
      */
-    public static void onPlayerLoggedIn(EntityPlayerMP player) {
+    public static void onPlayerLoggedIn(EntityPlayer player) {
         SkinStorage s = storage;
         if (s == null) {
             return;
@@ -124,7 +125,7 @@ public final class SkinRestorer {
                 EntityPlayerMP player = (EntityPlayerMP) o;
                 if (player.playerNetServerHandler != null
                     && manager == player.playerNetServerHandler.netManager) {
-                    UUID uuid = uuidOf(player.getCommandSenderName());
+                    UUID uuid = uuidOf(((EntityPlayer) player).getCommandSenderName());
                     if (s.getSkin(uuid) != null) {
                         s.saveSkin(uuid);
                     }

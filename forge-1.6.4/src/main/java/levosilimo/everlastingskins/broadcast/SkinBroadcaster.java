@@ -10,7 +10,7 @@ import cpw.mods.fml.common.network.IPacketHandler;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.PacketDispatcher;
 import cpw.mods.fml.common.network.Player;
-import net.minecraft.src.EntityPlayerMP;
+import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.INetworkManager;
 import net.minecraft.src.Packet;
 import net.minecraft.src.Packet250CustomPayload;
@@ -51,7 +51,7 @@ public final class SkinBroadcaster {
     }
 
     /** Broadcasts a skin-change notification for {@code target} to all players. */
-    public static void broadcastProfileChange(EntityPlayerMP target) {
+    public static void broadcastProfileChange(EntityPlayer target) {
         byte[] payload = SkinMessage.encode(target.getCommandSenderName(), null);
         Packet packet = PacketDispatcher.getPacket(CHANNEL, payload);
         PacketDispatcher.sendPacketToAllPlayers(packet);

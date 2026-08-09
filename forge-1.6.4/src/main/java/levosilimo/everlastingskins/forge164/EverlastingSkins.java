@@ -17,6 +17,7 @@ import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerMP;
 import net.minecraft.src.INetworkManager;
 import net.minecraft.src.NetHandler;
@@ -85,7 +86,7 @@ public class EverlastingSkins {
         @Override
         public void playerLoggedIn(Player player, NetHandler netHandler, INetworkManager manager) {
             if (player instanceof EntityPlayerMP) {
-                SkinRestorer.onPlayerLoggedIn((EntityPlayerMP) player);
+                SkinRestorer.onPlayerLoggedIn((EntityPlayer) player);
             }
         }
 
