@@ -1618,7 +1618,7 @@ public class SkinVisibilityTest {
         }
     }
 
-    @GameTest(structure = "everlastingskins:empty", environment = "everlastingskins_gametest:skin_set_self_receives_broadcast", maxTicks = 200)
+    @GameTest(structure = "everlastingskins:empty", environment = "everlastingskins_gametest:skin_set_self_receives_broadcast", maxTicks = 600000)
     public void skinSet_selfReceivesBroadcast(GameTestHelper helper) {
         FakeMojangAPI fake = installFakeMojangAPI(true);
         SkinStorage storage = ensureStorage(helper);
@@ -1626,6 +1626,18 @@ public class SkinVisibilityTest {
         ServerPlayer playerA = mockPlayer(helper, "SelfRecvPlayer");
         makeOp(playerA);
         UUID playerId = playerA.getUUID();
+
+        // Real-time budget for the async pipeline — see
+        // ASYNC_PIPELINE_DEADLINE_NANOS. maxTicks=600000 above is only a
+        // backstop; the deadline below is the actual bound (the tick budget
+        // alone raced the broadcast on loaded CI runners).
+        long deadlineNanos = System.nanoTime() + ASYNC_PIPELINE_DEADLINE_NANOS;
+        long deadlineMs = TimeUnit.NANOSECONDS.toMillis(ASYNC_PIPELINE_DEADLINE_NANOS);
+        long startedNanos = System.nanoTime();
+        // Progress-log throttle: surface the stall once per ~5s of wall time
+        // instead of spamming every poll (initialized to start so the first
+        // poll does not log).
+        final long[] lastLogNanos = {startedNanos};
 
         try {
             placePlayer(helper, playerA);
@@ -1636,10 +1648,33 @@ public class SkinVisibilityTest {
             helper.assertTrue(result == 1, Component.literal("command should report 1 target, got " + result));
 
             helper.succeedWhen(() -> {
+                // Terminal deadline enforcement. helper.fail() inside this
+                // poll only throws GameTestAssertException, which the
+                // framework swallows as "keep waiting" (GameTestSequence
+                // re-polls next tick); the deadline would otherwise never
+                // terminate the test and the failure would race the tick
+                // budget (200 CPU-speed ticks can elapse in well under a
+                // second on fast machines, surfacing the raw transient
+                // "got 0" before the wall-clock deadline). GameTestInfo
+                // records ANY exception from a delayed runnable as a
+                // terminal failure, so route the expiry through
+                // runAfterDelay: the test then fails AT the deadline with a
+                // clear message instead of racing the tick budget.
+                if (System.nanoTime() > deadlineNanos) {
+                    helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after " + deadlineMs
+                            + "ms waiting for self-reception broadcast (ticks=" + helper.getTick() + ")")));
+                }
                 CustomSkinProperty stored = storage.getSkin(playerId);
                 if (stored == null || !SkinActionCommand.SOURCE_MOJANG.equals(stored.getSource())) {
                     throw new GameTestAssertException(Component.literal("waiting for source=" + SkinActionCommand.SOURCE_MOJANG + " (got "
                             + (stored == null ? "null" : stored.getSource()) + ")"), -1);
+                }
+                long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+                long nowNanos = System.nanoTime();
+                if (nowNanos - lastLogNanos[0] >= TimeUnit.SECONDS.toNanos(5)) {
+                    lastLogNanos[0] = nowNanos;
+                    EverlastingSkins.logger.info("skinset_selfreceivesbroadcast: storage updated, still waiting for "
+                            + "self-reception ADD_PLAYER after {}ms (ticks={})", elapsedMs, helper.getTick());
                 }
                 long selfCount = countAddPlayerUpdatesWithTextures(drain(playerA), playerId);
                 if (selfCount < 1) {
