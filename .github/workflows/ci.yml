@@ -91,7 +91,7 @@ jobs:
       - name: Build module
         run: ./gradlew :${{ matrix.module }}:build --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-${{ matrix.mc }}
           path: ${{ matrix.module }}/build/libs/*.jar
@@ -124,7 +124,7 @@ jobs:
       - name: Build and test
         run: cd mc1.12.2 && ./gradlew build --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-mc1.12.2
           path: mc1.12.2/build/libs/*.jar
@@ -157,7 +157,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.16.5 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.16.5
           path: forge-1.16.5/build/libs/*.jar
@@ -190,7 +190,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.8.9 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.8.9
           path: forge-1.8.9/build/libs/*.jar
@@ -223,7 +223,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.10.2 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.10.2
           path: forge-1.10.2/build/libs/*.jar
@@ -256,7 +256,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.6.4 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.6.4
           path: forge-1.6.4/build/libs/*.jar
@@ -289,7 +289,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.5.2 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.5.2
           path: forge-1.5.2/build/libs/*.jar
@@ -322,7 +322,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.20.1 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.20.1
           path: forge-1.20.1/build/libs/*.jar
@@ -355,7 +355,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.18.2 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.18.2
           path: forge-1.18.2/build/libs/*.jar
@@ -388,7 +388,7 @@ jobs:
       - name: Build and test
         run: cd forge-1.7.10 && ./gradlew build verifyNoMixin --no-daemon --stacktrace
       - name: Upload built jar
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-forge-1.7.10
           path: forge-1.7.10/build/libs/*.jar
