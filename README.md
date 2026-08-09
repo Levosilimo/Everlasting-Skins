@@ -18,7 +18,8 @@ forge-1.21/                  current 1.21 mod (MC 1.21 / Forge 51.0.8)
 forge-1.21.1/                point release (MC 1.21.1 / Forge 52.1.16)
 forge-1.21.4/                point release (MC 1.21.4 / Forge 54.1.18)
 forge-1.21.8/                point release (MC 1.21.8 / Forge 58.1.21)
-forge-1.16.5/  forge-1.20.1/  out-of-band legacy lanes (own Gradle wrappers, FG per-lane)
+forge-1.16.5/  forge-1.20.1/  forge-1.18.2/  out-of-band legacy lanes (own Gradle wrappers, FG per-lane)
+forge-1.10.2/                out-of-band legacy lane (own Gradle 4.10.3 wrapper, FG 2.2.5, Java 8)
 forge-1.8.9/                 out-of-band legacy lane (own Gradle 4.10.3 wrapper, FG 2.1-SNAPSHOT, Java 8)
 forge-1.7.10/                out-of-band legacy lane (own Gradle 4.4.1 wrapper, GTNH FG 1.2.11 via jitpack, Java 8)
 mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG 2.3.4, Java 8,
@@ -36,12 +37,15 @@ mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG
 | `:forge-1.21.8` | 1.21.8 | 58.1.21 | 7.x | root 9.3.1 | 21 | SOURCE-COMPLETE (post-#281) |
 | `:forge-26.2` | 26.2 | 65.0.9 | 7.x | root 9.3.1 | 25 | SOURCE-COMPLETE (Java 25, unobfuscated MC, EventBus 7) |
 | `forge-1.16.5/` (not a subproject) | 1.16.5 | 36.2.34 | 5.1.x | own 7.6.4 wrapper | JDK 8 | SOURCE-COMPLETE (post-#274) |
-| `forge-1.20.1/` (not a subproject) | 1.20.1 | 47.4.10 | 6.x | own 8.7 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (post-#273) |
+| `forge-1.20.1/` (not a subproject) | 1.20.1 | 47.4.10 | 6.x | own 8.14 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (post-#273) |
+| `forge-1.18.2/` (not a subproject) | 1.18.2 | 40.3.0 | 6.x | own 8.14 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (lane PR) |
+| `forge-1.10.2/` (not a subproject) | 1.10.2 | 12.18.3.2511 | 2.2.5 | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
 | `forge-1.8.9/` (not a subproject) | 1.8.9 | 11.15.1.2318 | 2.1-SNAPSHOT | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
 | `forge-1.7.10/` (not a subproject) | 1.7.10 | 10.13.4.1614 | 1.2.11 (GTNH fork via jitpack) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (GTNH FG 1.2.11 + MCP stable_12) |
 | `mc1.12.2/` (not a subproject) | 1.12.2 | 14.23.5.2847 | 2.3.4 | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (post-#269) |
 
-`forge-1.8.9` / `forge-1.16.5` / `forge-1.20.1` / `forge-1.7.10` are out-of-band per-lane
+`forge-1.8.9` / `forge-1.16.5` / `forge-1.20.1` / `forge-1.18.2` /
+`forge-1.10.2` / `forge-1.7.10` are out-of-band per-lane
 wrappers (own Gradle wrapper, FG applied per-lane — see AGENTS.md "Legacy
 lanes"): they are NOT included in `settings.gradle.kts`, so the root build
 never configures them. `forge-1.7.10` is the oldest target in the repo —
@@ -93,6 +97,21 @@ copy; no JPMS on Java 8).
 `act --dryrun --workflows .github/workflows/ci.yml` validates workflow syntax
 locally with no Docker. See AGENTS.md → "Local CI validation with act".
 
+## Hooks
+
+Git hooks are managed by [Lefthook](https://lefthook.dev/) (`lefthook.yml`),
+not by `.git/hooks` scripts. Fresh clones bootstrap the hooks with:
+
+```bash
+bash scripts/setup-hooks.sh
+```
+
+This verifies the Lefthook binary + config and runs
+`lefthook install --reset-hooks-path` to write the `.git/hooks/` shims.
+The pre-commit hook runs the staged aislop scan; the pre-push hook runs the
+full unit test suite, the 1.21 GameTest, and `aislop ci --changes` (skip once
+with `git push --no-verify`).
+
 ## Notes / known state
 
 - **Source layout (post-M2):** `:common` is the single canonical copy of
@@ -108,12 +127,15 @@ locally with no Docker. See AGENTS.md → "Local CI validation with act".
 - **CI:** `.github/workflows/ci.yml` is a per-module matrix (PR #260,
   extended by #277): lint-yaml, then `build` over `:common` + the four
   1.21.x modules, out-of-band builds for mc1.12.2 / forge-1.8.9 /
-  forge-1.16.5 / forge-1.20.1 / forge-1.7.10 (own wrappers), and the
+  forge-1.10.2 / forge-1.16.5 / forge-1.20.1 / forge-1.18.2 / forge-1.7.10
+  (own wrappers), and the
   `E2E (mc1.12.2)` required-check stub. `publish.yml` gained dedicated
   `publish-mc1_16_5` / `publish-mc1_20_1` jobs in #277, with the
   `mc1.16.5-v*` / `mc1.20.1-v*` tag triggers uncommented; the forge-1.8.9
-  lane adds `Build (forge-1.8.9)` + `publish-mc1_8_9` (`mc1.8.9-v*`), and
-  the forge-1.7.10 lane adds `publish-mc1_7_10` (`mc1.7.10-v*`).
+  lane adds `Build (forge-1.8.9)` + `publish-mc1_8_9` (`mc1.8.9-v*`), the
+  forge-1.7.10 lane adds `publish-mc1_7_10` (`mc1.7.10-v*`), and the
+  forge-1.10.2 lane adds `Build (forge-1.10.2)` + `publish-mc1_10_2`
+  (`mc1.10.2-v*`).
 - **Artifact naming:** `everlastingskins-<mc>` (was `EverlastingSkins-<mc>`).
 - `mc1.12.2/` is imported from the parent checkout's history and builds
   out-of-band with its own wrapper (Gradle 4.10.3 + FG 2.3.4 + Java 8). Its

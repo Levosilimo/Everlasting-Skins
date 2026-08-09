@@ -38,7 +38,7 @@ One Gradle root (9.3.1) for the Forge line. Modules:
   `everlastingskins.forge-module` and `:common` itself; new forge convention
   plugins must apply it too.
 
-## Legacy lanes (mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1) — out-of-band
+## Legacy lanes (mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1 / forge-1.18.2 / forge-1.10.2) — out-of-band
 
 Not part of this Gradle root (lib-34 lane separation, PR #267): ForgeGradle
 5.1.x rejects Gradle 8.0+ and ForgeGradle 6.0.x rejects Gradle 9.0+, so
@@ -63,21 +63,19 @@ Each lane is its own build with its own wrapper and FG version:
   build`; consumes `:common` via source-dir share; inline no-mixin gate
   (heavier variant — scans build files too); dep-analysis NOT eligible
   (Gradle 4.x < 8.11 minimum).
+- `forge-1.10.2/` — Gradle 4.10.3 (run on Java 8), ForgeGradle 2.2.5,
+  MCP stable_29. Build with `cd forge-1.10.2 && JAVA_HOME=<jdk8> ./gradlew
+  build`; consumes `:common` via source-dir share; inline no-mixin gate
+  (heavier variant — scans build files too); dep-analysis NOT eligible
+  (Gradle 4.x < 8.11 minimum).
 - `forge-1.16.5/` — Gradle 7.6.4 (run on Java 8), ForgeGradle 5.1.77.
-- `forge-1.20.1/` — Gradle 8.7 (run on Java 21, Java 17 toolchain via
+- `forge-1.20.1/` — Gradle 8.14 (run on Java 21, Java 17 toolchain via
   foojay), ForgeGradle 6.0.54.
-- `forge-1.7.10/` — Gradle 4.4.1 (run on Java 8), GTNH ForgeGradle 1.2.11
-  via jitpack (`https://jitpack.io/`, plus `maven.minecraftforge.net` for
-  legacy MCP/RetroGuard artifacts FG 1.2.11 still resolves), MCP stable_12.
-  Uses LaunchWrapper `@Mod`/`@Mod.EventHandler` (cpw.mods.fml) and the
-  netty-based `NetworkRegistry.INSTANCE.newChannel(...)` — the 1.6.4
-  `@NetworkMod` annotation was REMOVED in FML 1.7 (verified absent from
-  10.13.4.1614). `EntityPlayer.getGameProfile()` is the profile surface
-  (no `getPersistentID` — 1.8+). Consumes `:common` by source-dir share.
-  dep-analysis NOT eligible (out-of-band, same policy as
-  mc1.12.2/forge-1.16.5/forge-1.20.1).
+- `forge-1.18.2/` — Gradle 8.14 (run on Java 21, Java 17 toolchain via
+  foojay), ForgeGradle 6.0.54, official Mojang mappings (MCP does not
+  exist as of 1.17).
 
-All five consume `:common` by source-dir sharing (they cannot use
+All seven consume `:common` by source-dir sharing (they cannot use
 `project(":common")`), inline their own no-mixin gate, and are built from
 their own directory: `cd <lane-dir> && ./gradlew build` (or
 `JAVA_HOME=<jdk8> ./gradlew build` for the Java 8 lanes). The root's
@@ -203,19 +201,22 @@ bash scripts/gradle-health.sh  # dep-hygiene sweep (manual; per-consumer :projec
 ```
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
-`:common` + the four 1.21.x modules, plus the out-of-band mc1.12.2 build,
-`E2E (mc1.12.2)` stub, and out-of-band `Build (forge-1.8.9)` /
-`Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.7.10)`
-lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8). Treat the matrix as
-authoritative for what is
-buildable in CI.
+`:common` + the four 1.21.x modules + forge-26.2 (`Build (26.2)`, Java 25),
+plus the out-of-band mc1.12.2 build, `E2E (mc1.12.2)` stub, and out-of-band
+`Build (forge-1.8.9)` / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` /
+`Build (forge-1.7.10)` / `Build (forge-1.18.2)` / `Build (forge-1.10.2)`
+lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8 / JDK 21 / JDK 8).
+Treat the matrix as authoritative for what is buildable in CI.
 
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
 forge-1.20.1 (post-#273), the 1.21.1 / 1.21.4 / 1.21.8 point releases
 (post-#278 / #280 / #281), forge-26.2 (Java 25, unobfuscated MC,
 EventBus 7; data-driven GameTest green), forge-26.1 (Java 25, unobfuscated
-MC, EventBus 7.0.1), and forge-1.7.10 (GTNH FG 1.2.11 +
-MCP stable_12; 48 unit tests, JUnit 4).
+MC, EventBus 7.0.1), forge-1.7.10 (GTNH FG 1.2.11 +
+MCP stable_12; 48 unit tests, JUnit 4), forge-1.8.9 (post-#311,
+Gradle 4.10.3 / Java 8 / MCP stable_20), and forge-1.18.2 (post-#364,
+Gradle 8.14 / Java 17 toolchain / official Mojang mappings), and
+forge-1.10.2 (Gradle 4.10.3 / Java 8 / MCP stable_29).
 
 ### Fail-fast hooks
 
@@ -296,10 +297,15 @@ zero-false-positive category on this codebase, so a graduated lane fails
 
 Lane policy: buildSrc classpath (lane 1) + convention plugin (lane 2) +
 `scripts/gradle-health.sh` (manual runs, this lane) are in place.
-Out-of-band lanes (mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 /
-forge-1.20.1) are NOT eligible for dependency-analysis due to their Gradle
-version constraints (verified Feb 2026; forge-1.8.9 runs Gradle 4.10.3 <
-8.11 minimum) — they continue to rely on AFT/Qartez/Codegraph.
+Out-of-band lanes (mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.10.2 /
+forge-1.16.5 / forge-1.20.1 / forge-1.18.2) are NOT eligible for
+dependency-analysis: the
+Java 8 lanes sit below the plugin's Gradle 8.11 minimum (verified Feb 2026;
+forge-1.8.9 / forge-1.10.2 run Gradle 4.10.3), and the FG 6.0.x lanes
+(forge-1.20.1 / forge-1.18.2) are structurally outside the root build —
+gradle-health.sh
+iterates root-build consumers only. They continue to rely on
+AFT/Qartez/Codegraph.
 
 ### P2-6 dependency-analysis graduation
 
@@ -380,6 +386,19 @@ Future state (forge-26.1, lib-65): once the lane's PR lands (post-Phase 9),
 `Build (26.1)` joins the contract as a 17th context via the same gh-api-bump
 mechanism (current contract stays at 16 until then).
 
+Future state (forge-1.18.2, lib-13): once the lane's PR lands, `Build
+(forge-1.18.2)` joins the contract as an additional context (16 → 17) via
+the same gh-api-bump mechanism; the lane's one-shot bump script is phase 5
+of the lane plan, done separately. The current contract stays at 16 until
+then.
+
+Future state (forge-1.10.2, lane plan phase 5): once the lane's PR lands,
+`Build (forge-1.10.2)` joins the contract as an additional context via the
+same gh-api-bump mechanism; the lane's one-shot bump script is phase 5 of
+the lane plan, done separately. The current contract (17 contexts; Build
+(26.1) holds the 17th ordinal per the gh-api-bump/1.18.2.sh header) is
+untouched until then.
+
 ### Branch protection bump scripts
 
 `scripts/gh-api-bump/{26.2,1.8.9,1.7.10}.sh` are one-shot gh-API scripts that
@@ -398,3 +417,26 @@ its CI). For multi-lane expansions with cross-lane required contexts, use
 the temporary-relax-then-restore dance documented in FINAL-REPORT.md
 under "Post-Merge Deadlock Resolution".
 
+
+### Publishing workflow
+
+`.github/workflows/publish.yml` (`Publish`) is the release pipeline — it is
+tag-triggered (`on: push: tags:`), NOT branch-triggered. Tag prefixes route to
+their module: `mc1.21-v*` / `mc1.21.1-v*` / `mc1.21.4-v*` / `mc1.21.8-v*`
+(the four 1.21.x point releases), `mc26.2-v*` (colloquial '26.2', dropping
+the leading '1.' — the Forge 65.x line naming), plus the out-of-band lanes
+`mc1.12.2-v*` / `mc1.8.9-v*` / `mc1.10.2-v*` / `mc1.16.5-v*` /
+`mc1.20.1-v*` / `mc1.18.2-v*` / `mc1.7.10-v*`.
+NeoForge is intentionally absent (no `mcneoforge` lane).
+
+Each publish job is a per-prefix matrix entry (`prefix` → Gradle subproject →
+game version → Java) using the pinned `Kira-NT/mc-publish` v3 action to upload
+to CurseForge + Modrinth + GitHub Releases (secrets `CURSEFORGE_TOKEN`,
+`MODRINTH_TOKEN`, `GITHUB_TOKEN`). Two hard-won constraints from the #356
+fix: the tag gate lives on the **steps** (`if: startsWith(github.ref_name,
+matrix.prefix)`), not on `jobs.<job_id>.if` — GitHub's context-availability
+table excludes `matrix` from job-level `if`, and a matrix ref there rejects
+the whole file at registration; and the workflow declares top-level
+`permissions: contents: write` (the releases:write fix) so the action may
+create GitHub Releases. Change it only with a dry-run of the mc-publish action
+in mind; a broken publish.yml blocks ALL tag releases, not just one lane.

@@ -1,0 +1,182 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 Levosilimo
+ * https://github.com/Levosilimo/Everlasting-Skins
+ *
+ * forge-1.10.2 out-of-band lane (Minecraft 1.10.2 / Forge 12.18.3.2511 /
+ * ForgeGradle 2.2-line / MCP stable_29 / Java 8). Self-contained build:
+ * own Gradle 4.10.3 wrapper, NOT in settings.gradle.kts, no buildSrc.
+ * Build with: cd forge-1.10.2 && JAVA_HOME=<jdk8> ./gradlew build
+ */
+
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { name = 'forge'; url = 'https://files.minecraftforge.net/maven' }
+        maven { name = 'sonatype'; url = 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    }
+    dependencies {
+        // SPIKE verdict (2026-08-08): FG 2.2-line resolves 1.10.2/stable_29
+        // + userdev deobf on BOTH 2.2-SNAPSHOT and released 2.2.5 (both
+        // built green: deobfMcMCP, remap, compile, 22/22 tests, reobfJar).
+        // Released 2.2.5 is pinned: plan preference (avoids the 2016-era
+        // Java-1.6-hardcoding config issue in the SNAPSHOT) and it drops
+        // the SNAPSHOT-only 'unsupported version of ForgeGradle' warning.
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.2.5'
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = "${mod_version}"
+group = 'levosilimo.everlastingskins'
+archivesBaseName = 'everlastingskins-1.10.2'
+
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+
+minecraft {
+    // Combined MC-Forge string (FG 2.x DSL — NOT the FG 5.x two-arg form).
+    // SPIKE finding (2026-08-08): 1.10.2 artifacts exist on the forge maven
+    // ONLY in the plain form '<mc>-<forge>' (metadata: the double-suffixed
+    // '<mc>-<forge>-<mc>' form exists only for the early 12.18.0.x builds,
+    // suffixed '-1.10.0'); the 1.8.9 double-suffix convention does NOT carry
+    // over to 1.10.2. '1.10.2-12.18.3.2511' resolves (verified via build).
+    version = '1.10.2-12.18.3.2511'
+    runDir = 'run'
+    // Bare-string MCP channel (FG 2.x DSL). stable_29 is the canonical
+    // 1.10.2 channel (MCP-Archive versions.json, verified 2026-08-08).
+    mappings = 'stable_29'
+    replace '@VERSION@', project.version
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Rule 4 lane decision (2026-08-08): JUnit 5.10.3 + mockito-core
+    // 2.28.2 mirror the forge-1.8.9 / mc1.12.2 lanes' test scaffold exactly
+    // — same Gradle 4.10.3 / Java 8 toolchain, same Maven coords, no new
+    // dependencies beyond the established legacy-lane set.
+    testCompile 'org.junit.jupiter:junit-jupiter-api:5.10.3'
+    testCompile 'org.junit.jupiter:junit-jupiter-params:5.10.3'
+    testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.10.3'
+    testRuntime 'org.junit.platform:junit-platform-launcher:1.10.3'
+    testCompile 'org.mockito:mockito-core:2.28.2'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
+// :common consumed by source-dir share (Rule 1: :common is canonical; the
+// lane never carries a duplicate copy). Same mechanism as forge-1.8.9 and
+// mc1.12.2 — no JPMS on Java 8. No mixin/ exclude needed: :common has no
+// mixin package and the inline verifyNoMixin gate below scans the shared
+// roots anyway.
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+            srcDir '../common/src/main/java'
+        }
+    }
+}
+
+processResources {
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title': archivesBaseName,
+            'Specification-Vendor': 'Levosilimo',
+            'Specification-Version': project.version,
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'Levosilimo'
+        ])
+    }
+}
+
+// --- no-mixin gate (inlined; the root buildSrc no-mixin.gradle.kts does
+// not apply to out-of-band lanes) ---
+// HEAVIER variant (three-lane review): scans the lane's build files AND
+// every source root (incl. the shared :common sources) for Mixin usage.
+// Banned strings are assembled from parts so this file never contains the
+// literal strings it scans for. Everything lives inside the doLast closure:
+// script-level defs are not visible to task actions in Groovy.
+
+task verifyNoMixin {
+    group = 'verification'
+    description = 'Fails the build if any Mixin usage is detected: annotations, mixingradle, mixin plugin id, mixin {} blocks, or mixins.json bundling.'
+    doLast {
+        def bannedLiterals = [
+            'mixingradle coordinate': 'org.spongepowered' + ':mixingradle',
+            'mixin plugin id'       : 'org.spongepowered' + '.mixin',
+            'mixin config bundling' : 'everlastingskins' + '.mixins.json',
+        ]
+
+        def bannedPatterns = [
+            // Pattern assembled from parts so this file never contains the
+            // literal scanned string (same trick as the Kotlin original).
+            'Mixin annotation': ~/${"@"}Mixin\b/,
+            'mixin block'     : ~/^\s*mixin\s*\{/,
+        ]
+
+        def scanFile = { File file, List<String> offenders ->
+            if (!file.isFile()) return
+            String text = file.getText('UTF-8')
+            String rel = projectDir.toPath().relativize(file.toPath()).toString()
+            bannedLiterals.each { label, literal ->
+                if (text.contains(literal)) {
+                    offenders << "$rel: $label reference ('$literal')"
+                }
+            }
+            bannedPatterns.each { label, pattern ->
+                def matcher = pattern.matcher(text)
+                while (matcher.find()) {
+                    int line = text.substring(0, matcher.start()).count('\n') + 1
+                    offenders << "$rel: $label at line $line"
+                }
+            }
+        }
+
+        List<String> offenders = []
+        File projectDir = project.projectDir
+        List<File> buildFiles = [
+            new File(projectDir, 'build.gradle'),
+            new File(projectDir, 'settings.gradle'),
+            new File(projectDir, 'gradle.properties'),
+        ].findAll { it.isFile() }
+        Set<File> sourceRoots = sourceSets.collectMany { it.allSource.srcDirs }.findAll { it.exists() }
+        sourceRoots.each { root ->
+            root.eachFileRecurse(groovy.io.FileType.FILES) { f ->
+                if (f.name.endsWith('.java') || f.name.endsWith('.json') || f.name.endsWith('.properties')) {
+                    scanFile(f, offenders)
+                }
+            }
+        }
+        buildFiles.each { scanFile(it, offenders) }
+        if (!offenders.isEmpty()) {
+            throw new GradleException(
+                'Mixin policy violated:\n' + offenders.join('\n') +
+                '\n\nMixin policy: the lane contains ZERO Mixin usage. ' +
+                'If a lane requires Mixin support, fork the lane - it is a sign ' +
+                'that should not happen in the shared core.')
+        }
+        logger.lifecycle('Mixin check passed: zero Mixin annotations, zero mixingradle references.')
+    }
+}
+
+build.dependsOn verifyNoMixin

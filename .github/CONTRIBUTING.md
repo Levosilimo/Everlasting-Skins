@@ -7,9 +7,10 @@ Minecraft version branches.
 
 ## Before committing
 
-The repo uses a pre-commit hook that runs `aislop scan --staged`. Activate it:
+The repo uses Lefthook-managed git hooks (`lefthook.yml`); the pre-commit
+hook runs `aislop scan --staged`. Fresh clones activate them with:
 
-    git config core.hooksPath .githooks
+    bash scripts/setup-hooks.sh
 
 ## Code style
 
