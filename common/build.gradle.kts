@@ -60,7 +60,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testImplementation("net.jqwik:jqwik-api:1.9.3")
-    testImplementation("org.mockito:mockito-core:5.12.0")
+    testImplementation("org.mockito:mockito-core:5.23.0")
     // The module's main code paths use Gson/authlib/log4j at runtime too.
     testImplementation("com.google.code.gson:gson:2.8.0")
     testImplementation("com.mojang:authlib:1.5.25")
