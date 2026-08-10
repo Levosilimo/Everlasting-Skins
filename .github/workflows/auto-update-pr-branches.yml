@@ -1,0 +1,81 @@
+name: Auto-update PR branches
+
+# Reactive BEHIND-resolution owner (see AGENTS.md "Merge automation").
+# GitHub's auto-merge never updates a behind branch — it only fires once the
+# PR is mergeable. Under strict protection ("require branches to be up to
+# date"), a BEHIND PR with auto-merge armed stalls forever unless something
+# calls update-branch. This workflow is that something: on every push to
+# main (primary trigger), plus a 30-minute schedule safety net and manual
+# dispatch, it updates EXACTLY the open, non-draft, auto-merge-armed PRs
+# whose mergeStateStatus is BEHIND.
+#
+# PAT vs GITHUB_TOKEN (hard constraint — do not "simplify"):
+#   The steps authenticate with the fine-grained EVERLASTINGSKINS_PAT
+#   (pull-requests: write, contents: read), NOT GITHUB_TOKEN. Pushes made
+#   with GITHUB_TOKEN do not re-trigger workflows (GitHub's recursive-run
+#   prevention), so a GITHUB_TOKEN-driven update-branch would push main into
+#   the PR head WITHOUT re-running ci.yml — the required checks would stay
+#   stale on the new head SHA and auto-merge would stall. The PAT-authenticated
+#   push re-triggers ci.yml like a normal push, so required checks re-run and
+#   auto-merge can fire. With top-level `permissions: {}` the GITHUB_TOKEN has
+#   no scopes anyway, so the PAT is the only credential that can work.
+#
+# Churn tradeoff (accepted): each update-branch pushes main into the head
+# branch and re-runs the required-check matrix (~minutes of CI). That is the
+# cost of strict protection; the workflow deliberately targets ONLY PRs that
+# are auto-merge-armed, non-draft, and actually BEHIND — idle PRs, drafts,
+# and CLEAN PRs are never touched, so churn stays proportional to merge
+# traffic. Strict branch protection is kept as-is; this workflow exists to
+# make strictness + auto-merge work together, not to relax either.
+
+on:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: auto-update-pr-branches
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  update-behind-prs:
+    name: Update BEHIND PR branches
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Settle push event
+        run: sleep 10
+
+      - name: List BEHIND auto-merge PRs
+        env:
+          GH_TOKEN: ${{ secrets.EVERLASTINGSKINS_PAT }}
+        run: |
+          gh pr list --repo ${{ github.repository }} --base main --state open \
+            --limit 100 --json number,isDraft,autoMergeRequest,mergeStateStatus \
+            --jq '.[] | select(.isDraft == false and .autoMergeRequest != null and .mergeStateStatus == "BEHIND") | .number'
+
+      - name: Update BEHIND branches
+        env:
+          GH_TOKEN: ${{ secrets.EVERLASTINGSKINS_PAT }}
+        run: |
+          numbers="$(gh pr list --repo ${{ github.repository }} --base main --state open \
+            --limit 100 --json number,isDraft,autoMergeRequest,mergeStateStatus \
+            --jq '.[] | select(.isDraft == false and .autoMergeRequest != null and .mergeStateStatus == "BEHIND") | .number')"
+          if [[ -z "$numbers" ]]; then
+            echo "no BEHIND auto-merge PRs to update"
+            exit 0
+          fi
+          for n in $numbers; do
+            echo "updating PR #$n"
+            if ! gh pr update-branch "$n" --repo ${{ github.repository }}; then
+              # update-branch returns 422 when the branch is already
+              # up-to-date (raced between list and update) — harmless; log
+              # and continue. Any other failure is likewise non-fatal here:
+              # the next push/schedule run retries.
+              echo "WARN: update-branch #$n failed (exit $?) — continuing"
+            fi
+          done
