@@ -1,229 +1,153 @@
-# Everlasting-Skins monorepo
+# Everlasting Skins
 
-Server-side persistent custom skins on pure Forge servers — no client mod required.
+Server-side persistent custom skins for Forge — no client mod.
 
-This is the M2 multi-module monorepo. `main` is the default branch and the
-single source of truth (`integration/m2-monorepo` was retired 2026-08-07).
-It unifies every Forge lane of the project under one Gradle root; the
-1.12.2 lane stays on its own wrapper out-of-band.
+[![CurseForge](https://cf.way2muchnoise.eu/versions/538149.svg)](https://www.curseforge.com/minecraft/mc-mods/everlasting-skins)
+[![Modrinth](https://img.shields.io/modrinth/dt/everlasting-skins?label=Modrinth)](https://modrinth.com/mod/everlasting-skins)
+[![Release](https://img.shields.io/github/v/release/Levosilimo/Everlasting-Skins?include_prereleases&label=latest)](https://github.com/Levosilimo/Everlasting-Skins/releases)
+[![License](https://img.shields.io/github/license/Levosilimo/Everlasting-Skins)](LICENSE)
 
-## Layout
+## What it does
+
+Everlasting Skins gives players custom skins that persist on pure Forge
+servers. A player sets a skin once; the server stores it and re-applies it on
+every login and across server restarts. **It is server-side only — players do
+not need to install anything on their client.**
+
+## Install
+
+1. Pick your Minecraft version from the table below.
+2. Download the matching `everlastingskins-<mc>-<version>.jar` from
+   [CurseForge], [Modrinth], or [Releases].
+3. Drop the JAR into your server's `mods/` folder.
+4. Restart the server.
+
+The server must already run Forge for your Minecraft version. That is all —
+no client mod, no plugins.
+
+### Supported versions
+
+| Minecraft | Forge | Status | Get it |
+|---|---|---|---|
+| 1.21 / 1.21.1 / 1.21.4 / 1.21.8 | 51–58 | Stable | [CurseForge] · [Modrinth] |
+| 26.1 / 26.2 | 62 / 65 | Stable | [CurseForge] · [Modrinth] |
+| 1.16.5 / 1.18.2 / 1.20.1 | 36 / 40 / 47 | Supported | [CurseForge] · [Modrinth] |
+| 1.12.2, 1.10.2, 1.8.9, 1.7.10, 1.6.4, 1.5.2, 1.4.7 | legacy | Legacy | [CurseForge] · [Releases] |
+
+Legacy Forge builds: 14.23.5 (1.12.2), 12.18.3.2511 (1.10.2), 11.15.1.2318
+(1.8.9), 10.13.4.1614 (1.7.10), 9.11.1.1345 (1.6.4), 7.8.1.738 (1.5.2),
+6.6.2.534 (1.4.7). 1.5.2 ships as a beta and is on Modrinth + GitHub Releases
+only (not yet on CurseForge).
+
+Need a version you do not see? Open an [issue].
+
+## First use
+
+In-game, type:
 
 ```
-settings.gradle.kts          one Gradle root for the Forge line
-gradle.properties            shared identity + toolchain (group, mod_*, java.toolchain.version=21)
-buildSrc/                    convention plugins (the whole former 1.21 build.gradle)
-common/                      version-independent core (--release 8, Java 8 bytecode)
-forge-1.21/                  current 1.21 mod (MC 1.21 / Forge 51.0.8)
-forge-1.21.1/                point release (MC 1.21.1 / Forge 52.1.16)
-forge-1.21.4/                point release (MC 1.21.4 / Forge 54.1.18)
-forge-1.21.8/                point release (MC 1.21.8 / Forge 58.1.21)
-forge-26.2/                  current 26.2 mod (MC 26.2 / Forge 65.0.9, Java 25 toolchain)
-forge-26.1/                  current 26.1 mod (MC 26.1 / Forge 62.0.9, Java 25 toolchain)
-forge-1.16.5/  forge-1.20.1/  forge-1.18.2/  out-of-band legacy lanes (own Gradle wrappers, FG per-lane)
-forge-1.10.2/                out-of-band legacy lane (own Gradle 4.10.3 wrapper, FG 2.2.5, Java 8)
-forge-1.8.9/                 out-of-band legacy lane (own Gradle 4.10.3 wrapper, FG 2.1-SNAPSHOT, Java 8)
-forge-1.7.10/                out-of-band legacy lane (own Gradle 4.4.1 wrapper, GTNH FG 1.2.11 via jitpack, Java 8)
-forge-1.5.2/                 out-of-band legacy lane (own Gradle 4.4.1 wrapper, vendored SpecialSource 1.7.4 deobf harness, Java 8)
-forge-1.6.4/                 out-of-band legacy lane (own Gradle 4.4.1 wrapper, vendored SpecialSource 1.7.4 deobf harness, Java 8)
-forge-1.4.7/                 out-of-band legacy lane (own Gradle 4.4.1 wrapper, vendored SpecialSource 1.7.4 deobf harness, Java 8)
-mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG 2.3.4, Java 8,
-                            builds out-of-band, shares ../common as a source dir
+/skin set mojang <yourMinecraftName>
 ```
 
-## Modules
+Your skin is applied immediately and stays applied on every login, server
+restart, and even if the server runs in offline mode.
 
-| Module | MC | Forge | FG | Gradle | Toolchain | Status |
-|---|---|---|---|---|---|---|
-| `:common` | — | — | — | root 9.3.1 | build JDK 21, `--release 8` | canonical shared core |
-| `:forge-1.21` | 1.21 | 51.0.8 | 7.x | root 9.3.1 | 21 | SOURCE-COMPLETE |
-| `:forge-1.21.1` | 1.21.1 | 52.1.16 | 7.x | root 9.3.1 | 21 | SOURCE-COMPLETE (post-#278) |
-| `:forge-1.21.4` | 1.21.4 | 54.1.18 | 7.x | root 9.3.1 | 21 | SOURCE-COMPLETE (post-#280) |
-| `:forge-1.21.8` | 1.21.8 | 58.1.21 | 7.x | root 9.3.1 | 21 | SOURCE-COMPLETE (post-#281) |
-| `:forge-26.2` | 26.2 | 65.0.9 | 7.x | root 9.3.1 | 25 | SOURCE-COMPLETE (Java 25, unobfuscated MC, EventBus 7) |
-| `:forge-26.1` | 26.1 | 62.0.9 | 7.x | root 9.3.1 | 25 | SOURCE-COMPLETE (Java 25, unobfuscated MC, EventBus 7.0.1) |
-| `forge-1.16.5/` (not a subproject) | 1.16.5 | 36.2.34 | 5.1.x | own 7.6.4 wrapper | JDK 8 | SOURCE-COMPLETE (post-#274) |
-| `forge-1.20.1/` (not a subproject) | 1.20.1 | 47.4.10 | 6.x | own 8.14 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (post-#273) |
-| `forge-1.18.2/` (not a subproject) | 1.18.2 | 40.3.0 | 6.x | own 8.14 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (lane PR) |
-| `forge-1.10.2/` (not a subproject) | 1.10.2 | 12.18.3.2511 | 2.2.5 | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
-| `forge-1.8.9/` (not a subproject) | 1.8.9 | 11.15.1.2318 | 2.1-SNAPSHOT | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
-| `forge-1.7.10/` (not a subproject) | 1.7.10 | 10.13.4.1614 | 1.2.11 (GTNH fork via jitpack) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (GTNH FG 1.2.11 + MCP stable_12) |
-| `forge-1.5.2/` (not a subproject) | 1.5.2 | 7.8.1.738 | none (vendored SpecialSource 1.7.4) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
-| `forge-1.6.4/` (not a subproject) | 1.6.4 | 9.11.1.1345 | none (vendored SpecialSource 1.7.4) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
-| `forge-1.4.7/` (not a subproject) | 1.4.7 | 6.6.2.534 | none (vendored SpecialSource 1.7.4) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
-| `mc1.12.2/` (not a subproject) | 1.12.2 | 14.23.5.2847 | 2.3.4 | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (post-#269) |
+## Commands
 
-`forge-1.8.9` / `forge-1.16.5` / `forge-1.20.1` / `forge-1.18.2` /
-`forge-1.10.2` / `forge-1.7.10` / `forge-1.6.4` / `forge-1.5.2` /
-`forge-1.4.7` are out-of-band per-lane wrappers (own Gradle wrapper, FG
-applied per-lane — see AGENTS.md "Legacy lanes"): they are NOT included
-in `settings.gradle.kts`, so the root build never configures them.
-`forge-1.4.7` is the oldest target in the repo — Gradle 4.4.1 + Java 8 +
-vendored SpecialSource 1.7.4 deobf harness (FG 1.2.11's support envelope
-does not reach 1.4.7; MCP 7.26a conf). `forge-1.5.2` — Gradle 4.4.1 +
-Java 8 + vendored SpecialSource 1.7.4 deobf harness (FG 1.2.11's support
-envelope does not reach 1.5.2; no MCP 1.5.2 channel exists). `forge-1.6.4` —
-Gradle 4.4.1 + Java 8 + vendored SpecialSource 1.7.4 deobf harness (GTNH
-FG 1.2.11 cannot build 1.6.4; no MCP 1.6.4 channel exists). `forge-1.7.10` —
-Gradle 4.4.1 (FG 1.2 hard floor) + Java 8 + MCP stable_12; upstream
-ForgeGradle 1.2 died in 2022 (Mojang API 403), so the lane pins the GTNH
-community fork `com.github.GTNewHorizons:ForgeGradle:1.2.11` via jitpack
-(supply-chain pin documented in AGENTS.md). All ten out-of-band lanes
-consume `:common` by source-dir share.
+### 1.16.5 and newer (incl. 1.18.2, 1.20.1, 1.21.x, 26.x)
 
-The three vendored-harness lanes (`forge-1.4.7` / `forge-1.5.2` /
-`forge-1.6.4`) apply the shared `harness/specialsource-harness.gradle`
-(Option B graduation, extracted from forge-1.6.4 post-#374); a CI
-diff-guard (`scripts/ci-vendored-harness-diff-guard.sh`) fails the build
-if a lane stops applying it, re-defines a harness task locally, or drops a
-required harnessConfig key.
+| Command | Description |
+|---|---|
+| `/skin set mojang <name> [targets]` | Apply a Mojang account's skin by username |
+| `/skin set web classic\|slim <url> [targets]` | Generate a skin from an image URL (MineSkin) |
+| `/skin set random [cape] [variant] [targets]` | Apply a random skin (optionally with a cape or a specific variant) |
+| `/skin source [target]` | Show where your current skin comes from |
+| `/skin clear [targets]` | Restore your Mojang-registered skin (or your default if offline) |
+| `/skin metrics` | Per-player skin metrics (admin) |
 
-Every `forge-*` module's `build.gradle.kts` is three lines:
-`plugins { id("everlastingskins.forge-module") }`. All build logic lives in
-`buildSrc/src/main/kotlin/everlastingskins.forge-module.gradle.kts`;
-MC/Forge versions come from each subproject's `gradle.properties`.
+`[targets]` is one or more player names and requires the "other" permission
+(see below). There is no `/skin reset` — `clear` is the command.
 
-## Build
+### 1.12.2
 
-```bash
-./gradlew :common:build          # version-independent core (JUnit 5 + jqwik + Mockito)
-./gradlew :forge-1.21:build      # a forge module (downloads Minecraft userdev on first run)
-./gradlew build                  # everything
+Same surface: `/skin set mojang <name>`, `/skin set web <classic|slim> <url>`,
+`/skin set random [cape] [variant]`, `/skin clear`, `/skin source`,
+`/skin metrics`.
+
+### 1.4.7 – 1.7.10 (legacy)
+
+| Command | Description |
+|---|---|
+| `/skin set <username> [player]` | Apply a Mojang account's skin |
+| `/skin clear [player]` | Restore the Mojang-registered skin |
+| `/skin source [player]` | Show the current skin source |
+
+### 1.8.9 and 1.10.2 (admin-only)
+
+These two versions expose an admin surface only:
+
+```
+/everlastingskins status|reload|help
 ```
 
-The 1.12.2 lane is NOT part of this build:
+Aliases: `/eskins`, `/es`.
 
-```bash
-cd mc1.12.2 && ./gradlew build   # own Gradle 4.10.3 wrapper, Java 8, FG 2.3.4
-```
+Older versions (≤ 1.12.2) have a smaller command surface — see the files page
+for your version.
 
-The 1.8.9 lane is likewise out-of-band (FG 2.1-SNAPSHOT needs Gradle 4.x):
+## Permissions
 
-```bash
-cd forge-1.8.9 && JAVA_HOME=<jdk8> ./gradlew build   # own Gradle 4.10.3 wrapper, Java 8
-```
+- By default every player can use `/skin set mojang`, `/skin set random`,
+  `/skin clear`, and `/skin source`.
+- Operator level 2 (or the matching node) is required for changing another
+  player's skin (`[targets]`), `/skin set web`, and `/skin metrics`.
+- Permission nodes: `everlastingskins.command.skin`,
+  `everlastingskins.command.skin.other`, `everlastingskins.command.skin.url`,
+  `everlastingskins.command.skin.clear`, `everlastingskins.command.skin.source`,
+  `everlastingskins.command.metrics`, `everlastingskins.command.metrics.reset`,
+  `everlastingskins.bypass.cooldown`.
+- [LuckPerms](https://luckperms.net/) is detected automatically; without a
+  permission plugin the mod falls back to op levels. The per-command op levels
+  are configurable in `world/serverconfig/everlastingskins-server.toml`
+  (generated on first run).
 
-Neither is the 1.7.10 lane (own Gradle 4.4.1 wrapper, Java 8, GTNH
-ForgeGradle 1.2.11 via jitpack):
+## Offline mode
 
-```bash
-cd forge-1.7.10 && ./gradlew build   # Java 8 ONLY (FG 1.2 rejects newer JDKs)
-```
+The mod works with `online-mode=false`. Players without a saved custom skin
+get their UUID-hash default skin. `/skin set mojang`, `web`, and `random`
+need an internet connection to fetch skins; in a fully offline environment
+only `clear` and `source` are guaranteed to respond.
 
-`mc1.12.2/build.gradle` and `forge-1.7.10/build.gradle` (and
-`forge-1.8.9/build.gradle`) add `../common/src/main/java` (and
-`../common/src/main/resources`) to their main source sets, so the lanes
-compile the same `:common` sources as the Forge line (single canonical
-copy; no JPMS on Java 8).
+## Troubleshooting
 
-### Local validation
+- **Skin not showing:** another skin mod that modifies player GameProfiles is
+  incompatible — remove it. Anti-cheat plugins may also need the skin packet
+  sequences whitelisted.
+- **`/skin set mojang <name>` reports "No skin found":** the username does not
+  exist on Mojang (typo, unverified account, or an offline-mode-only username).
+- **Mod not loading:** check the server log for `EverlastingSkins`; the config
+  file `world/serverconfig/everlastingskins-server.toml` is only generated
+  after the mod loads successfully.
 
-`act --dryrun --workflows .github/workflows/ci.yml` validates workflow syntax
-locally with no Docker. See AGENTS.md → "Local CI validation with act".
+## Uninstall
 
-## Hooks
+Remove the JAR from `mods/` and restart the server. Stored skins remain in
+`world/EverlastingSkins/` — delete that folder if you want the data gone.
 
-Git hooks are managed by [Lefthook](https://lefthook.dev/) (`lefthook.yml`),
-not by `.git/hooks` scripts. Fresh clones bootstrap the hooks with:
+## Links
 
-```bash
-bash scripts/setup-hooks.sh
-```
+[CurseForge] · [Modrinth] · [Releases] · [Issues] · [Source]
 
-This verifies the Lefthook binary + config and runs
-`lefthook install --reset-hooks-path` to write the `.git/hooks/` shims.
-The pre-commit hook runs the staged aislop scan; the pre-push hook runs the
-full unit test suite, the 1.21 GameTest, and `aislop ci --changes` (skip once
-with `git push --no-verify`).
+## Contributing
 
-## Notes / known state
+See [CONTRIBUTING.md](CONTRIBUTING.md). Build the shared core with
+`./gradlew :common:build`; the full lane matrix, conventions, and CI setup
+live in [AGENTS.md](AGENTS.md).
 
-- **Source layout (post-M2):** `:common` is the single canonical copy of
-  shared code; every forge module consumes it unconditionally (the
-  `consumeCommon` gate is gone, post-#276), and the out-of-band lanes
-  share it as an extra source dir.
-  Every lane is SOURCE-COMPLETE: legacy lanes post-#273/#274, the 1.21.x
-  point releases post-#278/#280/#281.
-- **No mixingradle:** the convention plugin applies mixin annotation
-  processing + jar-manifest attributes only (Lane C). Enforced by the
-  `verifyNoMixin` gate in `buildSrc/` (`no-mixin.gradle.kts`, ported from the
-  parent's `common/build-logic`), which fails the build on any Mixin usage.
-- **CI:** `.github/workflows/ci.yml` is a per-module matrix (PR #260,
-  extended by #277): lint-yaml, then `build` over `:common` + the four
-  1.21.x modules + forge-26.2 / forge-26.1, out-of-band builds for
-  mc1.12.2 / forge-1.8.9 / forge-1.10.2 / forge-1.16.5 / forge-1.20.1 /
-  forge-1.18.2 / forge-1.7.10 / forge-1.6.4 / forge-1.5.2 / forge-1.4.7
-  (own wrappers), the live `E2E (mc1.12.2)` (boots a real Forge
-  14.23.5.2847 server with the mod; PR #376), a `Vendored harness
-  diff-guard` job, GameTest per 1.21.x / 26.x lane, `aislop (M2)`, and
-  informational `CI Health`. `codeql.yml` (P3-35) posts Security-tab
-  results and is intentionally NOT part of the required-check contract.
-  `publish.yml` routes each job by tag prefix: `mc1.21-v*` /
-  `mc1.21.1-v*` / `mc1.21.4-v*` / `mc1.21.8-v*` / `mc26.2-v*` /
-  `mc26.1-v*` / `mc1.12.2-v*` / `mc1.8.9-v*` / `mc1.10.2-v*` /
-  `mc1.16.5-v*` / `mc1.20.1-v*` / `mc1.18.2-v*` / `mc1.7.10-v*` /
-  `mc1.6.4-v*` / `mc1.5.2-v*` / `mc1.4.7-v*`. forge-1.5.2 shipped
-  `mc1.5.2-v2.1.0-beta.1` (2026-08-10; Modrinth + GitHub Releases only —
-  CurseForge token not provisioned, see publish.yml).
-- **Branch protection:** the required-check contract on `main` is 22
-  contexts (enforced via the gh API, not in-repo; CI job names must match
-  exactly): `YAML Lint`, `Build (common)` / `Build (1.21.x)` /
-  `Build (26.2)` / `Build (26.1)`, `Build (mc1.12.2)`, `E2E (mc1.12.2)`,
-  `GameTest (1.21)`, the ten out-of-band `Build (forge-*)` lanes incl.
-  `Build (forge-1.4.7)` (21→22 via `scripts/gh-api-bump/1.4.7.sh`),
-  `aislop (M2)`, and `CI Health`.
-- **Merge automation:** `scripts/gh-merge-bot.sh` — bounded single-pass
-  merge bot (state machine, update-branch on STALE, timeout-bounded
-  `gh pr checks --watch --fail-fast`, fire-and-forget `gh pr merge
-  --auto`); never self-retries. See AGENTS.md "Merge automation".
-- **Artifact naming:** `everlastingskins-<mc>` (was `EverlastingSkins-<mc>`).
-- `mc1.12.2/` is imported from the parent checkout's history and builds
-  out-of-band with its own wrapper (Gradle 4.10.3 + FG 2.3.4 + Java 8). Its
-  main source set shares `../common/src/main/java`; overlapping lane copies
-  were deleted at import, so `:common` is canonical. Its 514 unit tests pass
-  (`cd mc1.12.2 && JAVA_HOME=<jdk8> ./gradlew test`).
+MIT License — see [LICENSE](LICENSE).
 
-## Recently merged (M2 campaign)
-
-- **#257** — initial `forge-1.16.5` subproject (+ lib-35 first shims).
-- **#258** — `verifyNoMixin` build gate ported into `buildSrc/`.
-- **#259** — `run-gametest-local.sh` paths corrected for the multi-module layout.
-- **#260** — `ci.yml` + `publish.yml` reworked to a per-module matrix.
-- **#261** — initial `forge-1.20.1` subproject.
-- **#263** — `forge-1.21` compile compat restored with Forge 51.0.8.
-- **#264** — `forge-1.21` test/gametest sources downgraded for Forge 51.0.8.
-- **#265** — `forge-1.21` runtime blockers resolved (incl. JPMS split-package).
-- **#266** — docs sync (README / AGENTS / CHANGELOG) with the M2 campaign state.
-- **#267** — FG 5.x/6.x lane separation: 1.16.5 / 1.20.1 moved to out-of-band
-  per-lane wrappers (own Gradle + FG per lane).
-- **#268** — dedup of `forge-1.21` / `forge-1.16.5` against `:common`;
-  JPMS split-package resolved (Option B1, 12 survivors relocated to
-  `forge21.*`); `forge-1.21` consumes `:common` like the other modules.
-- **#269** — feat(monorepo): integrate mc1.12.2 lane + source-dir share
-  `:common` (#269) — 162 files, 514 tests pass; mc1.12.2 now lives in the
-  monorepo as per-lane wrapper directory (SOURCE-COMPLETE).
-- **#270** — `REPOSITORY-STRUCTURE.md` added; standalone parent checkout
-  documented as archived (tags on the standalone history).
-- **#271** — docs wart fixes (stale `consumeCommon` docs; #269 added to the
-  merged list).
-- **#272** — P0: `forge-1.16.5` compiles on Java 8 again (Java-16 syntax
-  downgraded, duplicate `SkinUtils` + vendored httpclient jar dropped).
-- **#273** — `forge-1.20.1` main source carried over from `forge-1.21`
-  (SOURCE-COMPLETE).
-- **#274** — `forge-1.16.5` SOURCE-COMPLETE (version-shape errors fixed for
-  Java 8).
-- **#275** — docs sync: README + CHANGELOG reflect the post-M2
-  SOURCE-COMPLETE state (modules Status column, post-#270/#274 markers).
-- **#276** — `consumeCommon` gate removed: every forge-* subproject
-  consumes `:common` unconditionally.
-- **#277** — CI: `Build (forge-1.16.5)` / `Build (forge-1.20.1)` jobs +
-  dedicated `publish-mc1_16_5` / `publish-mc1_20_1` jobs;
-  `mc1.16.5-v*` / `mc1.20.1-v*` tag triggers uncommented.
-- **#278** — `forge-1.21.1` main source carried over from `forge-1.21`
-  (SOURCE-COMPLETE).
-- **#279** — docs + pack format: CHANGELOG entries backfilled, forge-1.21
-  `pack.mcmeta` bumped to pack_format 34, stale README CI note fixed.
-- **#280** — `forge-1.21.4` main source carried over from `forge-1.21`
-  (SOURCE-COMPLETE).
-- **#281** — `forge-1.21.8` main source carried over from `forge-1.21`
-  (SOURCE-COMPLETE).
+[CurseForge]: https://www.curseforge.com/minecraft/mc-mods/everlasting-skins
+[Modrinth]: https://modrinth.com/mod/everlasting-skins
+[Releases]: https://github.com/Levosilimo/Everlasting-Skins/releases
+[Issues]: https://github.com/Levosilimo/Everlasting-Skins/issues
+[Source]: https://github.com/Levosilimo/Everlasting-Skins
