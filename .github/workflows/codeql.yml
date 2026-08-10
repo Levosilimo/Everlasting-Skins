@@ -63,7 +63,7 @@ jobs:
           java-version: "21"
           distribution: temurin
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b  # v3
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3  # v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
@@ -79,6 +79,6 @@ jobs:
         # :common is the version-independent core shared by every lane.
         run: ./gradlew :common:compileJava --no-daemon
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b  # v3
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3  # v4
         with:
           category: "/language:${{ matrix.language }}"
