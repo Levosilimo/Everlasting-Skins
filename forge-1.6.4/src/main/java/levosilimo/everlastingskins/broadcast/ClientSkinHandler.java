@@ -29,6 +29,17 @@ import java.awt.image.BufferedImage;
  * {@link ClientSkinApplier} — no ASM. The player is resolved by name from
  * {@code World.playerEntities} (1.6.4 has no UUID on the wire).
  *
+ * <p>Cape injection (per cape research): the 1.6.4 client fetches
+ * {@code http://skins.minecraft.net/MinecraftCloaks/<name>.png} for EVERY
+ * player with no allowlist — the render gates are only image-loaded/visible/
+ * not-sneaking, so injecting the bytes into the cape
+ * {@link ThreadDownloadImageData} (the public {@code getBufferedImage}
+ * setter, MCP 8.11) and re-uploading the GL texture renders the cape. When
+ * the payload carries cape bytes, they are injected into
+ * {@code AbstractClientPlayer.getTextureCape()} exactly like the skin path
+ * (the AbstractClientPlayer constructor's {@code setupCustomSkin()} seeds
+ * both TDIs via getDownloadImageSkin/getDownloadImageCape).
+ *
  * <p>Re-injection on join: the server re-broadcasts the stored skin on every
  * login, so a packet that arrives before the player entity spawns is simply
  * dropped here (the join broadcast re-delivers it). Caveat (documented, not
@@ -44,7 +55,8 @@ public final class ClientSkinHandler implements IPacketHandler {
         try {
             SkinMessage message = SkinMessage.decode(packet.data);
             byte[] png = message.getTexturePng();
-            if (png == null) {
+            byte[] capePng = message.getCapePng();
+            if (png == null && capePng == null) {
                 // Notification-only broadcast from a pre-joint server.
                 return;
             }
@@ -58,16 +70,29 @@ public final class ClientSkinHandler implements IPacketHandler {
                 return;
             }
             AbstractClientPlayer clientPlayer = (AbstractClientPlayer) target;
-            ThreadDownloadImageData imageData = clientPlayer.getTextureSkin();
-            if (imageData == null) {
-                return;
+            if (png != null) {
+                ThreadDownloadImageData imageData = clientPlayer.getTextureSkin();
+                if (imageData == null) {
+                    return;
+                }
+                BufferedImage image = ClientSkinApplier.flattenToLegacy(ClientSkinApplier.decode(png));
+                ClientSkinApplier.apply(imageData, image);
+                // Re-upload the injected pixels into the existing GL texture:
+                // TextureManager.loadTexture re-runs the TDI's loadTexture, which
+                // uploads the new bufferedImage into the current gl id.
+                mc.getTextureManager().loadTexture(clientPlayer.getLocationSkin(), imageData);
             }
-            BufferedImage image = ClientSkinApplier.flattenToLegacy(ClientSkinApplier.decode(png));
-            ClientSkinApplier.apply(imageData, image);
-            // Re-upload the injected pixels into the existing GL texture:
-            // TextureManager.loadTexture re-runs the TDI's loadTexture, which
-            // uploads the new bufferedImage into the current gl id.
-            mc.getTextureManager().loadTexture(clientPlayer.getLocationSkin(), imageData);
+            if (capePng != null) {
+                ThreadDownloadImageData capeData = clientPlayer.getTextureCape();
+                if (capeData == null) {
+                    return;
+                }
+                BufferedImage capeImage = ClientSkinApplier.cropCapeToLegacy(ClientSkinApplier.decode(capePng));
+                ClientSkinApplier.apply(capeData, capeImage);
+                // Re-upload into the cape's GL texture; the renderer's
+                // isTextureUploaded() gate then renders the injected pixels.
+                mc.getTextureManager().loadTexture(clientPlayer.getLocationCape(), capeData);
+            }
         } catch (Exception e) {
             // Never crash the network thread on a malformed/undecodable payload.
             System.err.println("EverlastingSkins: client skin apply failed: " + e);
