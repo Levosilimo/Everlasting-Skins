@@ -38,7 +38,7 @@ One Gradle root (9.3.1) for the Forge line. Modules:
   `everlastingskins.forge-module` and `:common` itself; new forge convention
   plugins must apply it too.
 
-## Legacy lanes (forge-1.5.2 / forge-1.6.4 / mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1 / forge-1.18.2 / forge-1.10.2) — out-of-band
+## Legacy lanes (forge-1.5.2 / forge-1.6.4 / forge-1.4.7 / mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1 / forge-1.18.2 / forge-1.10.2) — out-of-band
 
 Not part of this Gradle root (lib-34 lane separation, PR #267): ForgeGradle
 5.1.x rejects Gradle 8.0+ and ForgeGradle 6.0.x rejects Gradle 9.0+, so
@@ -70,6 +70,18 @@ Each lane is its own build with its own wrapper and FG version:
   (cpw.mods.fml) + `NetworkRegistry.instance().registerChannel(...)`,
   no GameProfile (pre-UUID). Consumes `:common` by source-dir share;
   dep-analysis NOT eligible (Gradle 4.x < 8.11 minimum).
+- `forge-1.4.7/` — Gradle 4.4.1 (run on Java 8), vendored SpecialSource
+  1.7.4 deobf harness (NO ForgeGradle — FG 1.2.11's support envelope does
+  not reach forge major 6; see plan-forge-1-4-7-port.json).
+  Remap-only pipeline: server.jar (sha1-pinned, piston-data) +
+  universal.zip (md5-pinned, forge maven — the .zip variant is the jar;
+  universal.jar 404s) → merged-deobf.jar dev classpath (universal wins
+  collisions); reobf deobf→obf + assertNameDomain self-check on the
+  shipped jar (production 1.4.7 is obf-named). FML 4.7
+  `@Mod`/`@Mod.Init` (cpw.mods.fml) +
+  `NetworkRegistry.instance().registerChannel(...)`, no GameProfile
+  (pre-UUID). Consumes `:common` by source-dir share; dep-analysis NOT
+  eligible (Gradle 4.x < 8.11 minimum).
 - `mc1.12.2/` — Gradle 4.10.3 (run on Java 8), ForgeGradle 2.3.4.
 - `forge-1.7.10/` — Gradle 4.4.1 (run on Java 8), GTNH `ForgeGradle:1.2.11`
   via jitpack (`https://jitpack.io/`, plus `maven.minecraftforge.net` for
@@ -98,7 +110,7 @@ Each lane is its own build with its own wrapper and FG version:
   foojay), ForgeGradle 6.0.54, official Mojang mappings (MCP does not
   exist as of 1.17).
 
-All nine consume `:common` by source-dir sharing (they cannot use
+All ten consume `:common` by source-dir sharing (they cannot use
 `project(":common")`), inline their own no-mixin gate, and are built from
 their own directory: `cd <lane-dir> && ./gradlew build` (or
 `JAVA_HOME=<jdk8> ./gradlew build` for the Java 8 lanes). The root's
@@ -233,15 +245,15 @@ log that the server booted, the client joined, and the FML handshake
 mod-list line names everlastingskins; PR #376), and out-of-band
 `Build (forge-1.8.9)` / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` /
 `Build (forge-1.7.10)` / `Build (forge-1.18.2)` / `Build (forge-1.10.2)` /
-`Build (forge-1.6.4)` / `Build (forge-1.5.2)`
-lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8 / JDK 21 / JDK 8 / JDK 8 / JDK 8).
+`Build (forge-1.6.4)` / `Build (forge-1.5.2)` / `Build (forge-1.4.7)`
+lanes (own wrappers, JDK 8 / JDK 8 / JDK 21 / JDK 8 / JDK 21 / JDK 8 / JDK 8 / JDK 8 / JDK 8).
 A `Vendored harness diff-guard` job (lib-12) fails CI when a
 vendored-harness lane stops applying the shared harness script
 (harness/specialsource-harness.gradle, Option B graduation — extracted from
 forge-1.6.4/build.gradle post-PR-#374), re-defines a harness task locally,
 or drops a required harnessConfig key (see
-scripts/ci-vendored-harness-diff-guard.sh). `Build (forge-1.4.7)` joins
-the matrix once the in-flight lane lands. Treat the matrix as
+scripts/ci-vendored-harness-diff-guard.sh). `Build (forge-1.4.7)` is
+live in the matrix (PR #404). Treat the matrix as
 authoritative for what is buildable in CI.
 
 Source status: every lane is SOURCE-COMPLETE — forge-1.16.5 (post-#274),
@@ -255,9 +267,9 @@ Gradle 8.14 / Java 17 toolchain / official Mojang mappings), and
 forge-1.10.2 (Gradle 4.10.3 / Java 8 / MCP stable_29), and forge-1.6.4
 (Gradle 4.4.1 / Java 8 / vendored SpecialSource 1.7.4 deobf harness,
 MCP 8.11 conf; 40 unit tests, JUnit 4), and forge-1.5.2 (Gradle 4.4.1 /
-Java 8 / vendored SpecialSource 1.7.4 deobf harness, MCP 7.51 conf).
-forge-1.4.7 is in flight (next in the pre-1.7.10 vendored-harness
-chain, per the 1.5.2-final-report carry-forward).
+Java 8 / vendored SpecialSource 1.7.4 deobf harness, MCP 7.51 conf), and
+forge-1.4.7 (Gradle 4.4.1 / Java 8 / vendored SpecialSource 1.7.4 deobf
+harness, MCP 7.26a conf).
 
 ### Fail-fast hooks
 
@@ -365,7 +377,8 @@ stays WARN-forever by design (aggregate-jar false positives, no Forge runtime)
 and must never set the property. No other lane should graduate: forge-1.18.2
 did NOT set the property (lib-9 verified on disk), and the out-of-band lanes
 (mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.10.2 / forge-1.16.5 /
-forge-1.20.1 / forge-1.18.2 / forge-1.6.4 / forge-1.5.2) sit below the
+forge-1.20.1 / forge-1.18.2 / forge-1.6.4 / forge-1.5.2 /
+forge-1.4.7) sit below the
 plugin's Gradle 8.11 minimum (see the lane-policy paragraph above).
 
 Rollback: flip `depAnalysis.graduateDuplicateClass` back to `false` (or delete
@@ -478,7 +491,7 @@ their module: `mc1.21-v*` / `mc1.21.1-v*` / `mc1.21.4-v*` / `mc1.21.8-v*`
 the leading '1.' — the Forge 65.x line naming), plus the out-of-band lanes
 `mc1.12.2-v*` / `mc1.8.9-v*` / `mc1.10.2-v*` / `mc1.16.5-v*` /
 `mc1.20.1-v*` / `mc1.18.2-v*` / `mc1.7.10-v*` / `mc1.6.4-v*` /
-`mc1.5.2-v*` (with `mc1.4.7-v*` once the in-flight lane lands).
+`mc1.5.2-v*` / `mc1.4.7-v*`.
 NeoForge is intentionally absent (no `mcneoforge` lane).
 
 Each publish job is a per-prefix matrix entry (`prefix` → Gradle subproject →
