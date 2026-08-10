@@ -481,6 +481,11 @@ fire-and-forget `gh pr merge --auto`). Never self-retries; the caller's
 tool timeout must exceed --timeout (default 600s). Exit-code contract in
 the script header.
 
+## Merge / CI-wait policy (no-wait rule)
+
+Implementation fixers NEVER wait on CI. Their terminal state is: edit → local verify → commit → push → open PR → return the PR number. Zero foreground blocking — no `gh pr checks --watch`, no sleep loops, no `timeout`-wrapped watches, ever, in an implementation lane. The orchestrator's re-dispatch at natural wave boundaries is the only wait mechanism.
+
+Merging is a separate concern, handled fire-and-forget: arm `gh pr merge <PR> --squash --auto` immediately (GitHub waits only on *required* checks; informational jobs like CodeQL never block auto-merge) and return. A later out-of-band `scripts/gh-merge-bot.sh <PR> --verify` confirms DONE. No full-list `gh pr checks --watch` anywhere, ever. Only on a REFUSED merge does anyone read required-check state — by name from branch protection — re-run a Mavenizer-noise failure once, re-arm auto-merge, return. A diagnostic watch, when unavoidable, must use `gh pr checks <N> --watch --required` and be bounded ≤180s.
 
 ### Publishing workflow
 
