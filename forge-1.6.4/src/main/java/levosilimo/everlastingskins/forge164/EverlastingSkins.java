@@ -6,13 +6,17 @@
 
 package levosilimo.everlastingskins.forge164;
 
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import cpw.mods.fml.common.network.IConnectionHandler;
+import cpw.mods.fml.common.network.NetworkMod;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.Player;
+import levosilimo.everlastingskins.broadcast.ClientSkinHandler;
+import levosilimo.everlastingskins.broadcast.ServerPacketHandler;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
@@ -37,16 +41,33 @@ import net.minecraft.src.Packet1Login;
  * UUID from {@code getCommandSenderName()} and :common never sees a player
  * object (memory #1123 contract, unchanged).
  *
- * <p>Network surface: FML 7.x {@code Packet250CustomPayload} custom-payload
- * channel, registered in {@link #init} via
- * {@code NetworkRegistry.instance().registerChannel(...)} — the channel name
- * {@code everlastingskins} is exactly 16 chars, at the 1.6.4 hard cap.
+ * <p>Network surface: JOINT jar (lib-5 Option B, PR #422) — the channel
+ * {@code everlastingskins} (exactly 16 chars, at the 1.6.4 hard cap) is
+ * registered by the {@link NetworkMod} joint pattern below, NOT by a manual
+ * {@code registerChannel}: FML's {@code NetworkModHandler.configureNetworkMod}
+ * registers the client spec ({@link ClientSkinHandler}) only when
+ * {@code FMLCommonHandler.instance().getSide().isClient()} and the server spec
+ * ({@link ServerPacketHandler}) on both sides (dispatch is side-separated via
+ * {@code NetworkRegistry.handlePacket}'s EntityPlayerMP check), so one jar
+ * declares both and each process runs only its own receiver.
+ *
+ * <p>Side guard: FML loads the jar on both processes, so {@link #init} keeps
+ * the server bootstrap behind {@code getSide().isServer()} — on a client the
+ * only client-side surface is the @NetworkMod-registered client handler.
  */
 @Mod(
     modid = EverlastingSkins.MOD_ID,
     name = EverlastingSkins.MOD_NAME,
     version = EverlastingSkins.VERSION,
     acceptedMinecraftVersions = "[1.6.4]"
+)
+@NetworkMod(
+    clientPacketHandlerSpec = @NetworkMod.SidedPacketHandler(
+        channels = {SkinBroadcaster.CHANNEL},
+        packetHandler = ClientSkinHandler.class),
+    serverPacketHandlerSpec = @NetworkMod.SidedPacketHandler(
+        channels = {SkinBroadcaster.CHANNEL},
+        packetHandler = ServerPacketHandler.class)
 )
 public class EverlastingSkins {
     public static final String MOD_ID = "everlastingskins";
@@ -57,12 +78,18 @@ public class EverlastingSkins {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
+        if (!FMLCommonHandler.instance().getSide().isServer()) {
+            // Client process: the client handler is registered by @NetworkMod;
+            // no server bootstrap here (the physical side is authoritative —
+            // an integrated server's SERVER lifecycle still fires
+            // serverStarting/serverStopping below).
+            return;
+        }
         // :common removed init() — per-version bootstrap registers candidates
         // itself; highest priority wins (Forge ops 10 > vanilla fallback 0).
         ForgePermissionService.register();
-        // 1.6.4 skin-broadcast channel (FML 7.x custom-payload surface).
-        SkinBroadcaster.init();
-        // Pre-1.7 player join/leave hook (no PlayerEvent on this line).
+        // Pre-1.7 player join/leave hook (no PlayerEvent on this line). The
+        // broadcast channel itself is owned by @NetworkMod.
         NetworkRegistry.instance().registerConnectionHandler(new ConnectionHandler());
     }
 
