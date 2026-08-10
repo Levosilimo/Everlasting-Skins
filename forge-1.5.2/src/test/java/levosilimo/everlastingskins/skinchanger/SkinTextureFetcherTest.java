@@ -23,7 +23,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 /**
- * 1.6.4 server-side skin texture fetch tests (lib-5 joint broadcast): the
+ * 1.5.2 server-side skin texture fetch tests (lib-5 joint broadcast): the
  * textures property is fetched over HTTP, decoded and flattened to the legacy
  * 64x32 model. Deterministic fixtures only (memory #1115) — an in-process
  * HttpServer serves a generated PNG on localhost; the lane-local fetch's
@@ -110,6 +110,35 @@ public class SkinTextureFetcherTest {
         assertNull(result);
     }
 
+    @Test
+    public void fetchesAndCropsModern64x64Cape() throws Exception {
+        // Modern capes are 64x64 canvases whose art lives in the top 64x32
+        // rows; the pre-1.8 renderCloak UVs need the 64x32 top region.
+        BufferedImage modern = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        for (int x = 0; x < 64; x++) {
+            for (int y = 0; y < 64; y++) {
+                modern.setRGB(x, y, 0xFF223344);
+            }
+        }
+        modern.setRGB(20, 20, 0xFFBB0000); // top region — kept
+        serve("/cape64.png", png(modern));
+
+        byte[] result = SkinTextureFetcher.fetchLegacyCapePng(capeProperty(baseUrl + "/cape64.png"));
+
+        assertNotNull(result);
+        BufferedImage cropped = ImageIO.read(new java.io.ByteArrayInputStream(result));
+        assertEquals(64, cropped.getWidth());
+        assertEquals(32, cropped.getHeight());
+        assertEquals(0xFFBB0000, cropped.getRGB(20, 20));
+    }
+
+    @Test
+    public void capeLessPropertyYieldsNull() throws Exception {
+        // A skin property without a CAPE entry must not produce cape bytes
+        // (the common case — most skins have no cape).
+        assertNull(SkinTextureFetcher.fetchLegacyCapePng(property("textures", baseUrl + "/skin64.png")));
+    }
+
     private void serve(String path, byte[] body) {
         server.createContext(path, exchange -> {
             byte[] payload = body;
@@ -125,6 +154,14 @@ public class SkinTextureFetcherTest {
         String json = "{\"textures\":{\"SKIN\":{\"url\":\"" + url + "\"}}}";
         String value = java.util.Base64.getEncoder().encodeToString(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         return new CustomSkinProperty(name, value, null, "test");
+    }
+
+    /** Textures property with a CAPE entry (skin + cape URLs). */
+    private static CustomSkinProperty capeProperty(String capeUrl) {
+        String json = "{\"textures\":{\"SKIN\":{\"url\":\"https://textures.minecraft.net/texture/s\"},"
+            + "\"CAPE\":{\"url\":\"" + capeUrl + "\"}}}";
+        String value = java.util.Base64.getEncoder().encodeToString(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return new CustomSkinProperty("textures", value, null, "test");
     }
 
     private static byte[] png(BufferedImage image) throws Exception {
