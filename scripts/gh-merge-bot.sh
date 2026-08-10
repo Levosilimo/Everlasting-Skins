@@ -3,7 +3,24 @@
 # gh-merge-bot.sh — bounded, single-pass merge automation for Everlasting-Skins PRs.
 #
 # Pattern (research-backed; see .slim/deepwork/merge-automation-playbook.md):
-#   fire-and-forget auto-merge + bounded CI watch + out-of-band verify.
+#   auto-merge FIRST (GitHub gates on required checks itself) + bounded
+#   required-only diagnostic watch on refusal + out-of-band verify.
+#
+# "Informational checks never gate" (2026-08-10 incident, fix PR #420):
+#   GitHub's own merge API enforces the required-check contract — `gh pr merge
+#   --auto` merges as soon as REQUIRED checks, reviews, and up-to-date pass,
+#   and informational jobs never block it. So this script attempts auto-merge
+#   IMMEDIATELY (after update-branch when STALE) and does NOT watch the full
+#   check list. Informational workflows (CodeQL "Analyze (java)", and 5 of 6
+#   GameTest lanes — only GameTest (1.21) is required) can NEVER gate a merge.
+#   The pre-fix version ran `gh pr checks --watch` over ALL checks first; on
+#   2026-08-10 it stalled a merge fixer 30+ minutes watching the informational
+#   CodeQL Analyze (java) job while every required check was already green.
+#   The required contract is the 22-context branch-protection list (YAML Lint,
+#   Build (common), 4x Build (1.21.x), Build (26.2), Build (26.1), Build
+#   (mc1.12.2), E2E (mc1.12.2), GameTest (1.21), 10 out-of-band Build lanes,
+#   aislop (M2), CI Health, Vendored harness diff-guard). gh exposes it as
+#   `gh pr checks --required` (verified on gh 2.88.1, 2026-08-10).
 #
 # Why this shape (lib-10/lib-11 research findings):
 #   * `gh pr merge --squash --auto` is FIRE-AND-FORGET: one GraphQL mutation
@@ -14,10 +31,12 @@
 #     can fire. If the base moves after auto-merge is armed, re-run
 #     update-branch (a write-access actor keeps auto-merge enabled); do NOT
 #     disable/re-enable unless a non-write actor pushed to the head branch.
-#   * `gh pr checks <N> --watch --interval <sec> --fail-fast` is the bounded
-#     replacement for hand-rolled sleep loops: exit 0 = all pass, 1 = any
-#     failed (with --fail-fast: first failure), 8 = still pending. It covers
-#     check conclusions only — not the up-to-date/review gates.
+#   * `gh pr checks --required --watch --interval <sec> --fail-fast` is the
+#     bounded required-aware replacement for a full-list watch: it polls ONLY
+#     the required contexts (exit 0 = all required pass, 1 = a required check
+#     failed, 8 = required checks still pending). Informational checks are
+#     excluded, so they can never hold the watch. It covers check conclusions
+#     only — not the up-to-date/review gates.
 #   * mergeStateStatus is lazily computed; UNKNOWN is a transient "not yet
 #     computed" state, never terminal. Do not hammer for CLEAN.
 #
@@ -26,27 +45,40 @@
 #   * No bare foreground `gh pr checks --watch` without `timeout`: a bounded
 #     caller tool timeout can kill a bare --watch mid-poll and leave
 #     ambiguous state (harness-kit #38).
+#   * No full-list watch. The watch — when it runs at all (only after a merge
+#     refusal with required checks pending) — is `--required`-filtered with a
+#     SHORT default bound (--timeout 180s). It is a diagnostic pre-flight,
+#     never a gate: auto-merge was already attempted before it runs.
 #   * No polling past terminal state; no polling UNKNOWN.
 #   * Never an ambiguous "waiting…" terminal — every run ends with
 #     `TERMINAL: <DONE|DEFERRED|BLOCKED|FAILED|STALE>` on stdout
 #     (--verify additionally reports READY_TO_MERGE / PENDING).
-#   * The script never self-retries. BLOCKED means "re-dispatch later" —
-#     that is the orchestrator's job, not the script's.
+#   * The script never self-retries: a single merge re-attempt after the
+#     diagnostic watch completes the pass; it is not a retry loop. BLOCKED
+#     means "re-dispatch later" — that is the orchestrator's job, not the
+#     script's.
 #
 # Exit codes (caller contract):
 #   0  DONE (merged) / READY_TO_MERGE (verify) / DEFERRED (auto-merge armed;
 #      GitHub will merge when requirements met) / dry-run (nothing done)
-#   1  FAILED — checks failed, merge could not be armed, or gh error
-#   2  BLOCKED — branch protection requirements not met (verify mode)
+#   1  FAILED — required check failed, merge could not be armed, or gh error
+#   2  BLOCKED — branch protection requirements not met (verify mode) or
+#      required review / draft / signing hooks (normal mode)
 #   3  STALE — branch behind base; update-branch + retry
 #   4  FAILED — merge conflicts (DIRTY) or PR closed without merge
-#   8  PENDING (verify: checks unsettled) / BLOCKED (normal mode: checks
-#      pending past the watch bound — re-dispatch later)
+#   8  PENDING (verify: checks unsettled) / BLOCKED (normal mode: REQUIRED
+#      checks pending past the watch bound — re-dispatch later)
 #   64 usage error
 #
+# BLOCKED/FAILED now mean "required-check problem": required check failing or
+# pending past the bound, required review, conflicts, draft. An informational
+# job (CodeQL etc.) can never trigger them — auto-merge arms and the script
+# reports DONE/DEFERRED while informational jobs are still running or red.
+#
 # Caller timeout contract: the caller's tool timeout MUST exceed --timeout
-# (default 600s). BLOCKED (8) -> orchestrator re-dispatches at the next
-# natural boundary. DEFERRED (0) -> confirm out-of-band with `--verify` later.
+# (default 180s — the watch is a short diagnostic bound, not a gate).
+# BLOCKED (8) -> orchestrator re-dispatches at the next natural boundary.
+# DEFERRED (0) -> confirm out-of-band with `--verify` later.
 #
 # Usage:
 #   scripts/gh-merge-bot.sh <PR> [--squash|--rebase] [--repo owner/repo] \
@@ -56,7 +88,7 @@
 set -uo pipefail
 
 REPO="Levosilimo/Everlasting-Skins"
-TIMEOUT=600
+TIMEOUT=180
 INTERVAL=60
 METHOD="--squash"
 DRY_RUN=0
@@ -94,14 +126,20 @@ done
 #   V_OUTCOME, V_CODE, V_SHA, V_MSS, V_WHY
 V_OUTCOME=""; V_CODE=0; V_SHA=""; V_MSS=""; V_WHY=""
 
+required_check_names() { # $1 = bucket selector (fail|pending); prints names
+  local selector="$1" json
+  json="$(gh pr checks "$PR" --required --json name,state,bucket --repo "$REPO" 2>/dev/null || echo '[]')"
+  printf '%s' "$json" | jq -r --arg sel "$selector" \
+    '[.[] | select(.bucket == $sel) | .name] | unique | join(", ")'
+}
+
 blocked_why() { # $1 = pr-view JSON; prints a human reason for BLOCKED
   local json="$1" failing review
-  failing="$(printf '%s' "$json" | jq -r '[.statusCheckRollup[]?
-    | select((.conclusion // "") == "FAILURE" or (.state // "") == "FAILURE")
-    | (.name // .context // "unknown-check")] | unique | join(", ")')"
+  # Required-contexts only — an informational failure never explains a block.
+  failing="$(required_check_names fail)"
   review="$(printf '%s' "$json" | jq -r '.reviewDecision // ""')"
   if [[ -n "$failing" ]]; then
-    echo "failing check(s): $failing"
+    echo "failing required check(s): $failing"
   elif [[ "$review" == "REVIEW_REQUIRED" ]]; then
     echo "required review"
   else
@@ -164,8 +202,74 @@ emit_verdict() { # $1 = outcome token, $2 = detail (optional), $3 = sha (optiona
   echo "TERMINAL: $1"
 }
 
+# Globals set by merge_attempt / diagnose_refusal:
+#   M_OUT, M_RC, R_OUTCOME, R_WHY, R_CODE
+M_OUT=""; M_RC=0
+R_OUTCOME=""; R_WHY=""; R_CODE=""
+
+merge_attempt() {
+  # Fire-and-forget auto-merge. GitHub's merge API enforces the required
+  # check/review/up-to-date contract itself; informational jobs never block
+  # it. Exits the script on success; returns 1 on refusal.
+  M_OUT="$(gh pr merge "$PR" "$METHOD" --auto --repo "$REPO" 2>&1)"
+  M_RC=$?
+  printf '%s\n' "$M_OUT" >&2
+
+  if [[ $M_RC -eq 0 ]]; then
+    if grep -qi 'merged' <<<"$M_OUT"; then
+      log "merge command reports immediate merge"
+      emit_verdict "DONE" "merged immediately" "$V_SHA"
+      exit 0
+    fi
+    # Auto-merge armed but not merged synchronously — one bounded re-verify
+    # to confirm (covers the CLEAN-at-verify race where the base moved
+    # mid-pass).
+    verify_state
+    if [[ "$V_OUTCOME" == "DONE" ]]; then
+      emit_verdict "DONE" "merged" "$V_SHA"
+      exit 0
+    fi
+    emit_verdict "DEFERRED" "auto-merge enabled; GitHub will merge when requirements met"
+    exit 0
+  fi
+
+  if grep -qiE 'already( been)? merged' <<<"$M_OUT"; then
+    log "merge command reports PR already merged"
+    emit_verdict "DONE" "already merged" "$V_SHA"
+    exit 0
+  fi
+  return 1
+}
+
+diagnose_refusal() { # classify a refused merge; sets R_OUTCOME/R_WHY/R_CODE
+  local req_fail req_pend
+  verify_state  # fresh mergeStateStatus post-refusal
+  case "$V_OUTCOME" in
+    DONE)   R_OUTCOME="DONE"; R_WHY="merged between attempts"; return ;;
+    FAILED) R_OUTCOME="FAILED"; R_WHY="$V_WHY"; R_CODE="$V_CODE"; return ;;
+    STALE)  R_OUTCOME="STALE"; R_WHY="branch behind base; update-branch + retry"; R_CODE=3; return ;;
+  esac
+  # Check-related states (BLOCKED/UNSTABLE/CLEAN/UNKNOWN): query the REQUIRED
+  # contexts directly — informational checks are never part of the diagnosis.
+  req_fail="$(required_check_names fail)"
+  req_pend="$(required_check_names pending)"
+  if [[ -n "$req_fail" ]]; then
+    R_OUTCOME="FAILED"; R_WHY="required check(s) failing: $req_fail"; R_CODE=1; return
+  fi
+  if [[ -n "$req_pend" ]]; then
+    R_OUTCOME="PENDING"; R_WHY="required check(s) pending: $req_pend"; return
+  fi
+  case "$V_MSS" in
+    DRAFT)      R_OUTCOME="BLOCKED"; R_WHY="draft PR"; R_CODE=2; return ;;
+    HAS_HOOKS)  R_OUTCOME="BLOCKED"; R_WHY="repo requires commit signing/hooks"; R_CODE=2; return ;;
+    BLOCKED)    R_OUTCOME="BLOCKED"; R_WHY="required review or branch protection requirement not met"; R_CODE=2; return ;;
+    CLEAN)      R_OUTCOME="CLEAN"; R_WHY="mergeable per mergeStateStatus; refusal transient" ;;
+    *)          R_OUTCOME="PENDING"; R_WHY="mergeStateStatus=$V_MSS" ;;
+  esac
+}
+
 main() {
-  local watch_rc merge_out merge_rc ub_rc
+  local ub_rc diag_rc
   log "gh-merge-bot: PR=$PR repo=$REPO method=${METHOD#--} verify=$VERIFY dry_run=$DRY_RUN timeout=${TIMEOUT}s interval=${INTERVAL}s"
 
   verify_state
@@ -185,8 +289,9 @@ main() {
       if [[ "$V_OUTCOME" == "STALE" ]]; then
         echo "  gh pr update-branch $PR --repo $REPO"
       fi
-      echo "  timeout $TIMEOUT gh pr checks $PR --watch --interval $INTERVAL --fail-fast --repo $REPO"
       echo "  gh pr merge $PR $METHOD --auto --repo $REPO"
+      echo "  # on merge refusal only, with required checks pending:"
+      echo "  timeout $TIMEOUT gh pr checks $PR --watch --required --interval $INTERVAL --fail-fast --repo $REPO"
     fi
     echo "TERMINAL: DONE"
     exit 0
@@ -196,64 +301,69 @@ main() {
     DONE)   emit_verdict "DONE" "already merged" "$V_SHA"; exit 0 ;;
     FAILED) emit_verdict "FAILED" "$V_WHY"; exit "$V_CODE" ;;
   esac
-  # READY_TO_MERGE / STALE / BLOCKED / PENDING proceed through the bounded pass.
+  # READY_TO_MERGE / STALE / BLOCKED / PENDING proceed through the merge pass.
 
   if [[ "$V_OUTCOME" == "STALE" ]]; then
     log "STALE: branch behind base — single update-branch trigger (CI re-runs)"
     gh pr update-branch "$PR" --repo "$REPO" >&2
     ub_rc=$?
     if [[ $ub_rc -ne 0 ]]; then
-      log "WARN: update-branch failed (rc=$ub_rc); continuing — watch/merge will surface the real state"
+      log "WARN: update-branch failed (rc=$ub_rc); merge attempt will surface the real state"
     fi
   fi
 
-  log "watching CI checks (bound ${TIMEOUT}s, interval ${INTERVAL}s, fail-fast)"
-  timeout "$TIMEOUT" gh pr checks "$PR" --watch --interval "$INTERVAL" --fail-fast --repo "$REPO" >&2
-  watch_rc=$?
-  case "$watch_rc" in
-    0) log "all checks passed" ;;
-    8|124)
-      emit_verdict "BLOCKED" "checks pending past bound; re-dispatch later"
-      log "watch bound reached (rc=$watch_rc); auto-merge was NOT armed this pass"
-      exit 8 ;;
-    1)
-      emit_verdict "FAILED" "checks failed"
+  # REQUIRED-CHECK GATING (2026-08-10 fix): GitHub's merge API enforces the
+  # required-check contract itself, so attempt the merge FIRST — no full-list
+  # watch in the common path. Informational jobs can never hold this up.
+  log "arming fire-and-forget auto-merge (GitHub gates on required checks only): gh pr merge $PR $METHOD --auto"
+  merge_attempt
+  # merge_attempt exits the script on success; reaching here means refusal.
+  log "merge refused (rc=$M_RC); diagnosing required-check state"
+
+  diagnose_refusal
+  case "$R_OUTCOME" in
+    DONE)
+      emit_verdict "DONE" "$R_WHY" "$V_SHA"
+      exit 0 ;;
+    FAILED)
+      emit_verdict "FAILED" "$R_WHY"
+      exit "${R_CODE:-1}" ;;
+    STALE)
+      emit_verdict "STALE" "$R_WHY"
+      exit 3 ;;
+    BLOCKED)
+      emit_verdict "BLOCKED" "$R_WHY"
+      exit 2 ;;
+    CLEAN)
+      # Transient refusal while mergeable — one re-attempt completes the pass.
+      log "refusal transient (mergeStateStatus CLEAN); re-attempting merge once"
+      merge_attempt
+      emit_verdict "FAILED" "merge refused twice: $(printf '%s' "$M_OUT" | head -1)"
       exit 1 ;;
-    *)
-      emit_verdict "FAILED" "checks exited $watch_rc"
-      exit "$watch_rc" ;;
+    PENDING)
+      # Required checks pending — bounded required-only diagnostic watch
+      # (informational checks excluded by --required), then one re-attempt.
+      log "required check(s) pending ($R_WHY); bounded required-only watch (${TIMEOUT}s)"
+      timeout "$TIMEOUT" gh pr checks "$PR" --watch --required --interval "$INTERVAL" --fail-fast --repo "$REPO" >&2
+      diag_rc=$?
+      case "$diag_rc" in
+        0)
+          log "required checks passed; re-attempting merge once"
+          merge_attempt
+          emit_verdict "FAILED" "merge refused after required checks passed: $(printf '%s' "$M_OUT" | head -1)"
+          exit 1 ;;
+        8|124)
+          emit_verdict "BLOCKED" "required check(s) pending past ${TIMEOUT}s bound; re-dispatch later"
+          log "watch bound reached (rc=$diag_rc); auto-merge was NOT armed this pass"
+          exit 8 ;;
+        1)
+          emit_verdict "FAILED" "required check failed"
+          exit 1 ;;
+        *)
+          emit_verdict "FAILED" "required-check watch exited $diag_rc"
+          exit "$diag_rc" ;;
+      esac ;;
   esac
-
-  log "arming fire-and-forget auto-merge: gh pr merge $PR $METHOD --auto"
-  merge_out="$(gh pr merge "$PR" "$METHOD" --auto --repo "$REPO" 2>&1)"
-  merge_rc=$?
-  printf '%s\n' "$merge_out" >&2
-
-  if [[ $merge_rc -ne 0 ]]; then
-    if grep -qiE 'already( been)? merged' <<<"$merge_out"; then
-      log "merge command reports PR already merged"
-      emit_verdict "DONE" "already merged" "$V_SHA"
-      exit 0
-    fi
-    emit_verdict "FAILED" "gh pr merge exited $merge_rc: $(printf '%s' "$merge_out" | head -1)"
-    exit 1
-  fi
-
-  if grep -qi 'merged' <<<"$merge_out"; then
-    log "merge command reports immediate merge"
-    emit_verdict "DONE" "merged immediately" "$V_SHA"
-    exit 0
-  fi
-
-  # Auto-merge armed but not merged synchronously — one bounded re-verify to
-  # confirm (covers the CLEAN-at-verify race where the base moved mid-pass).
-  verify_state
-  if [[ "$V_OUTCOME" == "DONE" ]]; then
-    emit_verdict "DONE" "merged" "$V_SHA"
-    exit 0
-  fi
-  emit_verdict "DEFERRED" "auto-merge enabled; GitHub will merge when requirements met"
-  exit 0
 }
 
 main
