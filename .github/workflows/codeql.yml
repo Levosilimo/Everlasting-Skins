@@ -19,6 +19,10 @@
 # Explicit build instead: `./gradlew :common:compileJava --no-daemon` — fast
 # (single small module, no userdev) and covers :common, the version-
 # independent core shared by every lane (highest-value analysis target).
+# NOTE: gradle/actions/setup-gradle (cache-provider: basic) is required so
+# subsequent runs restore the gradle cache — a fully cold run spends ~54 of
+# the 90-min budget on configuration-phase userdev downloads and leaves too
+# little time for the analysis step (verified 2026-08-10).
 name: CodeQL
 
 on:
@@ -42,7 +46,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       security-events: write
     strategy:
@@ -63,6 +67,12 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
+      - name: Set up Gradle (wrapper validation + cache)
+        # Required: without the cache a fully cold run spends ~54 min on
+        # configuration-phase userdev downloads, starving the analysis step.
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
+        with:
+          cache-provider: basic
       - name: Build :common (explicit; autobuild rejected — see header)
         # Multi-Gradle-root layout: autobuild would run the full sequential
         # root build and exceed the job timeout (verified 2026-08-10).
