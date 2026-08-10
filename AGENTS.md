@@ -479,7 +479,30 @@ machine: DONE/READY_TO_MERGE/STALE/FAILED/BLOCKED/PENDING; update-branch
 on STALE; timeout-bounded `gh pr checks --watch --fail-fast`;
 fire-and-forget `gh pr merge --auto`). Never self-retries; the caller's
 tool timeout must exceed --timeout (default 600s). Exit-code contract in
-the script header.
+the script header. `--verify` is read-only by default; the OPT-IN
+`--verify --fix-stale` triggers exactly ONE `gh pr update-branch` + ONE
+re-verify on a STALE verdict (belt-and-suspenders manual fallback, never
+a loop).
+
+`.github/workflows/auto-update-pr-branches.yml` (`Auto-update PR branches`)
+is the STANDING BEHIND-resolution owner: on every push to `main` (primary),
+plus a `*/30 * * * *` schedule safety net and manual dispatch, it runs
+`gh pr update-branch` on exactly the open, non-draft, auto-merge-armed PRs
+whose `mergeStateStatus` is BEHIND. GitHub's auto-merge never updates a
+behind branch — it only fires once the PR is mergeable — so under strict
+protection ("require branches to be up to date") a BEHIND PR stalls
+forever without this. HARD CONSTRAINT: the workflow authenticates with the
+fine-grained `EVERLASTINGSKINS_PAT` (pull-requests: write, contents:
+read), never `GITHUB_TOKEN` — GITHUB_TOKEN-authenticated pushes do not
+re-trigger workflows (recursive-run prevention), so ci.yml would not
+re-run on the updated head and auto-merge would stall on stale required
+checks. (The `EVERLASTINGSKINS_PAT` secret must exist for the workflow to
+function; `permissions: {}` leaves GITHUB_TOKEN with no scopes either
+way.) Churn tradeoff is accepted: each update re-runs the required-check
+matrix, but the workflow touches only auto-merge-armed non-draft BEHIND
+PRs, so churn stays proportional to merge traffic. Strict branch
+protection is kept as-is — the workflow exists to make strictness +
+auto-merge work together, not to relax either.
 
 ## Merge / CI-wait policy (no-wait rule)
 
