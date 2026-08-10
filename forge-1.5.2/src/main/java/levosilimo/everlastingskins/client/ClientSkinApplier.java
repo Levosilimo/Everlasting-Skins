@@ -60,6 +60,21 @@ public final class ClientSkinApplier {
     }
 
     /**
+     * Converts any cape to the legacy 64x32 model: modern capes are 64x64
+     * canvases whose art lives in the top 64x32 rows (the pre-1.8
+     * {@code renderCloak} UVs sample only that region), so a 64x64 cape is
+     * cropped to its top half — the same vanilla crop the skin flatten
+     * performs (the pre-1.8 download pipeline passes capes through
+     * {@code ImageBufferDownload.parseUserSkin}). 64x32 inputs pass through
+     * unchanged; any other size is drawn unscaled at (0,0) like the vanilla
+     * pipeline. The server pre-crops before broadcast; this client-side pass
+     * is idempotent defense against an uncropped payload.
+     */
+    public static BufferedImage cropCapeToLegacy(BufferedImage source) {
+        return flattenToLegacy(source);
+    }
+
+    /**
      * Finds a spawned player by {@code getCommandSenderName()} in the client
      * world ({@code World.playerEntities}), or null when not spawned yet.
      */

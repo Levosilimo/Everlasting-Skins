@@ -92,6 +92,34 @@ public class ClientSkinApplierTest {
     }
 
     @Test
+    public void cropCapeCropsModern64x64ToTopHalf() {
+        // Modern capes are 64x64 canvases whose art lives in the top 64x32
+        // rows (the pre-1.8 renderCloak UVs sample only that region), so the
+        // crop keeps the top half and drops the bottom 32 rows.
+        BufferedImage modern = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        for (int x = 0; x < 64; x++) {
+            for (int y = 0; y < 64; y++) {
+                modern.setRGB(x, y, 0xFF000000);
+            }
+        }
+        modern.setRGB(10, 10, 0xFFAA0000); // top region — kept
+        modern.setRGB(50, 50, 0xFF0000CC); // bottom region — dropped
+
+        BufferedImage legacy = ClientSkinApplier.cropCapeToLegacy(modern);
+
+        assertEquals(64, legacy.getWidth());
+        assertEquals(32, legacy.getHeight());
+        assertEquals(0xFFAA0000, legacy.getRGB(10, 10));
+        assertEquals(0xFF000000, legacy.getRGB(50, 30)); // bottom row must not leak
+    }
+
+    @Test
+    public void cropCapePassesLegacy64x32Through() {
+        BufferedImage legacy = solid(64, 32, 0xFF778899);
+        assertSame(legacy, ClientSkinApplier.cropCapeToLegacy(legacy));
+    }
+
+    @Test
     public void findPlayerMatchesByCommandSenderName() throws Exception {
         World world = mock(World.class);
         EntityPlayer notch = mock(EntityPlayer.class);

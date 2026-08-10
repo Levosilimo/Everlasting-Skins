@@ -109,7 +109,8 @@ public final class SkinRestorer {
         CustomSkinProperty skin = s.getSkin(uuid);
         if (skin != null) {
             SkinBroadcaster.broadcastProfileChange(player.getCommandSenderName(),
-                SkinTextureFetcher.fetchLegacyPng(skin));
+                SkinTextureFetcher.fetchLegacyPng(skin),
+                SkinTextureFetcher.fetchLegacyCapePng(skin));
         }
     }
 
@@ -164,7 +165,8 @@ public final class SkinRestorer {
         }
         byte[] png = SkinTextureFetcher.fetchLegacyPng(skin);
         if (png != null) {
-            SkinBroadcaster.broadcastProfileChange(username, png);
+            SkinBroadcaster.broadcastProfileChange(username, png,
+                SkinTextureFetcher.fetchLegacyCapePng(skin));
         }
     }
 

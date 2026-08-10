@@ -31,7 +31,17 @@ import java.awt.image.BufferedImage;
  * {@code World.playerEntities} (1.5.2 has no UUID on the wire); the cached
  * TDI is looked up by the player's {@code skinUrl} through
  * {@code RenderEngine.obtainImageData} (the cache keyed by skin URL, seeded
- * by {@code RenderGlobal.updateEntitySkin} when the entity spawned).
+ * by {@code RenderGlobal.obtainEntitySkin} when the entity spawned).
+ *
+ * <p>Cape injection (per cape research): the 1.5.2 client fetches
+ * {@code http://skins.minecraft.net/MinecraftCloaks/<name>.png} for EVERY
+ * player with no allowlist (the render gates are only image loaded/visible/
+ * not-sneaking), so byte injection suffices. The cape reuses the SAME
+ * {@link ThreadDownloadImageData} class as the skin, cached in the
+ * RenderEngine keyed by the player's {@code cloakUrl} — set for every player
+ * by the {@code EntityOtherPlayerMP}/{@code EntityPlayerSP} constructors —
+ * so the cape path mirrors the skin path with the cache key swapped from
+ * {@code skinUrl} to {@code cloakUrl}.
  *
  * <p>Re-injection on join: the server re-broadcasts the stored skin on every
  * login, so a packet that arrives before the player entity spawns is simply
@@ -48,7 +58,8 @@ public final class ClientSkinHandler implements IPacketHandler {
         try {
             SkinMessage message = SkinMessage.decode(packet.data);
             byte[] png = message.getTexturePng();
-            if (png == null) {
+            byte[] capePng = message.getCapePng();
+            if (png == null && capePng == null) {
                 // Notification-only broadcast from a pre-joint server.
                 return;
             }
@@ -61,24 +72,38 @@ public final class ClientSkinHandler implements IPacketHandler {
                 // Not spawned yet — the join broadcast re-delivers.
                 return;
             }
-            // skinUrl is declared on Entity; access it through the Entity
-            // type so the reobf pass can map the reference (javac emits the
-            // receiver's declared type as the owner, and the srg FD keys are
-            // the declaring class — EntityPlayer.skinUrl would stay unmapped
-            // and NoSuchFieldError at runtime; found live by the slice-1
-            // 1.5.2 E2E).
-            String skinUrl = ((net.minecraft.src.Entity) target).skinUrl;
-            if (skinUrl == null) {
-                return;
+            if (png != null) {
+                // skinUrl is declared on Entity; access it through the Entity
+                // type so the reobf pass can map the reference (javac emits the
+                // receiver's declared type as the owner, and the srg FD keys are
+                // the declaring class — EntityPlayer.skinUrl would stay unmapped
+                // and NoSuchFieldError at runtime; found live by the slice-1
+                // 1.5.2 E2E).
+                String skinUrl = ((net.minecraft.src.Entity) target).skinUrl;
+                if (skinUrl != null) {
+                    ThreadDownloadImageData imageData =
+                        mc.renderEngine.obtainImageData(skinUrl, new ImageBufferDownload());
+                    if (imageData != null) {
+                        BufferedImage image =
+                            ClientSkinApplier.flattenToLegacy(ClientSkinApplier.decode(png));
+                        ClientSkinApplier.apply(imageData, image);
+                        // textureSetupComplete=false makes the next render pass
+                        // re-upload the injected pixels into the existing GL texture.
+                    }
+                }
             }
-            ThreadDownloadImageData imageData = mc.renderEngine.obtainImageData(skinUrl, new ImageBufferDownload());
-            if (imageData == null) {
-                return;
+            if (capePng != null) {
+                String cloakUrl = target.cloakUrl;
+                if (cloakUrl != null) {
+                    ThreadDownloadImageData capeData =
+                        mc.renderEngine.obtainImageData(cloakUrl, new ImageBufferDownload());
+                    if (capeData != null) {
+                        BufferedImage capeImage =
+                            ClientSkinApplier.cropCapeToLegacy(ClientSkinApplier.decode(capePng));
+                        ClientSkinApplier.apply(capeData, capeImage);
+                    }
+                }
             }
-            BufferedImage image = ClientSkinApplier.flattenToLegacy(ClientSkinApplier.decode(png));
-            ClientSkinApplier.apply(imageData, image);
-            // textureSetupComplete=false makes the next render pass re-upload
-            // the injected pixels into the existing GL texture.
         } catch (Exception e) {
             // Never crash the network thread on a malformed/undecodable payload.
             System.err.println("EverlastingSkins: client skin apply failed: " + e);
