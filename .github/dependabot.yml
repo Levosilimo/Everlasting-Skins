@@ -23,6 +23,14 @@ updates:
       - "dependencies"
       - "ci"
     open-pull-requests-limit: 10
+    # JUnit 6.x requires JVM 17+ and would break :common's --release 8
+    # freeze (AGENTS.md rule 1). Root build is pinned to the newest
+    # Java-8-compatible 5.x (5.14.4 / platform 1.14.4); ignore all
+    # org.junit* major bumps >= 6.0 (covers org.junit, org.junit.jupiter,
+    # org.junit.platform, org.junit.vintage).
+    ignore:
+      - dependency-name: "org.junit*"
+        versions: [">=6"]
 
   # GitHub Actions: .github/workflows.
   - package-ecosystem: "github-actions"
