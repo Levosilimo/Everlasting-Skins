@@ -87,16 +87,10 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
-      - name: Cache Gradle
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      - name: Set up Gradle (wrapper validation + cache)
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
         with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-${{ matrix.game-version }}
-          restore-keys: |
-            gradle-${{ runner.os }}-${{ matrix.game-version }}-
-            gradle-${{ runner.os }}-
+          cache-provider: basic
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build
@@ -600,17 +594,15 @@ jobs:
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
+      - name: Publish to Modrinth, GitHub Releases
         uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
         with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           modrinth-id: everlasting-skins
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ github.ref_name }}
           name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
+          version-type: beta
           loaders: forge
           game-versions: "1.5.2"
           game-version-filter: releases
