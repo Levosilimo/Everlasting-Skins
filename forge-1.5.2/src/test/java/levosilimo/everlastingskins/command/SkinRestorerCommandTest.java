@@ -27,6 +27,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -69,6 +70,7 @@ public class SkinRestorerCommandTest {
     public void tearDown() {
         SkinRestorerCommand.setMojangApiForTest(null);
         SkinRestorerCommand.setServerOverrideForTest(null);
+        SkinRestorerCommand.clearSeenProfilesForTest();
         SkinRestorer.setStorageForTest(null);
         SkinRestorer.setServerForTest(null);
     }
@@ -159,6 +161,71 @@ public class SkinRestorerCommandTest {
 
         command.processCommand(player, new String[]{"set", "ghost"});
         assertEquals(null, SkinRestorer.getSource(SkinRestorer.uuidOf("Notch")));
+    }
+
+    @Test
+    public void tabCompleteOffersSubcommands() {
+        ICommandSender sender = mock(ICommandSender.class);
+        List completions = command.addTabCompletionOptions(sender, new String[]{""});
+        assertTrue(completions.contains("set"));
+        assertTrue(completions.contains("clear"));
+        assertTrue(completions.contains("source"));
+    }
+
+    @Test
+    public void tabCompletePrefixFiltersSubcommands() {
+        ICommandSender sender = mock(ICommandSender.class);
+        List completions = command.addTabCompletionOptions(sender, new String[]{"c"});
+        assertEquals(1, completions.size());
+        assertEquals("clear", completions.get(0));
+    }
+
+    @Test
+    public void tabCompleteSecondArgOffersOnlineAndSeenNames() throws Exception {
+        // Seed the seen cache through the real set path (deterministic fake).
+        MojangSkinDataResult result = new MojangSkinDataResult(
+            UUID.randomUUID(),
+            new CustomSkinProperty("textures", "dGFi", null, "MojangAPI"));
+        SkinRestorerCommand.setMojangApiForTest(new FakeMojangApi(Optional.of(result)));
+
+        EntityPlayerMP xephos = mockPlayer("xephos");
+        SkinRestorerCommand.setServerOverrideForTest(mockServer(xephos));
+        command.processCommand(xephos, new String[]{"set", "xephos"});
+
+        // xephos left the server; only Notch + jeb_ are online now.
+        EntityPlayerMP self = mockPlayer("Notch");
+        EntityPlayerMP other = mockPlayer("jeb_");
+        SkinRestorerCommand.setServerOverrideForTest(mockServer(self, other));
+
+        ICommandSender sender = mock(ICommandSender.class);
+        List completions = command.addTabCompletionOptions(sender, new String[]{"set", ""});
+        assertTrue(completions.contains("Notch"));
+        assertTrue(completions.contains("jeb_"));
+        assertTrue(completions.contains("xephos")); // from the seen cache, not online
+    }
+
+    @Test
+    public void tabCompleteSecondArgPrefixFilters() throws Exception {
+        MojangSkinDataResult result = new MojangSkinDataResult(
+            UUID.randomUUID(),
+            new CustomSkinProperty("textures", "dGFi", null, "MojangAPI"));
+        SkinRestorerCommand.setMojangApiForTest(new FakeMojangApi(Optional.of(result)));
+        EntityPlayerMP xephos = mockPlayer("xephos");
+        SkinRestorerCommand.setServerOverrideForTest(mockServer(xephos));
+        command.processCommand(xephos, new String[]{"set", "xephos"});
+
+        SkinRestorerCommand.setServerOverrideForTest(
+            mockServer(mockPlayer("Notch"), mockPlayer("jeb_")));
+        ICommandSender sender = mock(ICommandSender.class);
+        List completions = command.addTabCompletionOptions(sender, new String[]{"set", "j"});
+        assertEquals(1, completions.size());
+        assertEquals("jeb_", completions.get(0));
+    }
+
+    @Test
+    public void tabCompleteBeyondSecondArgReturnsNull() {
+        ICommandSender sender = mock(ICommandSender.class);
+        assertEquals(null, command.addTabCompletionOptions(sender, new String[]{"set", "Notch", "extra"}));
     }
 
     private static EntityPlayerMP mockPlayer(String name) {

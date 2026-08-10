@@ -8,14 +8,17 @@ package levosilimo.everlastingskins.skinchanger;
 
 import com.mojang.authlib.GameProfile;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
+import levosilimo.everlastingskins.skinchanger.MojangProfileCache;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommand;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.ChatComponentText;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +49,9 @@ public class SkinCommand implements ICommand {
 
     private static volatile MojangAPI mojangApi = new MojangApiHttpImpl();
     private static volatile MinecraftServer serverOverride;
+
+    /** Seen usernames for {@code /skin set} completion, populated on successful resolves. */
+    private static final MojangProfileCache seenProfiles = new MojangProfileCache();
 
     private final SkinStorageProvider provider;
 
@@ -131,6 +137,7 @@ public class SkinCommand implements ICommand {
             return;
         }
         CustomSkinProperty skin = result.get().skinProperty();
+        seenProfiles.put(username, skin);
         provider.applySkin(profile, uuid, skin);
         sender.addChatMessage(new ChatComponentText("Skin applied."));
     }
@@ -162,7 +169,43 @@ public class SkinCommand implements ICommand {
 
     @Override
     public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+        if (args.length == 1) {
+            List<String> subcommands = new ArrayList<String>();
+            if (canUse(sender, NODE_SKIN)) subcommands.add("set");
+            if (canUse(sender, NODE_SKIN_CLEAR)) subcommands.add("clear");
+            if (canUse(sender, NODE_SKIN_SOURCE)) subcommands.add("source");
+            return CommandBase.getListOfStringsMatchingLastWord(args, subcommands.toArray(new String[subcommands.size()]));
+        }
+        if (args.length == 2) {
+            List<String> candidates = new ArrayList<String>();
+            addOnlinePlayerNames(candidates);
+            for (String seen : seenProfiles.snapshot()) {
+                if (!candidates.contains(seen)) candidates.add(seen);
+            }
+            return CommandBase.getListOfStringsMatchingLastWord(args, candidates.toArray(new String[candidates.size()]));
+        }
         return null;
+    }
+
+    /** Silent permission check for completion (no denial message, unlike {@link #checkPermission}). */
+    private static boolean canUse(ICommandSender sender, String node) {
+        if (!(sender instanceof EntityPlayerMP)) return true;
+        EntityPlayerMP player = (EntityPlayerMP) sender;
+        return PermissionServiceManager.hasPermission(
+            player.getGameProfile().getId(), 4, node);
+    }
+
+    /** Online player names via the 1.7.10-era {@code getAllUsernames} (the later getOnlinePlayerNames). */
+    private void addOnlinePlayerNames(List<String> candidates) {
+        MinecraftServer server = serverOverride != null ? serverOverride : MinecraftServer.getServer();
+        if (server != null && server.getConfigurationManager() != null) {
+            String[] names = server.getConfigurationManager().getAllUsernames();
+            if (names != null) {
+                for (String name : names) {
+                    if (!candidates.contains(name)) candidates.add(name);
+                }
+            }
+        }
     }
 
     @Override
@@ -183,5 +226,10 @@ public class SkinCommand implements ICommand {
     /** Test seam — mirrors the mc1.12.2 SkinRestorer.setServer pattern. */
     static void setServerOverrideForTest(MinecraftServer server) {
         serverOverride = server;
+    }
+
+    /** Test seam — deterministic completion tests (memory #1115). */
+    static void clearSeenProfilesForTest() {
+        seenProfiles.clear();
     }
 }
