@@ -13,10 +13,11 @@ import net.minecraft.src.Packet;
  * 1.4.7 skin-broadcast channel (FML 4.7 custom-payload surface).
  *
  * <p>FML 4.7 has no netty {@code SimpleNetworkWrapper} (that is 1.8+) and no
- * {@code newChannel} — the 1.5.2 surface is {@code Packet250CustomPayload}
- * payloads, sent via {@link PacketDispatcher}. The channel name must be
- * ≤ 16 chars (NetworkRegistry.java throws beyond that);
- * {@code everlastingskins} is exactly 16 — at the ceiling, never lengthen it.
+ * {@code newChannel} — the 1.4.7 surface is
+ * {@code Packet250CustomPayload} payloads, sent via {@link PacketDispatcher}.
+ * The channel name must be ≤ 16 chars (NetworkRegistry.java:100-105 throws
+ * beyond that); {@code everlastingskins} is exactly 16 — at the ceiling,
+ * never lengthen it.
  *
  * <p>CHANNEL OWNERSHIP: since the joint client side landed (lib-5, PR #422)
  * the channel is registered by the {@code @NetworkMod} joint pattern on the
@@ -27,9 +28,12 @@ import net.minecraft.src.Packet;
  *
  * <p>Payloads carry the target player's username AND the flattened 64x32 PNG
  * bytes ({@link SkinMessage#encode(String, byte[])}); the client handler
- * decodes and injects the pixels. Payload cap: 32766 bytes
- * (Packet250CustomPayload 2-byte length, MC-16910) — a flattened 64x32 PNG is
- * ≈ 1-4 KB, far under the cap; oversized payloads are dropped defensively.
+ * decodes and injects the pixels. Since the cape extension the payload also
+ * carries the cropped 64x32 cape PNG when the stored skin has one
+ * ({@link SkinMessage#encode(String, byte[], byte[])}). Payload cap: 32766
+ * bytes (Packet250CustomPayload 2-byte length, MC-16910) — a flattened 64x32
+ * PNG is ≈ 1-4 KB (skin ≈ 0.5-3 KB + cape ≈ 0.3-2 KB), far under the cap;
+ * oversized payloads are dropped defensively.
  */
 public final class SkinBroadcaster {
 
@@ -42,7 +46,16 @@ public final class SkinBroadcaster {
 
     /** Broadcasts a skin-change payload for {@code playerName} to all players. */
     public static void broadcastProfileChange(String playerName, byte[] pngBytes) {
-        byte[] payload = SkinMessage.encode(playerName, pngBytes);
+        broadcastProfileChange(playerName, pngBytes, null);
+    }
+
+    /**
+     * Broadcasts a skin-change payload for {@code playerName} to all players,
+     * carrying the cape PNG alongside the skin when the stored property has
+     * one ({@code capeBytes} null for cape-less skins).
+     */
+    public static void broadcastProfileChange(String playerName, byte[] pngBytes, byte[] capeBytes) {
+        byte[] payload = SkinMessage.encode(playerName, pngBytes, capeBytes);
         if (payload.length > MAX_PAYLOAD_BYTES) {
             System.err.println("EverlastingSkins: skin payload for '" + playerName
                 + "' exceeds " + MAX_PAYLOAD_BYTES + " bytes — dropped");
