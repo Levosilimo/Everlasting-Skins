@@ -1,0 +1,66 @@
+# CodeQL static analysis (CI-IMPROVEMENT-ROADMAP P3-35, last roadmap item).
+#
+# Informational only: results are posted to the Security tab and do NOT gate
+# merges. This job is intentionally NOT part of the 22-context required-check
+# branch contract (main) and is NOT added to any gh-api-bump script.
+#
+# Build strategy: CodeQL autobuild. The root Gradle build (Gradle 9.3.1,
+# JDK 17+) covers :common + forge-1.21.x + forge-26.x; the out-of-band legacy
+# lanes (mc1.12.2 / forge-1.5.2 / forge-1.6.4 / forge-1.7.10 / forge-1.8.9 /
+# forge-1.10.2 / forge-1.16.5 / forge-1.18.2 / forge-1.20.1) have their own
+# wrappers (Gradle 4.x-8.x on JDK 8-21) and are excluded from
+# settings.gradle.kts by design, so autobuild analyzes the root build only —
+# which includes :common, the version-independent core shared by every lane.
+# Fallback if autobuild fails on the multi-root layout: replace the autobuild
+# step with `run: ./gradlew :common:compileJava --no-daemon` (fast; covers
+# :common, the highest-value target).
+name: CodeQL
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "0 12 * * 1"   # weekly, Monday 12:00 UTC
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["java"]   # repo is 100% Java; single language
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Set up JDK 21
+        # Root Gradle build requires JVM 17+; JDK 21 matches the 1.21.x
+        # toolchain. CodeQL autobuild discovers JAVA_HOME from setup-java.
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: "21"
+          distribution: temurin
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b  # v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@c4dd10e44af883a891fe31ced449bcb4a6728b9b  # v3
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b  # v3
+        with:
+          category: "/language:${{ matrix.language }}"
