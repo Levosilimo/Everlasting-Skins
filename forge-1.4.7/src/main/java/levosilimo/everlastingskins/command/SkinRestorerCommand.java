@@ -181,8 +181,10 @@ public class SkinRestorerCommand implements ICommand {
         if (!checkPermission(sender, targetsAreSelfOnly(sender, targets) ? NODE_SKIN : NODE_SKIN_OTHER)) {
             return;
         }
+        // #426: the broadcast is keyed by the TARGET player's name (the entity
+        // clients render), not the skin source's — real-PNG live update.
         for (EntityPlayerMP target : targets) {
-            setSkin(sender, SkinRestorer.uuidOf(target.getCommandSenderName()), args[1]);
+            setSkin(sender, SkinRestorer.uuidOf(target.getCommandSenderName()), target.getCommandSenderName(), args[1]);
         }
     }
 
@@ -214,7 +216,7 @@ public class SkinRestorerCommand implements ICommand {
             return;
         }
         for (EntityPlayerMP target : targets) {
-            setSkin(sender, SkinRestorer.uuidOf(target.getCommandSenderName()), username);
+            setSkin(sender, SkinRestorer.uuidOf(target.getCommandSenderName()), target.getCommandSenderName(), username);
         }
     }
 
@@ -309,7 +311,7 @@ public class SkinRestorerCommand implements ICommand {
             MetricsFormat.human(SkinMetrics.INSTANCE.snapshot()));
     }
 
-    private void setSkin(ICommandSender sender, UUID uuid, String username) {
+    private void setSkin(ICommandSender sender, UUID uuid, String targetName, String username) {
         // 1.4.7 has no per-player permission nodes beyond the op model; the
         // vanilla Mojang lookup is the only authoritative source (no
         // MineSkin/URL generation on this legacy surface).
@@ -328,7 +330,11 @@ public class SkinRestorerCommand implements ICommand {
         }
         CustomSkinProperty skin = result.get().skinProperty();
         seenProfiles.put(username, skin);
-        SkinRestorer.applySkin(uuid, skin);
+        // Username-keyed variant: stores the skin AND broadcasts the real PNG
+        // bytes to all clients (lib-5 joint client side — live update). The
+        // broadcast is keyed by the TARGET player's name (the entity clients
+        // render), not the skin source's.
+        SkinRestorer.applySkin(targetName, skin);
         SkinMetrics.INSTANCE.recordRefreshCompleted(uuid, startNanos, System.nanoTime() - startNanos, 0, 0);
         sender.sendChatToPlayer("Skin applied.");
     }
