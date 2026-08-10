@@ -39,6 +39,12 @@
 #     only — not the up-to-date/review gates.
 #   * mergeStateStatus is lazily computed; UNKNOWN is a transient "not yet
 #     computed" state, never terminal. Do not hammer for CLEAN.
+#   * --fix-stale (--verify mode only, OPT-IN, default off): on a STALE
+#     verify, ONE `gh pr update-branch` + ONE re-verify, then report the new
+#     state — bounded, never a loop. The standing BEHIND-resolution owner is
+#     .github/workflows/auto-update-pr-branches.yml (PAT-authenticated);
+#     --fix-stale is the belt-and-suspenders manual fallback for a
+#     write-access actor. Plain --verify stays strictly read-only.
 #
 # Anti-patterns avoided (encoded contract):
 #   * No loops at all — exactly one bounded pass, then a terminal outcome.
@@ -64,7 +70,8 @@
 #   1  FAILED — required check failed, merge could not be armed, or gh error
 #   2  BLOCKED — branch protection requirements not met (verify mode) or
 #      required review / draft / signing hooks (normal mode)
-#   3  STALE — branch behind base; update-branch + retry
+#   3  STALE — branch behind base; update-branch + retry (or re-run with
+#      --verify --fix-stale for one automatic update-branch + re-verify)
 #   4  FAILED — merge conflicts (DIRTY) or PR closed without merge
 #   8  PENDING (verify: checks unsettled) / BLOCKED (normal mode: REQUIRED
 #      checks pending past the watch bound — re-dispatch later)
@@ -83,7 +90,11 @@
 # Usage:
 #   scripts/gh-merge-bot.sh <PR> [--squash|--rebase] [--repo owner/repo] \
 #       [--timeout <sec>] [--interval <sec>] [--dry-run]
-#   scripts/gh-merge-bot.sh <PR> --verify
+#   scripts/gh-merge-bot.sh <PR> --verify [--fix-stale]
+#
+# --fix-stale applies only with --verify (usage error otherwise): on a STALE
+# verify it triggers exactly one `gh pr update-branch` and re-verifies once.
+# It never loops; a still-STALE result means "re-dispatch later".
 #
 set -uo pipefail
 
@@ -93,6 +104,7 @@ INTERVAL=60
 METHOD="--squash"
 DRY_RUN=0
 VERIFY=0
+FIX_STALE=0
 PR=""
 
 log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2; }
@@ -100,13 +112,14 @@ log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2; }
 usage_err() {
   echo "gh-merge-bot: $*" >&2
   echo "usage: scripts/gh-merge-bot.sh <PR> [--squash|--rebase] [--repo owner/repo] [--timeout <sec>] [--interval <sec>] [--dry-run]" >&2
-  echo "       scripts/gh-merge-bot.sh <PR> --verify" >&2
+  echo "       scripts/gh-merge-bot.sh <PR> --verify [--fix-stale]" >&2
   exit 64
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --verify)   VERIFY=1; shift ;;
+    --fix-stale) FIX_STALE=1; shift ;;
     --dry-run)  DRY_RUN=1; shift ;;
     --squash)   METHOD="--squash"; shift ;;
     --rebase)   METHOD="--rebase"; shift ;;
@@ -121,6 +134,7 @@ done
 [[ -n "$PR" ]] || usage_err "missing <PR> argument"
 [[ "$TIMEOUT" =~ ^[0-9]+$ ]] || usage_err "--timeout must be a positive integer (got '$TIMEOUT')"
 [[ "$INTERVAL" =~ ^[0-9]+$ ]] || usage_err "--interval must be a positive integer (got '$INTERVAL')"
+[[ $FIX_STALE == 1 && $VERIFY != 1 ]] && usage_err "--fix-stale only applies in --verify mode"
 
 # Verify-state machine globals (set by verify_state):
 #   V_OUTCOME, V_CODE, V_SHA, V_MSS, V_WHY
@@ -270,12 +284,26 @@ diagnose_refusal() { # classify a refused merge; sets R_OUTCOME/R_WHY/R_CODE
 
 main() {
   local ub_rc diag_rc
-  log "gh-merge-bot: PR=$PR repo=$REPO method=${METHOD#--} verify=$VERIFY dry_run=$DRY_RUN timeout=${TIMEOUT}s interval=${INTERVAL}s"
+  log "gh-merge-bot: PR=$PR repo=$REPO method=${METHOD#--} verify=$VERIFY fix_stale=$FIX_STALE dry_run=$DRY_RUN timeout=${TIMEOUT}s interval=${INTERVAL}s"
 
   verify_state
   log "verify: $V_OUTCOME (${V_WHY:-no detail}) mergeStateStatus=${V_MSS:-<none>}"
 
   if [[ $VERIFY == 1 ]]; then
+    if [[ "$V_OUTCOME" == "STALE" && $FIX_STALE == 1 ]]; then
+      # Bounded single-shot: one update-branch, one re-verify, report the
+      # new state. Never loops — a still-STALE result means re-dispatch.
+      log "verify: STALE with --fix-stale — one update-branch trigger"
+      if [[ $DRY_RUN == 1 ]]; then
+        log "DRY-RUN: would run: gh pr update-branch $PR --repo $REPO"
+      elif gh pr update-branch "$PR" --repo "$REPO" >&2; then
+        log "update-branch ok — one re-verify"
+        verify_state
+        log "re-verify: $V_OUTCOME (${V_WHY:-no detail}) mergeStateStatus=${V_MSS:-<none>}"
+      else
+        log "WARN: update-branch failed; reporting pre-update state"
+      fi
+    fi
     emit_verdict "$V_OUTCOME" "$V_WHY" "$V_SHA"
     exit "$V_CODE"
   fi
