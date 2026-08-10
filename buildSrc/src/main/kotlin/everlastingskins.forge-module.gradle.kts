@@ -307,21 +307,21 @@ dependencies {
     testImplementation("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
     compileOnly("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
 
-    testImplementation(platform("org.junit:junit-bom:5.10.3"))
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.3")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.10.3")
+    testImplementation(platform("org.junit:junit-bom:5.14.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.14.4")
     testImplementation("net.jqwik:jqwik-api:1.9.3")
     testImplementation("me.clip:placeholderapi:2.12.3")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.12.0")
 
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.3")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     testRuntimeOnly("net.jqwik:jqwik-engine:1.9.3")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
 
     "gametestImplementation"(sourceSets.main.get().output)
-    "gametestImplementation"("org.junit.jupiter:junit-jupiter-api:5.10.3")
-    "gametestRuntimeOnly"("org.junit.platform:junit-platform-launcher:1.10.3")
+    "gametestImplementation"("org.junit.jupiter:junit-jupiter-api:5.14.4")
+    "gametestRuntimeOnly"("org.junit.platform:junit-platform-launcher:1.14.4")
 }
 
 // jsr305 is brought in transitively by Forge AND bundled by discordsrv;

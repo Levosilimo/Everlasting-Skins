@@ -56,7 +56,7 @@ dependencies {
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
 
     // --- test: standalone verification of the module ---
-    testImplementation(platform("org.junit:junit-bom:5.10.3"))
+    testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation("org.junit.jupiter:junit-jupiter-api")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testImplementation("net.jqwik:jqwik-api:1.10.1")
@@ -66,9 +66,9 @@ dependencies {
     testImplementation("com.mojang:authlib:1.5.25")
     testImplementation("org.apache.logging.log4j:log4j-api:2.26.1")
 
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.3")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     testRuntimeOnly("net.jqwik:jqwik-engine:1.10.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
     // Default log4j2 config (ERROR-only) so test output stays quiet.
     testRuntimeOnly("org.apache.logging.log4j:log4j-core:2.26.1")
 }
