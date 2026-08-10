@@ -4,16 +4,21 @@
 # merges. This job is intentionally NOT part of the 22-context required-check
 # branch contract (main) and is NOT added to any gh-api-bump script.
 #
-# Build strategy: CodeQL autobuild. The root Gradle build (Gradle 9.3.1,
-# JDK 17+) covers :common + forge-1.21.x + forge-26.x; the out-of-band legacy
-# lanes (mc1.12.2 / forge-1.5.2 / forge-1.6.4 / forge-1.7.10 / forge-1.8.9 /
-# forge-1.10.2 / forge-1.16.5 / forge-1.18.2 / forge-1.20.1) have their own
-# wrappers (Gradle 4.x-8.x on JDK 8-21) and are excluded from
-# settings.gradle.kts by design, so autobuild analyzes the root build only —
-# which includes :common, the version-independent core shared by every lane.
-# Fallback if autobuild fails on the multi-root layout: replace the autobuild
-# step with `run: ./gradlew :common:compileJava --no-daemon` (fast; covers
-# :common, the highest-value target).
+# Build strategy: EXPLICIT :common:compileJava (autobuild REJECTED, verified
+# on first run 2026-08-10). CodeQL autobuild runs the root Gradle build
+# (Gradle 9.3.1) sequentially with no gradle cache: the full root build
+# covers :common + forge-1.21.x + forge-26.x (each forge module cold-
+# downloads a full Minecraft userdev env; CI Build legs take 15-22 min EACH
+# in parallel) and forge-26.x additionally requires a Java 25 toolchain not
+# present on the job — so autobuild deterministically exceeds the 60-min job
+# timeout. The out-of-band legacy lanes (mc1.12.2 / forge-1.5.2 /
+# forge-1.6.4 / forge-1.7.10 / forge-1.8.9 / forge-1.10.2 / forge-1.16.5 /
+# forge-1.18.2 / forge-1.20.1) have their own wrappers (Gradle 4.x-8.x on
+# JDK 8-21) and are excluded from settings.gradle.kts by design.
+#
+# Explicit build instead: `./gradlew :common:compileJava --no-daemon` — fast
+# (single small module, no userdev) and covers :common, the version-
+# independent core shared by every lane (highest-value analysis target).
 name: CodeQL
 
 on:
@@ -58,8 +63,11 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@c4dd10e44af883a891fe31ced449bcb4a6728b9b  # v3
+      - name: Build :common (explicit; autobuild rejected — see header)
+        # Multi-Gradle-root layout: autobuild would run the full sequential
+        # root build and exceed the job timeout (verified 2026-08-10).
+        # :common is the version-independent core shared by every lane.
+        run: ./gradlew :common:compileJava --no-daemon
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b  # v3
         with:
