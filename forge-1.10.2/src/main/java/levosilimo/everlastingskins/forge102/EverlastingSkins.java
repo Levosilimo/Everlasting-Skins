@@ -9,10 +9,14 @@ package levosilimo.everlastingskins.forge102;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.command.SkinRestorerCommand;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
+import levosilimo.everlastingskins.skinchanger.SkinCommand;
+import levosilimo.everlastingskins.skinchanger.SkinLoginHandler;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
+import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -58,6 +62,16 @@ public class EverlastingSkins {
     public void serverStarting(FMLServerStartingEvent event) {
         SkinRestorer.init(event);
         event.registerServerCommand(new SkinRestorerCommand());
+        // /skin full-parity surface (set mojang|web|random, source, clear,
+        // metrics) + login-apply of stored skins.
+        event.registerServerCommand(new SkinCommand());
+        MinecraftForge.EVENT_BUS.register(new SkinLoginHandler());
         LOGGER.info("{} server starting", MOD_NAME);
+    }
+
+    @Mod.EventHandler
+    public void serverStopping(FMLServerStoppingEvent event) {
+        // Persist all queued storage writes before shutdown.
+        SkinRestorer.onServerStopping();
     }
 }
