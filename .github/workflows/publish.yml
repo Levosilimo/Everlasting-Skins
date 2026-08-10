@@ -594,11 +594,9 @@ jobs:
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
+      - name: Publish to Modrinth, GitHub Releases
         uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
         with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           modrinth-id: everlasting-skins
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
