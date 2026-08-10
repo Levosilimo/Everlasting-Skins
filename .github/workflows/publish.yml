@@ -604,7 +604,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ github.ref_name }}
           name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
+          version-type: beta
           loaders: forge
           game-versions: "1.5.2"
           game-version-filter: releases
