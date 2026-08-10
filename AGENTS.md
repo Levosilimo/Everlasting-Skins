@@ -395,14 +395,14 @@ and `mc1.12.2` remain as frozen stable aliases (tagged
 
 Required checks (contract on `main`) are enforced via the gh API — do not edit
 branch protection in-repo. The contract is strict (`enforce_admins`, no
-force pushes/deletions) with 21 contexts: `YAML Lint`, the `Build
+force pushes/deletions) with 22 contexts: `YAML Lint`, the `Build
  (common)` / `Build (1.21.x)` / `Build (26.2)` / `Build (26.1)` matrix,
 `Build (mc1.12.2)`,
 `E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
 `(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
 / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.18.2)`
 / `Build (forge-1.10.2)` / `Build (forge-1.6.4)` / `Build (forge-1.5.2)`
-lanes, `aislop
+/ `Build (forge-1.4.7)` lanes, `aislop
 (M2)`, and `CI Health` (informational -> required, lib-69). CI job names
 must match the required-check strings exactly.
 
@@ -431,19 +431,18 @@ after `Build (26.2)` lands (forge-26.2 lane, PR #310) → 14 after
 (gh-api-bump/1.18.2.sh) → 19 after `Build (forge-1.10.2)`
 (gh-api-bump/1.10.2.sh) → 20 after `Build (forge-1.6.4)`
 (gh-api-bump/1.6.4.sh) → 21 after `Build (forge-1.5.2)`
-(gh-api-bump/1.5.2.sh). Each lane is added to the
+(gh-api-bump/1.5.2.sh) → 22 after `Build (forge-1.4.7)`
+(gh-api-bump/1.4.7.sh). Each lane is added to the
 contract via the `gh-api-bump-<lane>.sh` script (out-of-repo tooling) at
 PR-open time.
 
-Future state (forge-1.4.7, lane plan phase 5): once the lane's PR lands,
-`Build (forge-1.4.7)` joins the contract as a 22nd context via the same
-gh-api-bump mechanism (21→22, after gh-api-bump/1.5.2.sh has applied
-20→21); the lane's one-shot bump script is phase 5 of the lane plan, done
-separately. The current contract stays at 21 until then.
+The contract now stands at 22: `Build (forge-1.4.7)` landed as the 22nd
+context via gh-api-bump/1.4.7.sh (21→22, after gh-api-bump/1.5.2.sh had
+applied 20→21).
 
 ### Branch protection bump scripts
 
-`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2}.sh`
+`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2,1.4.7}.sh`
 are one-shot gh-API scripts that
 atomically add a new required-status context to the branch-protection contract
 on both `main` and (if it still exists) `integration/m2-monorepo`. They use
@@ -459,6 +458,15 @@ Use them after a new lane PR lands: run the lane's `gh-api-bump-X.sh
 its CI). For multi-lane expansions with cross-lane required contexts, use
 the temporary-relax-then-restore dance documented in FINAL-REPORT.md
 under "Post-Merge Deadlock Resolution".
+
+### Merge automation
+
+`scripts/gh-merge-bot.sh` — bounded single-pass merge bot (--verify state
+machine: DONE/READY_TO_MERGE/STALE/FAILED/BLOCKED/PENDING; update-branch
+on STALE; timeout-bounded `gh pr checks --watch --fail-fast`;
+fire-and-forget `gh pr merge --auto`). Never self-retries; the caller's
+tool timeout must exceed --timeout (default 600s). Exit-code contract in
+the script header.
 
 
 ### Publishing workflow
