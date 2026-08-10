@@ -7,7 +7,10 @@
 //
 //   ext {
 //       harnessConfig = [
-//           vendoredInputs: [ ... ],   // 3 maps: [name, url, algo, digest]
+//           vendoredInputs: [ ... ],   // 3-4 maps: [name, url, algo, digest]
+//                                    // (optional 4th: the vanilla CLIENT jar,
+//                                    // name starting with 'minecraft_client',
+//                                    // for joint client-side jars — PR #422)
 //           mcpVersion: '8.11',        // asserted from version.cfg
 //           archiveBaseName: 'everlastingskins-1.6.4',
 //           mergeOrder: 'serverFirst', // 'serverFirst' | 'universalFirst'
@@ -21,8 +24,9 @@
 // The script derives the lane-local bits from archiveBaseName
 // ('everlastingskins-<ver>' -> vendored cache key '<ver>', ModVersion package
 // 'levosilimo.everlastingskins.forge<ver-nodot>') and from mcpVersion (mcp
-// conf dir '$buildDir/mcp<ver-nodot>'); the three vendored artifacts are
-// located from vendoredInputs by name pattern (src zip / universal / server).
+// conf dir '$buildDir/mcp<ver-nodot>'); the vendored artifacts are
+// located from vendoredInputs by name pattern (src zip / universal / server /
+// optional vanilla client jar).
 //
 // Gradle 4.4.1-compatible (pure Groovy, no Kotlin DSL, no buildSrc). Defines
 // the 7 harness tasks: resolveVendored, extractMcpConf, deobfClasspath,
@@ -76,10 +80,13 @@ def nameDomainTokens = cfg.containsKey('nameDomainTokens') ? cfg.nameDomainToken
 ]
 def testRuntimeDeps = cfg.containsKey('testRuntimeDeps') ? cfg.testRuntimeDeps : []
 
-// Locate the three vendored artifacts by name pattern (config stays pure data).
+// Locate the vendored artifacts by name pattern (config stays pure data).
+// The vanilla CLIENT jar is OPTIONAL (joint client-side jars, PR #422); lanes
+// without client code omit it.
 def srcZipInput = vendoredInputs.find { it.name.endsWith('-src.zip') }
 def universalInput = vendoredInputs.find { it.name.contains('universal') }
 def serverInput = vendoredInputs.find { it.name.startsWith('minecraft_server') }
+def clientInput = vendoredInputs.find { it.name.startsWith('minecraft_client') }
 if (srcZipInput == null || universalInput == null || serverInput == null) {
     throw new GradleException("harness/specialsource-harness.gradle: vendoredInputs must include a forge '-src.zip', a forge 'universal' artifact, and a 'minecraft_server' jar — got: ${vendoredInputs*.name}")
 }
@@ -123,6 +130,7 @@ def obfToDeobfSrg = file("$mappingDir/obf-to-deobf.srg")
 def deobfToObfSrg = file("$mappingDir/deobf-to-obf.srg")
 def deobfServerJar = file("$buildDir/deobf/server-deobf.jar")
 def deobfUniversalJar = file("$buildDir/deobf/universal-deobf.jar")
+def clientDeobfJar = file("$buildDir/deobf/client-deobf.jar")
 def mergedDeobfJar = file("$buildDir/deobf/merged-deobf.jar")
 
 dependencies {
@@ -154,6 +162,15 @@ dependencies {
     // The merged-deobf jar (MC + FML + Forge) is produced by deobfClasspath;
     // `compile files(...)` resolves lazily, after the producing task runs.
     compile files(mergedDeobfJar)
+
+    // Joint client-side jars (PR #422): the vanilla CLIENT jar is remapped
+    // obf->deobf with the SAME obf-to-deobf.srg and added SEPARATELY after the
+    // merged jar, so shared classes (EntityPlayer, World, ...) resolve from
+    // the server-first merged jar and only client-only classes come from the
+    // client leg. Lanes without a clientInput never declare this file.
+    if (clientInput != null) {
+        compile files(clientDeobfJar)
+    }
 
     // Rule 4 lane decision: JUnit 4.13.2 + mockito-core 2.28.2, mirroring
     // forge-1.7.10 (Gradle 4.4.1 floor; 4.4.1 lanes use JUnit 4).
@@ -201,7 +218,7 @@ def digestOf = { File f, String algo ->
 
 task resolveVendored {
     group = 'everlastingskins'
-    description = 'Download + checksum-verify the vendored inputs (forge src zip, forge universal artifact, vanilla server jar) into a cache dir; pre-seed the dir or pass -Pvendored.offline for offline builds.'
+    description = 'Download + checksum-verify the vendored inputs (forge src zip, forge universal artifact, vanilla server jar, optional vanilla client jar) into a cache dir; pre-seed the dir or pass -Pvendored.offline for offline builds.'
     outputs.dir vendoredDir
     doLast {
         def offline = project.hasProperty('vendored.offline')
@@ -472,13 +489,15 @@ def expandSubclassMethods = { Map mdMapC, Map hier, Map clRevMap ->
 // ---------------------------------------------------------------------------
 task deobfClasspath(dependsOn: extractMcpConf) {
     group = 'everlastingskins'
-    description = "Compose the obf->deobf mapping from the MCP ${mcpVersion} conf, run SpecialSource on the server jar AND the FML universal artifact (both reference MC classes/fields by obf names), and merge them into build/deobf/merged-deobf.jar — the FG \"minecraft\" classpath equivalent. Merge order is harnessConfig.mergeOrder (${mergeOrder})."
+    description = "Compose the obf->deobf mapping from the MCP ${mcpVersion} conf, run SpecialSource on the server jar AND the FML universal artifact (both reference MC classes/fields by obf names), and merge them into build/deobf/merged-deobf.jar — the FG \"minecraft\" classpath equivalent. Merge order is harnessConfig.mergeOrder (${mergeOrder}). When a vanilla client jar is vendored, it is remapped with the same obf->deobf srg into build/deobf/client-deobf.jar (joint client-side jars, PR #422)."
     inputs.dir mcpConfDir
     inputs.files {
-        [new File(vendoredDir, serverInput.name),
-         new File(vendoredDir, universalInput.name)]
+        def files = [new File(vendoredDir, serverInput.name),
+                     new File(vendoredDir, universalInput.name)]
+        if (clientInput != null) files << new File(vendoredDir, clientInput.name)
+        files
     }
-    outputs.files mergedDeobfJar, deobfServerJar, deobfUniversalJar, obfToDeobfSrg, deobfToObfSrg
+    outputs.files mergedDeobfJar, deobfServerJar, deobfUniversalJar, clientDeobfJar, obfToDeobfSrg, deobfToObfSrg
     doLast {
         def methods = parseCsvMappings(new File(mcpConfDir, 'methods.csv'))
         def fields = parseCsvMappings(new File(mcpConfDir, 'fields.csv'))
@@ -512,6 +531,13 @@ task deobfClasspath(dependsOn: extractMcpConf) {
             deobfServerJar.absolutePath, obfToDeobfSrg.absolutePath)
         runSpecialSource(new File(vendoredDir, universalInput.name).absolutePath,
             deobfUniversalJar.absolutePath, obfToDeobfSrg.absolutePath)
+        if (clientInput != null) {
+            // Joint client-side jars (PR #422): same obf->deobf srg; the
+            // client leg stays SEPARATE from the merge so shared classes keep
+            // resolving from the server-first merged jar.
+            runSpecialSource(new File(vendoredDir, clientInput.name).absolutePath,
+                clientDeobfJar.absolutePath, obfToDeobfSrg.absolutePath)
+        }
 
         // Merge order is a per-lane behavioral fork (harnessConfig.mergeOrder,
         // fork #1):
@@ -574,7 +600,8 @@ task deobfClasspath(dependsOn: extractMcpConf) {
         }
         writeSrgMapping(deobfToObfSrg, clRevMap, mdMapC, fdMapC)
 
-        logger.lifecycle("deobfClasspath: ${mergedDeobfJar.name} built (server obf->deobf + universal obf->deobf, merge ${mergeOrder})")
+        def clientLeg = clientInput != null ? " + client obf->deobf" : ""
+        logger.lifecycle("deobfClasspath: ${mergedDeobfJar.name} built (server obf->deobf + universal obf->deobf${clientLeg}, merge ${mergeOrder})")
     }
 }
 
