@@ -9,7 +9,9 @@ package levosilimo.everlastingskins;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.command.SkinRestorerCommand;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
+import levosilimo.everlastingskins.skinchanger.SkinCommand;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
@@ -57,7 +59,10 @@ public class EverlastingSkins {
     @Mod.EventHandler
     public void serverStarting(FMLServerStartingEvent event) {
         SkinRestorer.init(event);
+        // Skin lifecycle: login-apply, logout-persist, mid-session apply.
+        MinecraftForge.EVENT_BUS.register(new SkinRestorer());
         event.registerServerCommand(new SkinRestorerCommand());
+        event.registerServerCommand(new SkinCommand());
         LOGGER.info("{} server starting", MOD_NAME);
     }
 }
