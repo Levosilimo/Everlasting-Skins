@@ -9,6 +9,7 @@ package levosilimo.everlastingskins.command;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.MojangAPI;
 import levosilimo.everlastingskins.skinchanger.MojangApiHttpImpl;
+import levosilimo.everlastingskins.skinchanger.MojangProfileCache;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
@@ -17,6 +18,7 @@ import net.minecraft.src.EntityPlayerMP;
 import net.minecraft.src.ICommand;
 import net.minecraft.src.ICommandSender;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +53,9 @@ public class SkinRestorerCommand implements ICommand {
 
     private static volatile MojangAPI mojangApi = new MojangApiHttpImpl();
     private static volatile MinecraftServer serverOverride;
+
+    /** Seen usernames for {@code /skin set} completion, populated on successful resolves. */
+    private static final MojangProfileCache seenProfiles = new MojangProfileCache();
 
     @Override
     public String getCommandName() {
@@ -129,6 +134,7 @@ public class SkinRestorerCommand implements ICommand {
             return;
         }
         CustomSkinProperty skin = result.get().skinProperty();
+        seenProfiles.put(username, skin);
         SkinRestorer.applySkin(uuid, skin);
         sender.sendChatToPlayer("Skin applied.");
     }
@@ -160,7 +166,53 @@ public class SkinRestorerCommand implements ICommand {
 
     @Override
     public List addTabCompletionOptions(ICommandSender sender, String[] args) {
+        if (args.length == 1) {
+            List<String> subcommands = new ArrayList<String>();
+            if (canUse(sender, NODE_SKIN)) subcommands.add("set");
+            if (canUse(sender, NODE_SKIN_CLEAR)) subcommands.add("clear");
+            if (canUse(sender, NODE_SKIN_SOURCE)) subcommands.add("source");
+            return filterCompletions(args[0], subcommands);
+        }
+        if (args.length == 2) {
+            List<String> candidates = new ArrayList<String>();
+            addOnlinePlayerNames(candidates);
+            for (String seen : seenProfiles.snapshot()) {
+                if (!candidates.contains(seen)) candidates.add(seen);
+            }
+            return filterCompletions(args[1], candidates);
+        }
         return null;
+    }
+
+    /** Silent permission check for completion (no denial message, unlike {@link #checkPermission}). */
+    private static boolean canUse(ICommandSender sender, String node) {
+        if (!(sender instanceof EntityPlayerMP)) return true;
+        EntityPlayerMP player = (EntityPlayerMP) sender;
+        return PermissionServiceManager.hasPermission(
+            SkinRestorer.uuidOf(player.getCommandSenderName()), 4, node);
+    }
+
+    /** Online player names via the era {@code playerEntityList} walk (no getAllUsernames pre-1.7). */
+    private void addOnlinePlayerNames(List<String> candidates) {
+        MinecraftServer server = serverOverride != null ? serverOverride : MinecraftServer.getServer();
+        if (server != null && server.getConfigurationManager() != null) {
+            for (Object o : server.getConfigurationManager().playerEntityList) {
+                if (o instanceof EntityPlayerMP) {
+                    candidates.add(((EntityPlayerMP) o).getCommandSenderName());
+                }
+            }
+        }
+    }
+
+    /** Case-insensitive prefix filter (pre-1.7 lanes have no CommandBase helper). */
+    private static List filterCompletions(String prefix, List<String> candidates) {
+        List<String> matches = new ArrayList<String>();
+        for (String candidate : candidates) {
+            if (candidate.regionMatches(true, 0, prefix, 0, prefix.length())) {
+                matches.add(candidate);
+            }
+        }
+        return matches;
     }
 
     @Override
@@ -181,5 +233,10 @@ public class SkinRestorerCommand implements ICommand {
     /** Test seam — mirrors the mc1.12.2 SkinRestorer.setServer pattern. */
     static void setServerOverrideForTest(MinecraftServer server) {
         serverOverride = server;
+    }
+
+    /** Test seam — deterministic completion tests (memory #1115). */
+    static void clearSeenProfilesForTest() {
+        seenProfiles.clear();
     }
 }
