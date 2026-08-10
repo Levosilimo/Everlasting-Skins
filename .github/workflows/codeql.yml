@@ -23,12 +23,29 @@
 # subsequent runs restore the gradle cache — a fully cold run spends ~54 of
 # the 90-min budget on configuration-phase userdev downloads and leaves too
 # little time for the analysis step (verified 2026-08-10).
+#
+# Optimization (Option A, lib-5 research 2026-08-10): measured 57-77 min
+# total = ~35-45 min Gradle CONFIGURATION + ~20-32 min security-and-quality
+# analysis; the :common compile itself is seconds. The build step's cost is
+# configuration: `:common:compileJava` from the root still configures ALL 7
+# forge modules in settings.gradle.kts, each applying
+# everlastingskins.forge-module (ForgeGradle 7.x userdev/mappings resolution
+# at configuration time). Levers applied:
+#   * `--configure-on-demand` — configures only :common (+ buildSrc), so the
+#     build step drops to ~1-3 min. FIRST-RUN GATED: if it misbehaves with
+#     the buildSrc convention plugins, fall back to a minimal
+#     codeql-settings.gradle.kts (include only ":common", invoked with -c) —
+#     structurally sound since :common has no forge dependency.
+#   * `queries: security-extended` instead of security-and-quality —
+#     informational workflow, 0 findings to date; analyze drops ~8-12 min.
+#   * Triggers: push:main + Monday 12:00 UTC schedule only (no
+#     pull_request) — informational workflow, standard large-repo pattern.
+# Expected total ~12-15 min with ZERO accuracy loss (manual extraction of
+# :common unchanged); timeout-minutes lowered 90 -> 45 as a safe margin.
 name: CodeQL
 
 on:
   push:
-    branches: ["main"]
-  pull_request:
     branches: ["main"]
   schedule:
     - cron: "0 12 * * 1"   # weekly, Monday 12:00 UTC
@@ -46,7 +63,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 45
     permissions:
       security-events: write
     strategy:
@@ -66,7 +83,8 @@ jobs:
         uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3  # v4
         with:
           languages: ${{ matrix.language }}
-          queries: security-and-quality
+          build-mode: manual   # explicit build below; autobuild rejected (see header)
+          queries: security-extended
       - name: Set up Gradle (wrapper validation + cache)
         # Required: without the cache a fully cold run spends ~54 min on
         # configuration-phase userdev downloads, starving the analysis step.
@@ -77,7 +95,11 @@ jobs:
         # Multi-Gradle-root layout: autobuild would run the full sequential
         # root build and exceed the job timeout (verified 2026-08-10).
         # :common is the version-independent core shared by every lane.
-        run: ./gradlew :common:compileJava --no-daemon
+        # --configure-on-demand: configures only :common (+ buildSrc), not
+        # all 7 forge modules (Option A, lib-5 research). If the buildSrc
+        # convention plugins misbehave here (first-run gate), fall back to
+        # `-c codeql-settings.gradle.kts` with a minimal settings file.
+        run: ./gradlew --configure-on-demand :common:compileJava --no-daemon
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3  # v4
         with:
