@@ -2,10 +2,10 @@
 
 Server-side persistent custom skins on pure Forge servers — no client mod required.
 
-This is the M2 multi-module monorepo. `main` is the default branch;
-`integration/m2-monorepo` is the live integration branch where fix/* PRs
-merge and CI runs. It unifies every Forge lane of the project under one
-Gradle root; the 1.12.2 lane stays on its own wrapper out-of-band.
+This is the M2 multi-module monorepo. `main` is the default branch and the
+single source of truth (`integration/m2-monorepo` was retired 2026-08-07).
+It unifies every Forge lane of the project under one Gradle root; the
+1.12.2 lane stays on its own wrapper out-of-band.
 
 ## Layout
 
@@ -18,12 +18,15 @@ forge-1.21/                  current 1.21 mod (MC 1.21 / Forge 51.0.8)
 forge-1.21.1/                point release (MC 1.21.1 / Forge 52.1.16)
 forge-1.21.4/                point release (MC 1.21.4 / Forge 54.1.18)
 forge-1.21.8/                point release (MC 1.21.8 / Forge 58.1.21)
+forge-26.2/                  current 26.2 mod (MC 26.2 / Forge 65.0.9, Java 25 toolchain)
+forge-26.1/                  current 26.1 mod (MC 26.1 / Forge 62.0.9, Java 25 toolchain)
 forge-1.16.5/  forge-1.20.1/  forge-1.18.2/  out-of-band legacy lanes (own Gradle wrappers, FG per-lane)
 forge-1.10.2/                out-of-band legacy lane (own Gradle 4.10.3 wrapper, FG 2.2.5, Java 8)
 forge-1.8.9/                 out-of-band legacy lane (own Gradle 4.10.3 wrapper, FG 2.1-SNAPSHOT, Java 8)
 forge-1.7.10/                out-of-band legacy lane (own Gradle 4.4.1 wrapper, GTNH FG 1.2.11 via jitpack, Java 8)
 forge-1.5.2/                 out-of-band legacy lane (own Gradle 4.4.1 wrapper, vendored SpecialSource 1.7.4 deobf harness, Java 8)
 forge-1.6.4/                 out-of-band legacy lane (own Gradle 4.4.1 wrapper, vendored SpecialSource 1.7.4 deobf harness, Java 8)
+forge-1.4.7/                 out-of-band legacy lane (own Gradle 4.4.1 wrapper, vendored SpecialSource 1.7.4 deobf harness, Java 8)
 mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG 2.3.4, Java 8,
                             builds out-of-band, shares ../common as a source dir
 ```
@@ -38,6 +41,7 @@ mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG
 | `:forge-1.21.4` | 1.21.4 | 54.1.18 | 7.x | root 9.3.1 | 21 | SOURCE-COMPLETE (post-#280) |
 | `:forge-1.21.8` | 1.21.8 | 58.1.21 | 7.x | root 9.3.1 | 21 | SOURCE-COMPLETE (post-#281) |
 | `:forge-26.2` | 26.2 | 65.0.9 | 7.x | root 9.3.1 | 25 | SOURCE-COMPLETE (Java 25, unobfuscated MC, EventBus 7) |
+| `:forge-26.1` | 26.1 | 62.0.9 | 7.x | root 9.3.1 | 25 | SOURCE-COMPLETE (Java 25, unobfuscated MC, EventBus 7.0.1) |
 | `forge-1.16.5/` (not a subproject) | 1.16.5 | 36.2.34 | 5.1.x | own 7.6.4 wrapper | JDK 8 | SOURCE-COMPLETE (post-#274) |
 | `forge-1.20.1/` (not a subproject) | 1.20.1 | 47.4.10 | 6.x | own 8.14 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (post-#273) |
 | `forge-1.18.2/` (not a subproject) | 1.18.2 | 40.3.0 | 6.x | own 8.14 wrapper | JDK 21 (17 toolchain) | SOURCE-COMPLETE (lane PR) |
@@ -46,22 +50,33 @@ mc1.12.2/                    NOT a subproject — own Gradle 4.10.3 wrapper + FG
 | `forge-1.7.10/` (not a subproject) | 1.7.10 | 10.13.4.1614 | 1.2.11 (GTNH fork via jitpack) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (GTNH FG 1.2.11 + MCP stable_12) |
 | `forge-1.5.2/` (not a subproject) | 1.5.2 | 7.8.1.738 | none (vendored SpecialSource 1.7.4) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
 | `forge-1.6.4/` (not a subproject) | 1.6.4 | 9.11.1.1345 | none (vendored SpecialSource 1.7.4) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
+| `forge-1.4.7/` (not a subproject) | 1.4.7 | 6.6.2.534 | none (vendored SpecialSource 1.7.4) | own 4.4.1 wrapper | JDK 8 | SOURCE-COMPLETE (lane PR) |
 | `mc1.12.2/` (not a subproject) | 1.12.2 | 14.23.5.2847 | 2.3.4 | own 4.10.3 wrapper | JDK 8 | SOURCE-COMPLETE (post-#269) |
 
 `forge-1.8.9` / `forge-1.16.5` / `forge-1.20.1` / `forge-1.18.2` /
-`forge-1.10.2` / `forge-1.7.10` / `forge-1.6.4` / `forge-1.5.2` are
-out-of-band per-lane wrappers (own Gradle wrapper, FG applied per-lane —
-see AGENTS.md "Legacy lanes"): they are NOT included in
-`settings.gradle.kts`, so the root build never configures them.
-`forge-1.5.2` is the oldest target in the repo — Gradle 4.4.1 + Java 8 +
+`forge-1.10.2` / `forge-1.7.10` / `forge-1.6.4` / `forge-1.5.2` /
+`forge-1.4.7` are out-of-band per-lane wrappers (own Gradle wrapper, FG
+applied per-lane — see AGENTS.md "Legacy lanes"): they are NOT included
+in `settings.gradle.kts`, so the root build never configures them.
+`forge-1.4.7` is the oldest target in the repo — Gradle 4.4.1 + Java 8 +
 vendored SpecialSource 1.7.4 deobf harness (FG 1.2.11's support envelope
-does not reach 1.5.2; no MCP 1.5.2 channel exists). `forge-1.6.4` —
+does not reach 1.4.7; MCP 7.26a conf). `forge-1.5.2` — Gradle 4.4.1 +
+Java 8 + vendored SpecialSource 1.7.4 deobf harness (FG 1.2.11's support
+envelope does not reach 1.5.2; no MCP 1.5.2 channel exists). `forge-1.6.4` —
 Gradle 4.4.1 + Java 8 + vendored SpecialSource 1.7.4 deobf harness (GTNH
 FG 1.2.11 cannot build 1.6.4; no MCP 1.6.4 channel exists). `forge-1.7.10` —
 Gradle 4.4.1 (FG 1.2 hard floor) + Java 8 + MCP stable_12; upstream
 ForgeGradle 1.2 died in 2022 (Mojang API 403), so the lane pins the GTNH
 community fork `com.github.GTNewHorizons:ForgeGradle:1.2.11` via jitpack
-(supply-chain pin documented in AGENTS.md).
+(supply-chain pin documented in AGENTS.md). All ten out-of-band lanes
+consume `:common` by source-dir share.
+
+The three vendored-harness lanes (`forge-1.4.7` / `forge-1.5.2` /
+`forge-1.6.4`) apply the shared `harness/specialsource-harness.gradle`
+(Option B graduation, extracted from forge-1.6.4 post-#374); a CI
+diff-guard (`scripts/ci-vendored-harness-diff-guard.sh`) fails the build
+if a lane stops applying it, re-defines a harness task locally, or drops a
+required harnessConfig key.
 
 Every `forge-*` module's `build.gradle.kts` is three lines:
 `plugins { id("everlastingskins.forge-module") }`. All build logic lives in
@@ -135,18 +150,32 @@ with `git push --no-verify`).
   parent's `common/build-logic`), which fails the build on any Mixin usage.
 - **CI:** `.github/workflows/ci.yml` is a per-module matrix (PR #260,
   extended by #277): lint-yaml, then `build` over `:common` + the four
-  1.21.x modules, out-of-band builds for mc1.12.2 / forge-1.8.9 /
-  forge-1.10.2 / forge-1.16.5 / forge-1.20.1 / forge-1.18.2 / forge-1.7.10 /
-  forge-1.6.4 / forge-1.5.2 (own wrappers), and the
-  `E2E (mc1.12.2)` required-check stub. `publish.yml` gained dedicated
-  `publish-mc1_16_5` / `publish-mc1_20_1` jobs in #277, with the
-  `mc1.16.5-v*` / `mc1.20.1-v*` tag triggers uncommented; the forge-1.8.9
-  lane adds `Build (forge-1.8.9)` + `publish-mc1_8_9` (`mc1.8.9-v*`), the
-  forge-1.7.10 lane adds `publish-mc1_7_10` (`mc1.7.10-v*`), and the
-  forge-1.10.2 lane adds `Build (forge-1.10.2)` + `publish-mc1_10_2`
-  (`mc1.10.2-v*`), the forge-1.6.4 lane adds `Build (forge-1.6.4)` +
-  `publish-mc1_6_4` (`mc1.6.4-v*`), and the forge-1.5.2 lane adds
-  `Build (forge-1.5.2)` + `publish-mc1_5_2` (`mc1.5.2-v*`).
+  1.21.x modules + forge-26.2 / forge-26.1, out-of-band builds for
+  mc1.12.2 / forge-1.8.9 / forge-1.10.2 / forge-1.16.5 / forge-1.20.1 /
+  forge-1.18.2 / forge-1.7.10 / forge-1.6.4 / forge-1.5.2 / forge-1.4.7
+  (own wrappers), the live `E2E (mc1.12.2)` (boots a real Forge
+  14.23.5.2847 server with the mod; PR #376), a `Vendored harness
+  diff-guard` job, GameTest per 1.21.x / 26.x lane, `aislop (M2)`, and
+  informational `CI Health`. `codeql.yml` (P3-35) posts Security-tab
+  results and is intentionally NOT part of the required-check contract.
+  `publish.yml` routes each job by tag prefix: `mc1.21-v*` /
+  `mc1.21.1-v*` / `mc1.21.4-v*` / `mc1.21.8-v*` / `mc26.2-v*` /
+  `mc26.1-v*` / `mc1.12.2-v*` / `mc1.8.9-v*` / `mc1.10.2-v*` /
+  `mc1.16.5-v*` / `mc1.20.1-v*` / `mc1.18.2-v*` / `mc1.7.10-v*` /
+  `mc1.6.4-v*` / `mc1.5.2-v*` / `mc1.4.7-v*`. forge-1.5.2 shipped
+  `mc1.5.2-v2.1.0-beta.1` (2026-08-10; Modrinth + GitHub Releases only —
+  CurseForge token not provisioned, see publish.yml).
+- **Branch protection:** the required-check contract on `main` is 22
+  contexts (enforced via the gh API, not in-repo; CI job names must match
+  exactly): `YAML Lint`, `Build (common)` / `Build (1.21.x)` /
+  `Build (26.2)` / `Build (26.1)`, `Build (mc1.12.2)`, `E2E (mc1.12.2)`,
+  `GameTest (1.21)`, the ten out-of-band `Build (forge-*)` lanes incl.
+  `Build (forge-1.4.7)` (21→22 via `scripts/gh-api-bump/1.4.7.sh`),
+  `aislop (M2)`, and `CI Health`.
+- **Merge automation:** `scripts/gh-merge-bot.sh` — bounded single-pass
+  merge bot (state machine, update-branch on STALE, timeout-bounded
+  `gh pr checks --watch --fail-fast`, fire-and-forget `gh pr merge
+  --auto`); never self-retries. See AGENTS.md "Merge automation".
 - **Artifact naming:** `everlastingskins-<mc>` (was `EverlastingSkins-<mc>`).
 - `mc1.12.2/` is imported from the parent checkout's history and builds
   out-of-band with its own wrapper (Gradle 4.10.3 + FG 2.3.4 + Java 8). Its
