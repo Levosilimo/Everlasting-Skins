@@ -84,7 +84,7 @@ jobs:
             exit 1
           fi
       - name: Build module
-        run: ./gradlew :${{ matrix.module }}:build --no-daemon --stacktrace
+        run: ./gradlew :${{ matrix.module }}:build --no-daemon --stacktrace --configure-on-demand
       - name: Upload built jar
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -506,7 +506,7 @@ jobs:
         # re-run (fix-10: cancelled at 15m15s on PR #314 cold cache; warm runs
         # finish in 2.5-6 min). 30 min bounds the runaway case while
         # tolerating cache misses.
-        run: ./gradlew :forge-1.21:runGameTestServer --no-daemon --console=plain
+        run: ./gradlew :forge-1.21:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -537,7 +537,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-1.21.1:runGameTestServer --no-daemon --console=plain
+        run: ./gradlew :forge-1.21.1:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -568,7 +568,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-1.21.4:runGameTestServer --no-daemon --console=plain
+        run: ./gradlew :forge-1.21.4:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -599,7 +599,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-1.21.8:runGameTestServer --no-daemon --console=plain
+        run: ./gradlew :forge-1.21.8:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -630,7 +630,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-26.2:runGameTestServer --no-daemon --console=plain
+        run: ./gradlew :forge-26.2:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -661,7 +661,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-26.1:runGameTestServer --no-daemon --console=plain
+        run: ./gradlew :forge-26.1:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-

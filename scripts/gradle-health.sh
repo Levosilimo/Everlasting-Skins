@@ -40,7 +40,7 @@ for c in "${CONSUMERS[@]}"; do
         continue
     fi
     echo "[gradle-health] ${c}:projectHealth..."
-    ./gradlew --no-daemon --offline "${c}:projectHealth" || true
+    ./gradlew --no-daemon --offline --configure-on-demand "${c}:projectHealth" || true
     case "$c" in
         :common) report="common/build/reports/dependency-analysis/project-health-report.txt" ;;
         *) report="${c#:}/build/reports/dependency-analysis/project-health-report.txt" ;;
