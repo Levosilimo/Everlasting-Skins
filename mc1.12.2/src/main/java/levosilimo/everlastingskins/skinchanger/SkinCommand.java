@@ -18,6 +18,7 @@ import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CompletionSources;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
@@ -40,7 +41,18 @@ public class SkinCommand extends CommandBase {
     static final String PREFIX = "§6[" + EverlastingSkins.MOD_NAME + "]§f ";
 
     private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
-    private static MojangAPI mojangAPI = new MojangApiHttpImpl();
+    private static MojangAPI mojangAPI = createMojangAPI();
+
+    /**
+     * Builds the Mojang API with a caller-owned profile cache shared with
+     * {@link CompletionSources}, so recently fetched profiles show up in
+     * tab completion.
+     */
+    private static MojangAPI createMojangAPI() {
+        MojangProfileCache sharedCache = new MojangProfileCache();
+        CompletionSources.setMojangProfileCache(sharedCache);
+        return new MojangApiHttpImpl(MojangEndpoints.DEFAULT, new HttpsUrlConnectionHttpClient(), true, sharedCache);
+    }
 
     public static MineSkinAPI getMineSkinAPI() {
         return mineSkinAPI;
@@ -60,7 +72,7 @@ public class SkinCommand extends CommandBase {
     }
 
     static void resetAPIs() {
-        mojangAPI = new MojangApiHttpImpl();
+        mojangAPI = createMojangAPI();
         mineSkinAPI = new MineSkinApiHttpImpl();
     }
 

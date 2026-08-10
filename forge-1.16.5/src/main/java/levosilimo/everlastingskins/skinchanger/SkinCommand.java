@@ -12,6 +12,7 @@ import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.permission.PermissionContext;
@@ -19,6 +20,7 @@ import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.skinchanger.command.SkinMetricsCommand;
 import levosilimo.everlastingskins.util.CompletionSources;
+import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
@@ -51,7 +53,11 @@ public class SkinCommand {
 
     public static MojangAPI getMojangAPI() {
         if (mojangAPIInstance == null) {
-            mojangAPIInstance = new MojangApiHttpImpl();
+            MojangProfileCache sharedCache = new MojangProfileCache(
+                    Config.MOJANG_CACHE_TTL_MS.get(), Config.MOJANG_CACHE_MAX_SIZE.get());
+            mojangAPIInstance = new MojangApiHttpImpl(MojangEndpoints.DEFAULT, new HttpsUrlConnectionHttpClient(),
+                    true, sharedCache);
+            CompletionSources.setMojangProfileCache(sharedCache);
         }
         return mojangAPIInstance;
     }
