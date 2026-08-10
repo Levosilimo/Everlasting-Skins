@@ -7,9 +7,9 @@ import java.util.Objects;
 
 public final class MojangProfileTextures {
     private final MojangProfileTexture SKIN;
-    private final DecodedTextureProperty CAPE;
+    private final MojangProfileTexture CAPE;
 
-    public MojangProfileTextures(MojangProfileTexture SKIN, DecodedTextureProperty CAPE) {
+    public MojangProfileTextures(MojangProfileTexture SKIN, MojangProfileTexture CAPE) {
         this.SKIN = SKIN;
         this.CAPE = CAPE;
     }
@@ -18,7 +18,7 @@ public final class MojangProfileTextures {
         return SKIN;
     }
 
-    public DecodedTextureProperty CAPE() {
+    public MojangProfileTexture CAPE() {
         return CAPE;
     }
 
