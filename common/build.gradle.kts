@@ -47,7 +47,7 @@ repositories {
 dependencies {
     // --- compile-only: provided by both consumers' runtime classpaths ---
     // Gson floor = Minecraft 1.12.2's bundled 2.8.0; only pre-2.8 APIs are used.
-    compileOnly("com.google.code.gson:gson:2.8.0")
+    compileOnly("com.google.code.gson:gson:2.14.0")
     // authlib floor = the 1.12.2-era jar; only Property(String,String,String)/getValue used.
     compileOnly("com.mojang:authlib:1.5.25")
     // log4j2 floor = Minecraft 1.12.2's bundled 2.8.1 (LogManager.getLogger API is stable).
@@ -62,7 +62,7 @@ dependencies {
     testImplementation("net.jqwik:jqwik-api:1.10.1")
     testImplementation("org.mockito:mockito-core:5.23.0")
     // The module's main code paths use Gson/authlib/log4j at runtime too.
-    testImplementation("com.google.code.gson:gson:2.8.0")
+    testImplementation("com.google.code.gson:gson:2.14.0")
     testImplementation("com.mojang:authlib:1.5.25")
     testImplementation("org.apache.logging.log4j:log4j-api:2.26.1")
 
