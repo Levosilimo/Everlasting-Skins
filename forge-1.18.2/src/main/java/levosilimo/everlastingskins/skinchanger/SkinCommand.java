@@ -62,7 +62,10 @@ public class SkinCommand {
 
     public static MojangAPI getMojangAPI() {
         if (mojangAPIInstance == null) {
-            mojangAPIInstance = new MojangApiHttpImpl(MojangEndpoints.DEFAULT, new JavaHttpClient());
+            MojangProfileCache sharedCache = new MojangProfileCache(
+                    Config.MOJANG_CACHE_TTL_MS.get(), Config.MOJANG_CACHE_MAX_SIZE.get());
+            mojangAPIInstance = new MojangApiHttpImpl(MojangEndpoints.DEFAULT, new JavaHttpClient(), true, sharedCache);
+            CompletionSources.setMojangProfileCache(sharedCache);
         }
         return mojangAPIInstance;
     }

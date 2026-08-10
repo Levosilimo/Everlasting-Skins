@@ -46,7 +46,7 @@ public class MojangApiHttpImpl implements MojangAPI {
     private final MojangEndpoints endpoints;
     private final HttpClient httpClient;
     private final boolean profileCacheEnabled;
-    private final MojangProfileCache cache = new MojangProfileCache();
+    private final MojangProfileCache cache;
 
     public MojangApiHttpImpl() {
         this(MojangEndpoints.DEFAULT, new HttpsUrlConnectionHttpClient(), true);
@@ -61,9 +61,20 @@ public class MojangApiHttpImpl implements MojangAPI {
     }
 
     public MojangApiHttpImpl(MojangEndpoints endpoints, HttpClient httpClient, boolean profileCacheEnabled) {
+        this(endpoints, httpClient, profileCacheEnabled, new MojangProfileCache());
+    }
+
+    /**
+     * Full constructor. The cache is caller-owned so one instance can back both
+     * the Mojang API path and tab completion (CompletionSources); a null cache
+     * falls back to a fresh default one.
+     */
+    public MojangApiHttpImpl(MojangEndpoints endpoints, HttpClient httpClient, boolean profileCacheEnabled,
+            MojangProfileCache cache) {
         this.endpoints = endpoints;
         this.httpClient = httpClient;
         this.profileCacheEnabled = profileCacheEnabled;
+        this.cache = cache != null ? cache : new MojangProfileCache();
     }
 
     @Override
