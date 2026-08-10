@@ -17,6 +17,7 @@ import levosilimo.everlastingskins.skinchanger.MineSkinApiHttpImpl;
 import levosilimo.everlastingskins.skinchanger.MojangAPI;
 import levosilimo.everlastingskins.skinchanger.MojangApiHttpImpl;
 import levosilimo.everlastingskins.skinchanger.MojangEndpoints;
+import levosilimo.everlastingskins.skinchanger.MojangProfileCache;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.enums.SkinActionType;
 import levosilimo.everlastingskins.enums.SkinVariant;
@@ -62,7 +63,10 @@ public class SkinCommand {
 
     public static MojangAPI getMojangAPI() {
         if (mojangAPIInstance == null) {
-            mojangAPIInstance = new MojangApiHttpImpl(MojangEndpoints.DEFAULT, new JavaHttpClient());
+            MojangProfileCache sharedCache = new MojangProfileCache(
+                    Config.MOJANG_CACHE_TTL_MS.get(), Config.MOJANG_CACHE_MAX_SIZE.get());
+            mojangAPIInstance = new MojangApiHttpImpl(MojangEndpoints.DEFAULT, new JavaHttpClient(), true, sharedCache);
+            CompletionSources.setMojangProfileCache(sharedCache);
         }
         return mojangAPIInstance;
     }
