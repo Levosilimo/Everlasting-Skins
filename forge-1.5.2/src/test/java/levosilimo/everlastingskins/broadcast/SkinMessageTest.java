@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * 1.5.2 broadcast payload tests (pure Java — no server, no netty).
@@ -35,6 +36,23 @@ public class SkinMessageTest {
     @Test
     public void encodeDecodeRoundTripsWithPng() {
         byte[] png = new byte[]{1, 2, 3, 4, 5};
+        SkinMessage message = SkinMessage.decode(SkinMessage.encode("Steve", png));
+        assertEquals("Steve", message.getPlayerName());
+        assertArrayEquals(png, message.getTexturePng());
+    }
+
+    @Test
+    public void encodeDecodeRoundTripsRealPngBytes() throws Exception {
+        // A real PNG payload (the joint client broadcast now carries actual
+        // texture bytes — lib-5, PR #422), well under the 32766-byte
+        // Packet250CustomPayload cap (MC-16910).
+        java.awt.image.BufferedImage image =
+            new java.awt.image.BufferedImage(64, 32, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image, "png", bos);
+        byte[] png = bos.toByteArray();
+        assertTrue(png.length < 32766);
+
         SkinMessage message = SkinMessage.decode(SkinMessage.encode("Steve", png));
         assertEquals("Steve", message.getPlayerName());
         assertArrayEquals(png, message.getTexturePng());
