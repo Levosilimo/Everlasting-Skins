@@ -398,35 +398,41 @@ tasks.jacocoTestReport {
     }
 }
 
-tasks.jar {
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
-    // M2 regression fix (caught by the real-client E2E slice-3 server boot):
-    // the pre-M2 single-module build produced a self-contained mod jar, but
-    // the M2 split (:common as a separate module, api dependency) made the
-    // jar THIN — :common classes/resources are absent, so the mod throws
-    // NoClassDefFoundError (IPermissionService etc.) on any production
-    // server (Forge loads only mods/ + the game classpath). Bundle
-    // :common's compiled output + resources into the shipped jar so every
-    // in-root forge-* lane is self-contained again (the out-of-band lanes
-    // get this for free via source-dir share).
-    // lazy: :common's Java plugin may not be applied when a consumer
-    // configures (UnknownDomainObjectException sourceSets [ext] — observed
-    // on every in-root module at configuration time); the provider defers
-    // resolution until the jar task executes, after all projects configure.
-    from(project.provider { project(":common").sourceSets.main.get().output })
-    manifest {
-        attributes(
-            "Timestamp" to System.currentTimeMillis(),
-            "Specification-Title" to modName,
-            "Specification-Vendor" to modVendor,
-            "Specification-Version" to modVersion,
-            "Implementation-Title" to "${modName}-${minecraftVersion}",
-            "Implementation-Version" to project.version,
-            "Implementation-Vendor" to modVendor,
-            "Implementation-Timestamp" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(Date()),
-            "Built-On-Java" to "${System.getProperty("java.vm.version")} (${System.getProperty("java.vm.vendor")})",
-            "Built-On" to forgeVersion
-        )
+// The :common bundling MUST be registered after every project is evaluated:
+// the jar task's ConfigurableFileCollection resolves its from() sources at
+// configuration-time task-graph queries (ProviderBackedFileCollection.
+// visitDependencies), so even a lazy provider is forced before :common's
+// Java plugin is applied (Extension with name 'sourceSets' does not exist
+// — observed on every in-root module). projectsEvaluated guarantees
+// :common is fully configured, so plain access works here (no provider).
+gradle.projectsEvaluated {
+    tasks.jar {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+        // M2 regression fix (caught by the real-client E2E slice-3 server
+        // boot): the pre-M2 single-module build produced a self-contained
+        // mod jar, but the M2 split (:common as a separate module, api
+        // dependency) made the jar THIN — :common classes/resources are
+        // absent, so the mod throws NoClassDefFoundError
+        // (IPermissionService etc.) on any production server (Forge loads
+        // only mods/ + the game classpath). Bundle :common's compiled
+        // output + resources into the shipped jar so every in-root forge-*
+        // lane is self-contained again (the out-of-band lanes get this for
+        // free via source-dir share).
+        from(project(":common").sourceSets.main.get().output)
+        manifest {
+            attributes(
+                "Timestamp" to System.currentTimeMillis(),
+                "Specification-Title" to modName,
+                "Specification-Vendor" to modVendor,
+                "Specification-Version" to modVersion,
+                "Implementation-Title" to "${modName}-${minecraftVersion}",
+                "Implementation-Version" to project.version,
+                "Implementation-Vendor" to modVendor,
+                "Implementation-Timestamp" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(Date()),
+                "Built-On-Java" to "${System.getProperty("java.vm.version")} (${System.getProperty("java.vm.vendor")})",
+                "Built-On" to forgeVersion
+            )
+        }
     }
 }
 
