@@ -49,5 +49,7 @@ pre-push:
       run: bash -c 'source scripts/ensure-jdk17.sh && exec ./gradlew --no-daemon --offline test --parallel'
     gametest:
       run: bash -c 'source scripts/ensure-jdk17.sh && exec forge-1.21/test-infrastructure/run-gametest-local.sh'
+    config-order:
+      run: bash -c 'source scripts/ensure-jdk17.sh && exec bash scripts/config-order-gate.sh'
     aislop-ci:
       run: bash -c 'if command -v bunx >/dev/null 2>&1; then bunx aislop ci --changes --base origin/main; else npx -y aislop ci --changes --base origin/main; fi'
