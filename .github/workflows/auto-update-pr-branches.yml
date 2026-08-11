@@ -9,16 +9,24 @@ name: Auto-update PR branches
 # dispatch, it updates EXACTLY the open, non-draft, auto-merge-armed PRs
 # whose mergeStateStatus is BEHIND.
 #
-# PAT vs GITHUB_TOKEN (hard constraint — do not "simplify"):
-#   The steps authenticate with the fine-grained EVERLASTINGSKINS_PAT
-#   (pull-requests: write, contents: read), NOT GITHUB_TOKEN. Pushes made
-#   with GITHUB_TOKEN do not re-trigger workflows (GitHub's recursive-run
-#   prevention), so a GITHUB_TOKEN-driven update-branch would push main into
-#   the PR head WITHOUT re-running ci.yml — the required checks would stay
-#   stale on the new head SHA and auto-merge would stall. The PAT-authenticated
-#   push re-triggers ci.yml like a normal push, so required checks re-run and
-#   auto-merge can fire. With top-level `permissions: {}` the GITHUB_TOKEN has
-#   no scopes anyway, so the PAT is the only credential that can work.
+# Credential split (hard constraint — do not "simplify"):
+#   LIST (read-only) uses the default GITHUB_TOKEN — the workflow declares
+#   `permissions: pull-requests: read` and nothing else, so the token can
+#   list PRs but cannot push. This step always works.
+#
+#   UPDATE (push) requires the fine-grained EVERLASTINGSKINS_PAT secret
+#   (pull-requests: write). Pushes made with GITHUB_TOKEN do not re-trigger
+#   workflows (GitHub's recursive-run prevention), so a GITHUB_TOKEN-driven
+#   update-branch would push main into the PR head WITHOUT re-running ci.yml
+#   — the required checks would stay stale on the new head SHA and auto-merge
+#   would stall. The PAT-authenticated push re-triggers ci.yml like a normal
+#   push, so required checks re-run and auto-merge can fire.
+#
+#   If EVERLASTINGSKINS_PAT is not set (or empty), the update step is SKIPPED
+#   and the workflow emits a clear ::notice annotation plus the greppable
+#   marker `ES_AUTOUPDATE: DISABLED (missing EVERLASTINGSKINS_PAT)` — the
+#   mechanism is visibly down, not silently no-op'ing. Setting the secret in
+#   the repo makes the update go live with no code change.
 #
 # Churn tradeoff (accepted): each update-branch pushes main into the head
 # branch and re-runs the required-check matrix (~minutes of CI). That is the
@@ -39,7 +47,8 @@ concurrency:
   group: auto-update-pr-branches
   cancel-in-progress: false
 
-permissions: {}
+permissions:
+  pull-requests: read
 
 jobs:
   update-behind-prs:
@@ -51,14 +60,18 @@ jobs:
         run: sleep 10
 
       - name: List BEHIND auto-merge PRs
+        id: list
         env:
-          GH_TOKEN: ${{ secrets.EVERLASTINGSKINS_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr list --repo ${{ github.repository }} --base main --state open \
+          numbers="$(gh pr list --repo ${{ github.repository }} --base main --state open \
             --limit 100 --json number,isDraft,autoMergeRequest,mergeStateStatus \
-            --jq '.[] | select(.isDraft == false and .autoMergeRequest != null and .mergeStateStatus == "BEHIND") | .number'
+            --jq '.[] | select(.isDraft == false and .autoMergeRequest != null and .mergeStateStatus == "BEHIND") | .number')"
+          echo "found $(wc -w <<<"$numbers") BEHIND auto-merge PR(s)"
+          echo "behind_prs=$numbers" >> "$GITHUB_OUTPUT"
 
-      - name: Update BEHIND branches
+      - name: Update BEHIND branches (PAT-gated)
+        if: ${{ secrets.EVERLASTINGSKINS_PAT != '' }}
         env:
           GH_TOKEN: ${{ secrets.EVERLASTINGSKINS_PAT }}
         run: |
@@ -67,11 +80,15 @@ jobs:
             --jq '.[] | select(.isDraft == false and .autoMergeRequest != null and .mergeStateStatus == "BEHIND") | .number')"
           if [[ -z "$numbers" ]]; then
             echo "no BEHIND auto-merge PRs to update"
+            echo "ES_AUTOUPDATE: updated 0 PRs"
             exit 0
           fi
+          updated=0
           for n in $numbers; do
             echo "updating PR #$n"
-            if ! gh pr update-branch "$n" --repo ${{ github.repository }}; then
+            if gh pr update-branch "$n" --repo ${{ github.repository }}; then
+              updated=$((updated + 1))
+            else
               # update-branch returns 422 when the branch is already
               # up-to-date (raced between list and update) — harmless; log
               # and continue. Any other failure is likewise non-fatal here:
@@ -79,3 +96,10 @@ jobs:
               echo "WARN: update-branch #$n failed (exit $?) — continuing"
             fi
           done
+          echo "ES_AUTOUPDATE: updated $updated PRs"
+
+      - name: PAT not configured — auto-update DISABLED
+        if: ${{ secrets.EVERLASTINGSKINS_PAT == '' }}
+        run: |
+          echo "::notice title=EVERLASTINGSKINS_PAT missing::EVERLASTINGSKINS_PAT secret not set — auto-update DISABLED (BEHIND PRs will not auto-refresh; see AGENTS.md)"
+          echo "ES_AUTOUPDATE: DISABLED (missing EVERLASTINGSKINS_PAT)"
