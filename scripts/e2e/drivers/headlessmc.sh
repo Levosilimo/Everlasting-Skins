@@ -67,7 +67,9 @@ SERVER_LOG="$SERVER_DIR/server.log"
 case "$E2E_LANE" in
     1.7.10)
         HMC_SPECIFICS_NAME="hmc-specifics-1.7.10-2.4.0-lexforge-release.jar"
+        MC_VERSION="1.7.10"
         MC_VERSION_ID="1.7.10-Forge10.13.4.1614-1.7.10"
+        FORGE_UID="10.13.4.1614"
         FORGE_VERSION="1.7.10-10.13.4.1614-1.7.10"
         SERVER_SHA1="952438ac4e01b4d115c5fc38f891710c4941df29"
         FORGE_SHA1="25fd97f72beca728112256938e03e8105b1b78cc"
@@ -76,7 +78,9 @@ case "$E2E_LANE" in
         ;;
     1.8.9)
         HMC_SPECIFICS_NAME="hmc-specifics-1.8.9-2.4.0-lexforge-release.jar"
+        MC_VERSION="1.8.9"
         MC_VERSION_ID="1.8.9-forge1.8.9-11.15.1.2318-1.8.9"
+        FORGE_UID="11.15.1.2318"
         FORGE_VERSION="1.8.9-11.15.1.2318-1.8.9"
         SERVER_SHA1="b58b2ceb36e01bcd8dbf49c8fb66c55a9f0676cd"
         FORGE_SHA1="beda619c465af293e63952dd573c137c17c0a4cd"
@@ -85,7 +89,9 @@ case "$E2E_LANE" in
         ;;
     1.10.2)
         HMC_SPECIFICS_NAME=""
+        MC_VERSION="1.10.2"
         MC_VERSION_ID="1.10.2-forge1.10.2-12.18.3.2511"
+        FORGE_UID="12.18.3.2511"
         FORGE_VERSION="1.10.2-12.18.3.2511"
         SERVER_SHA1="3d501b23df53c548254f5e3f66492d178a48db63"
         FORGE_SHA1="7560ca0432084f1b34d8b355371ba5889000544a"
@@ -192,7 +198,7 @@ done
 # jar: seeded per-lane in test-infrastructure/hmc-specifics/ (the lexforge
 # specifics have no live upstream URL; sha1-pinned vendored copies).
 if [ -n "$HMC_SPECIFICS_NAME" ]; then
-    : "${E2E_HMC_SPECIFICS_JAR:=$E2E_DRIVER_DIR/../$E2E_LANE/test-infrastructure/hmc-specifics/$HMC_SPECIFICS_NAME}"
+    : "${E2E_HMC_SPECIFICS_JAR:=$REPO_ROOT/forge-$E2E_LANE/test-infrastructure/hmc-specifics/$HMC_SPECIFICS_NAME}"
     if [ ! -f "$E2E_HMC_SPECIFICS_JAR" ]; then
         e2e_fail "hmc-specifics jar missing for lane $E2E_LANE: $E2E_HMC_SPECIFICS_JAR (seed from the slice-2 spike artifacts)"
     fi
@@ -318,6 +324,26 @@ $HMC_JVMARGS
 hmc.gameargs=--server=127.0.0.1
 hmc.test.filename=$SCENARIO_FILE
 EOF
+
+# The launcher reads hmc.mcdir from the config; a fresh CI runner has no
+# ~/.minecraft client profile for this forge version, and the launcher then
+# fails with "Couldn't find object for name" on launch. Install the client
+# profile through the launcher's own forge command (verified live: creates
+# exactly $MC_VERSION_ID under hmc.mcdir/versions/).
+MC_DIR="${HOME}/.minecraft"
+if [ ! -d "$MC_DIR/versions/$MC_VERSION_ID" ]; then
+    e2e_log "installing forge client profile $MC_VERSION_ID..."
+    set +e
+    ( cd "$HMC_DIR" && setsid timeout 300 "$E2E_JAVA8" -jar "$HMC_WRAPPER_JAR" \
+        --command "forge $MC_VERSION --uid $FORGE_UID" ) > "$RUNNER_TMP/forge-install-$E2E_LANE.log" 2>&1
+    INSTALL_CODE=$?
+    set -e
+    if [ $INSTALL_CODE -ne 0 ] || [ ! -d "$MC_DIR/versions/$MC_VERSION_ID" ]; then
+        e2e_warn "forge client profile install failed (code $INSTALL_CODE)"
+        tail -n 20 "$RUNNER_TMP/forge-install-$E2E_LANE.log" >&2 || true
+        exit 2
+    fi
+fi
 
 # The launcher resolves hmc.test.filename etc. relative to the HeadlessMC
 # dir it runs from; run it with CWD = the config dir.

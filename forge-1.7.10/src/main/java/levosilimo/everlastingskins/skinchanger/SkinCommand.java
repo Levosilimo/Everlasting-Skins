@@ -137,13 +137,6 @@ public class SkinCommand implements ICommand {
             EverlastingSkins.logger.info("ES_E2E_SKIN=cmd player={} action={} args={}",
                 sender.getCommandSenderName(), action, java.util.Arrays.toString(args));
         }
-        EntityPlayerMP target = resolveTarget(sender, args);
-        if (target == null) {
-            sender.addChatMessage(new ChatComponentText("Player not found."));
-            return;
-        }
-        UUID uuid = target.getGameProfile().getId();
-        GameProfile profile = target.getGameProfile();
 
         switch (action) {
             case "clear":
@@ -301,13 +294,14 @@ public class SkinCommand implements ICommand {
             recordRefreshFailed(targets);
             sender.addChatMessage(new ChatComponentText("Could not resolve a skin for '" + username + "'."));
             if (Boolean.getBoolean("everlastingskins.e2e")) {
-                EverlastingSkins.logger.info("ES_E2E_SKIN=fail player={} source={} reason=no-skin", profile.getName(), username);
+                String player = targets.isEmpty() ? "unknown" : targets.get(0).getGameProfile().getName();
+                EverlastingSkins.logger.info("ES_E2E_SKIN=fail player={} source={} reason=no-skin", player, username);
             }
             return;
         }
         CustomSkinProperty skin = result.get().skinProperty();
         seenProfiles.put(username, skin);
-        applyToTargets(sender, targets, skin, t0, fetchNanos);
+        applyToTargets(sender, targets, skin, t0, fetchNanos, username);
     }
 
     private void applyWeb(ICommandSender sender, List<EntityPlayerMP> targets, String url, SkinVariant variant) {
@@ -336,7 +330,7 @@ public class SkinCommand implements ICommand {
             sender.addChatMessage(new ChatComponentText("Could not generate a skin from that URL."));
             return;
         }
-        applyToTargets(sender, targets, response.property(), t0, fetchNanos);
+        applyToTargets(sender, targets, response.property(), t0, fetchNanos, url);
     }
 
     private void applyRandom(ICommandSender sender, List<EntityPlayerMP> targets, boolean cape, SkinVariant variant) {
@@ -360,7 +354,7 @@ public class SkinCommand implements ICommand {
     }
 
     private void applyToTargets(ICommandSender sender, List<EntityPlayerMP> targets,
-                                CustomSkinProperty skin, long t0, long fetchNanos) {
+                                CustomSkinProperty skin, long t0, long fetchNanos, String source) {
         for (EntityPlayerMP target : targets) {
             UUID uuid = target.getGameProfile().getId();
             provider.applySkin(target.getGameProfile(), uuid, skin);
@@ -372,7 +366,8 @@ public class SkinCommand implements ICommand {
             // chat message only the client sees, so the E2E asserts this
             // server-log marker instead (the driver boots the server with
             // -Deverlastingskins.e2e=true).
-            EverlastingSkins.logger.info("ES_E2E_SKIN=ok player={} source={}", profile.getName(), username);
+            String player = targets.isEmpty() ? "unknown" : targets.get(0).getGameProfile().getName();
+            EverlastingSkins.logger.info("ES_E2E_SKIN=ok player={} source={}", player, source);
         }
     }
 
