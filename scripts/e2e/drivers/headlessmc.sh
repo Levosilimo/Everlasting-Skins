@@ -65,7 +65,7 @@ SERVER_LOG="$SERVER_DIR/server.log"
 # launcher.mojang.com object id for the server jars).
 # ---------------------------------------------------------------------------
 case "$E2E_LANE" in
-    1.7.10)
+        1.7.10)
         HMC_SPECIFICS_NAME="hmc-specifics-1.7.10-2.4.0-lexforge-release.jar"
         MC_VERSION="1.7.10"
         MC_VERSION_ID="1.7.10-Forge10.13.4.1614-1.7.10"
@@ -74,7 +74,11 @@ case "$E2E_LANE" in
         SERVER_SHA1="952438ac4e01b4d115c5fc38f891710c4941df29"
         FORGE_SHA1="25fd97f72beca728112256938e03e8105b1b78cc"
         SERVER_MAIN="cpw.mods.fml.relauncher.ServerLaunchWrapper"
-        SCENARIO_SKIN_CMD="/skin set Notch"
+        # Post-#423 grammar: the 1.7.10 lane's /skin is
+        # `set <mojang|web|random>` (bare `set Notch` hits the usage reply
+        # and never runs the skin action — the slice-2 trial jar predated
+        # the parity rework, so its bare-name command masked this).
+        SCENARIO_SKIN_CMD="/skin set mojang Notch"
         ;;
     1.8.9)
         HMC_SPECIFICS_NAME="hmc-specifics-1.8.9-2.4.0-lexforge-release.jar"
@@ -275,8 +279,16 @@ if [ -n "$HMC_SPECIFICS_NAME" ]; then
     cp "$E2E_HMC_SPECIFICS_JAR" "$CLIENT_DIR/mods/$HMC_SPECIFICS_NAME"
 fi
 
-# Scenario: bridge lanes drive /skin + the bridge ack + quit through the
-# console; the 1.10.2 in-jar driver emits its own markers.
+# Scenario: bridge lanes drive /skin + the bridge ack through the
+# console; the 1.10.2 in-jar driver emits its own markers. NOTE (no quit
+# SEND on bridge lanes): the server-side skin action (a blocking Mojang
+# profile fetch on the server thread) must COMPLETE before the client
+# disconnects — a mid-command disconnect aborts the completion path and
+# the ES_E2E_SKIN=ok sentinel never logs (observed on main's CI 2026-08-11
+# and reproduced locally: client quit ~1s after the /skin SEND, sentinel
+# never appeared despite a fast Mojang API). The steps therefore end in the
+# implicit WAIT_FOR_END (test timeout), keeping the client in-world until
+# the driver sees the sentinel and kills it.
 SCENARIO_FILE="$RUNNER_TMP/scenario-$E2E_LANE.json"
 if [ -n "$HMC_SPECIFICS_NAME" ]; then
     cat > "$SCENARIO_FILE" <<EOF
@@ -285,8 +297,7 @@ if [ -n "$HMC_SPECIFICS_NAME" ]; then
   "steps": [
     {"type": "CONTAINS", "message": "minecraft:music.game", "timeout": 240},
     {"type": "SEND", "message": "$SCENARIO_SKIN_CMD"},
-    {"type": "SEND", "message": ". hmc-e2e-bridge-ok"},
-    {"type": "SEND", "message": "quit"}
+    {"type": "SEND", "message": ". hmc-e2e-bridge-ok"}
   ],
   "timeout": 300
 }
@@ -367,7 +378,12 @@ set -e
 
 # ---------------------------------------------------------------------------
 # Assertions: server-side sentinel is primary; the launcher's CommandTest
-# outcome is secondary.
+# outcome is secondary (the driver header's contract). The bridge scenario
+# has no quit SEND, so the client stays in-world until the server-side skin
+# action completes and the sentinel logs; the driver then kills the client
+# (WAIT_FOR_END ends with the process). If the client dies early for any
+# reason, the sentinel can no longer appear (mid-command disconnect aborts
+# the completion path), so the poll just reports the miss.
 # ---------------------------------------------------------------------------
 SENTINEL_SEEN=0
 for i in $(seq 1 90); do
@@ -386,27 +402,30 @@ SERVER_PID=""
 
 if [ "$SENTINEL_SEEN" -eq 1 ]; then
     e2e_log "server sentinel seen (ES_E2E_SKIN=ok)"
-    # Grace window for the client-side outcome: the 1.10.2 in-jar driver
-    # writes e2e-result.json 20s after join; the bridge CommandTest
-    # completes on the quit SEND. Poll while the client is still alive.
-    for _ in $(seq 1 30); do
-        if [ "$E2E_LANE" = "1.10.2" ] && [ -f "$CLIENT_DIR/e2e-result.json" ]; then
-            break
-        fi
-        if [ "$E2E_LANE" != "1.10.2" ] && grep -q "CommandTest was successful" "$CLIENT_LOG" 2>/dev/null; then
-            break
-        fi
-        if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
-            break
-        fi
-        sleep 2
-    done
+    if [ "$E2E_LANE" = "1.10.2" ]; then
+        # Grace window for the client-side outcome: the 1.10.2 in-jar driver
+        # writes e2e-result.json ~20s after join. Poll while it is alive.
+        for _ in $(seq 1 30); do
+            if [ -f "$CLIENT_DIR/e2e-result.json" ]; then
+                break
+            fi
+            if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+                break
+            fi
+            sleep 2
+        done
+    fi
+    # Bridge lanes: the scenario ended in WAIT_FOR_END (no quit SEND); the
+    # sentinel is the authoritative outcome, so end the client here. The
+    # launcher may or may not print "CommandTest was successful" before the
+    # group kill lands — the driver outcome is derived from the sentinel.
     kill_tree "$CLIENT_PID" 2>/dev/null || true
 else
     e2e_warn "server sentinel NOT seen (server log tail follows)"
     tail -n 20 "$SERVER_LOG" >&2 || true
     e2e_warn "client log tail follows"
     tail -n 20 "$CLIENT_LOG" >&2 || true
+    kill_tree "$CLIENT_PID" 2>/dev/null || true
 fi
 
 # ---------------------------------------------------------------------------
@@ -422,9 +441,18 @@ if [ "$E2E_LANE" = "1.10.2" ]; then
         DRIVER_CODE=$(python3 -c "import json; print(int(json.load(open('$CLIENT_DIR/e2e-result.json')).get('exit_code', 3)))")
     fi
 else
-    if grep -q "CommandTest was successful" "$CLIENT_LOG" 2>/dev/null; then
+    # Bridge lanes: with the no-quit scenario the client is killed by the
+    # driver after the sentinel, so "CommandTest was successful" is not a
+    # reliable signal (the group kill races the launcher's final print).
+    # Derive the contract fields from the SERVER log instead: the join line,
+    # the bridge-ack chat, and the sentinel (primary).
+    if grep -q "$E2E_USERNAME joined the game" "$SERVER_LOG" 2>/dev/null; then
         CLIENT_JOINED="True"
+    fi
+    if grep -q "<$E2E_USERNAME> hmc-e2e-bridge-ok" "$SERVER_LOG" 2>/dev/null; then
         COMMAND_EXECUTED="True"
+    fi
+    if [ "$SENTINEL_SEEN" -eq 1 ] || grep -q "CommandTest was successful" "$CLIENT_LOG" 2>/dev/null; then
         DRIVER_CODE=0
     fi
 fi
