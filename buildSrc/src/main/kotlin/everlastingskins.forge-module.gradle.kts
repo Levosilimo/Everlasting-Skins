@@ -398,41 +398,80 @@ tasks.jacocoTestReport {
     }
 }
 
-// The :common bundling MUST be registered after every project is evaluated:
-// the jar task's ConfigurableFileCollection resolves its from() sources at
-// configuration-time task-graph queries (ProviderBackedFileCollection.
-// visitDependencies), so even a lazy provider is forced before :common's
-// Java plugin is applied (Extension with name 'sourceSets' does not exist
-// — observed on every in-root module). projectsEvaluated guarantees
-// :common is fully configured, so plain access works here (no provider).
-gradle.projectsEvaluated {
-    tasks.jar {
-        duplicatesStrategy = DuplicatesStrategy.INCLUDE
-        // M2 regression fix (caught by the real-client E2E slice-3 server
-        // boot): the pre-M2 single-module build produced a self-contained
-        // mod jar, but the M2 split (:common as a separate module, api
-        // dependency) made the jar THIN — :common classes/resources are
-        // absent, so the mod throws NoClassDefFoundError
-        // (IPermissionService etc.) on any production server (Forge loads
-        // only mods/ + the game classpath). Bundle :common's compiled
-        // output + resources into the shipped jar so every in-root forge-*
-        // lane is self-contained again (the out-of-band lanes get this for
-        // free via source-dir share).
-        from(project(":common").sourceSets.main.get().output)
-        manifest {
-            attributes(
-                "Timestamp" to System.currentTimeMillis(),
-                "Specification-Title" to modName,
-                "Specification-Vendor" to modVendor,
-                "Specification-Version" to modVersion,
-                "Implementation-Title" to "${modName}-${minecraftVersion}",
-                "Implementation-Version" to project.version,
-                "Implementation-Vendor" to modVendor,
-                "Implementation-Timestamp" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(Date()),
-                "Built-On-Java" to "${System.getProperty("java.vm.version")} (${System.getProperty("java.vm.vendor")})",
-                "Built-On" to forgeVersion
-            )
+// Force :common's evaluation whenever this module configures: under
+// --configure-on-demand the jar task is realized at command-line task-name
+// resolution — BEFORE :common is configured — so a from() reference to
+// :common's tasks would fail with "Task with name 'classes' not found"
+// (observed take-3, CoD + no-config-cache probe). evaluationDependsOn is
+// the standard CoD-safe mechanism: it pulls :common's evaluation into the
+// consumer's configuration phase, making the TaskProvider lookups below
+// safe and keeping the implicit task dependency wired (no
+// WorkValidationException).
+evaluationDependsOn(":common")
+
+tasks.jar {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    // M2 regression fix (caught by the real-client E2E slice-3 server
+    // boot): the pre-M2 single-module build produced a self-contained
+    // mod jar, but the M2 split (:common as a separate module, api
+    // dependency) made the jar THIN — :common classes/resources are
+    // absent, so the mod throws NoClassDefFoundError
+    // (IPermissionService etc.) on any production server (Forge loads
+    // only mods/ + the game classpath). Bundle :common's compiled
+    // output + resources into the shipped jar so every in-root forge-*
+    // lane is self-contained again (the out-of-band lanes get this for
+    // free via source-dir share).
+    //
+    // Lazy TaskProvider: realized at execution-graph time → forces
+    // :common's configuration on demand and auto-wires the implicit
+    // task dependency (fixes the WorkValidationException; safe under
+    // --configure-on-demand + config cache). Do NOT revert to
+    // from(project(":common").sourceSets...) — eager sourceSets access
+    // fails at configuration time (Extension 'sourceSets' does not
+    // exist: :common's Java plugin is not yet applied) and even a
+    // project.provider{} wrap is forced by
+    // ProviderBackedFileCollection.visitDependencies at graph-query
+    // time (takes 1 and 2, both CI-red; the config-order-gate script
+    // guards this regression signature).
+    //
+    // Content-bearing producers only: the lifecycle `classes` task has
+    // NO outputs (verified on Gradle 9.3.1: from(classes) contributes
+    // zero files — take-3 jars came out thin; a singleFile check on
+    // classes.outputs.files fails the build outright), so compileJava +
+    // processResources carry the actual outputs. The TaskProvider form
+    // + evaluationDependsOn(:common) above is what makes the
+    // configuration order safe; the producers here are what make the
+    // jar fat.
+    from(project(":common").tasks.named("compileJava"))
+    from(project(":common").tasks.named("processResources")) // resources flattened too
+    // Thin-jar tripwire: compileJava's outputs may carry more than one
+    // declared output (errorprone wiring), so require ANY declared output
+    // to exist rather than pinning a single file. Local val (not
+    // script-level): the doFirst closure is replayed from the
+    // configuration-cache entry where the script receiver is null (same
+    // constraint as #289's runGameTestServer wiring) — a local captures
+    // the serializable List<File> directly. evaluationDependsOn above
+    // guarantees :common is configured, so the task lookup is safe.
+    val commonClassesOutput: List<File> =
+        project(":common").tasks.named("compileJava").get().outputs.files.toList()
+    doFirst {
+        check(commonClassesOutput.any { it.exists() }) {
+            ":common:compileJava produced no output — thin-jar risk"
         }
+    }
+    manifest {
+        attributes(
+            "Timestamp" to System.currentTimeMillis(),
+            "Specification-Title" to modName,
+            "Specification-Vendor" to modVendor,
+            "Specification-Version" to modVersion,
+            "Implementation-Title" to "${modName}-${minecraftVersion}",
+            "Implementation-Version" to project.version,
+            "Implementation-Vendor" to modVendor,
+            "Implementation-Timestamp" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(Date()),
+            "Built-On-Java" to "${System.getProperty("java.vm.version")} (${System.getProperty("java.vm.vendor")})",
+            "Built-On" to forgeVersion
+        )
     }
 }
 
