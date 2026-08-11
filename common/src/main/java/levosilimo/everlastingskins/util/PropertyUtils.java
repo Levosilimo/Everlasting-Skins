@@ -9,6 +9,7 @@ package levosilimo.everlastingskins.util;
 import com.google.gson.Gson;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.skinchanger.responses.profile.DecodedTextureProperty;
+import levosilimo.everlastingskins.skinchanger.responses.profile.MojangProfileTexture;
 import levosilimo.everlastingskins.skinchanger.responses.profile.MojangProfileTextureMeta;
 
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,21 @@ public class PropertyUtils {
      */
     public static String getSkinTextureUrl(CustomSkinProperty property) {
         return getSkinProfileData(property).textures().SKIN().url();
+    }
+
+    /**
+     * Returns the <a href="https://textures.minecraft.net/id">Texture Url</a>
+     * for the property's cape, or null when the textures payload carries no
+     * CAPE entry (the common case — most skins have no cape). Mirrors
+     * {@link #getSkinTextureUrl(CustomSkinProperty)} for the pre-1.8 cape
+     * broadcast path.
+     *
+     * @param property Profile property
+     * @return full textures.minecraft.net cape url, or null when cape-less
+     */
+    public static String getCapeTextureUrl(CustomSkinProperty property) {
+        MojangProfileTexture cape = getSkinProfileData(property).textures().CAPE();
+        return cape == null ? null : cape.url();
     }
 
     public static SkinVariant getSkinVariant(CustomSkinProperty property) {

@@ -35,6 +35,13 @@ import java.net.URL;
  * <p>Fail-soft: any fetch/decode/encode failure returns null (the broadcast
  * degrades to the legacy notification-only payload rather than crashing the
  * command/login path).
+ *
+ * <p>Cape path ({@link #fetchLegacyCapePng}): the textures JSON carries the
+ * cape under {@code CAPE.url} (exposed via
+ * {@link PropertyUtils#getCapeTextureUrl}); modern capes are 64x64 canvases
+ * whose art lives in the top 64x32 rows, so the fetched cape is cropped to
+ * the top 64x32 region before broadcast (pre-1.8 renderCloak UVs). Cape-less
+ * properties yield null (no cape field on the wire).
  */
 public final class SkinTextureFetcher {
 
@@ -61,6 +68,33 @@ public final class SkinTextureFetcher {
             return bos.toByteArray();
         } catch (Exception e) {
             System.err.println("EverlastingSkins: skin texture fetch failed: " + e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetches the cape PNG from the property's {@code CAPE.url} and returns it
+     * cropped to the legacy 64x32 model (top 64x32 rows of the modern 64x64
+     * canvas), re-encoded as PNG. Null when the property has no cape or the
+     * fetch/decode fails.
+     */
+    public static byte[] fetchLegacyCapePng(CustomSkinProperty skin) {
+        try {
+            String capeUrl = PropertyUtils.getCapeTextureUrl(skin);
+            if (capeUrl == null) {
+                return null;
+            }
+            byte[] png = fetchBytes(capeUrl);
+            if (png == null) {
+                return null;
+            }
+            BufferedImage image = ClientSkinApplier.decode(png);
+            BufferedImage legacy = ClientSkinApplier.cropCapeToLegacy(image);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            ImageIO.write(legacy, "png", bos);
+            return bos.toByteArray();
+        } catch (Exception e) {
+            System.err.println("EverlastingSkins: cape texture fetch failed: " + e);
             return null;
         }
     }

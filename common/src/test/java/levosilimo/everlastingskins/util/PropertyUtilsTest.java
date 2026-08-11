@@ -86,6 +86,26 @@ class PropertyUtilsTest {
     }
 
     @Nested
+    @DisplayName("Cape texture URL")
+    class CapeTextureUrl {
+
+        @Test
+        @DisplayName("getCapeTextureUrl returns the CAPE url when present")
+        void capeUrlWhenPresent() {
+            String capeUrl = "https://textures.minecraft.net/texture/capeId";
+            CustomSkinProperty withCape = capeProperty(TEXTURE_URL, capeUrl);
+
+            assertEquals(capeUrl, PropertyUtils.getCapeTextureUrl(withCape));
+        }
+
+        @Test
+        @DisplayName("getCapeTextureUrl returns null when the payload has no CAPE")
+        void capeUrlNullWhenAbsent() {
+            assertNull(PropertyUtils.getCapeTextureUrl(createProperty(null)));
+        }
+    }
+
+    @Nested
     @DisplayName("Round-trip consistency")
     class RoundTrip {
 
@@ -109,6 +129,21 @@ class PropertyUtilsTest {
     private static CustomSkinProperty createProperty(String model) {
         String texturesJson = buildTexturesJson(model);
         String base64 = Base64.getEncoder().encodeToString(texturesJson.getBytes(StandardCharsets.UTF_8));
+        return new CustomSkinProperty("textures", base64, "signature==", null);
+    }
+
+    private static CustomSkinProperty capeProperty(String skinUrl, String capeUrl) {
+        String json = "{\n" +
+            "  \"timestamp\": 1234567890,\n" +
+            "  \"profileId\": \"f0000000000000000000000000000000\",\n" +
+            "  \"profileName\": \"TestPlayer\",\n" +
+            "  \"signatureRequired\": false,\n" +
+            "  \"textures\": {\n" +
+            "    \"SKIN\": {\"url\": \"" + skinUrl + "\"},\n" +
+            "    \"CAPE\": {\"url\": \"" + capeUrl + "\"}\n" +
+            "  }\n" +
+            "}";
+        String base64 = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
         return new CustomSkinProperty("textures", base64, "signature==", null);
     }
 

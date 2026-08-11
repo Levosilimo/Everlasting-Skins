@@ -58,6 +58,86 @@ public class SkinMessageTest {
         SkinMessage message = SkinMessage.decode(SkinMessage.encode("Steve", png));
         assertEquals("Steve", message.getPlayerName());
         assertArrayEquals(png, message.getTexturePng());
+        assertNull(message.getCapePng());
+    }
+
+    @Test
+    public void encodeDecodeRoundTripsSkinAndCape() {
+        byte[] skin = new byte[]{1, 2, 3, 4, 5};
+        byte[] cape = new byte[]{6, 7, 8};
+
+        SkinMessage message = SkinMessage.decode(SkinMessage.encode("Alex", skin, cape));
+
+        assertEquals("Alex", message.getPlayerName());
+        assertArrayEquals(skin, message.getTexturePng());
+        assertArrayEquals(cape, message.getCapePng());
+    }
+
+    @Test
+    public void encodeDecodeRoundTripsCapeOnly() {
+        byte[] cape = new byte[]{9, 9, 9};
+
+        SkinMessage message = SkinMessage.decode(SkinMessage.encode("Alex", null, cape));
+
+        assertEquals("Alex", message.getPlayerName());
+        assertNull(message.getTexturePng());
+        assertArrayEquals(cape, message.getCapePng());
+    }
+
+    @Test
+    public void flagsBitsReflectFieldPresence() {
+        // Wire layout: [int nameLen][utf8 name][byte flags][int skinLen]...
+        byte[] skin = new byte[]{1};
+        byte[] cape = new byte[]{2};
+        int flagsOffset = 4 + "Alex".length();
+
+        assertEquals(1, encodeFlagsByte("Alex", skin, null, flagsOffset)); // bit 0 = hasSkin
+        assertEquals(2, encodeFlagsByte("Alex", null, cape, flagsOffset)); // bit 1 = hasCape
+        assertEquals(3, encodeFlagsByte("Alex", skin, cape, flagsOffset));
+        assertEquals(0, encodeFlagsByte("Alex", null, null, flagsOffset));
+    }
+
+    @Test
+    public void legacyPayloadWithoutFlagsStillDecodes() throws Exception {
+        // Pre-cape wire format: [int nameLen][utf8 name][int pngLen][png]
+        // (the shape the joint client broadcast landed with, PR #426).
+        byte[] png = new byte[]{10, 11, 12, 13};
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        byte[] name = "Legacy".getBytes(StandardCharsets.UTF_8);
+        out.writeInt(name.length);
+        out.write(name);
+        out.writeInt(png.length);
+        out.write(png);
+        out.flush();
+
+        SkinMessage message = SkinMessage.decode(bos.toByteArray());
+
+        assertEquals("Legacy", message.getPlayerName());
+        assertArrayEquals(png, message.getTexturePng());
+        assertNull(message.getCapePng());
+    }
+
+    @Test
+    public void legacyNotificationPayloadStillDecodes() throws Exception {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        byte[] name = "Legacy".getBytes(StandardCharsets.UTF_8);
+        out.writeInt(name.length);
+        out.write(name);
+        out.writeInt(0);
+        out.flush();
+
+        SkinMessage message = SkinMessage.decode(bos.toByteArray());
+
+        assertEquals("Legacy", message.getPlayerName());
+        assertNull(message.getTexturePng());
+        assertNull(message.getCapePng());
+    }
+
+    private static int encodeFlagsByte(String name, byte[] skin, byte[] cape, int flagsOffset) {
+        byte[] payload = SkinMessage.encode(name, skin, cape);
+        return payload[flagsOffset] & 0xFF;
     }
 
     @Test
@@ -92,8 +172,8 @@ public class SkinMessageTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void malformedPngLengthRejectedBeforeAllocation() throws Exception {
-        // pngLen = 2^31-1: the bounds guard must reject it before the
-        // allocation (lib-18 audit).
+        // Legacy shape with pngLen = 2^31-1 (first byte 0x7F > 3, so no
+        // extended attempt): the guard must reject it before allocating.
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bos);
         byte[] name = "Legacy".getBytes(StandardCharsets.UTF_8);
@@ -102,6 +182,66 @@ public class SkinMessageTest {
         out.writeInt(Integer.MAX_VALUE);
         out.flush();
         SkinMessage.decode(bos.toByteArray());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void malformedSkinLengthRejectedBeforeAllocation() throws Exception {
+        // Extended shape with skinLen = 2^31-1: the extended attempt's guard
+        // rejects it (then the legacy pngLen guard fires on the rewind).
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        byte[] name = "Alex".getBytes(StandardCharsets.UTF_8);
+        out.writeInt(name.length);
+        out.write(name);
+        out.writeByte(3); // flags: hasSkin | hasCape
+        out.writeInt(Integer.MAX_VALUE);
+        out.writeInt(0);
+        out.writeInt(0);
+        out.flush();
+        SkinMessage.decode(bos.toByteArray());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void malformedCapeLengthRejectedBeforeAllocation() throws Exception {
+        // Extended shape with a valid skin and capeLen = 2^31-1.
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        byte[] name = "Alex".getBytes(StandardCharsets.UTF_8);
+        out.writeInt(name.length);
+        out.write(name);
+        out.writeByte(3);
+        out.writeInt(1);
+        out.writeByte(9); // skin bytes
+        out.writeInt(Integer.MAX_VALUE);
+        out.flush();
+        SkinMessage.decode(bos.toByteArray());
+    }
+
+    @Test
+    public void legacyPayloadWithLargePngStillDecodesWhenExtendedAttemptGuardFires() throws Exception {
+        // A legacy payload with a large real PNG (~30 KB, under the 32766
+        // cap): the extended attempt reads a bogus skinLen (~pngLen*256 +
+        // first PNG byte) that the bounds guard rejects BEFORE allocation;
+        // the legacy fallback must still decode it (lib-18: the guard must
+        // not break the fallback).
+        byte[] png = new byte[30000];
+        for (int i = 0; i < png.length; i++) {
+            png[i] = (byte) (i & 0xFF);
+        }
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        byte[] name = "Legacy".getBytes(StandardCharsets.UTF_8);
+        out.writeInt(name.length);
+        out.write(name);
+        out.writeInt(png.length);
+        out.write(png);
+        out.flush();
+
+        SkinMessage message = SkinMessage.decode(bos.toByteArray());
+
+        assertEquals("Legacy", message.getPlayerName());
+        assertArrayEquals(png, message.getTexturePng());
+        assertNull(message.getCapePng());
     }
 
     @Test
