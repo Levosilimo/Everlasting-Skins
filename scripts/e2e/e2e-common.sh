@@ -40,6 +40,18 @@ E2E_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "$E2E_COMMON_DIR/lib.sh"
 
+# ---------------------------------------------------------------------------
+# Era dispatch: the headlessmc era driver owns the FULL flow (server boot +
+# client + assertions) — the legacy pre-1.12 forge servers boot from the
+# e2e cache with per-lane lib sets, and the client is driven by HeadlessMC
+# (bridge specifics for 1.7.10/1.8.9, in-jar driver for 1.10.2). The
+# headlessmc lane wrappers do not export E2E_SERVER_JAR (no vendored
+# vanilla server), so this dispatch runs BEFORE the shared env guards.
+# ---------------------------------------------------------------------------
+if [ "${E2E_ERA:-}" = "headlessmc" ]; then
+    exec bash "$E2E_DRIVER_SCRIPT"
+fi
+
 : "${E2E_MOD_JAR:?e2e-common.sh: E2E_MOD_JAR is required}"
 : "${E2E_SERVER_JAR:?e2e-common.sh: E2E_SERVER_JAR is required}"
 : "${E2E_DRIVER_SCRIPT:?e2e-common.sh: E2E_DRIVER_SCRIPT is required}"

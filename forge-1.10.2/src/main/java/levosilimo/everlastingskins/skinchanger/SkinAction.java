@@ -157,6 +157,13 @@ final class SkinAction {
                 SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
                 p.sendMessage(new TextComponentString(SkinCommand.PREFIX
                     + (isRestore ? "Restored original skin." : "Skin applied!")));
+                if (Boolean.getBoolean("everlastingskins.e2e")) {
+                    // Sentinel for the real-client E2E (slice 2): the /skin
+                    // reply is a chat message only the client sees, so the E2E
+                    // asserts this server-log marker (the driver boots the
+                    // server with -Deverlastingskins.e2e=true).
+                    EverlastingSkins.LOGGER.info("ES_E2E_SKIN=ok player={} source={}", p.getName(), customSource);
+                }
                 if (server != null) {
                     server.addScheduledTask(() -> SkinRefreshTask.task(p, sp, fetchNanos[0]));
                 }
