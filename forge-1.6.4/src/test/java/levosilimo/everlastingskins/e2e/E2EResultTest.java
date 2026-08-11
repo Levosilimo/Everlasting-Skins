@@ -105,6 +105,30 @@ public class E2EResultTest {
         assertTrue(E2EResult.isSentinelImage(img));
     }
 
+    @Test
+    public void pixelsEqualAcceptsIdenticalImages() {
+        assertTrue(E2EResult.pixelsEqual(sentinel(), sentinel()));
+        // A second decode of the same pixels must compare equal.
+        BufferedImage copy = new BufferedImage(64, 32, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < 32; y++) {
+            for (int x = 0; x < 64; x++) {
+                copy.setRGB(x, y, (x < 8 && y < 8) ? E2EResult.RED : E2EResult.GREEN);
+            }
+        }
+        assertTrue(E2EResult.pixelsEqual(sentinel(), copy));
+    }
+
+    @Test
+    public void pixelsEqualRejectsAnyDrift() {
+        BufferedImage drift = sentinel();
+        drift.setRGB(63, 31, 0xFF0000FF);
+        assertFalse(E2EResult.pixelsEqual(sentinel(), drift));
+        assertFalse(E2EResult.pixelsEqual(sentinel(), null));
+        assertFalse(E2EResult.pixelsEqual(null, sentinel()));
+        assertTrue(E2EResult.pixelsEqual(null, null));
+        assertFalse(E2EResult.pixelsEqual(sentinel(), new BufferedImage(64, 31, BufferedImage.TYPE_INT_ARGB)));
+    }
+
     private static BufferedImage sentinel() {
         BufferedImage img = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < 32; y++) {
