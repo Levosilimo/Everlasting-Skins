@@ -122,6 +122,12 @@ public final class SkinMessage {
      * payload with a real PNG always fails that attempt (its length int
      * over-reads into the PNG magic, exceeding the remaining bytes), so it
      * falls back cleanly to the legacy parse.
+     *
+     * <p>Every length prefix is bounds-checked against the remaining unread
+     * payload BEFORE allocation ({@link #checkLength}), so a corrupted or
+     * malicious prefix fails with {@link IllegalArgumentException} (which
+     * the client handler catches) instead of an {@link OutOfMemoryError}
+     * on the packet thread (lib-18 audit remediation).
      */
     public static SkinMessage decode(byte[] payload) {
         try {
@@ -178,12 +184,14 @@ public final class SkinMessage {
         try {
             int flags = in.readUnsignedByte();
             int skinLen = in.readInt();
+            checkLength(skinLen, in.available(), "skin");
             byte[] skin = null;
             if (skinLen > 0) {
                 skin = new byte[skinLen];
                 in.readFully(skin);
             }
             int capeLen = in.readInt();
+            checkLength(capeLen, in.available(), "cape");
             byte[] cape = null;
             if (capeLen > 0) {
                 cape = new byte[capeLen];
@@ -193,7 +201,10 @@ public final class SkinMessage {
                 throw new EOFException("trailing bytes after extended payload");
             }
             return new SkinMessage(playerName, skin, cape);
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
+            // A guard violation makes this a failed extended attempt (a
+            // legacy payload's pngLen-derived skinLen always over-reads) —
+            // fall back to the legacy shape exactly as an EOF would.
             return null;
         }
     }
