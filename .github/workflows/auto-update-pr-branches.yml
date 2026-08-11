@@ -55,6 +55,12 @@ jobs:
     name: Update BEHIND PR branches
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # Job-level env mirror of the secret's presence: the `secrets` context
+    # is invalid inside `if:` expressions, so gate steps on this boolean
+    # ('true'/'false' string) instead. The secret itself is still referenced
+    # directly in the update step's env (valid usage).
+    env:
+      PAT_AVAILABLE: ${{ secrets.EVERLASTINGSKINS_PAT != '' }}
     steps:
       - name: Settle push event
         run: sleep 10
@@ -71,7 +77,7 @@ jobs:
           echo "behind_prs=$numbers" >> "$GITHUB_OUTPUT"
 
       - name: Update BEHIND branches (PAT-gated)
-        if: ${{ secrets.EVERLASTINGSKINS_PAT != '' }}
+        if: env.PAT_AVAILABLE == 'true'
         env:
           GH_TOKEN: ${{ secrets.EVERLASTINGSKINS_PAT }}
         run: |
@@ -99,7 +105,7 @@ jobs:
           echo "ES_AUTOUPDATE: updated $updated PRs"
 
       - name: PAT not configured — auto-update DISABLED
-        if: ${{ secrets.EVERLASTINGSKINS_PAT == '' }}
+        if: env.PAT_AVAILABLE == 'false'
         run: |
           echo "::notice title=EVERLASTINGSKINS_PAT missing::EVERLASTINGSKINS_PAT secret not set — auto-update DISABLED (BEHIND PRs will not auto-refresh; see AGENTS.md)"
           echo "ES_AUTOUPDATE: DISABLED (missing EVERLASTINGSKINS_PAT)"
