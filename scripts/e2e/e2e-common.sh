@@ -9,8 +9,19 @@
 # fields → map exit codes (0 all green | 1 assertion failed | 2 retryable
 # infra | 3 build/hard failure).
 #
+# Era deltas (E2E_ERA, default "1.6.4-tweaker"):
+#   - 1.6.4-tweaker: server boots as cpw.mods.fml.relauncher.ServerLaunchWrapper
+#     nogui with server.jar FIRST + universal.jar (the 1.6.4 universal has no
+#     patched MC classes; the tweaker model owns the boot).
+#   - merge (1.4.7/1.5.2): the FML universal zip carries the PATCHED
+#     MinecraftServer whose main() FML-bootstraps the process, so the
+#     universal zip must come FIRST on the classpath (classpath first-match
+#     wins) and the boot main is net.minecraft.server.MinecraftServer nogui.
+#     The tweaker-only libs (launchwrapper/asm/jopt-simple) are dropped.
+#
 # Env contract (set by the lane wrapper test-infrastructure/run-e2e.sh):
-#   E2E_LANE           lane id (1.6.4)
+#   E2E_LANE           lane id (1.6.4 / 1.5.2 / 1.4.7)
+#   E2E_ERA            "1.6.4-tweaker" (default) | "merge"
 #   E2E_MOD_JAR        built mod jar
 #   E2E_SERVER_JAR     vendored vanilla server jar
 #   E2E_DRIVER_SCRIPT  era client driver (scripts/e2e/drivers/pre18-xvfb.sh)
@@ -51,37 +62,102 @@ gamemode=0
 motd=EverlastingSkins E2E $E2E_LANE
 max-tick-time=-1
 EOF
-# 1.6.4 ops model: ops.txt (one username per line) — lets the offline test
-# player pass the command's permission gate (verified: without op the server
-# replies "You do not have permission").
+# Pre-1.7.10 ops model: ops.txt (one username per line) — lets the offline
+# test player pass the command's permission gate (verified on 1.6.4: without
+# op the server replies "You do not have permission").
 printf '%s\n' "$E2E_USERNAME" > "$SERVER_DIR/ops.txt"
 
 # ---------------------------------------------------------------------------
-# Server classpath: vanilla server + forge universal + mod + shared libs
-# (the 1.6.4 launcher library set minus the client-only lwjgl/paulscode legs;
-# plus launchwrapper/asm/jopt-simple for the tweaker model and
-# authlib/log4j-api for :common at runtime).
+# Era pins: forge universal artifact + server boot main
 # ---------------------------------------------------------------------------
 CACHE="$E2E_CACHE_DIR/$E2E_LANE"
-fetch_artifact "forge-1.6.4-9.11.1.1345-universal.jar" \
-    "https://maven.minecraftforge.net/net/minecraftforge/forge/1.6.4-9.11.1.1345/forge-1.6.4-9.11.1.1345-universal.jar" \
-    "eb9d954c8d057fa1768acaa40a35b864ad05c58b"
+if [ "${E2E_ERA:-1.6.4-tweaker}" = "1.6.4-tweaker" ]; then
+    UNIVERSAL_NAME="forge-1.6.4-9.11.1.1345-universal.jar"
+    UNIVERSAL_URL="https://maven.minecraftforge.net/net/minecraftforge/forge/1.6.4-9.11.1.1345/forge-1.6.4-9.11.1.1345-universal.jar"
+    UNIVERSAL_SHA1="eb9d954c8d057fa1768acaa40a35b864ad05c58b"
+    SERVER_MAIN="cpw.mods.fml.relauncher.ServerLaunchWrapper"
+    SERVER_MAIN_ARGS="nogui"
+else
+    case "$E2E_LANE" in
+        1.5.2)
+            UNIVERSAL_NAME="forge-1.5.2-7.8.1.738-universal.zip"
+            UNIVERSAL_URL="https://maven.minecraftforge.net/net/minecraftforge/forge/1.5.2-7.8.1.738/forge-1.5.2-7.8.1.738-universal.zip"
+            UNIVERSAL_SHA1="76223709288287a6a8d22ab16b43a6ab2a284a0d"
+            ;;
+        1.4.7)
+            UNIVERSAL_NAME="forge-1.4.7-6.6.2.534-universal.zip"
+            UNIVERSAL_URL="https://maven.minecraftforge.net/net/minecraftforge/forge/1.4.7-6.6.2.534/forge-1.4.7-6.6.2.534-universal.zip"
+            UNIVERSAL_SHA1="bd0f40a78c18140265ff042a96d73f01c4f60906"
+            ;;
+        *)
+            e2e_fail "merge era: unsupported lane $E2E_LANE (expect 1.4.7 or 1.5.2)"
+            ;;
+    esac
+    SERVER_MAIN="net.minecraft.server.MinecraftServer"
+    SERVER_MAIN_ARGS="nogui"
+fi
 
-# The mod jar is deliberately NOT on the classpath — FML discovers it in
-    # <serverDir>/mods/ (classpath + mods/ duplicates the mod: "Found a
-    # duplicate mod everlastingskins").
-    SERVER_CP="$E2E_SERVER_JAR:$CACHE/forge-1.6.4-9.11.1.1345-universal.jar"
-for lib in launchwrapper-1.8.jar asm-all-4.1.jar jopt-simple-4.5.jar guava-14.0.jar \
-    gson-2.2.2.jar commons-lang3-3.1.jar commons-io-2.4.jar argo-2.25_fixed.jar \
-    lzma-0.0.1.jar \
-    bcprov-jdk15on-1.47.jar authlib-1.5.16.jar log4j-api-2.8.1.jar; do
-    SERVER_CP="$SERVER_CP:$CACHE/$lib"
+fetch_artifact "$UNIVERSAL_NAME" "$UNIVERSAL_URL" "$UNIVERSAL_SHA1"
+
+# ---------------------------------------------------------------------------
+# Server library fetch (both eras; cached+verified is a no-op). The legacy
+# FML relauncher pre-seed below additionally needs asm-all on the cache.
+# ---------------------------------------------------------------------------
+for spec in \
+    "guava-14.0.jar|https://libraries.minecraft.net/com/google/guava/guava/14.0/guava-14.0.jar|67b7be4ee7ba48e4828a42d6d5069761186d4a53" \
+    "gson-2.2.2.jar|https://libraries.minecraft.net/com/google/code/gson/gson/2.2.2/gson-2.2.2.jar|1f96456ca233dec780aa224bff076d8e8bca3908" \
+    "commons-lang3-3.1.jar|https://libraries.minecraft.net/org/apache/commons/commons-lang3/3.1/commons-lang3-3.1.jar|905075e6c80f206bbe6cf1e809d2caa69f420c76" \
+    "commons-io-2.4.jar|https://libraries.minecraft.net/commons-io/commons-io/2.4/commons-io-2.4.jar|b1b6ea3b7e4aa4f492509a4952029cd8e48019ad" \
+    "argo-2.25_fixed.jar|https://libraries.minecraft.net/argo/argo/2.25_fixed/argo-2.25_fixed.jar|751761ce15a3e3aaf3fc75b9f013ff8f7b88a585" \
+    "lzma-0.0.1.jar|https://libraries.minecraft.net/lzma/lzma/0.0.1/lzma-0.0.1.jar|521616dc7487b42bef0e803bd2fa3faf668101d7" \
+    "bcprov-jdk15on-1.47.jar|https://libraries.minecraft.net/org/bouncycastle/bcprov-jdk15on/1.47/bcprov-jdk15on-1.47.jar|b6f5d9926b0afbde9f4dbe3db88c5247be7794bb" \
+    "asm-all-4.1.jar|https://libraries.minecraft.net/org/ow2/asm/asm-all/4.1/asm-all-4.1.jar|054986e962b88d8660ae4566475658469595ef58" \
+    "authlib-1.5.16.jar|https://libraries.minecraft.net/com/mojang/authlib/1.5.16/authlib-1.5.16.jar|ef1582b11fd0943d069cdcb72e99008ac209a283" \
+    "log4j-api-2.8.1.jar|https://libraries.minecraft.net/org/apache/logging/log4j/log4j-api/2.8.1/log4j-api-2.8.1.jar|e801d13612e22cad62a3f4f3fe7fdbe6334a8e72"; do
+    name="${spec%%|*}"
+    url="${spec#*|}"; url="${url%%|*}"
+    sha1="${spec##*|}"
+    fetch_artifact "$name" "$url" "$sha1"
 done
+
+# Merge lanes: pre-seed the FMLRelauncher lib dir (dead fmllibs download
+# otherwise hard-fails the boot — see seed_fml_libdir in lib.sh).
+if [ "${E2E_ERA:-1.6.4-tweaker}" != "1.6.4-tweaker" ]; then
+    seed_fml_libdir "$SERVER_DIR" "$E2E_LANE"
+fi
+
+# ---------------------------------------------------------------------------
+# Server classpath: vanilla server + forge universal + mod + shared libs
+# (the launcher library set minus the client-only lwjgl/paulscode legs;
+# authlib/log4j-api for :common at runtime). The mod jar is deliberately NOT
+# on the classpath — FML discovers it in <serverDir>/mods/.
+# ---------------------------------------------------------------------------
+if [ "${E2E_ERA:-1.6.4-tweaker}" = "1.6.4-tweaker" ]; then
+    SERVER_CP="$E2E_SERVER_JAR:$CACHE/$UNIVERSAL_NAME"
+    for lib in launchwrapper-1.8.jar asm-all-4.1.jar jopt-simple-4.5.jar guava-14.0.jar \
+        gson-2.2.2.jar commons-lang3-3.1.jar commons-io-2.4.jar argo-2.25_fixed.jar \
+        lzma-0.0.1.jar \
+        bcprov-jdk15on-1.47.jar authlib-1.5.16.jar log4j-api-2.8.1.jar; do
+        SERVER_CP="$SERVER_CP:$CACHE/$lib"
+    done
+else
+    # Universal FIRST: the 1.4.7/1.5.2 universal carries the patched
+    # MinecraftServer (FMLRelauncher.handleServerRelaunch bootstrap); the
+    # JVM loads the first class found on the classpath.
+    SERVER_CP="$CACHE/$UNIVERSAL_NAME:$E2E_SERVER_JAR"
+    for lib in guava-14.0.jar \
+        gson-2.2.2.jar commons-lang3-3.1.jar commons-io-2.4.jar argo-2.25_fixed.jar \
+        lzma-0.0.1.jar \
+        bcprov-jdk15on-1.47.jar authlib-1.5.16.jar log4j-api-2.8.1.jar; do
+        SERVER_CP="$SERVER_CP:$CACHE/$lib"
+    done
+fi
 [ -z "$E2E_SERVER_CP_EXTRA" ] || SERVER_CP="$SERVER_CP:$E2E_SERVER_CP_EXTRA"
 
 # ---------------------------------------------------------------------------
 # Boot the real server (bg, own session). FML resolves mods/ relative to the
-# process CWD, so the server MUST run from the server dir (the wrapper runs
+# server's home (CWD on the merge lanes; the tweaker lane's launcher dir is
+# the CWD too), so the server MUST run from the server dir (the wrapper runs
 # from the lane dir).
 # ---------------------------------------------------------------------------
 SERVER_LOG="$SERVER_DIR/server.log"
@@ -98,9 +174,10 @@ e2e_log "booting server (pid tracking via session)..."
     cd "$SERVER_DIR"
     # setsid: own session/PGID so kill_tree (group kill) never hits the
     # wrapper's own process group.
+    # shellcheck disable=SC2086
     exec setsid "$JAVA8_BIN" -Xmx1G -Xms512M \
         -Deverlastingskins.e2e=true \
-        -cp "$SERVER_CP" cpw.mods.fml.relauncher.ServerLaunchWrapper nogui
+        -cp "$SERVER_CP" "$SERVER_MAIN" $SERVER_MAIN_ARGS
 ) > "$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
@@ -115,6 +192,10 @@ e2e_log "server booted (For help, type \"help\")"
 # ---------------------------------------------------------------------------
 # Client driver (era-specific)
 # ---------------------------------------------------------------------------
+# Drop any stale result doc from a previous run: a driver timeout must never
+# be masked by an old driver's result file (observed live: a failed 1.6.4
+# run's doc was asserted as a 1.5.2 pass candidate).
+rm -f "$RESULT_JSON"
 set +e
 E2E_CLIENT_DIR="$RUNNER_TMP/client-$E2E_LANE" \
 E2E_MOD_JAR="$E2E_MOD_JAR" \

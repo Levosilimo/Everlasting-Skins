@@ -17,6 +17,7 @@ import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.Player;
 import levosilimo.everlastingskins.broadcast.ClientSkinHandler;
 import levosilimo.everlastingskins.broadcast.ServerPacketHandler;
+import levosilimo.everlastingskins.e2e.E2E;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
@@ -82,6 +83,13 @@ public class EverlastingSkins {
 
     @Mod.Init
     public void init(FMLInitializationEvent event) {
+        // In-jar E2E support FIRST (shipped-gated by -Deverlastingskins.e2e=true;
+        // no-op in production). It side-gates internally (CLIENT → driver,
+        // SERVER → sentinel hook), so it must run before the client early-return
+        // below — the 1.6.4 lane's original placement after the gate silently
+        // skipped the CLIENT driver (regression fixed in slice 1 for all three
+        // pre-1.8 lanes).
+        E2E.install();
         if (!FMLCommonHandler.instance().getSide().isServer()) {
             // Client process: the client handler is registered by @NetworkMod;
             // no server bootstrap here (the physical side is authoritative —

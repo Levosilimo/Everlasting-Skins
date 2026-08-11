@@ -61,7 +61,13 @@ public final class ClientSkinHandler implements IPacketHandler {
                 // Not spawned yet — the join broadcast re-delivers.
                 return;
             }
-            String skinUrl = target.skinUrl;
+            // skinUrl is declared on Entity; access it through the Entity
+            // type so the reobf pass can map the reference (javac emits the
+            // receiver's declared type as the owner, and the srg FD keys are
+            // the declaring class — EntityPlayer.skinUrl would stay unmapped
+            // and NoSuchFieldError at runtime; found live by the slice-1
+            // 1.5.2 E2E).
+            String skinUrl = ((net.minecraft.src.Entity) target).skinUrl;
             if (skinUrl == null) {
                 return;
             }

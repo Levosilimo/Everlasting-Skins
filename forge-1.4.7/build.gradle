@@ -111,3 +111,58 @@ ext {
 }
 
 apply from: '../harness/specialsource-harness.gradle'
+// ---------------------------------------------------------------------------
+// RUNTIME-COMPAT FIX (slice-1 E2E discovery, mirrored from the 1.6.4 lane):
+// FML 4.7 reads mod-jar classes with its bundled ASM 4.0 (from the FML lib
+// dir), which refuses class files above major version 51 (Java 7). A
+// Java-8-targeted jar is therefore rejected wholesale at boot ("Unable to
+// read a class file correctly ... probably a corrupt zip" — observed live
+// 2026-08-11 against forge-1.4.7-6.6.2.534). The mod must compile against
+// Java 8 APIs (javac 8 forbids source-8 → target-7, and :common uses
+// lambdas/streams), so the shipped jar's class files are downgraded to major
+// 51 in place AFTER reobf. The production 1.5.2 runtime (like the E2E) is
+// Java 8, so the bytecode — including invokedynamic for :common lambdas —
+// executes unchanged; only the version stamp changes.
+// ---------------------------------------------------------------------------
+task downgradeClassVersion(dependsOn: reobf) {
+    group = 'everlastingskins'
+    description = 'Rewrite class-file major version 52 -> 51 in the reobf\'d jar (FML 4.7 ASM cannot read Java 8 class files).'
+    inputs.file jar.archivePath
+    outputs.file jar.archivePath
+    doLast {
+        def jarFile = jar.archivePath
+        def tmp = file("${jarFile}.v51")
+        def zin = new java.util.zip.ZipFile(jarFile)
+        int downgraded = 0
+        def zout = new java.util.zip.ZipOutputStream(new BufferedOutputStream(new FileOutputStream(tmp)))
+        try {
+            zin.entries().each { entry ->
+                if (entry.isDirectory()) {
+                    zout.putNextEntry(new java.util.zip.ZipEntry(entry.name))
+                    zout.closeEntry()
+                    return
+                }
+                def bytes = zin.getInputStream(entry).bytes
+                if (entry.name.endsWith('.class') && bytes.length > 8) {
+                    int major = ((bytes[6] & 0xFF) << 8) | (bytes[7] & 0xFF)
+                    if (major > 51) {
+                        bytes[6] = 0
+                        bytes[7] = 51
+                        downgraded++
+                    }
+                }
+                zout.putNextEntry(new java.util.zip.ZipEntry(entry.name))
+                zout.write(bytes)
+                zout.closeEntry()
+            }
+        } finally {
+            zout.close()
+            zin.close()
+        }
+        if (!jarFile.delete()) throw new GradleException("downgradeClassVersion: could not delete ${jarFile}")
+        if (!tmp.renameTo(jarFile)) throw new GradleException("downgradeClassVersion: could not replace ${jarFile}")
+        logger.lifecycle("downgradeClassVersion: ${downgraded} class files rewritten to major 51 (Java 7) in ${jarFile.name}")
+    }
+}
+// The name-domain self-check javap's the jar — must see the final artifact.
+assertNameDomain.dependsOn downgradeClassVersion
