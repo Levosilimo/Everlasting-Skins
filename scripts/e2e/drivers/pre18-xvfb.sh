@@ -29,6 +29,15 @@
 # -Deverlastingskins.e2e=true) runs the phase machine and writes
 # e2e-result.json into the gameDir.
 #
+# E2E_ROLE selects WHICH in-jar driver boots (lib-23 gap (d), observer
+# fan-out proof):
+#   actor    (default) — -Deverlastingskins.e2e=true, --username TestPlayer
+#             (E2E_USERNAME); result copied to $RUNNER_TMP/e2e-result.json
+#   observer — -Deverlastingskins.e2e.observer=true, --username
+#             ObserverPlayer, NO commands; result copied to
+#             $RUNNER_TMP/e2e-result-observer.json
+# The observer role is used by e2e-common.sh's two-client orchestration.
+#
 # The client jar and every library are fetched into the shared e2e cache
 # with pinned sha1s (client jar sha1 is what keeps the driver's referenced
 # member names stable). Java 8 is a HARD requirement (launchwrapper dies on
@@ -42,7 +51,9 @@
 #   E2E_SERVER_HOST     test server host (default 127.0.0.1)
 #   E2E_SERVER_PORT     test server port (default 25565)
 #   E2E_JAVA8           Java 8 binary (default $JAVA_HOME)
-#   E2E_USERNAME        offline player (default TestPlayer)
+#   E2E_USERNAME        offline player (default TestPlayer; the observer role
+#                       ignores this and uses ObserverPlayer)
+#   E2E_ROLE            actor (default) | observer
 #
 # Exit codes (master-plan contract): 0 all green | 1 assertion failed |
 # 2 retryable infra (boot/join timeout, artifact fetch) | 3 hard failure.
@@ -60,7 +71,24 @@ source "$E2E_DRIVER_DIR/lib.sh"
 : "${E2E_SERVER_PORT:=25565}"
 : "${E2E_JAVA8:?pre18-xvfb.sh: E2E_JAVA8 (Java 8) is required}"
 : "${E2E_USERNAME:=TestPlayer}"
+: "${E2E_ROLE:=actor}"
 : "${E2E_CLIENT_TIMEOUT_S:=300}"
+
+case "$E2E_ROLE" in
+    actor|observer) ;;
+    *) e2e_fail "pre18-xvfb.sh: unknown E2E_ROLE '$E2E_ROLE' (actor|observer)" ;;
+esac
+
+if [ "$E2E_ROLE" = observer ]; then
+    # The observer is a NON-ACTOR client: distinct username (no commands,
+    # no op needed) and the observer in-jar driver (E2EObserverDriver).
+    E2E_USERNAME="ObserverPlayer"
+    E2E_JVM_PROPERTY="-Deverlastingskins.e2e.observer=true"
+    RESULT_COPY="$RUNNER_TMP/e2e-result-observer.json"
+else
+    E2E_JVM_PROPERTY="-Deverlastingskins.e2e=true"
+    RESULT_COPY="$RUNNER_TMP/e2e-result.json"
+fi
 
 # ---------------------------------------------------------------------------
 # Pinned client artifacts per era/lane (lib-8 + slice-1 empirical pinning).
@@ -227,7 +255,6 @@ JAVA8_BIN="$E2E_JAVA8"
 
 export LIBGL_ALWAYS_SOFTWARE=1
 export GALLIUM_DRIVER=llvmpipe
-
 if [ "$E2E_ERA" = "1.6.4-tweaker" ]; then
     e2e_log "launching client (xvfb + Mesa llvmpipe, tweaker model)..."
     # shellcheck disable=SC2086
@@ -235,7 +262,7 @@ if [ "$E2E_ERA" = "1.6.4-tweaker" ]; then
         timeout --kill-after=10 "$E2E_CLIENT_TIMEOUT_S" \
         xvfb-run -a "$JAVA8_BIN" -Xmx1G -Xms512M \
         -Djava.library.path="$E2E_CLIENT_DIR/natives" \
-        -Deverlastingskins.e2e=true \
+        $E2E_JVM_PROPERTY \
         -Dfml.ignoreInvalidMinecraftCertificates=true \
         -Dfml.ignorePatchDiscrepancies=true \
         -cp "$CP" net.minecraft.launchwrapper.Launch \
@@ -299,8 +326,13 @@ if [ ! -f "$RESULT_FILE" ]; then
     exit 2
 fi
 
-cp "$RESULT_FILE" "$RUNNER_TMP/e2e-result.json"
-CODE=$(python3 -c "import json; print(json.load(open('$RESULT_FILE')).get('exit_code', 3))")
+cp "$RESULT_FILE" "$RESULT_COPY"
+if [ "$E2E_ROLE" = observer ]; then
+    CODE=$(python3 -c "import json; print(json.load(open('$RESULT_FILE')).get('observer_exit_code', 3))")
+else
+    CODE=$(python3 -c "import json; print(json.load(open('$RESULT_FILE')).get('exit_code', 3))")
+fi
+e2e_log "driver result ($E2E_ROLE): exit_code=$CODE"
 e2e_log "driver result: exit_code=$CODE"
 kill_tree "$CLIENT_PID" 2>/dev/null || true
 exit "$CODE"

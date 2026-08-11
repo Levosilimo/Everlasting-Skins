@@ -134,6 +134,27 @@ public class E2ESentinelHookTest {
         assertTrue(E2ESentinelHook.isEnabled());
     }
 
+    @Test
+    public void rebroadcastThreadIsDaemonNamedAndBursts() throws Exception {
+        Thread t = E2ESentinelHook.rebroadcastThread(60_000L, 40);
+        assertTrue(t.isDaemon());
+        assertEquals("ES-E2E-rebroadcast", t.getName());
+        // A short-period burst must run to completion (count shots) and
+        // finish; interruption aborts the burst early.
+        Thread t2 = E2ESentinelHook.rebroadcastThread(10L, 3);
+        t2.start();
+        t2.join(5_000L);
+        assertFalse(t2.isAlive());
+        // The broadcast action itself is exercised on the wire by the live
+        // E2E (the observer's fan-out assertion is the end-to-end proof).
+    }
+
+    @Test
+    public void scheduleRebroadcastIsNoopBeforeSeed() {
+        // No cached seed yet — scheduling must not throw or spawn threads.
+        E2ESentinelHook.scheduleRebroadcast();
+    }
+
     private static byte[] sentinelBytes() throws Exception {
         InputStream in = E2ESentinelHookTest.class.getResourceAsStream("/e2e/sentinel-64x32.png");
         assertNotNull("sentinel PNG must be on the test classpath", in);

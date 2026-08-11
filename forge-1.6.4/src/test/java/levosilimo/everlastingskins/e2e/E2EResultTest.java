@@ -67,6 +67,52 @@ public class E2EResultTest {
     }
 
     @Test
+    public void writeObserverProducesAdditiveContractJson() throws Exception {
+        File dir = new File(System.getProperty("java.io.tmpdir"), "e2e-result-observer-" + System.nanoTime());
+        assertTrue(dir.mkdirs());
+        try {
+            File out = new File(dir, "e2e-result.json");
+            Map<String, String> artifacts = new LinkedHashMap<String, String>();
+            artifacts.put("driver", "E2EObserverDriver/1.6.4");
+            artifacts.put("broadcast", "received");
+            artifacts.put("wire_png_matches_sentinel", "true");
+            E2EResult.writeObserver(out, true, "sentinel", true, 54321L, 0, artifacts);
+
+            String json = new String(java.nio.file.Files.readAllBytes(out.toPath()), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"lane\":\"1.6.4\""));
+            assertTrue(json.contains("\"server_booted\":false"));
+            assertTrue(json.contains("\"observer_joined\":true"));
+            assertTrue(json.contains("\"observer_renderer_state\":\"sentinel\""));
+            assertTrue(json.contains("\"observer_renderer_verified\":true"));
+            assertTrue(json.contains("\"observer_duration_ms\":54321"));
+            assertTrue(json.contains("\"observer_exit_code\":0"));
+            assertTrue(json.contains("\"wire_png_matches_sentinel\":\"true\""));
+            // The observer doc must NOT carry actor fields (additive contract).
+            assertFalse(json.contains("client_joined"));
+            assertFalse(json.contains("command_executed"));
+        } finally {
+            deleteRecursively(dir);
+        }
+    }
+
+    @Test
+    public void writeObserverFailureState() throws Exception {
+        File dir = new File(System.getProperty("java.io.tmpdir"), "e2e-result-observer-fail-" + System.nanoTime());
+        assertTrue(dir.mkdirs());
+        try {
+            File out = new File(dir, "e2e-result.json");
+            E2EResult.writeObserver(out, false, "handler-injection-missing", false, 999L, 1, null);
+            String json = new String(java.nio.file.Files.readAllBytes(out.toPath()), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"observer_joined\":false"));
+            assertTrue(json.contains("\"observer_renderer_state\":\"handler-injection-missing\""));
+            assertTrue(json.contains("\"observer_renderer_verified\":false"));
+            assertTrue(json.contains("\"observer_exit_code\":1"));
+        } finally {
+            deleteRecursively(dir);
+        }
+    }
+
+    @Test
     public void jsonEscapesQuotesAndBackslashes() {
         Map<String, Object> doc = new LinkedHashMap<String, Object>();
         doc.put("note", "a \"quoted\" \\ path");
