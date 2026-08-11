@@ -38,8 +38,10 @@ import java.util.UUID;
  * <p>Restore mechanism: 1.6.4 has no GameProfile textures to inject — the
  * legacy skins.minecraft.net username-keyed path is dead (Mojang shutdown),
  * so the lane re-broadcasts the stored skin over the FML 7.x channel on
- * login ({@link SkinBroadcaster}), the notification surface for companion
- * clients. This is the lane's net-new adapter logic (no sibling lane has it).
+ * login ({@link SkinBroadcaster}) with the REAL flattened PNG bytes (lib-5
+ * joint client side, PR #422): the companion client handler in the same jar
+ * decodes the payload and injects the pixels into the era renderer. This is
+ * the lane's net-new adapter logic (no sibling lane has it).
  */
 public final class SkinRestorer {
 
@@ -95,8 +97,9 @@ public final class SkinRestorer {
     }
 
     /**
-     * Player-keyed login: re-broadcast the stored skin over the channel when
-     * one exists (the 1.6.4 restore surface — no GameProfile to mutate).
+     * Player-keyed login: re-broadcast the stored skin (with its PNG bytes)
+     * over the channel when one exists (the 1.6.4 restore surface — no
+     * GameProfile to mutate).
      */
     public static void onPlayerLoggedIn(EntityPlayer player) {
         SkinStorage s = storage;
@@ -106,7 +109,8 @@ public final class SkinRestorer {
         UUID uuid = uuidOf(player.getCommandSenderName());
         CustomSkinProperty skin = s.getSkin(uuid);
         if (skin != null) {
-            SkinBroadcaster.broadcastProfileChange(player);
+            SkinBroadcaster.broadcastProfileChange(player.getCommandSenderName(),
+                SkinTextureFetcher.fetchLegacyPng(skin));
         }
     }
 
@@ -146,6 +150,23 @@ public final class SkinRestorer {
             return;
         }
         s.setSkin(uuid, skin);
+    }
+
+    /**
+     * Command-layer accessor: stores the skin AND broadcasts the real PNG
+     * bytes to all clients (live update — no re-login needed). Username-keyed
+     * variant of {@link #applySkin(UUID, CustomSkinProperty)}: 1.6.4 has no
+     * account UUID, the offline bridge derives the storage key.
+     */
+    public static void applySkin(String username, CustomSkinProperty skin) {
+        applySkin(uuidOf(username), skin);
+        if (skin == null || skin.isEmpty()) {
+            return; // cleared — nothing to render
+        }
+        byte[] png = SkinTextureFetcher.fetchLegacyPng(skin);
+        if (png != null) {
+            SkinBroadcaster.broadcastProfileChange(username, png);
+        }
     }
 
     /** Command-layer accessor: removes the stored skin. */

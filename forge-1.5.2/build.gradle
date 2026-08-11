@@ -80,6 +80,16 @@ ext {
             [name: 'minecraft_server.1.5.2.jar',
              url: 'https://launcher.mojang.com/v1/objects/f9ae3f651319151ce99a0bfad6b34fa16eb6775f/server.jar',
              algo: 'SHA-1', digest: 'f9ae3f651319151ce99a0bfad6b34fa16eb6775f'],
+            // Joint client-side jar (lib-5 design, PR #422): the mod is no
+            // longer serverSideOnly — the same jar carries a client packet
+            // handler that injects skin PNGs into the era renderer. The vanilla
+            // CLIENT jar is vendored + deobf'd (harness clientInput) and added
+            // to the compile classpath after the server-first merged jar.
+            // sha1 verified against launcher.mojang.com version_manifest 1.5.2
+            // (downloads.client.sha1).
+            [name: 'minecraft_client.1.5.2.jar',
+             url: 'https://launcher.mojang.com/v1/objects/465378c9dc2f779ae1d6e8046ebc46fb53a57968/client.jar',
+             algo: 'SHA-1', digest: '465378c9dc2f779ae1d6e8046ebc46fb53a57968'],
         ],
         mcpVersion: '7.51',
         archiveBaseName: 'everlastingskins-1.5.2',

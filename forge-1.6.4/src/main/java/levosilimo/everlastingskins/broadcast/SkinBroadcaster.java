@@ -6,62 +6,50 @@
 
 package levosilimo.everlastingskins.broadcast;
 
-import cpw.mods.fml.common.network.IPacketHandler;
-import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.PacketDispatcher;
-import cpw.mods.fml.common.network.Player;
-import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.INetworkManager;
 import net.minecraft.src.Packet;
-import net.minecraft.src.Packet250CustomPayload;
 
 /**
  * 1.6.4 skin-broadcast channel (FML 7.x custom-payload surface).
  *
  * <p>FML 7.x has no netty {@code SimpleNetworkWrapper} (that is 1.8+) and no
- * {@code newChannel} on {@link NetworkRegistry} — the 1.6.4 surface is
- * {@code NetworkRegistry.instance().registerChannel(IPacketHandler, String)}
- * with {@link Packet250CustomPayload} payloads, sent via
- * {@link PacketDispatcher}. The channel name must be ≤ 16 chars
- * (NetworkRegistry.java:100-105 throws beyond that); {@code everlastingskins}
- * is exactly 16 — at the ceiling, never lengthen it.
+ * {@code newChannel} — the 1.6.4 surface is
+ * {@code Packet250CustomPayload} payloads, sent via {@link PacketDispatcher}.
+ * The channel name must be ≤ 16 chars (NetworkRegistry.java:100-105 throws
+ * beyond that); {@code everlastingskins} is exactly 16 — at the ceiling,
+ * never lengthen it.
  *
- * <p>Payloads carry the target player's username
- * ({@link SkinMessage#encode(String, byte[])}); the client-side handler would
- * re-fetch the skin (server-side mod: the channel is the notification
- * surface, matching the sibling lanes' broadcast contract). The registered
- * {@link IPacketHandler} is a server-side no-op — 1.6.4 clients never send
- * on this channel.
+ * <p>CHANNEL OWNERSHIP: since the joint client side landed (lib-5, PR #422)
+ * the channel is registered by the {@code @NetworkMod} joint pattern on the
+ * @Mod class — {@link ClientSkinHandler} on client processes,
+ * {@link ServerPacketHandler} on server processes — NOT by a manual
+ * {@code registerChannel} here (a universal no-op registration would shadow
+ * the client-side dispatch). {@link #broadcastProfileChange} only sends.
+ *
+ * <p>Payloads carry the target player's username AND the flattened 64x32 PNG
+ * bytes ({@link SkinMessage#encode(String, byte[])}); the client handler
+ * decodes and injects the pixels. Payload cap: 32766 bytes
+ * (Packet250CustomPayload 2-byte length, MC-16910) — a flattened 64x32 PNG is
+ * ≈ 1-4 KB, far under the cap; oversized payloads are dropped defensively.
  */
 public final class SkinBroadcaster {
 
     public static final String CHANNEL = "everlastingskins";
 
-    private static volatile boolean registered;
+    /** Packet250CustomPayload 2-byte length cap (MC-16910). */
+    private static final int MAX_PAYLOAD_BYTES = 32766;
 
     private SkinBroadcaster() {}
 
-    /** Registers the channel; safe to call once per JVM (idempotent). */
-    public static void init() {
-        if (registered) {
+    /** Broadcasts a skin-change payload for {@code playerName} to all players. */
+    public static void broadcastProfileChange(String playerName, byte[] pngBytes) {
+        byte[] payload = SkinMessage.encode(playerName, pngBytes);
+        if (payload.length > MAX_PAYLOAD_BYTES) {
+            System.err.println("EverlastingSkins: skin payload for '" + playerName
+                + "' exceeds " + MAX_PAYLOAD_BYTES + " bytes — dropped");
             return;
         }
-        NetworkRegistry.instance().registerChannel(new ServerPacketHandler(), CHANNEL);
-        registered = true;
-    }
-
-    /** Broadcasts a skin-change notification for {@code target} to all players. */
-    public static void broadcastProfileChange(EntityPlayer target) {
-        byte[] payload = SkinMessage.encode(target.getCommandSenderName(), null);
         Packet packet = PacketDispatcher.getPacket(CHANNEL, payload);
         PacketDispatcher.sendPacketToAllPlayers(packet);
-    }
-
-    /** Server-side no-op: the mod is serverSideOnly (FML 7.x). */
-    private static final class ServerPacketHandler implements IPacketHandler {
-        @Override
-        public void onPacketData(INetworkManager manager, Packet250CustomPayload packet, Player player) {
-            // No client→server traffic on this channel.
-        }
     }
 }

@@ -148,6 +148,11 @@ CLIENT_PID=$(start_guarded "$CLIENT_LOG" \
     --server "$E2E_SERVER_HOST" --port "$E2E_SERVER_PORT")
 
 RESULT_FILE="$E2E_CLIENT_DIR/e2e-result.json"
+# Stale-result guard (discovered during audit remediation verification): the
+# driver-wait loop below accepts ANY existing result file, so a leftover
+# e2e-result.json from a previous run short-circuits the wait and produces a
+# false pass. Remove it before launch so the wait is honest.
+rm -f "$RESULT_FILE"
 
 # ---------------------------------------------------------------------------
 # Wait for the driver's result file (boot + join + renderer assertion)

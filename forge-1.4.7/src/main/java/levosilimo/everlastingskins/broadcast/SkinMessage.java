@@ -45,6 +45,12 @@ public final class SkinMessage {
     /**
      * Wire format: [utf8 username][int png length][png bytes]. A null PNG
      * encodes as length 0 (notification-only broadcast).
+     *
+     * <p>Every length prefix is bounds-checked against the remaining unread
+     * payload BEFORE allocation ({@link #checkLength}), so a corrupted or
+     * malicious prefix fails with {@link IllegalArgumentException} instead
+     * of an {@link OutOfMemoryError} on the packet thread (lib-18 audit
+     * remediation).
      */
     public static byte[] encode(String playerName, byte[] texturePng) {
         try {
@@ -70,9 +76,11 @@ public final class SkinMessage {
         try {
             DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload));
             int nameLen = in.readInt();
+            checkLength(nameLen, payload.length - 4, "name");
             byte[] name = new byte[nameLen];
             in.readFully(name);
             int pngLen = in.readInt();
+            checkLength(pngLen, payload.length - 8 - nameLen, "png");
             byte[] png = null;
             if (pngLen > 0) {
                 png = new byte[pngLen];
@@ -81,6 +89,20 @@ public final class SkinMessage {
             return new SkinMessage(new String(name, StandardCharsets.UTF_8), png);
         } catch (IOException e) {
             throw new IllegalArgumentException("Malformed SkinMessage payload", e);
+        }
+    }
+
+    /**
+     * Bounds guard for a length-prefixed field: rejects any length prefix
+     * that is negative or exceeds the remaining unread payload BEFORE the
+     * array allocation. The client handler catches
+     * {@link IllegalArgumentException}; an {@link OutOfMemoryError} would
+     * escape {@code catch (Exception)} and kill the network thread.
+     */
+    private static void checkLength(int len, int remaining, String field) {
+        if (len < 0 || len > remaining) {
+            throw new IllegalArgumentException("Malformed SkinMessage payload: " + field
+                + " length " + len + " exceeds remaining " + remaining + " bytes");
         }
     }
 }

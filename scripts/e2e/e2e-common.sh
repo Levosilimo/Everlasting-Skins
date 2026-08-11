@@ -140,23 +140,31 @@ kill_tree "$SERVER_PID" 2>/dev/null || true
 SERVER_PID=""
 
 assemble_result "true" "$RESULT_JSON"
+
+# Driver exit code FIRST (audit lib-20): the driver's exit_code is the
+# authoritative mid-flow outcome and must be interpreted BEFORE the hard
+# assert gates. Otherwise a join/broadcast timeout (exit 2 — the CI backoff
+# target) collapses to exit 1 under the first failing gate, making retries
+# impossible. Contract (master plan): 0 all green | 1 assertion failed |
+# 2 retryable infra | 3 build failure (script-side, e2e_fail).
+DRIVER_FINAL_CODE=$(result_exit_code)
+if [ "$DRIVER_FINAL_CODE" -eq 2 ]; then
+    e2e_warn "RETRYABLE: driver reported infra failure (exit 2)"
+    exit 2
+fi
+if [ "$DRIVER_FINAL_CODE" -ne 0 ]; then
+    e2e_warn "FAIL: driver exit code $DRIVER_FINAL_CODE"
+    exit 1
+fi
+
+# exit_code == 0: only now run the hard assert gates (missing/invalid
+# fields on a passing driver still exit 1).
 assert_result "server_booted" "True"
 assert_result "client_joined" "True"
 assert_result "command_executed" "True"
 assert_result "renderer_state" "sentinel"
 assert_result "renderer_verified" "True"
 
-FINAL_CODE=$(result_exit_code)
-e2e_log "e2e complete: exit_code=$FINAL_CODE duration_ms=$(python3 -c "import json; print(json.load(open('$RESULT_JSON')).get('duration_ms'))")"
-
-# Master-plan exit-code contract.
-if [ "$FINAL_CODE" -eq 0 ]; then
-    e2e_log "PASS: real-client E2E ($E2E_LANE) all green"
-    exit 0
-fi
-if [ "$FINAL_CODE" -eq 2 ]; then
-    e2e_warn "RETRYABLE: driver reported infra failure (exit 2)"
-    exit 2
-fi
-e2e_warn "FAIL: driver exit code $FINAL_CODE"
-exit 1
+e2e_log "e2e complete: exit_code=0 duration_ms=$(python3 -c "import json; print(json.load(open('$RESULT_JSON')).get('duration_ms'))")"
+e2e_log "PASS: real-client E2E ($E2E_LANE) all green"
+exit 0
