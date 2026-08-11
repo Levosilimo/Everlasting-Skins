@@ -242,7 +242,10 @@ longer a stub: mc1.12.2/test-infrastructure/run-e2e.sh builds the lane,
 boots a real Forge 14.23.5.2847 server with the mod, launches a
 HeadlessMC client (TestPlayer) under xvfb, and asserts on the server
 log that the server booted, the client joined, and the FML handshake
-mod-list line names everlastingskins; PR #376), and out-of-band
+mod-list line names everlastingskins; PR #376), a real-client E2E program
+for the pre-1.8 lanes is in progress (master plan
+`.slim/deepwork/real-client-e2e-plan.md`, Slice 1 = 1.6.4) — no CI job
+exists until it lands, and out-of-band
 `Build (forge-1.8.9)` / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` /
 `Build (forge-1.7.10)` / `Build (forge-1.18.2)` / `Build (forge-1.10.2)` /
 `Build (forge-1.6.4)` / `Build (forge-1.5.2)` / `Build (forge-1.4.7)`

@@ -1,6 +1,7 @@
 # Everlasting Skins
 
-Server-side persistent custom skins for Forge — no client mod.
+Server-side persistent custom skins for Forge — no client mod on 1.7.10+;
+on 1.4.7–1.6.4 install the same JAR on the client too.
 
 [![CurseForge](https://cf.way2muchnoise.eu/versions/538149.svg)](https://www.curseforge.com/minecraft/mc-mods/everlasting-skins)
 [![Modrinth](https://img.shields.io/modrinth/dt/everlasting-skins?label=Modrinth)](https://modrinth.com/mod/everlasting-skins)
@@ -11,8 +12,10 @@ Server-side persistent custom skins for Forge — no client mod.
 
 Everlasting Skins gives players custom skins that persist on pure Forge
 servers. A player sets a skin once; the server stores it and re-applies it on
-every login and across server restarts. **It is server-side only — players do
-not need to install anything on their client.**
+every login and across server restarts. **On 1.7.10 and newer it is
+server-side only — players do not need to install anything on their client.**
+On 1.4.7–1.6.4 (pre-1.8) the same mod JAR must also be installed on the
+client (see [Pre-1.8 client install](#pre-18-client-install)).
 
 ## Install
 
@@ -23,7 +26,9 @@ not need to install anything on their client.**
 4. Restart the server.
 
 The server must already run Forge for your Minecraft version. That is all —
-no client mod, no plugins.
+no client mod, no plugins — on 1.7.10 and newer. Pre-1.8 versions
+(1.4.7–1.6.4) additionally need the same JAR in the client's `mods/` folder;
+see [Pre-1.8 client install](#pre-18-client-install).
 
 ### Supported versions
 
@@ -54,7 +59,7 @@ restart, and even if the server runs in offline mode.
 
 ## Commands
 
-### 1.16.5 and newer (incl. 1.18.2, 1.20.1, 1.21.x, 26.x)
+Every supported version shares the same command surface:
 
 | Command | Description |
 |---|---|
@@ -63,37 +68,31 @@ restart, and even if the server runs in offline mode.
 | `/skin set random [cape] [variant] [targets]` | Apply a random skin (optionally with a cape or a specific variant) |
 | `/skin source [target]` | Show where your current skin comes from |
 | `/skin clear [targets]` | Restore your Mojang-registered skin (or your default if offline) |
-| `/skin metrics` | Per-player skin metrics (admin) |
+| `/skin metrics [json\|players\|cleanup\|reset]` | Per-player skin metrics (admin) |
 
 `[targets]` is one or more player names and requires the "other" permission
 (see below). There is no `/skin reset` — `clear` is the command.
 
-### 1.12.2
+### Version notes
 
-Same surface: `/skin set mojang <name>`, `/skin set web <classic|slim> <url>`,
-`/skin set random [cape] [variant]`, `/skin clear`, `/skin source`,
-`/skin metrics`.
+- **1.7.10 and newer** (1.8.9, 1.10.2, 1.12.2, 1.16.5, 1.18.2, 1.20.1, 1.21.x,
+  26.x): the full surface above. Skins render through GameProfile textures —
+  no client mod needed.
+- **1.4.7 – 1.6.4 (pre-1.8):** the same surface minus one era limitation:
+  `/skin set web` is rejected with an explanation (URL-based skin generation
+  does not exist on this line). `/skin set random` picks and stores a random
+  skin like everywhere else. Rendering needs the mod on the client too
+  ([below](#pre-18-client-install)) — a vanilla client sees the default
+  Steve skin, because the custom channel is dropped.
 
-### 1.4.7 – 1.7.10 (legacy)
+### Pre-1.8 client install
 
-| Command | Description |
-|---|---|
-| `/skin set <username> [player]` | Apply a Mojang account's skin |
-| `/skin clear [player]` | Restore the Mojang-registered skin |
-| `/skin source [player]` | Show the current skin source |
-
-### 1.8.9 and 1.10.2 (admin-only)
-
-These two versions expose an admin surface only:
-
-```
-/everlastingskins status|reload|help
-```
-
-Aliases: `/eskins`, `/es`.
-
-Older versions (≤ 1.12.2) have a smaller command surface — see the files page
-for your version.
+These versions have no GameProfile textures, so the server alone cannot make
+custom skins appear. Install the same `everlastingskins-<mc>-<version>.jar`
+in the client's `mods/` folder as well — the joint client mod then renders
+stored skins through its own channel (cape rendering is in progress). The
+server still stores and clears skins without the client JAR, but players
+without it see the default Steve skin.
 
 ## Permissions
 
@@ -109,7 +108,8 @@ for your version.
 - [LuckPerms](https://luckperms.net/) is detected automatically; without a
   permission plugin the mod falls back to op levels. The per-command op levels
   are configurable in `world/serverconfig/everlastingskins-server.toml`
-  (generated on first run).
+  (generated on first run). On 1.4.7–1.6.4 there are no per-player nodes —
+  the op model is the only gate.
 
 ## Offline mode
 
