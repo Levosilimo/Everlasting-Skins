@@ -409,7 +409,11 @@ tasks.jar {
     // :common's compiled output + resources into the shipped jar so every
     // in-root forge-* lane is self-contained again (the out-of-band lanes
     // get this for free via source-dir share).
-    from(project(":common").sourceSets.main.get().output)
+    // lazy: :common's Java plugin may not be applied when a consumer
+    // configures (UnknownDomainObjectException sourceSets [ext] — observed
+    // on every in-root module at configuration time); the provider defers
+    // resolution until the jar task executes, after all projects configure.
+    from(project.provider { project(":common").sourceSets.main.get().output })
     manifest {
         attributes(
             "Timestamp" to System.currentTimeMillis(),
