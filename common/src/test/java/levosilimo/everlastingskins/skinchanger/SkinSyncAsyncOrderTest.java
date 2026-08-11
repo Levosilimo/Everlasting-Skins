@@ -75,16 +75,33 @@ class SkinSyncAsyncOrderTest {
         UUID u = UUID.randomUUID();
         Path target = tempDir.resolve(u + ".json");
 
+        CustomSkinProperty stale = skin("YQ==");
         blockingStorage.setSkin(u, skin("Yg=="));
-        blockingStorage.saveSkinAsync(u, skin("YQ=="));
+        blockingStorage.saveSkinAsync(u, stale);
         // Settle barrier (mirrors the #354 terminal-metric pattern): the drain
         // runs on the lazily-created static writer thread after the 50ms
         // debounce, so on a loaded CI box it can take far longer than 5s to
         // reach the write. Await generously — once writeStarted fires the
         // drain is deterministically blocked holding the single writer thread
         // and every subsequent step is race-free.
-        assertTrue(blockingIO.writeStarted.await(GENEROUS_AWAIT_SECONDS, TimeUnit.SECONDS),
-                "drain must reach the file write before the sync save");
+        //
+        // The one-shot drainScheduled flag is suite-wide static while the
+        // pending map is per-instance, so a suite-mate's in-flight drain can
+        // consume the flag and strand this payload with no drain ever
+        // scheduled — the debounced write never starts (the lib-58
+        // lost-drain race, run 31508299301). Poll the real condition instead
+        // of racing the debounce: re-arm the drain with an idempotent
+        // saveSkinAsync (same payload — the merge is a no-op supersede; a
+        // no-op while the original drain is merely delayed, since the flag is
+        // still set) until writeStarted fires or the generous deadline passes.
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(GENEROUS_AWAIT_SECONDS);
+        while (!blockingIO.writeStarted.await(100, TimeUnit.MILLISECONDS)) {
+            if (System.nanoTime() > deadline) {
+                fail("drain must reach the file write before the sync save (writeStarted never fired within "
+                        + GENEROUS_AWAIT_SECONDS + "s; stillQueued=" + blockingStorage.hasPendingWrites() + ")");
+            }
+            blockingStorage.saveSkinAsync(u, stale); // re-arm: re-schedules the drain
+        }
 
         CountDownLatch syncDone = new CountDownLatch(1);
         ExecutorService saver = Executors.newSingleThreadExecutor();
