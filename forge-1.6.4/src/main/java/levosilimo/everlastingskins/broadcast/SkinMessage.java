@@ -122,11 +122,18 @@ public final class SkinMessage {
      * payload with a real PNG always fails that attempt (its length int
      * over-reads into the PNG magic, exceeding the remaining bytes), so it
      * falls back cleanly to the legacy parse.
+     *
+     * <p>Every length prefix is bounds-checked against the remaining unread
+     * payload BEFORE allocation ({@link #checkLength}), so a corrupted or
+     * malicious prefix fails with {@link IllegalArgumentException} (which
+     * the client handler catches) instead of an {@link OutOfMemoryError}
+     * on the packet thread (lib-18 audit remediation).
      */
     public static SkinMessage decode(byte[] payload) {
         try {
             DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload));
             int nameLen = in.readInt();
+            checkLength(nameLen, payload.length - 4, "name");
             byte[] name = new byte[nameLen];
             in.readFully(name);
             String playerName = new String(name, StandardCharsets.UTF_8);
@@ -142,6 +149,7 @@ public final class SkinMessage {
                 in.readFully(name);
             }
             int pngLen = in.readInt();
+            checkLength(pngLen, payload.length - 8 - nameLen, "png");
             byte[] png = null;
             if (pngLen > 0) {
                 png = new byte[pngLen];
@@ -154,6 +162,20 @@ public final class SkinMessage {
     }
 
     /**
+     * Bounds guard for a length-prefixed field: rejects any length prefix
+     * that is negative or exceeds the remaining unread payload BEFORE the
+     * array allocation. The client handler catches
+     * {@link IllegalArgumentException}; an {@link OutOfMemoryError} would
+     * escape {@code catch (Exception)} and kill the network thread.
+     */
+    private static void checkLength(int len, int remaining, String field) {
+        if (len < 0 || len > remaining) {
+            throw new IllegalArgumentException("Malformed SkinMessage payload: " + field
+                + " length " + len + " exceeds remaining " + remaining + " bytes");
+        }
+    }
+
+    /**
      * Attempts the extended-format parse; returns null (and the caller falls
      * back to the legacy shape) unless the extended parse consumes the whole
      * payload.
@@ -162,12 +184,14 @@ public final class SkinMessage {
         try {
             int flags = in.readUnsignedByte();
             int skinLen = in.readInt();
+            checkLength(skinLen, in.available(), "skin");
             byte[] skin = null;
             if (skinLen > 0) {
                 skin = new byte[skinLen];
                 in.readFully(skin);
             }
             int capeLen = in.readInt();
+            checkLength(capeLen, in.available(), "cape");
             byte[] cape = null;
             if (capeLen > 0) {
                 cape = new byte[capeLen];
@@ -177,7 +201,10 @@ public final class SkinMessage {
                 throw new EOFException("trailing bytes after extended payload");
             }
             return new SkinMessage(playerName, skin, cape);
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
+            // A guard violation makes this a failed extended attempt (a
+            // legacy payload's pngLen-derived skinLen always over-reads) —
+            // fall back to the legacy shape exactly as an EOF would.
             return null;
         }
     }
