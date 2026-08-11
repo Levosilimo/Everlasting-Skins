@@ -69,6 +69,53 @@ fetch_artifact() {
 }
 
 # ---------------------------------------------------------------------------
+# FML 4.7/5.2 relauncher library pre-seed (MERGE-era lanes only)
+# ---------------------------------------------------------------------------
+# The legacy FMLRelauncher (1.4.7/1.5.2) demands its CoreFMLLibraries set in
+# <home>/lib with BYTE-EXACT checksums and hard-fails when a download fails
+# or an existing file mismatches — and the original
+# files.minecraftforge.net/fmllibs host has been dead (404 HTML) for years.
+# files.prismlauncher.org/fmllibs (PrismLauncher's legacy FML mirror)
+# carries the identical bytes; every sha1 below was verified against FML's
+# hardcoded checksums (CoreFMLLibraries static{}). The 1.5.2
+# deobfuscation_data zip is the REAL srg (FML 5.2's remapper is checksum-
+# enforced, so the 1.6.4-style identity path is unavailable): every class
+# through the RelaunchClassLoader is remapped obf→srg consistently — MC,
+# FML and the reobf'd mod alike — which keeps the reobf'd jar coherent.
+seed_fml_libdir() {
+    local target="$1" lane="$2"
+    mkdir -p "$target/lib"
+    local base="https://files.prismlauncher.org/fmllibs"
+    case "$lane" in
+        1.5.2)
+            fetch_artifact "argo-small-3.2.jar" "$base/argo-small-3.2.jar" "58912ea2858d168c50781f956fa5b59f0f7c6b51"
+            fetch_artifact "guava-14.0-rc3.jar" "$base/guava-14.0-rc3.jar" "931ae21fa8014c3ce686aaa621eae565fefb1a6a"
+            fetch_artifact "asm-all-4.1.jar" "$base/asm-all-4.1.jar" "054986e962b88d8660ae4566475658469595ef58"
+            fetch_artifact "bcprov-jdk15on-148.jar" "$base/bcprov-jdk15on-148.jar" "960dea7c9181ba0b17e8bab0c06a43f0a5f04e65"
+            fetch_artifact "scala-library.jar" "$base/scala-library.jar" "458d046151ad179c85429ed7420ffb1eaf6ddf85"
+            fetch_artifact "deobfuscation_data_1.5.2.zip" "$base/deobfuscation_data_1.5.2.zip" "446e55cd986582c70fcf12cb27bc00114c5adfd9"
+            for f in argo-small-3.2.jar guava-14.0-rc3.jar asm-all-4.1.jar \
+                bcprov-jdk15on-148.jar scala-library.jar deobfuscation_data_1.5.2.zip; do
+                cp "$E2E_CACHE_DIR/$lane/$f" "$target/lib/$f"
+            done
+            ;;
+        1.4.7)
+            fetch_artifact "argo-2.25.jar" "$base/argo-2.25.jar" "bb672829fde76cb163004752b86b0484bd0a7f4b"
+            fetch_artifact "guava-12.0.1.jar" "$base/guava-12.0.1.jar" "b8e78b9af7bf45900e14c6f958486b6ca682195f"
+            fetch_artifact "asm-all-4.0.jar" "$base/asm-all-4.0.jar" "98308890597acb64047f7e896638e0d98753ae82"
+            fetch_artifact "bcprov-jdk15on-147.jar" "$base/bcprov-jdk15on-147.jar" "b6f5d9926b0afbde9f4dbe3db88c5247be7794bb"
+            for f in argo-2.25.jar guava-12.0.1.jar asm-all-4.0.jar bcprov-jdk15on-147.jar; do
+                cp "$E2E_CACHE_DIR/$lane/$f" "$target/lib/$f"
+            done
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    e2e_log "FML lib dir pre-seeded: $(basename "$target")/lib ($(ls "$target/lib" | tr '\n' ' '))"
+}
+
+# ---------------------------------------------------------------------------
 # Result contract helpers
 # ---------------------------------------------------------------------------
 # assemble_result <server_booted> — merges script-side facts into the final

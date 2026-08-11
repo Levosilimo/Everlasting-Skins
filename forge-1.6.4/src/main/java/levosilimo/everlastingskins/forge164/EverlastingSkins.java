@@ -79,6 +79,13 @@ public class EverlastingSkins {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
+        // In-jar E2E support FIRST (shipped-gated by -Deverlastingskins.e2e=true;
+        // no-op in production). It side-gates internally (CLIENT → driver,
+        // SERVER → sentinel hook), so it must run before the client early-return
+        // below — the placement after the gate (introduced by #426's joint-jar
+        // side-guard) silently skipped the CLIENT driver; fixed in slice 1 for
+        // all three pre-1.8 lanes.
+        E2E.install();
         if (!FMLCommonHandler.instance().getSide().isServer()) {
             // Client process: the client handler is registered by @NetworkMod;
             // no server bootstrap here (the physical side is authoritative —
@@ -89,9 +96,6 @@ public class EverlastingSkins {
         // :common removed init() — per-version bootstrap registers candidates
         // itself; highest priority wins (Forge ops 10 > vanilla fallback 0).
         ForgePermissionService.register();
-        // In-jar E2E support (shipped-gated by -Deverlastingskins.e2e=true;
-        // no-op in production).
-        E2E.install();
         // Pre-1.7 player join/leave hook (no PlayerEvent on this line). The
         // broadcast channel itself is owned by @NetworkMod.
         NetworkRegistry.instance().registerConnectionHandler(new ConnectionHandler());
