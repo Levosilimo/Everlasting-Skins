@@ -8,6 +8,8 @@ package levosilimo.everlastingskins.broadcast;
 
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -68,6 +70,38 @@ public class SkinMessageTest {
     @Test(expected = IllegalArgumentException.class)
     public void malformedPayloadThrows() {
         SkinMessage.decode(new byte[]{0, 1, 2, 3});
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void malformedNameLengthRejectedBeforeAllocation() throws Exception {
+        // nameLen = 2^31-1: the bounds guard must reject it (an
+        // IllegalArgumentException the client handler catches), not
+        // allocate ~2 GiB and OOM the packet thread (lib-18 audit).
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        new DataOutputStream(bos).writeInt(Integer.MAX_VALUE);
+        SkinMessage.decode(bos.toByteArray());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void negativeNameLengthRejectedBeforeAllocation() throws Exception {
+        // nameLen = -1 (unsigned 0xFFFFFFFF): the len >= 0 half of the guard.
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        new DataOutputStream(bos).writeInt(-1);
+        SkinMessage.decode(bos.toByteArray());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void malformedPngLengthRejectedBeforeAllocation() throws Exception {
+        // pngLen = 2^31-1: the bounds guard must reject it before the
+        // allocation (lib-18 audit).
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        byte[] name = "Legacy".getBytes(StandardCharsets.UTF_8);
+        out.writeInt(name.length);
+        out.write(name);
+        out.writeInt(Integer.MAX_VALUE);
+        out.flush();
+        SkinMessage.decode(bos.toByteArray());
     }
 
     @Test
