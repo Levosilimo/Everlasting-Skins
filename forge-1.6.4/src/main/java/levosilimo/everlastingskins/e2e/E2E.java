@@ -18,6 +18,9 @@ import cpw.mods.fml.relauncher.Side;
  * <ul>
  *   <li>CLIENT → {@link E2EDriver} (phase machine, channel receiver,
  *       renderer assertion, result file + {@code System.exit});</li>
+ *   <li>CLIENT + {@code -Deverlastingskins.e2e.observer=true} →
+ *       {@link E2EObserverDriver} (second-observer client: no commands,
+ *       asserts the REAL handler's wire injection — lib-23 gap (d));</li>
  *   <li>SERVER → {@link E2ESentinelHook} (sentinel pre-seed so the login
  *       re-broadcast delivers it).</li>
  * </ul>
@@ -31,10 +34,16 @@ public final class E2E {
 
     /** One-line gated entry from the mod's {@code @Mod.EventHandler init}. */
     public static void install() {
+        Side side = FMLCommonHandler.instance().getSide();
+        // Observer role is a client-only, explicitly-gated alternative to the
+        // actor driver (the observer never runs /skin).
+        if (side == Side.CLIENT && Boolean.getBoolean(E2EObserverDriver.OBSERVER_PROPERTY)) {
+            E2EObserverDriver.install();
+            return;
+        }
         if (!Boolean.getBoolean(E2E_PROPERTY)) {
             return;
         }
-        Side side = FMLCommonHandler.instance().getSide();
         if (side == Side.CLIENT) {
             E2EDriver.install();
         } else if (side == Side.SERVER) {

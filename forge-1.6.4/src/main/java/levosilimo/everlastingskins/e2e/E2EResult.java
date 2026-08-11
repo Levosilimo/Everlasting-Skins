@@ -122,6 +122,30 @@ public final class E2EResult {
         Files.write(target.toPath(), toJson(doc).getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Writes the OBSERVER client's result document (second-observer client,
+     * lib-23 gap (d): the observer runs no commands and proves the broadcast
+     * fan-out by asserting the REAL {@code ClientSkinHandler}'s wire
+     * injection into the target player's TDI). Fields are additive and
+     * {@code observer_}-prefixed so {@code scripts/e2e/e2e-common.sh} can
+     * merge them into the actor's document without touching any actor
+     * field (backward-compatible result contract).
+     */
+    public static void writeObserver(File target, boolean observerJoined, String rendererState,
+                                     boolean rendererVerified, long durationMs, int exitCode,
+                                     Map<String, String> artifacts) throws IOException {
+        Map<String, Object> doc = new LinkedHashMap<String, Object>();
+        doc.put("lane", "1.6.4");
+        doc.put("server_booted", false); // client cannot know; script merges
+        doc.put("observer_joined", observerJoined);
+        doc.put("observer_renderer_state", rendererState == null ? "none" : rendererState);
+        doc.put("observer_renderer_verified", rendererVerified);
+        doc.put("observer_duration_ms", durationMs);
+        doc.put("observer_exit_code", exitCode);
+        doc.put("observer_artifacts", artifacts == null ? new LinkedHashMap<String, String>() : artifacts);
+        Files.write(target.toPath(), toJson(doc).getBytes(StandardCharsets.UTF_8));
+    }
+
     /** Minimal JSON emitter (no gson dependency on the legacy classpath is guaranteed at boot). */
     public static String toJson(Map<String, Object> doc) {
         StringBuilder sb = new StringBuilder("{");

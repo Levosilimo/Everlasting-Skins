@@ -4,10 +4,16 @@
 #
 # Flow: prepare server dir (mods/, sentinel, server.properties) → boot the
 # real server (bg) → wait for the vanilla "For help, type \"help\"" boot
-# line → invoke the era client driver script → merge the driver's
-# gameDir result into ${RUNNER_TMP}/e2e-result.json → assert the contract
-# fields → map exit codes (0 all green | 1 assertion failed | 2 retryable
-# infra | 3 build/hard failure).
+# line → launch the OBSERVER client (no commands) and wait for its join
+# marker → launch the ACTOR client (era driver) → wait for BOTH result
+# files → merge actor + observer documents into
+# ${RUNNER_TMP}/e2e-result.json (observer_* fields additive) → assert the
+# contract fields → map exit codes (0 all green | 1 assertion failed | 2
+# retryable infra | 3 build/hard failure). The serialized launch (observer
+# FIRST) makes the fan-out delivery deterministic: the observer is in-world
+# before the actor joins, so the sentinel hook's post-connection
+# re-broadcast lands the PNG on the wire after the actor is spawned on the
+# observer (lib-23 gap (d) coverage).
 #
 # Era deltas (E2E_ERA, default "1.6.4-tweaker"):
 #   - 1.6.4-tweaker: server boots as cpw.mods.fml.relauncher.ServerLaunchWrapper
@@ -166,6 +172,11 @@ cleanup() {
     if [ -n "$SERVER_PID" ]; then
         kill_tree "$SERVER_PID" 2>/dev/null || true
     fi
+    # The observer script's own client is reaped by its 420s timeout if this
+    # run fails early (no pkill by project policy).
+    if [ -n "${OBSERVER_SCRIPT_PID:-}" ]; then
+        kill "$OBSERVER_SCRIPT_PID" 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
 
@@ -190,7 +201,41 @@ fi
 e2e_log "server booted (For help, type \"help\")"
 
 # ---------------------------------------------------------------------------
-# Client driver (era-specific)
+# Observer client FIRST (serialized launch, lib-23 gap (d)): the observer
+# must be in-world BEFORE the actor joins, so the sentinel hook's delayed
+# re-broadcast (10s after the actor's connection) lands the PNG on the wire
+# after the actor is spawned in the observer's world. The observer runs NO
+# commands; its join marker (ES_E2E_JOIN in its client log) gates the actor
+# launch.
+# ---------------------------------------------------------------------------
+OBSERVER_DIR="$RUNNER_TMP/client-$E2E_LANE-observer"
+OBSERVER_LOG="$OBSERVER_DIR/client.log"
+OBSERVER_RESULT="$RUNNER_TMP/e2e-result-observer.json"
+OBSERVER_SCRIPT_PID=""
+# The observer's process budget is longer than the actor's: its assert phase
+# polls the TDI until the actor's re-broadcast injection lands.
+set +e
+E2E_CLIENT_DIR="$OBSERVER_DIR" \
+E2E_ROLE=observer \
+E2E_CLIENT_TIMEOUT_S=420 \
+E2E_MOD_JAR="$E2E_MOD_JAR" \
+E2E_SENTINEL_PNG="$E2E_SENTINEL_PNG" \
+E2E_SERVER_HOST="127.0.0.1" \
+E2E_SERVER_PORT="$E2E_SERVER_PORT" \
+E2E_JAVA8="$JAVA8_BIN" \
+bash "$E2E_DRIVER_SCRIPT" &
+OBSERVER_SCRIPT_PID=$!
+set -e
+
+if ! wait_for_log "$OBSERVER_LOG" 'ES_E2E_JOIN' 240; then
+    e2e_warn "observer join timeout (tail of observer client.log follows)"
+    tail -n 40 "$OBSERVER_LOG" >&2 || true
+    exit 2
+fi
+e2e_log "observer joined (ES_E2E_JOIN)"
+
+# ---------------------------------------------------------------------------
+# Actor client (era-specific) — launched only after the observer is in-world.
 # ---------------------------------------------------------------------------
 # Drop any stale result doc from a previous run: a driver timeout must never
 # be masked by an old driver's result file (observed live: a failed 1.6.4
@@ -198,6 +243,7 @@ e2e_log "server booted (For help, type \"help\")"
 rm -f "$RESULT_JSON"
 set +e
 E2E_CLIENT_DIR="$RUNNER_TMP/client-$E2E_LANE" \
+E2E_ROLE=actor \
 E2E_MOD_JAR="$E2E_MOD_JAR" \
 E2E_SENTINEL_PNG="$E2E_SENTINEL_PNG" \
 E2E_SERVER_HOST="127.0.0.1" \
@@ -208,10 +254,29 @@ DRIVER_CODE=$?
 set -e
 
 # ---------------------------------------------------------------------------
+# Wait for the observer's result file (the observer script runs in the
+# background; its own wait loop caps at E2E_CLIENT_TIMEOUT_S).
+# ---------------------------------------------------------------------------
+i=0
+while [ "$i" -lt 240 ] && [ ! -f "$OBSERVER_RESULT" ]; do
+    if ! kill -0 "$OBSERVER_SCRIPT_PID" 2>/dev/null && [ ! -f "$OBSERVER_RESULT" ]; then
+        # Observer script exited without producing a result — boot failure.
+        break
+    fi
+    sleep 2
+    i=$((i + 2))
+done
+
+# ---------------------------------------------------------------------------
 # Assemble the final contract doc + assertions
 # ---------------------------------------------------------------------------
 if [ ! -f "$RESULT_JSON" ]; then
     e2e_warn "no driver result (driver exit $DRIVER_CODE)"
+    exit 2
+fi
+if [ ! -f "$OBSERVER_RESULT" ]; then
+    e2e_warn "no observer result (observer script exit $OBSERVER_SCRIPT_PID)"
+    tail -n 40 "$OBSERVER_LOG" >&2 || true
     exit 2
 fi
 
@@ -220,7 +285,7 @@ fi
 kill_tree "$SERVER_PID" 2>/dev/null || true
 SERVER_PID=""
 
-assemble_result "true" "$RESULT_JSON"
+assemble_result "true" "$RESULT_JSON" "$OBSERVER_RESULT"
 
 # Driver exit code FIRST (audit lib-20): the driver's exit_code is the
 # authoritative mid-flow outcome and must be interpreted BEFORE the hard
@@ -229,12 +294,13 @@ assemble_result "true" "$RESULT_JSON"
 # impossible. Contract (master plan): 0 all green | 1 assertion failed |
 # 2 retryable infra | 3 build failure (script-side, e2e_fail).
 DRIVER_FINAL_CODE=$(result_exit_code)
-if [ "$DRIVER_FINAL_CODE" -eq 2 ]; then
-    e2e_warn "RETRYABLE: driver reported infra failure (exit 2)"
+OBSERVER_FINAL_CODE=$(observer_exit_code)
+if [ "$DRIVER_FINAL_CODE" -eq 2 ] || [ "$OBSERVER_FINAL_CODE" -eq 2 ]; then
+    e2e_warn "RETRYABLE: driver/observer reported infra failure (exit 2)"
     exit 2
 fi
-if [ "$DRIVER_FINAL_CODE" -ne 0 ]; then
-    e2e_warn "FAIL: driver exit code $DRIVER_FINAL_CODE"
+if [ "$DRIVER_FINAL_CODE" -ne 0 ] || [ "$OBSERVER_FINAL_CODE" -ne 0 ]; then
+    e2e_warn "FAIL: driver exit code $DRIVER_FINAL_CODE, observer exit code $OBSERVER_FINAL_CODE"
     exit 1
 fi
 
@@ -245,6 +311,9 @@ assert_result "client_joined" "True"
 assert_result "command_executed" "True"
 assert_result "renderer_state" "sentinel"
 assert_result "renderer_verified" "True"
+assert_result "observer_joined" "True"
+assert_result "observer_renderer_state" "sentinel"
+assert_result "observer_renderer_verified" "True"
 
 e2e_log "e2e complete: exit_code=0 duration_ms=$(python3 -c "import json; print(json.load(open('$RESULT_JSON')).get('duration_ms'))")"
 e2e_log "PASS: real-client E2E ($E2E_LANE) all green"
