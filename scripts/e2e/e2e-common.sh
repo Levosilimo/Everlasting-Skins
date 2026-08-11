@@ -120,8 +120,16 @@ fetch_artifact "$UNIVERSAL_NAME" "$UNIVERSAL_URL" "$UNIVERSAL_SHA1"
 # ---------------------------------------------------------------------------
 # Server library fetch (both eras; cached+verified is a no-op). The legacy
 # FML relauncher pre-seed below additionally needs asm-all on the cache.
+# launchwrapper-1.8.jar + jopt-simple-4.5.jar are the tweaker-model boot
+# libs (SERVER_CP references both); they were missing from this fetch loop
+# (only the client driver pre18-xvfb.sh fetched them), so a fresh cache
+# silently dropped the classpath entries and the 1.6.4 server died with
+# ClassNotFoundException: net.minecraft.launchwrapper.Launch on main's CI.
+# sha1s match the client driver's pins (same artifacts).
 # ---------------------------------------------------------------------------
 for spec in \
+    "launchwrapper-1.8.jar|https://libraries.minecraft.net/net/minecraft/launchwrapper/1.8/launchwrapper-1.8.jar|d4c0895977dd7f0b3f56281cee53a64d4c0c0322" \
+    "jopt-simple-4.5.jar|https://libraries.minecraft.net/net/sf/jopt-simple/jopt-simple/4.5/jopt-simple-4.5.jar|6065cc95c661255349c1d0756657be17c29a4fd3" \
     "guava-14.0.jar|https://libraries.minecraft.net/com/google/guava/guava/14.0/guava-14.0.jar|67b7be4ee7ba48e4828a42d6d5069761186d4a53" \
     "gson-2.2.2.jar|https://libraries.minecraft.net/com/google/code/gson/gson/2.2.2/gson-2.2.2.jar|1f96456ca233dec780aa224bff076d8e8bca3908" \
     "commons-lang3-3.1.jar|https://libraries.minecraft.net/org/apache/commons/commons-lang3/3.1/commons-lang3-3.1.jar|905075e6c80f206bbe6cf1e809d2caa69f420c76" \
