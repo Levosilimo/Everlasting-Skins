@@ -8,6 +8,7 @@ package levosilimo.everlastingskins.forge102;
 
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.command.SkinRestorerCommand;
+import levosilimo.everlastingskins.e2e.E2E;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinCommand;
 import levosilimo.everlastingskins.skinchanger.SkinLoginHandler;
@@ -35,7 +36,11 @@ import org.apache.logging.log4j.Logger;
     name = EverlastingSkins.MOD_NAME,
     version = EverlastingSkins.VERSION,
     acceptedMinecraftVersions = "[1.10.2]",
-    serverSideOnly = true,
+    // Dual-side since slice 2: the real-client E2E's in-jar driver runs on
+    // the client (the lane has no HeadlessMC specifics build); the mod has
+    // no client-side behaviors — serverStarting/EVENT_BUS registrations are
+    // server-only events, and the E2E driver gates itself on
+    // -Deverlastingskins.e2e=true (never active in production).
     acceptableRemoteVersions = "*"
 )
 public class EverlastingSkins {
@@ -55,6 +60,8 @@ public class EverlastingSkins {
         ForgePermissionService.register();
         // Skin broadcast channel (SimpleNetworkWrapper, pre-ModLauncher).
         SkinBroadcaster.init();
+        // Real-client E2E support (in-jar driver; no-op without the gate).
+        E2E.install();
         LOGGER.info("{} {} initializing (server-side)", MOD_NAME, VERSION);
     }
 

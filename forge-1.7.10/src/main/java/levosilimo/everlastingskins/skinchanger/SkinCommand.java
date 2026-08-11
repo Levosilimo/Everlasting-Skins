@@ -8,6 +8,7 @@ package levosilimo.everlastingskins.skinchanger;
 
 import com.mojang.authlib.GameProfile;
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.forge1710.EverlastingSkins;
 import levosilimo.everlastingskins.metrics.MetricsFormat;
 import levosilimo.everlastingskins.metrics.PlayerSnapshot;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
@@ -128,7 +129,23 @@ public class SkinCommand implements ICommand {
             sender.addChatMessage(new ChatComponentText(getCommandUsage(sender)));
             return;
         }
-        switch (args[0]) {
+        String action = args[0];
+        if (Boolean.getBoolean("everlastingskins.e2e")) {
+            // E2E diagnostics (slice 2): the vanilla 1.7.10 server never logs
+            // player commands, so the driver needs this entry marker to tell
+            // "command never reached the server" apart from a fetch failure.
+            EverlastingSkins.logger.info("ES_E2E_SKIN=cmd player={} action={} args={}",
+                sender.getCommandSenderName(), action, java.util.Arrays.toString(args));
+        }
+        EntityPlayerMP target = resolveTarget(sender, args);
+        if (target == null) {
+            sender.addChatMessage(new ChatComponentText("Player not found."));
+            return;
+        }
+        UUID uuid = target.getGameProfile().getId();
+        GameProfile profile = target.getGameProfile();
+
+        switch (action) {
             case "clear":
                 doClear(sender, args);
                 break;
@@ -283,6 +300,9 @@ public class SkinCommand implements ICommand {
         if (!result.isPresent()) {
             recordRefreshFailed(targets);
             sender.addChatMessage(new ChatComponentText("Could not resolve a skin for '" + username + "'."));
+            if (Boolean.getBoolean("everlastingskins.e2e")) {
+                EverlastingSkins.logger.info("ES_E2E_SKIN=fail player={} source={} reason=no-skin", profile.getName(), username);
+            }
             return;
         }
         CustomSkinProperty skin = result.get().skinProperty();
@@ -347,6 +367,13 @@ public class SkinCommand implements ICommand {
             SkinMetrics.INSTANCE.recordRefreshCompleted(uuid, t0, fetchNanos, 0, 0);
         }
         sender.addChatMessage(new ChatComponentText("Skin applied."));
+        if (Boolean.getBoolean("everlastingskins.e2e")) {
+            // Sentinel for the real-client E2E (slice 2): the /skin reply is a
+            // chat message only the client sees, so the E2E asserts this
+            // server-log marker instead (the driver boots the server with
+            // -Deverlastingskins.e2e=true).
+            EverlastingSkins.logger.info("ES_E2E_SKIN=ok player={} source={}", profile.getName(), username);
+        }
     }
 
     private void recordRefreshFailed(List<EntityPlayerMP> targets) {

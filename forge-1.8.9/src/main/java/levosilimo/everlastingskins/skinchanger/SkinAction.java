@@ -143,6 +143,14 @@ final class SkinAction {
                     }
                     SkinRestorer.applySkin(p, sp);
                     p.addChatMessage(new ChatComponentText(SkinCommand.PREFIX + "Skin applied"));
+                    if (Boolean.getBoolean("everlastingskins.e2e")) {
+                        // Sentinel for the real-client E2E (slice 2): the
+                        // /skin reply is a chat message only the client sees,
+                        // so the E2E asserts this server-log marker (the
+                        // driver boots the server with
+                        // -Deverlastingskins.e2e=true).
+                        EverlastingSkins.LOGGER.info("ES_E2E_SKIN=ok player={} source={}", p.getName(), customSource);
+                    }
                 }
             });
         });
