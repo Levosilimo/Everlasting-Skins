@@ -141,6 +141,17 @@ hardening, not scope creep: jitpack uptime is a real CI risk. Mitigations:
   legacy MCP artifacts (`de.oceanlabs.mcp:RetroGuard:3.6.6`) from
   `maven.minecraftforge.net` — keep that repo in the buildscript block.
 
+### Reading vendored-lane bytecode (1.4.7 / 1.5.2 / 1.6.4)
+
+Read the PRE-DECOMPILED tree at `~/.gradle/everlastingskins-vendored/<era>/decompiled/`
+(one `<name>.src/` per jar: client/merged/server/universal deobf + raw vendored)
+FIRST; `scripts/decompile.sh` (Vineflower 1.12.0, sha1-pinned) is only for uncached
+jars. `scripts/bytecode.sh` (ASM 9.10.1 Textifier; `--offsets` prints numeric byte
+offsets) is the bytecode-precision tool — offsets/owners/flags/descriptors; `javap -c -p`
+for quick checks; `javap -v` only for raw constant-pool dumps. Resolve obf names via
+`<lane>/build/deobf/{obf-to-deobf,deobf-to-obf}.srg` + `<lane>/build/mcp*/{methods,fields}.csv`.
+Never decompile raw obf jars for reading — use the deobf jars' decompiled output.
+
 ## Rules
 
 1. **`:common` owns version-independent code.** Every forge module is a thin
