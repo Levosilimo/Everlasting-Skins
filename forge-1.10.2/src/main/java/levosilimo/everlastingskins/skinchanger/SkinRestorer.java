@@ -34,6 +34,7 @@ import java.util.UUID;
 public final class SkinRestorer {
 
     private static volatile SkinStorage skinStorage;
+    private static volatile MinecraftServer server;
 
     private SkinRestorer() {}
 
@@ -42,9 +43,33 @@ public final class SkinRestorer {
         return skinStorage;
     }
 
+    @Nullable
+    public static MinecraftServer getServer() {
+        return server;
+    }
+
+    /**
+     * Test-only: replaces the static storage reference without a full FML
+     * lifecycle. Package-private because the lane's tests live in this
+     * package.
+     */
+    static void setSkinStorageForTest(SkinStorage storage) {
+        skinStorage = storage;
+    }
+
+    /**
+     * Test-only: replaces the static server reference (mirror of the
+     * mc1.12.2 test seam). Package-private because the lane's tests live
+     * in this package.
+     */
+    static void setServerForTest(@Nullable MinecraftServer server) {
+        SkinRestorer.server = server;
+    }
+
     /** Server-start bootstrap: creates the data dir and the storage. */
     public static void init(FMLServerStartingEvent event) {
         MinecraftServer server = event.getServer();
+        SkinRestorer.server = server;
         Path dataDir = server.getFile("EverlastingSkins").toPath();
         try {
             Files.createDirectories(dataDir);
