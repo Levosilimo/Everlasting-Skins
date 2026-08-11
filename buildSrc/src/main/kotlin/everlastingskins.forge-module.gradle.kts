@@ -184,6 +184,40 @@ minecraft {
             systemProperty("mixin.env.remapRefMap", "true")
             systemProperty("mixin.env.refMapRemappingFile", "${layout.projectDirectory.asFile}/build/createSrgToMcp/output.srg")
             systemProperty("forge.logging.markers", "REGISTRYDUMP")
+
+            // Real-client E2E (master plan slice 3, modern-injar pattern):
+            // the in-jar driver/hook are shipped-gated by
+            // -Deverlastingskins.e2e=true; the E2E wrapper passes
+            // -Peverlastingskins.e2e=true and the run definition forwards it
+            // to the forked client JVM (default false — never active in
+            // normal dev runs). Same Netty reflective-access flags as the
+            // gameTestServer run: the dev client also runs Netty on Java
+            // 21+ and hits the same InaccessibleObjectException without them.
+            systemProperty(
+                "everlastingskins.e2e",
+                providers.gradleProperty("everlastingskins.e2e").orElse("false").get()
+            )
+            jvmArgs(
+                "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                "--add-opens=java.base/java.nio=ALL-UNNAMED",
+                "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+                "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
+                "--add-opens=java.base/java.nio=io.netty.common",
+                "--add-opens=java.base/java.nio=io.netty.buffer",
+                "--add-opens=java.base/java.nio=io.netty.transport",
+                "--add-opens=java.base/java.nio=io.netty.handler",
+                "--add-opens=java.base/java.nio=io.netty.codec",
+                "--add-opens=java.base/java.nio=io.netty.resolver",
+                "--add-opens=java.base/sun.nio.ch=io.netty.common",
+                "--add-opens=java.base/sun.nio.ch=io.netty.transport",
+                "--add-exports=java.base/jdk.internal.misc=io.netty.common",
+                "--add-exports=java.base/jdk.internal.misc=io.netty.buffer",
+                "--add-exports=java.base/jdk.internal.misc=io.netty.transport",
+                "--add-exports=java.base/jdk.internal.misc=io.netty.handler",
+                "--add-exports=java.base/jdk.internal.misc=io.netty.codec",
+                "--add-exports=java.base/jdk.internal.misc=io.netty.resolver",
+                "-Dio.netty.tryReflectionSetAccessible=false"
+            )
         }
 
         create("server") {
@@ -366,6 +400,16 @@ tasks.jacocoTestReport {
 
 tasks.jar {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    // M2 regression fix (caught by the real-client E2E slice-3 server boot):
+    // the pre-M2 single-module build produced a self-contained mod jar, but
+    // the M2 split (:common as a separate module, api dependency) made the
+    // jar THIN — :common classes/resources are absent, so the mod throws
+    // NoClassDefFoundError (IPermissionService etc.) on any production
+    // server (Forge loads only mods/ + the game classpath). Bundle
+    // :common's compiled output + resources into the shipped jar so every
+    // in-root forge-* lane is self-contained again (the out-of-band lanes
+    // get this for free via source-dir share).
+    from(project(":common").sourceSets.main.get().output)
     manifest {
         attributes(
             "Timestamp" to System.currentTimeMillis(),
