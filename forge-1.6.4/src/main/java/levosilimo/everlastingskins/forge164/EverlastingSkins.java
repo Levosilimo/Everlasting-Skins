@@ -12,6 +12,7 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import cpw.mods.fml.common.network.IConnectionHandler;
 import cpw.mods.fml.common.network.NetworkRegistry;
+import levosilimo.everlastingskins.e2e.E2E;
 import cpw.mods.fml.common.network.Player;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
@@ -60,6 +61,9 @@ public class EverlastingSkins {
         // :common removed init() — per-version bootstrap registers candidates
         // itself; highest priority wins (Forge ops 10 > vanilla fallback 0).
         ForgePermissionService.register();
+        // In-jar E2E support (shipped-gated by -Deverlastingskins.e2e=true;
+        // no-op in production).
+        E2E.install();
         // 1.6.4 skin-broadcast channel (FML 7.x custom-payload surface).
         SkinBroadcaster.init();
         // Pre-1.7 player join/leave hook (no PlayerEvent on this line).
