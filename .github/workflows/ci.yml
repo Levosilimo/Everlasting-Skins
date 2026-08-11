@@ -512,7 +512,6 @@ jobs:
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
-      RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -544,7 +543,13 @@ jobs:
           restore-keys: |
             e2e-${{ runner.os }}-
       - name: Run real-client E2E (server boot + xvfb client + sentinel)
+        # RUNNER_TMP must be a STEP env: the runner context is not available
+        # in job-level env (invalid workflow file -> zero jobs on push). The
+        # shared orchestrator (scripts/e2e/e2e-common.sh) reads it for the
+        # server dir + result copy; the upload step below globs the same dir.
         run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
+        env:
+          RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
       - name: Upload E2E logs + result (always)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
