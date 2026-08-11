@@ -118,22 +118,31 @@ seed_fml_libdir() {
 # ---------------------------------------------------------------------------
 # Result contract helpers
 # ---------------------------------------------------------------------------
-# assemble_result <server_booted> — merges script-side facts into the final
-# ${RUNNER_TMP}/e2e-result.json. The in-jar driver writes its client-side
-# document (client_joined, command_executed, renderer_state,
-# renderer_verified, duration_ms, exit_code, artifacts) to the client
-# gameDir; this replaces the client's server_booted:false placeholder.
+# assemble_result <server_booted> [actor_json] [observer_json] — merges
+# script-side facts into the final ${RUNNER_TMP}/e2e-result.json. The in-jar
+# driver writes its client-side document (client_joined, command_executed,
+# renderer_state, renderer_verified, duration_ms, exit_code, artifacts) to
+# the client gameDir; the observer driver writes its own document
+# (observer_joined, observer_renderer_state, observer_renderer_verified,
+# observer_exit_code, ...). This replaces the client's server_booted:false
+# placeholder and appends every observer_* field (additive, backward-
+# compatible: actor fields are untouched).
 assemble_result() {
-    local server_booted="$1" client_json="${2:-}"
+    local server_booted="$1" client_json="${2:-}" observer_json="${3:-}"
     if [ -z "$client_json" ] || [ ! -f "$client_json" ]; then
         e2e_fail "assemble_result: client result file missing ($client_json)"
     fi
-    python3 - "$client_json" "$RESULT_JSON" "$server_booted" <<'PY'
+    python3 - "$client_json" "$RESULT_JSON" "$server_booted" "$observer_json" <<'PY'
 import json, sys
-client, out, booted = sys.argv[1], sys.argv[2], sys.argv[3] == "true"
+client, out, booted, obs = sys.argv[1], sys.argv[2], sys.argv[3] == "true", sys.argv[4]
 doc = json.load(open(client))
 doc["lane"] = doc.get("lane", "1.6.4")
 doc["server_booted"] = booted
+if obs:
+    observer = json.load(open(obs))
+    for k, v in observer.items():
+        if k.startswith("observer_"):
+            doc[k] = v
 with open(out, "w") as f:
     json.dump(doc, f, indent=2)
 PY
@@ -154,6 +163,11 @@ assert_result() {
 # result_exit_code — the driver's exit code from the final doc.
 result_exit_code() {
     python3 -c "import json; print(json.load(open('$RESULT_JSON')).get('exit_code', 3))"
+}
+
+# observer_exit_code — the observer driver's exit code from the final doc.
+observer_exit_code() {
+    python3 -c "import json; print(json.load(open('$RESULT_JSON')).get('observer_exit_code', 3))"
 }
 
 # ---------------------------------------------------------------------------

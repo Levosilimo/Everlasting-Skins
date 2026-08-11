@@ -54,7 +54,8 @@ import net.minecraft.src.Packet1Login;
  *
  * <p>Side guard: FML loads the jar on both processes, so {@link #init} keeps
  * the server bootstrap behind {@code getSide().isServer()} — on a client the
- * only client-side surface is the @NetworkMod-registered client handler.
+ * only server-side surface is skipped, while {@code E2E.install()} still runs
+ * (the in-jar E2E drivers are side-gated internally).
  */
 @Mod(
     modid = EverlastingSkins.MOD_ID,
@@ -90,7 +91,12 @@ public class EverlastingSkins {
             // Client process: the client handler is registered by @NetworkMod;
             // no server bootstrap here (the physical side is authoritative —
             // an integrated server's SERVER lifecycle still fires
-            // serverStarting/serverStopping below).
+            // serverStarting/serverStopping below). The in-jar E2E support is
+            // side-gated internally (driver on CLIENT, sentinel hook on
+            // SERVER) and MUST install on both sides — #426's server-only
+            // guard silently disabled the client driver (the 1.6.4 E2E is
+            // not in CI yet, so the regression went unnoticed).
+            E2E.install();
             return;
         }
         // :common removed init() — per-version bootstrap registers candidates
