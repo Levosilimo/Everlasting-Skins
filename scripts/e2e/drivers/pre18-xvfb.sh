@@ -255,12 +255,29 @@ JAVA8_BIN="$E2E_JAVA8"
 
 export LIBGL_ALWAYS_SOFTWARE=1
 export GALLIUM_DRIVER=llvmpipe
+
+# LWJGL 2.x Display.<clinit> shells out to the external `xrandr -q` binary to
+# enumerate screens (XRandR.populate()); when the binary is missing the exec
+# fails, the screen map stays empty and getScreenNames()[0] throws
+# ArrayIndexOutOfBoundsException: 0 -> Display init dies with "No OpenGL
+# context found in the current thread" (seen live on the ubuntu-24.04 CI
+# runner, which ships xvfb but NOT x11-xserver-utils/xrandr). Fail fast with
+# an actionable message instead of the cryptic LWJGL crash.
+if ! command -v xrandr >/dev/null 2>&1; then
+    e2e_fail "xrandr (package x11-xserver-utils) is required for the LWJGL 2 client GL boot"
+fi
+
+# Run Xvfb with an explicit 24-bit screen: xvfb-run's default screen config
+# differs across hosts/images, and an 8-bit root breaks LWJGL 2 GL context
+# creation (the classic headless-CI GL failure). 1280x1024x24 matches the
+# slice-1 locally-proven-green configuration.
+XVFB_SERVER_ARGS="-screen 0 1280x1024x24"
 if [ "$E2E_ERA" = "1.6.4-tweaker" ]; then
     e2e_log "launching client (xvfb + Mesa llvmpipe, tweaker model)..."
     # shellcheck disable=SC2086
     CLIENT_PID=$(start_guarded "$CLIENT_LOG" \
         timeout --kill-after=10 "$E2E_CLIENT_TIMEOUT_S" \
-        xvfb-run -a "$JAVA8_BIN" -Xmx1G -Xms512M \
+        xvfb-run -a -s "$XVFB_SERVER_ARGS" "$JAVA8_BIN" -Xmx1G -Xms512M \
         -Djava.library.path="$E2E_CLIENT_DIR/natives" \
         $E2E_JVM_PROPERTY \
         -Dfml.ignoreInvalidMinecraftCertificates=true \
@@ -282,7 +299,7 @@ else
     # shellcheck disable=SC2016
     CLIENT_PID=$(start_guarded "$CLIENT_LOG" bash -c '
         cd "$1" || exit 3
-        exec timeout --kill-after=10 "$8" xvfb-run -a "$2" -Xmx1G -Xms512M \
+        exec timeout --kill-after=10 "$8" xvfb-run -a -s "$9" "$2" -Xmx1G -Xms512M \
             -Djava.library.path="$3" \
             -Dminecraft.applet.TargetDirectory="$1" \
             -Deverlastingskins.e2e=true \
@@ -290,7 +307,7 @@ else
             -Deverlastingskins.e2e.port="$5" \
             -cp "$6" net.minecraft.client.Minecraft "$7" "e2e-session-token"
     ' _ "$E2E_CLIENT_DIR" "$JAVA8_BIN" "$E2E_CLIENT_DIR/natives" \
-        "$E2E_SERVER_HOST" "$E2E_SERVER_PORT" "$CP" "$E2E_USERNAME" "$E2E_CLIENT_TIMEOUT_S")
+        "$E2E_SERVER_HOST" "$E2E_SERVER_PORT" "$CP" "$E2E_USERNAME" "$E2E_CLIENT_TIMEOUT_S" "$XVFB_SERVER_ARGS")
 fi
 
 RESULT_FILE="$E2E_CLIENT_DIR/e2e-result.json"

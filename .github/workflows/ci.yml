@@ -583,7 +583,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
             libxrandr2 libxxf86vm1 libxcursor1 libxi6 libxinerama1 \
-            libasound2t64 libopenal1
+            libasound2t64 libopenal1 x11-xserver-utils
       - name: Cache Gradle wrapper and caches
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
