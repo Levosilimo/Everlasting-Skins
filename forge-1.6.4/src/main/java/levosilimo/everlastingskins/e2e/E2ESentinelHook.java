@@ -68,7 +68,7 @@ public final class E2ESentinelHook {
 
     /** Called from {@code EverlastingSkins.init()} (one line; gates live here). */
     public static void install() {
-        if (!Boolean.getBoolean(E2E_PROPERTY)) {
+        if (!isEnabled()) {
             return;
         }
         if (cpw.mods.fml.common.FMLCommonHandler.instance().getSide()
@@ -77,6 +77,11 @@ public final class E2ESentinelHook {
         }
         NetworkRegistry.instance().registerConnectionHandler(new Seeder());
         FMLLog.info("ES_E2E_SENTINEL=hook installed");
+    }
+
+    /** Gate seam (testable without FML): the e2e property must be set. */
+    static boolean isEnabled() {
+        return Boolean.getBoolean(E2E_PROPERTY);
     }
 
     /** Seeds storage on the first login attempt (idempotent). */
@@ -144,9 +149,8 @@ public final class E2ESentinelHook {
         }
     }
 
-    private static byte[] readSentinelPng(MinecraftServer server) {
-        String override = System.getProperty(SENTINEL_PROPERTY);
-        File candidate = override != null ? new File(override) : server.getFile("e2e-sentinel.png");
+    static byte[] readSentinelPng(MinecraftServer server) {
+        File candidate = sentinelFile(server);
         if (!candidate.isFile()) {
             return null;
         }
@@ -156,6 +160,12 @@ public final class E2ESentinelHook {
             FMLLog.warning("ES_E2E_SENTINEL=read failed (%s)", e.toString());
             return null;
         }
+    }
+
+    /** Sentinel file resolution seam (testable without a server). */
+    static File sentinelFile(MinecraftServer server) {
+        String override = System.getProperty(SENTINEL_PROPERTY);
+        return override != null ? new File(override) : server.getFile("e2e-sentinel.png");
     }
 
     private static String sha1(byte[] bytes) {

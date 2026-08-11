@@ -138,7 +138,8 @@ public final class E2EDriver implements IScheduledTickHandler, IPacketHandler {
     private long phaseStartedAt = installedAt;
     private volatile boolean broadcastReceived;
     private boolean rendererVerified;
-    private boolean rendererState;
+    /** Precise renderer outcome for the result doc (audit lib-20): sentinel | none | sentinel-mismatch | ... */
+    private String rendererState = "none";
 
     private E2EDriver() {}
 
@@ -211,6 +212,10 @@ public final class E2EDriver implements IScheduledTickHandler, IPacketHandler {
                     sendChat("/skin clear");
                     FMLLog.info("ES_E2E_COMMAND=/skin set " + TEST_PLAYER);
                     FMLLog.info("ES_E2E_COMMAND=/skin clear");
+                    // Master-plan marker (ES_E2E_COMMAND=ok): both commands
+                    // were sent; the server console logs them as the
+                    // command-surface proof.
+                    FMLLog.info("ES_E2E_COMMAND=ok");
                     advance(Phase.WAIT_BROADCAST);
                 } else if (timedOut(JOIN_TIMEOUT_MS)) {
                     fail(2, false, false, "join timeout");
@@ -224,13 +229,13 @@ public final class E2EDriver implements IScheduledTickHandler, IPacketHandler {
                 }
                 break;
             case RENDER_ASSERT:
-                rendererState = rendererVerified = assertRenderer();
+                rendererVerified = assertRenderer();
                 if (rendererVerified) {
                     FMLLog.info("ES_E2E_RENDERER=ok");
                     writeResultAndExit(0);
                 } else {
-                    FMLLog.severe("ES_E2E_RENDERER=FAIL");
-                    fail(1, true, true, "renderer assertion failed");
+                    FMLLog.severe("ES_E2E_RENDERER=FAIL state=%s", rendererState);
+                    fail(1, true, true, "renderer assertion failed: " + rendererState);
                 }
                 break;
             default:
@@ -306,10 +311,12 @@ public final class E2EDriver implements IScheduledTickHandler, IPacketHandler {
         // test resources; same bytes the server seeded from).
         BufferedImage sentinel = readSentinel(gameDir());
         if (sentinel == null) {
+            rendererState = "sentinel-unreadable";
             FMLLog.severe("ES_E2E_RENDERER=sentinel unreadable");
             return false;
         }
         if (!E2EResult.isSentinelImage(sentinel)) {
+            rendererState = "sentinel-contract-violated";
             FMLLog.severe("ES_E2E_RENDERER=sentinel pixel contract violated");
             return false;
         }
@@ -318,6 +325,7 @@ public final class E2EDriver implements IScheduledTickHandler, IPacketHandler {
         call(tdi, M_TDI_SET_IMAGE, new Class<?>[] {BufferedImage.class}, new Object[] {sentinel});
         Object injected = field(tdi, F_TDI_IMAGE);
         if (injected != sentinel) {
+            rendererState = "injection-field-mismatch";
             FMLLog.severe("ES_E2E_RENDERER=field state mismatch (injected=%s)", injected);
             return false;
         }
@@ -332,10 +340,29 @@ public final class E2EDriver implements IScheduledTickHandler, IPacketHandler {
             && ((Integer) glId).intValue() != -1
             && glId.equals(glField);
         if (!guardReArmed || !glUploaded) {
+            rendererState = "reupload-failed";
             FMLLog.severe("ES_E2E_RENDERER=re-upload failed guard=%s glId=%s glField=%s", guard, glId, glField);
             return false;
         }
-        FMLLog.info("ES_E2E_RENDERER=injected bufferedImage=%s glTextureId=%s", injected, glId);
+
+        // 3) PIXEL-CONTENT assert (audit lib-20): mechanics (guard re-armed,
+        // glId uploaded) prove the injection round-trip, not that the
+        // renderer holds the sentinel pixels. Re-read the live field and
+        // compare it pixel-for-pixel against the sentinel file decoded from
+        // the gameDir. The download thread is dead (interrupted above), so
+        // the field can only hold our injection — any drift is a real
+        // content failure. Wire-side proof is era-limited: the 1.6.4
+        // broadcast is notification-only (SkinMessage.encode(name, null) in
+        // SkinBroadcaster), so the received bytes carry no PNG to hash
+        // against the sentinel file.
+        Object live = field(tdi, F_TDI_IMAGE);
+        if (!(live instanceof BufferedImage) || !E2EResult.pixelsEqual((BufferedImage) live, sentinel)) {
+            rendererState = "sentinel-mismatch";
+            FMLLog.severe("ES_E2E_RENDERER=content mismatch live=%s", live);
+            return false;
+        }
+        rendererState = "sentinel";
+        FMLLog.info("ES_E2E_RENDERER=injected bufferedImage=%s glTextureId=%s pixels=matched", injected, glId);
         return true;
     }
 
@@ -354,7 +381,7 @@ public final class E2EDriver implements IScheduledTickHandler, IPacketHandler {
     // ------------------------------------------------------------------
     private void fail(int exitCode, boolean joined, boolean commandSent, String reason) {
         FMLLog.severe("ES_E2E_FAIL=%s", reason);
-        writeResultAndExit(exitCode, joined, commandSent, false, false);
+        writeResultAndExit(exitCode, joined, commandSent, "none", false);
     }
 
     private void writeResultAndExit(int exitCode) {
@@ -362,7 +389,7 @@ public final class E2EDriver implements IScheduledTickHandler, IPacketHandler {
     }
 
     private void writeResultAndExit(int exitCode, boolean joined, boolean commandSent,
-                                    boolean rendererState, boolean rendererVerified) {
+                                    String rendererState, boolean rendererVerified) {
         try {
             File out = new File(gameDir(), E2EResult.FILE_NAME);
             Map<String, String> artifacts = new LinkedHashMap<String, String>();
