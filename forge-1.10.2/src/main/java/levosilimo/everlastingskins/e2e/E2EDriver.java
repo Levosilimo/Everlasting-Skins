@@ -76,6 +76,16 @@ public final class E2EDriver {
     private long phaseStartedAt = installedAt;
     private boolean commandSent;
 
+    /**
+     * Set before the result file is written. The driver exits from inside a
+     * client tick; the game loop may tick once more during JVM shutdown and
+     * crash (display already disposed), and that crash path must NOT
+     * overwrite the already-written result (observed: code=0 result replaced
+     * by a code=3 crash document, log4j already closed so the crash line was
+     * lost).
+     */
+    private boolean resultWritten;
+
     private E2EDriver() {}
 
     /** Installs the client driver (property + side gates live in {@link E2E#install()}). */
@@ -92,6 +102,11 @@ public final class E2EDriver {
         try {
             tick();
         } catch (Throwable t) {
+            if (resultWritten) {
+                // Shutdown-time tick crash after a successful result: the
+                // outcome is already on disk, never clobber it.
+                return;
+            }
             LOGGER.error("ES_E2E_DRIVER=crash phase={} ({})", phase, t);
             writeResultAndExit(3, false, false, "driver crash: " + t);
         }
@@ -152,6 +167,7 @@ public final class E2EDriver {
     // Result + exit.
     // ------------------------------------------------------------------
     private void writeResultAndExit(int exitCode, boolean joined, boolean commandExecuted, String reason) {
+        resultWritten = true;
         if (reason != null) {
             LOGGER.error("ES_E2E_FAIL={}", reason);
         }
