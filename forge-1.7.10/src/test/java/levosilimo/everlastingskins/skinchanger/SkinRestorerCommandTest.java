@@ -180,6 +180,22 @@ public class SkinRestorerCommandTest {
     }
 
     @Test
+    public void setDispatchMojangExceptionReportsFailure() throws Exception {
+        // Resolver throws (silent Mojang fetch failure): the command must not
+        // crash and must store nothing — the same failure shape as the
+        // empty-result path. The ES_E2E_SKIN=fail marker this path logs is
+        // not assertable here (no log-capture/appender infra in this lane's
+        // tests), so the marker-adjacent behavior is what's under test.
+        SkinCommand.setMojangApiForTest(new ThrowingMojangApi(new RuntimeException("connection refused")));
+
+        EntityPlayerMP player = mockPlayer(TEST_UUID, "Notch");
+        SkinCommand.setServerOverrideForTest(mockServer(player));
+
+        command.processCommand(player, new String[]{"set", "mojang", "ghost"});
+        assertEquals(null, provider.getSkin(TEST_UUID));
+    }
+
+    @Test
     public void targetResolutionByName() throws Exception {
         EntityPlayerMP self = mockPlayer(TEST_UUID, "Notch");
         EntityPlayerMP other = mockPlayer(UUID.randomUUID(), "Steve");
@@ -538,6 +554,30 @@ public class SkinRestorerCommandTest {
         @Override
         public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
             return result;
+        }
+
+        @Override
+        public Optional<UUID> getUUID(String playerName) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<CustomSkinProperty> getProfile(ProfileLookup lookup) {
+            return Optional.empty();
+        }
+    }
+
+    /** Deterministic throwing Mojang lookup fake (memory #1115; no live HTTP). */
+    private static final class ThrowingMojangApi implements MojangAPI {
+        private final RuntimeException failure;
+
+        ThrowingMojangApi(RuntimeException failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public Optional<MojangSkinDataResult> getSkin(String nameOrUniqueId) {
+            throw failure;
         }
 
         @Override
