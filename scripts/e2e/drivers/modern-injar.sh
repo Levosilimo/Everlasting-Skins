@@ -6,17 +6,23 @@
 # FULL-DRIVER FLOW (vs the slice-4 boot-smoke floor in modern-smoke.sh):
 #   server  — PRODUCTION Forge server: the pinned forge installer runs
 #             --installServer, the built mod jar goes into mods/,
-#             online-mode=false, -Deverlastingskins.e2e=true via
-#             user_jvm_args.txt. Boot greps the vanilla "For help" line,
-#             then the sentinel-seed line (ES_E2E_SENTINEL=seeded).
+#             online-mode=false. The -Deverlastingskins.e2e=true flag is
+#             era-split: user_jvm_args.txt on the unix-args eras, the JVM
+#             command line on legacy-cp (1.16.5 — no unix_args.txt). Boot
+#             greps the vanilla "For help" line, then the sentinel-seed
+#             line (ES_E2E_SENTINEL=seeded).
 #   client  — the lane's real dev client (runClient — identical client code,
 #             same renderer, same network stack, official names at runtime)
 #             under xvfb-run + Mesa llvmpipe, shipped-gated via
 #             -Peverlastingskins.e2e=true → -Deverlastingskins.e2e=true.
 #             The offline session uses the launcher args --username TestPlayer
-#             --uuid <offline-uuid> --accessToken 0; the JOIN mechanism is the
-#             quick-play arg (--quickPlayMultiplayer 127.0.0.1:25565,
-#             bytecode-verified on the unobfuscated 26.x client jars).
+#             --uuid <offline-uuid> --accessToken 0; the JOIN mechanism is
+#             era-split (bytecode-verified 2026-08-12): the 26.x quick-play
+#             arg (--quickPlayMultiplayer 127.0.0.1:25565), while the 1.16.5
+#             driver dials the server itself from the title screen
+#             (ConnectingScreen — the --server/--port deferred connect is
+#             gated on the authlib privileges request, which 401s for an
+#             offline token).
 #   assert  — the in-jar E2EDriver (shipped in the mod jar, gated) runs
 #             /skin set mojang TestPlayer and asserts the tab-list textures
 #             property carries the server-seeded sentinel marker (base64-
@@ -25,8 +31,9 @@
 #             file, merges server_booted, maps the exit code and runs the
 #             contract assert gates.
 #
-# This driver owns the FULL flow for the modern in-jar lanes (26.1/26.2);
-# e2e-common.sh dispatches to it when E2E_ERA=modern-injar.
+# This driver owns the FULL flow for the modern in-jar lanes
+# (1.16.5 / 26.1 / 26.2); e2e-common.sh dispatches to it when
+# E2E_ERA=modern-injar.
 #
 # Env contract (set by the lane wrapper test-infrastructure/run-e2e.sh):
 #   E2E_LANE            lane id (26.1 | 26.2)
@@ -39,7 +46,7 @@
 #   E2E_CLIENT_WORKDIR  dir to run gradle from (repo root)
 #   E2E_CLIENT_TASK     runClient task (:forge-26.2:runClient)
 #   E2E_GRADLE_JAVA_HOME  JAVA_HOME for the gradle daemon
-#   E2E_SERVER_BOOT_MODE  unix-args (26.x)
+#   E2E_SERVER_BOOT_MODE  legacy-cp (1.16.5) | unix-args (26.x)
 #   E2E_SERVER_PORT     test port (default 25565)
 #   E2E_CLIENT_GRADLE_ARGS  extra gradle args, e.g. -Peverlastingskins.e2e=true
 #
@@ -113,7 +120,6 @@ level-type=flat
 motd=EverlastingSkins E2E $E2E_LANE
 max-tick-time=-1
 EOF
-echo "-Deverlastingskins.e2e=true" >> "$SERVER_DIR/user_jvm_args.txt"
 mkdir -p "$SERVER_DIR/mods"
 cp "$E2E_MOD_JAR" "$SERVER_DIR/mods/"
 
@@ -129,16 +135,75 @@ cleanup() {
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
-# Server boot (unix-args era: installer-generated @user_jvm_args.txt
-# @libraries/.../unix_args.txt nogui — live-verified on the 26.x lanes).
+# Server boot — two era shapes (both live-verified 2026-08-12):
+#   unix-args  (26.x): installer-generated @user_jvm_args.txt
+#              @libraries/.../unix_args.txt nogui; the e2e JVM flag goes
+#              into user_jvm_args.txt.
+#   legacy-cp  (1.16.5): the 36.2.34 installer does NOT generate unix_args.txt
+#              — the classic ServerMain classpath launch. Ordering is load-
+#              bearing: asm-9.1 + log4j-2.15 must come FIRST (the library set
+#              carries older duplicates that otherwise win classpath first-
+#              match and break modlauncher), and the universal jar must be
+#              EXCLUDED (its bundled fmlcore TOML configs crash with "entry
+#              [maxThreads] defined twice"). The e2e JVM flag is on the java
+#              command line (no user_jvm_args.txt on this era).
 # ---------------------------------------------------------------------------
 e2e_log "booting server (mode $E2E_SERVER_BOOT_MODE)..."
-(
-    cd "$SERVER_DIR"
-    exec setsid "$E2E_JAVA" @user_jvm_args.txt \
-        @libraries/net/minecraftforge/forge/$E2E_FORGE_VER/unix_args.txt nogui
-) > "$SERVER_LOG" 2>&1 &
-SERVER_PID=$!
+if [ "$E2E_SERVER_BOOT_MODE" = "legacy-cp" ]; then
+    FORGE_DIR="$SERVER_DIR/libraries/net/minecraftforge/forge/$E2E_FORGE_VER"
+    SERVER_CP="$FORGE_DIR/forge-$E2E_FORGE_VER.jar:$FORGE_DIR/forge-$E2E_FORGE_VER-server.jar"
+    # asm-9.1 set first (modlauncher requires ASM 9; the 1.16.5 library set
+    # also carries asm-6.1.1 whose ClassVisitor rejects the API level).
+    for j in \
+        "$SERVER_DIR"/libraries/org/ow2/asm/asm/9.1/asm-9.1.jar \
+        "$SERVER_DIR"/libraries/org/ow2/asm/asm-commons/9.1/asm-commons-9.1.jar \
+        "$SERVER_DIR"/libraries/org/ow2/asm/asm-tree/9.1/asm-tree-9.1.jar \
+        "$SERVER_DIR"/libraries/org/ow2/asm/asm-util/9.1/asm-util-9.1.jar \
+        "$SERVER_DIR"/libraries/org/ow2/asm/asm-analysis/9.1/asm-analysis-9.1.jar \
+        "$SERVER_DIR"/libraries/com/google/guava/guava/25.1-jre/guava-25.1-jre.jar \
+        "$SERVER_DIR"/libraries/net/sf/jopt-simple/jopt-simple/5.0.4/jopt-simple-5.0.4.jar \
+        "$SERVER_DIR"/libraries/com/google/code/gson/gson/2.8.7/gson-2.8.7.jar; do
+        [ -f "$j" ] && SERVER_CP="$SERVER_CP:$j"
+    done
+    for j in "$SERVER_DIR"/libraries/org/apache/logging/log4j/log4j-core/2.15.0/log4j-core-2.15.0.jar \
+        "$SERVER_DIR"/libraries/org/apache/logging/log4j/log4j-api/2.15.0/log4j-api-2.15.0.jar; do
+        [ -f "$j" ] && SERVER_CP="$SERVER_CP:$j"
+    done
+    # Remaining libraries in deterministic order (find output sorted),
+    # excluding the universal jar and the already-added entries.
+    while IFS= read -r j; do
+        SERVER_CP="$SERVER_CP:$j"
+    done < <(find "$SERVER_DIR/libraries" -name "*.jar" | sort | \
+        grep -v "universal.jar" | \
+        grep -v "forge-$E2E_FORGE_VER.jar$" | \
+        grep -v "forge-$E2E_FORGE_VER-server.jar$" | \
+        grep -v "org/ow2/asm/asm/9.1/asm-9.1.jar" | \
+        grep -v "asm-commons/9.1/asm-commons-9.1.jar" | \
+        grep -v "asm-tree/9.1/asm-tree-9.1.jar" | \
+        grep -v "asm-util/9.1/asm-util-9.1.jar" | \
+        grep -v "asm-analysis/9.1/asm-analysis-9.1.jar" | \
+        grep -v "guava/25.1-jre/guava-25.1-jre.jar" | \
+        grep -v "jopt-simple/5.0.4/jopt-simple-5.0.4.jar" | \
+        grep -v "gson/2.8.7/gson-2.8.7.jar" | \
+        grep -v "log4j-core/2.15.0/log4j-core-2.15.0.jar" | \
+        grep -v "log4j-api/2.15.0/log4j-api-2.15.0.jar")
+    (
+        cd "$SERVER_DIR"
+        # shellcheck disable=SC2086
+        exec setsid "$E2E_JAVA" -Xmx1G -Xms512M \
+            -Deverlastingskins.e2e=true \
+            -cp "$SERVER_CP" net.minecraftforge.server.ServerMain nogui
+    ) > "$SERVER_LOG" 2>&1 &
+    SERVER_PID=$!
+else
+    echo "-Deverlastingskins.e2e=true" >> "$SERVER_DIR/user_jvm_args.txt"
+    (
+        cd "$SERVER_DIR"
+        exec setsid "$E2E_JAVA" @user_jvm_args.txt \
+            @libraries/net/minecraftforge/forge/$E2E_FORGE_VER/unix_args.txt nogui
+    ) > "$SERVER_LOG" 2>&1 &
+    SERVER_PID=$!
+fi
 
 if ! wait_for_log "$SERVER_LOG" 'For help, type "help"' "$E2E_SERVER_BOOT_TIMEOUT_S"; then
     e2e_warn "server boot timeout (tail follows)"
