@@ -20,6 +20,16 @@ buildscript {
         // ForgeGradle line (verified on files.minecraftforge.net/maven,
         // latest snapshot build 2.1-20211118.174922-42). Same classpath
         // shape as the proven mc1.12.2 lane (FG 2.3.4) buildscript.
+        //
+        // Pin status (audit fix, verified 2026-08-12): the timestamped
+        // artifact 2.1-20211118.174922-42 404s on files.minecraftforge.net/
+        // maven (now redirecting to maven.minecraftforge.net/releases) and
+        // on oss.sonatype.org — the post-migration repo serves the snapshot
+        // maven-metadata.xml but not the timestamped files. Gradle therefore
+        // CANNOT resolve a pinned timestamp, so the float is kept: the
+        // effective resolution is frozen by the unchanged metadata timestamp
+        // (2.1-SNAPSHOT still resolves to 2.1-20211118.174922-42, lastUpdated
+        // 20211118174923) and the cached jar is reused across builds.
         classpath 'net.minecraftforge.gradle:ForgeGradle:2.1-SNAPSHOT'
     }
 }

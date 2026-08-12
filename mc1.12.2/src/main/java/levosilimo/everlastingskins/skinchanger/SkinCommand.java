@@ -31,6 +31,7 @@ import net.minecraft.util.text.TextComponentString;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -40,7 +41,9 @@ import java.util.UUID;
 public class SkinCommand extends CommandBase {
     static final String PREFIX = "§6[" + EverlastingSkins.MOD_NAME + "]§f ";
 
-    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
+    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl(
+            new HttpsUrlConnectionHttpClient(), Config.MINESKIN_API_KEY,
+            Config.urlAllowlistEnabled, Arrays.asList(Config.urlAllowlistDomains));
     private static MojangAPI mojangAPI = createMojangAPI();
 
     /**
@@ -73,7 +76,9 @@ public class SkinCommand extends CommandBase {
 
     static void resetAPIs() {
         mojangAPI = createMojangAPI();
-        mineSkinAPI = new MineSkinApiHttpImpl();
+        mineSkinAPI = new MineSkinApiHttpImpl(
+                new HttpsUrlConnectionHttpClient(), Config.MINESKIN_API_KEY,
+                Config.urlAllowlistEnabled, Arrays.asList(Config.urlAllowlistDomains));
     }
 
     @Override
