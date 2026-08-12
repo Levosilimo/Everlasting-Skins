@@ -7,6 +7,7 @@
 
 package levosilimo.everlastingskins;
 
+import levosilimo.everlastingskins.forge26.e2e.E2E;
 import levosilimo.everlastingskins.forge26.metrics.MetricsDumper;
 import levosilimo.everlastingskins.forge26.metrics.NetworkMetricsHandler;
 import levosilimo.everlastingskins.forge26.permission.LuckPermsPermissionService;
@@ -60,6 +61,7 @@ public class EverlastingSkins {
     public static final String VERSION = "2.1.0-beta.1";
 
     public EverlastingSkins() {
+        E2E.install();
         I18nUtils.loadAll();
         registerPermissionServices();
         ForgePermissionService.registerNodes();

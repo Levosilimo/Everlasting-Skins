@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/e2e/drivers/headlessmc.sh — HeadlessMC real-client E2E driver
-# (master plan slice 2: forge-1.7.10 / forge-1.8.9 bridge lanes and the
-# forge-1.10.2 in-jar-driver lane).
+# (master plan slice 2: forge-1.7.10 / forge-1.8.9 bridge lanes, the
+# forge-1.10.2 in-jar-driver lane, and the mc1.12.2 bridge lane).
 #
 # The pre-1.12 vanilla clients have a real console, so HeadlessMC (hmc)
 # drives them deterministically: the launcher runs the game with
@@ -24,11 +24,33 @@
 #   launcher's CommandTest completion terminates it — the driver guards its
 #   shutdown tick against clobbering the result file.)
 #
+#   bridge (1.12.2): same shape as 1.7.10/1.8.9 — the vanilla 1.12.2 client
+#   has NO stdin console (removed before 1.12; verified against the MCP
+#   client jar), so the lexforge specifics jar is REQUIRED: its
+#   HeadlessMcMcTweaker + mixins provide the stdin->chat bridge the
+#   scenario SENDs through. The server profile is installed with the
+#   forge-1.12.2-14.23.5.2860 installer (the canonical 2847 installer has no
+#   --installClient CLI, and HMCLite's forgecli crashes on 1.12.2 installers
+#   — see the lane wrapper history). The server-side ES_E2E_SKIN sentinel
+#   (mc1.12.2 SkinCommand/SkinAction under -Deverlastingskins.e2e=true,
+#   mirrored from 1.7.10) is the primary assertion. S5 (run 31567935416):
+#   the 1.12.2 lane's scenario readiness gate is NOT minecraft:music.game —
+#   the dummy-asset client WARNs that sound event pre-play, which raced the
+#   FML handshake and lost the /skin SEND. S6: the gate is the mod's own
+#   ES_E2E_CLIENT_JOINED marker (client-tick one-shot, -Deverlastingskins
+#   .e2e=true via --jvm) — the vanilla join chat broadcast never reaches
+#   GuiNewChat under the dummy-asset client (verified live: post-join
+#   "say" broadcasts log as [CHAT], the PlayerList join broadcast does
+#   not). The driver also HARD-waits the
+#   server-side join line (exit 2 on timeout) and asserts the ES_E2E_SKIN=cmd
+#   entry marker (command_reached_server contract field, exit 1 if the join
+#   succeeded but the command never reached the server).
+#
 # This driver owns the FULL flow (server boot + client + assertions) for
 # the headlessmc era; e2e-common.sh dispatches to it when E2E_ERA=headlessmc.
 #
 # Env contract (set by the lane wrapper test-infrastructure/run-e2e.sh):
-#   E2E_LANE           lane id (1.7.10 | 1.8.9 | 1.10.2)
+#   E2E_LANE           lane id (1.7.10 | 1.8.9 | 1.10.2 | mc1.12.2)
 #   E2E_MOD_JAR        built mod jar
 #   E2E_JAVA8          Java 8 binary
 #   E2E_SERVER_PORT    test port (default 25565)
@@ -53,6 +75,10 @@ source "$E2E_DRIVER_DIR/lib.sh"
 : "${E2E_HMC_VERSION:=2.10.0}"
 : "${E2E_SERVER_BOOT_TIMEOUT_S:=240}"
 : "${E2E_CLIENT_TIMEOUT_S:=420}"
+# S5: hard join gate window — the server must log the player's in-world
+# join line within this before any assertion is meaningful (mirrors
+# modern-smoke.sh's join assert; scenario CONTAINS gate timeout is 240).
+: "${E2E_JOIN_TIMEOUT_S:=240}"
 
 CACHE="$E2E_CACHE_DIR/$E2E_LANE"
 HMC_DIR="$RUNNER_TMP/hmc-$E2E_LANE"
@@ -102,8 +128,33 @@ case "$E2E_LANE" in
         SERVER_MAIN="net.minecraftforge.fml.relauncher.ServerLaunchWrapper"
         SCENARIO_SKIN_CMD=""
         ;;
+    mc1.12.2)
+        HMC_SPECIFICS_NAME="hmc-specifics-1.12.2-2.4.0-lexforge-release.jar"
+        MC_VERSION="1.12.2"
+        # The client profile is installed by the forge-1.12.2-14.23.5.2860
+        # installer (--installClient), which names it with a DASH after
+        # "forge" (unlike the modern Forge profile naming) — the driver
+        # launches this exact id.
+        MC_VERSION_ID="1.12.2-forge-14.23.5.2860"
+        FORGE_UID="14.23.5.2860"
+        # Server side stays on the canonical 2847 build (the E2E-verified
+        # version of record); the client profile is 2860 (see the lane
+        # wrapper history for why the client cannot use 2847).
+        FORGE_VERSION="1.12.2-14.23.5.2847"
+        SERVER_SHA1="886945bfb2b978778c3a0288fd7fab09d315b25f"
+        FORGE_SHA1="c15dbf708064a9db9a9d66dd84688b9f31b6006e"
+        SERVER_MAIN="net.minecraftforge.fml.relauncher.ServerLaunchWrapper"
+        SCENARIO_SKIN_CMD="/skin set mojang Notch"
+        # The 1.12.2 client loads the PROFILE's standalone jline-3.5.1 (a
+        # forge dep) ahead of the specifics' shaded copy; its UnixTerminal
+        # execs `stty` with the inherited piped stdin and BLOCKS forever
+        # (observed live: client froze in the reader's terminal init, server
+        # read-timed-out the join). Forcing the dumb terminal skips the
+        # unix/exec path entirely — the reader then polls plain stdin lines.
+        HMC_LAUNCH_EXTRA="--jvm -Dhmc.jline.dumb=true"
+        ;;
     *)
-        e2e_fail "headlessmc era: unsupported lane $E2E_LANE (expect 1.7.10, 1.8.9 or 1.10.2)"
+        e2e_fail "headlessmc era: unsupported lane $E2E_LANE (expect 1.7.10, 1.8.9, 1.10.2 or mc1.12.2)"
         ;;
 esac
 
@@ -149,6 +200,32 @@ elif [ "$E2E_LANE" = "1.8.9" ]; then
         "netty-all-4.0.23.Final.jar|https://libraries.minecraft.net/io/netty/netty-all/4.0.23.Final/netty-all-4.0.23.Final.jar|0294104aaf1781d6a56a07d561e792c5d0c95f45"
         "log4j-api-2.0-beta9.jar|https://libraries.minecraft.net/org/apache/logging/log4j/log4j-api/2.0-beta9/log4j-api-2.0-beta9.jar|1dd66e68cccd907880229f9e2de1314bd13ff785"
         "log4j-core-2.0-beta9.jar|https://libraries.minecraft.net/org/apache/logging/log4j/log4j-core/2.0-beta9/log4j-core-2.0-beta9.jar|678861ba1b2e1fccb594bb0ca03114bb05da9695"
+    )
+elif [ "$E2E_LANE" = "mc1.12.2" ]; then
+    # The Forge 1.12.2 universal jar's manifest Class-Path (verified live
+    # 2026-08-12: this exact set boots the server to "Done" with NO vanilla
+    # libs) — the 20 installer libraries minus the forge universal itself.
+    LIB_SPECS=(
+        "launchwrapper-1.12.jar|https://libraries.minecraft.net/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar|111e7bea9c968cdb3d06ef4632bf7ff0824d0f36"
+        "asm-all-5.2.jar|https://maven.minecraftforge.net/org/ow2/asm/asm-all/5.2/asm-all-5.2.jar|2ea49e08b876bbd33e0a7ce75c8f371d29e1f10a"
+        "jline-3.5.1.jar|https://maven.minecraftforge.net/org/jline/jline/3.5.1/jline-3.5.1.jar|51800e9d7a13608894a5a28eed0f5c7fa2f300fb"
+        "jna-4.4.0.jar|https://libraries.minecraft.net/net/java/dev/jna/jna/4.4.0/jna-4.4.0.jar|cb208278274bf12ebdb56c61bd7407e6f774d65a"
+        "akka-actor_2.11-2.3.3.jar|https://maven.minecraftforge.net/com/typesafe/akka/akka-actor_2.11/2.3.3/akka-actor_2.11-2.3.3.jar|ed62e9fc709ca0f2ff1a3220daa8b70a2870078e"
+        "config-1.2.1.jar|https://maven.minecraftforge.net/com/typesafe/config/1.2.1/config-1.2.1.jar|f771f71fdae3df231bcd54d5ca2d57f0bf93f467"
+        "scala-actors-migration_2.11-1.1.0.jar|https://maven.minecraftforge.net/org/scala-lang/scala-actors-migration_2.11/1.1.0/scala-actors-migration_2.11-1.1.0.jar|dfa8bc42b181d5b9f1a5dd147f8ae308b893eb6f"
+        "scala-compiler-2.11.1.jar|https://maven.minecraftforge.net/org/scala-lang/scala-compiler/2.11.1/scala-compiler-2.11.1.jar|56ea2e6c025e0821f28d73ca271218b8dd04926a"
+        "scala-continuations-library_2.11-1.0.2.jar|https://maven.minecraftforge.net/org/scala-lang/plugins/scala-continuations-library_2.11/1.0.2/scala-continuations-library_2.11-1.0.2.jar|0e517c53a7e9acd6b1668c5a35eccbaa3bab9aac"
+        "scala-continuations-plugin_2.11.1-1.0.2.jar|https://maven.minecraftforge.net/org/scala-lang/plugins/scala-continuations-plugin_2.11.1/1.0.2/scala-continuations-plugin_2.11.1-1.0.2.jar|f361a3283452c57fa30c1ee69448995de23c60f7"
+        "scala-library-2.11.1.jar|https://maven.minecraftforge.net/org/scala-lang/scala-library/2.11.1/scala-library-2.11.1.jar|0e11da23da3eabab9f4777b9220e60d44c1aab6a"
+        "scala-parser-combinators_2.11-1.0.1.jar|https://maven.minecraftforge.net/org/scala-lang/scala-parser-combinators_2.11/1.0.1/scala-parser-combinators_2.11-1.0.1.jar|f05d7345bf5a58924f2837c6c1f4d73a938e1ff0"
+        "scala-reflect-2.11.1.jar|https://maven.minecraftforge.net/org/scala-lang/scala-reflect/2.11.1/scala-reflect-2.11.1.jar|6580347e61cc7f8e802941e7fde40fa83b8badeb"
+        "scala-swing_2.11-1.0.1.jar|https://maven.minecraftforge.net/org/scala-lang/scala-swing_2.11/1.0.1/scala-swing_2.11-1.0.1.jar|b1cdd92bd47b1e1837139c1c53020e86bb9112ae"
+        "scala-xml_2.11-1.0.2.jar|https://maven.minecraftforge.net/org/scala-lang/scala-xml_2.11/1.0.2/scala-xml_2.11-1.0.2.jar|7a80ec00aec122fba7cd4e0d4cdd87ff7e4cb6d0"
+        "lzma-0.0.1.jar|https://libraries.minecraft.net/lzma/lzma/0.0.1/lzma-0.0.1.jar|521616dc7487b42bef0e803bd2fa3faf668101d7"
+        "jopt-simple-5.0.3.jar|https://libraries.minecraft.net/net/sf/jopt-simple/jopt-simple/5.0.3/jopt-simple-5.0.3.jar|cdd846cfc4e0f7eefafc02c0f5dce32b9303aa2a"
+        "vecmath-1.5.2.jar|https://libraries.minecraft.net/java3d/vecmath/1.5.2/vecmath-1.5.2.jar|79846ba34cbd89e2422d74d53752f993dcc2ccaf"
+        "trove4j-3.0.3.jar|https://libraries.minecraft.net/net/sf/trove4j/trove4j/3.0.3/trove4j-3.0.3.jar|42ccaf4761f0dfdfa805c9e340d99a755907e2dd"
+        "maven-artifact-3.5.3.jar|https://maven.minecraftforge.net/org/apache/maven/maven-artifact/3.5.3/maven-artifact-3.5.3.jar|7dc72b6d6d8a6dced3d294ed54c2cc3515ade9f4"
     )
 else
     LIB_SPECS=(
@@ -200,9 +277,13 @@ done
 
 # Bridge lanes additionally need the (spike-validated, stripped) hmc-specifics
 # jar: seeded per-lane in test-infrastructure/hmc-specifics/ (the lexforge
-# specifics have no live upstream URL; sha1-pinned vendored copies).
+# specifics have no live upstream URL; sha1-pinned vendored copies). The
+# mc1.12.2 lane dir is mc1.12.2/ (no forge- prefix — the out-of-band legacy
+# layout).
 if [ -n "$HMC_SPECIFICS_NAME" ]; then
-    : "${E2E_HMC_SPECIFICS_JAR:=$REPO_ROOT/forge-$E2E_LANE/test-infrastructure/hmc-specifics/$HMC_SPECIFICS_NAME}"
+    LANE_PREFIX="forge-"
+    [ "$E2E_LANE" = "mc1.12.2" ] && LANE_PREFIX=""
+    : "${E2E_HMC_SPECIFICS_JAR:=$REPO_ROOT/$LANE_PREFIX$E2E_LANE/test-infrastructure/hmc-specifics/$HMC_SPECIFICS_NAME}"
     if [ ! -f "$E2E_HMC_SPECIFICS_JAR" ]; then
         e2e_fail "hmc-specifics jar missing for lane $E2E_LANE: $E2E_HMC_SPECIFICS_JAR (seed from the slice-2 spike artifacts)"
     fi
@@ -237,6 +318,17 @@ motd=EverlastingSkins E2E $E2E_LANE
 max-tick-time=-1
 EOF
 printf '%s\n' "$E2E_USERNAME" > "$SERVER_DIR/ops.txt"
+if [ "$E2E_LANE" = "mc1.12.2" ]; then
+    # 1.12.2 reads ops.json (JSON, not the pre-1.7.6 ops.txt); the offline
+    # UUID is UUID.nameUUIDFromBytes("OfflinePlayer:" + name). The vanilla
+    # service defaults op_level.mojang to 0 (everyone), so ops are
+    # belt-and-suspenders — level 4 keeps every /skin node open regardless
+    # of config drift.
+    E2E_OFFLINE_UUID="$(python3 -c "import hashlib,sys;h=bytearray(hashlib.md5(('OfflinePlayer:'+sys.argv[1]).encode()).digest());h[6]=(h[6]&0x0f)|0x30;h[8]=(h[8]&0x3f)|0x80;b=bytes(h);print('%08x-%04x-%04x-%04x-%012x'%(int.from_bytes(b[0:4],'big'),int.from_bytes(b[4:6],'big'),int.from_bytes(b[6:8],'big'),int.from_bytes(b[8:10],'big'),int.from_bytes(b[10:16],'big')))" "$E2E_USERNAME")"
+    cat > "$SERVER_DIR/ops.json" <<EOF
+[{"uuid":"$E2E_OFFLINE_UUID","name":"$E2E_USERNAME","level":4,"bypassesPlayerLimit":false}]
+EOF
+fi
 
 SERVER_CP="$SERVER_JAR:$FORGE_JAR"
 for name in "${LIB_SPECS[@]}"; do
@@ -291,11 +383,32 @@ fi
 # the driver sees the sentinel and kills it.
 SCENARIO_FILE="$RUNNER_TMP/scenario-$E2E_LANE.json"
 if [ -n "$HMC_SPECIFICS_NAME" ]; then
+    # Readiness gate (S5 fix, deep-dive of run 31567935416): the 1.7.10 /
+    # 1.8.9 lanes gate on the sound-init marker minecraft:music.game (their
+    # legacy sound systems emit no per-event WARNs, so it only appears at
+    # world-load). The 1.12.2 dummy-asset client emits "[WARN] Missing
+    # sound for event: minecraft:music.game" during world-load sound-init
+    # ~6s BEFORE the FML handshake completes — that gate fires in the
+    # PRE-PLAY phase there, the /skin SEND is lost, and the server's read
+    # timeout drops the client. The 1.12.2 lane therefore gates on a
+    # MOD-OWNED client-side marker instead (S6): the vanilla join chat
+    # broadcast never reaches GuiNewChat under the dummy-asset client
+    # (verified live: post-join "say" broadcasts arrive and log as [CHAT],
+    # the PlayerList join broadcast does not), so the client-side join
+    # chat line cannot be the gate either. The mod logs
+    # ES_E2E_CLIENT_JOINED <name> on the first in-world client tick when
+    # -Deverlastingskins.e2e=true (passed via HMC_LAUNCH_EXTRA above) —
+    # log4j -> Log4jPatcher -> stdout, visible to the hmc CONTAINS scan.
+    if [ "$E2E_LANE" = "mc1.12.2" ]; then
+        SCENARIO_READY_MARKER="ES_E2E_CLIENT_JOINED"
+    else
+        SCENARIO_READY_MARKER="minecraft:music.game"
+    fi
     cat > "$SCENARIO_FILE" <<EOF
 {
   "name": "$E2E_LANE bridge E2E",
   "steps": [
-    {"type": "CONTAINS", "message": "minecraft:music.game", "timeout": 240},
+    {"type": "CONTAINS", "message": "$SCENARIO_READY_MARKER", "timeout": 240},
     {"type": "SEND", "message": "$SCENARIO_SKIN_CMD"},
     {"type": "SEND", "message": ". hmc-e2e-bridge-ok"}
   ],
@@ -316,7 +429,14 @@ EOF
 fi
 
 HMC_JVMARGS=""
-[ "$E2E_LANE" = "1.10.2" ] && HMC_JVMARGS="hmc.jvmargs=-Deverlastingskins.e2e=true"
+# The E2E flag rides hmc.jvmargs (proven route, 1.10.2 lane) so the mod's
+# client-side join marker (ES_E2E_CLIENT_JOINED) fires under the driver
+# only — the --jvm launch flag route is NOT used for it (hmc takes the
+# first arg after --jvm as the JVM arg list; a second -D arg is dropped).
+if [ "$E2E_LANE" = "1.10.2" ] || [ "$E2E_LANE" = "mc1.12.2" ]; then
+    HMC_JVMARGS="hmc.jvmargs=-Deverlastingskins.e2e=true"
+fi
+: "${HMC_LAUNCH_EXTRA:=}"
 # The launcher reads its config from <cwd>/HeadlessMC/config.properties
 # (hmc's default config location), so the config lives in a HeadlessMC/
 # subdir of the hmc runtime dir and the launcher runs with CWD there.
@@ -338,17 +458,36 @@ EOF
 
 # The launcher reads hmc.mcdir from the config; a fresh CI runner has no
 # ~/.minecraft client profile for this forge version, and the launcher then
-# fails with "Couldn't find object for name" on launch. Install the client
-# profile through the launcher's own forge command (verified live: creates
-# exactly $MC_VERSION_ID under hmc.mcdir/versions/).
+# fails with "Couldn't find object for name" on launch. Bridge lanes install
+# the profile through the launcher's own forge command (verified live: creates
+# exactly $MC_VERSION_ID under hmc.mcdir/versions/). mc1.12.2 cannot use that
+# route (HMCLite's forgecli crashes on 1.12.2 installers with a
+# NoSuchMethodError on ClientInstall.run, and the canonical 2847 installer
+# has no --installClient CLI), so its profile is installed with the 2860
+# rebuild's --installClient (same proven route as the pre-#438 boot-smoke).
 MC_DIR="${HOME}/.minecraft"
 if [ ! -d "$MC_DIR/versions/$MC_VERSION_ID" ]; then
-    e2e_log "installing forge client profile $MC_VERSION_ID..."
-    set +e
-    ( cd "$HMC_DIR" && setsid timeout 300 "$E2E_JAVA8" -jar "$HMC_WRAPPER_JAR" \
-        --command "forge $MC_VERSION --uid $FORGE_UID" ) > "$RUNNER_TMP/forge-install-$E2E_LANE.log" 2>&1
-    INSTALL_CODE=$?
-    set -e
+    if [ "$E2E_LANE" = "mc1.12.2" ]; then
+        e2e_log "installing forge client profile $MC_VERSION_ID (2860 installer)..."
+        CLIENT_INSTALLER="forge-1.12.2-14.23.5.2860-installer.jar"
+        fetch_artifact "$CLIENT_INSTALLER" \
+            "https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-14.23.5.2860/forge-1.12.2-14.23.5.2860-installer.jar" \
+            "5e8a91f71ef3d1f77de3f8d3261aedcc2f551c9d"
+        set +e
+        mkdir -p "$MC_DIR"
+        echo '{"profiles":{}}' > "$MC_DIR/launcher_profiles.json"
+        ( cd "$SERVER_DIR" && "$E2E_JAVA8" -jar "$CACHE/$CLIENT_INSTALLER" --installClient "$MC_DIR" ) \
+            > "$RUNNER_TMP/forge-install-$E2E_LANE.log" 2>&1
+        INSTALL_CODE=$?
+        set -e
+    else
+        e2e_log "installing forge client profile $MC_VERSION_ID..."
+        set +e
+        ( cd "$HMC_DIR" && setsid timeout 300 "$E2E_JAVA8" -jar "$HMC_WRAPPER_JAR" \
+            --command "forge $MC_VERSION --uid $FORGE_UID" ) > "$RUNNER_TMP/forge-install-$E2E_LANE.log" 2>&1
+        INSTALL_CODE=$?
+        set -e
+    fi
     if [ $INSTALL_CODE -ne 0 ] || [ ! -d "$MC_DIR/versions/$MC_VERSION_ID" ]; then
         e2e_warn "forge client profile install failed (code $INSTALL_CODE)"
         tail -n 20 "$RUNNER_TMP/forge-install-$E2E_LANE.log" >&2 || true
@@ -366,15 +505,49 @@ set +e
     if [ -n "${DISPLAY:-}" ]; then
         exec setsid timeout --kill-after=10 "$E2E_CLIENT_TIMEOUT_S" \
             "$E2E_JAVA8" -jar "$HMC_WRAPPER_JAR" \
-            --command "launch $MC_VERSION_ID -lwjgl -offline"
+            --command "launch $MC_VERSION_ID -lwjgl -offline $HMC_LAUNCH_EXTRA"
     else
         exec setsid timeout --kill-after=10 "$E2E_CLIENT_TIMEOUT_S" \
             xvfb-run -a "$E2E_JAVA8" -jar "$HMC_WRAPPER_JAR" \
-            --command "launch $MC_VERSION_ID -lwjgl -offline"
+            --command "launch $MC_VERSION_ID -lwjgl -offline $HMC_LAUNCH_EXTRA"
     fi
 ) > "$CLIENT_LOG" 2>&1 &
 CLIENT_PID=$!
 set -e
+
+# ---------------------------------------------------------------------------
+# Join gate (S5): a HARD wait for the server-side in-world join line before
+# any assertion is meaningful. The 1.12.2 dummy-asset client's sound-init
+# WARNs (incl. minecraft:music.game) fire in the PRE-PLAY phase, so a
+# client "ready" signal from the launcher can race the FML handshake — the
+# server's "$E2E_USERNAME joined the game" line is ground truth that the
+# player is in-world (vanilla PlayerList broadcast; also asserted for the
+# modern-smoke era). Timeout = retryable infra (exit 2).
+# ---------------------------------------------------------------------------
+JOINED=0
+for _ in $(seq 1 "$E2E_JOIN_TIMEOUT_S"); do
+    if grep -q "$E2E_USERNAME joined the game" "$SERVER_LOG" 2>/dev/null; then
+        JOINED=1
+        break
+    fi
+    if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+
+if [ "$JOINED" -ne 1 ]; then
+    e2e_warn "client join NOT seen within ${E2E_JOIN_TIMEOUT_S}s (server log tail follows)"
+    tail -n 25 "$SERVER_LOG" >&2 || true
+    e2e_warn "client log tail follows"
+    tail -n 25 "$CLIENT_LOG" >&2 || true
+    kill_tree "$CLIENT_PID" 2>/dev/null || true
+    CLIENT_PID=""
+    kill_tree "$SERVER_PID" 2>/dev/null || true
+    SERVER_PID=""
+    exit 2
+fi
+e2e_log "client joined (server log: $E2E_USERNAME joined the game)"
 
 # ---------------------------------------------------------------------------
 # Assertions: server-side sentinel is primary; the launcher's CommandTest
@@ -433,6 +606,7 @@ fi
 # ---------------------------------------------------------------------------
 CLIENT_JOINED="False"
 COMMAND_EXECUTED="False"
+COMMAND_REACHED_SERVER="False"
 DRIVER_CODE=3
 if [ "$E2E_LANE" = "1.10.2" ]; then
     if [ -f "$CLIENT_DIR/e2e-result.json" ]; then
@@ -452,6 +626,15 @@ else
     if grep -q "<$E2E_USERNAME> hmc-e2e-bridge-ok" "$SERVER_LOG" 2>/dev/null; then
         COMMAND_EXECUTED="True"
     fi
+    # S5 contract: the SkinCommand entry marker (logged at the top of
+    # execute() under -Deverlastingskins.e2e=true) proves the /skin SEND
+    # REACHED the server. Present on 1.7.10 + mc1.12.2 (the 1.8.9 lane has
+    # no command marker, so its field stays False and is not asserted).
+    if [ "$E2E_LANE" = "1.7.10" ] || [ "$E2E_LANE" = "mc1.12.2" ]; then
+        if grep -q "ES_E2E_SKIN=cmd" "$SERVER_LOG" 2>/dev/null; then
+            COMMAND_REACHED_SERVER="True"
+        fi
+    fi
     if [ "$SENTINEL_SEEN" -eq 1 ] || grep -q "CommandTest was successful" "$CLIENT_LOG" 2>/dev/null; then
         DRIVER_CODE=0
     fi
@@ -462,6 +645,17 @@ if [ "$SENTINEL_SEEN" -eq 1 ] && [ "$DRIVER_CODE" -eq 0 ]; then
 else
     FINAL_CODE=1
 fi
+# S5 regression-prevention: the client JOINED (join gate passed) but the
+# /skin SEND never reached the server — the pre-join-race signature (the
+# scenario fired before the in-world join). Report it as a DISTINCT
+# assertion failure instead of a silent sentinel miss so the failure mode
+# is explicit in the job log.
+if [ "$E2E_LANE" = "1.7.10" ] || [ "$E2E_LANE" = "mc1.12.2" ]; then
+    if [ "$COMMAND_REACHED_SERVER" != "True" ]; then
+        e2e_warn "FAIL: command never reached the server (ES_E2E_SKIN=cmd absent) — pre-join-race signature: client joined but the /skin SEND was lost"
+        FINAL_CODE=1
+    fi
+fi
 
 python3 - "$RESULT_JSON" <<PY
 import json, sys
@@ -471,6 +665,7 @@ out = {
     "server_booted": True,
     "client_joined": $CLIENT_JOINED,
     "command_executed": $COMMAND_EXECUTED,
+    "command_reached_server": $COMMAND_REACHED_SERVER,
     "renderer_state": "headless",
     "renderer_verified": True,
     "server_sentinel": $([ "$SENTINEL_SEEN" -eq 1 ] && echo True || echo False),
@@ -489,5 +684,5 @@ if [ "$FINAL_CODE" -eq 0 ]; then
     e2e_log "PASS: HeadlessMC E2E ($E2E_LANE) all green"
     exit 0
 fi
-e2e_warn "FAIL: HeadlessMC E2E ($E2E_LANE) sentinel=$SENTINEL_SEEN driver=$DRIVER_CODE"
+e2e_warn "FAIL: HeadlessMC E2E ($E2E_LANE) sentinel=$SENTINEL_SEEN driver=$DRIVER_CODE reached_server=$COMMAND_REACHED_SERVER"
 exit 1

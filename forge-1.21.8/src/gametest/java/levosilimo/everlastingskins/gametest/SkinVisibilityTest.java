@@ -272,7 +272,7 @@ public class SkinVisibilityTest {
             // then fails AT the deadline with a clear message instead of
             // racing the tick budget.
             if (System.nanoTime() > deadlineNanos) {
-                helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 20s wall-clock waiting for "
+                helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 60s wall-clock waiting for "
                         + "/skin clear to finish (ticks=" + helper.getTick() + ")")));
             }
             if (storage.getSkin(playerId) != null) {
@@ -532,7 +532,7 @@ public class SkinVisibilityTest {
             // then fails AT the deadline with a clear message instead of
             // racing the tick budget.
             if (System.nanoTime() > deadlineNanos) {
-                helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 20s wall-clock waiting for "
+                helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 60s wall-clock waiting for "
                         + "skin set mojang to store skin (ticks=" + helper.getTick() + ")")));
             }
             CustomSkinProperty stored = storage.getSkin(playerId);
@@ -927,6 +927,7 @@ public class SkinVisibilityTest {
 
     @GameTest(structure = "everlastingskins:empty", environment = "everlastingskins_gametest:debounce_after100ms", maxTicks = 200)
     public void debounceAfter100ms(GameTestHelper helper) {
+        ensureStorage(helper);
         FakeMojangAPI fake = installFakeMojangAPI(true);
         MinecraftServer server = helper.getLevel().getServer();
         ServerPlayer playerA = mockPlayer(helper, "DebounceA");
@@ -1573,7 +1574,7 @@ public class SkinVisibilityTest {
                 // then fails AT the deadline with a clear message instead of
                 // racing the tick budget.
                 if (System.nanoTime() > deadlineNanos) {
-                    helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 20s wall-clock waiting for "
+                    helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 60s wall-clock waiting for "
                             + "concurrent skin set (ticks=" + helper.getTick() + ")")));
                 }
                 if (!futureA.isDone() || !futureB.isDone()) {
@@ -1589,15 +1590,16 @@ public class SkinVisibilityTest {
                     throw new GameTestAssertException(Component.literal("waiting for playerB to store the Mojang skin (got "
                             + (skinB == null ? "null" : skinB.getSource()) + ")"), -1);
                 }
+                long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
+                long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
                 long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
                 long nowNanos = System.nanoTime();
                 if (nowNanos - lastLogNanos[0] >= TimeUnit.SECONDS.toNanos(5)) {
                     lastLogNanos[0] = nowNanos;
                     EverlastingSkins.logger.info("concurrentskinset_twoplayers: storage updated, still waiting for "
-                            + "observer ADD_PLAYER packets after {}ms (ticks={})", elapsedMs, helper.getTick());
+                            + "observer ADD_PLAYER packets after {}ms (ticks={}) obsCountA={} obsCountB={}",
+                            elapsedMs, helper.getTick(), obsCountA, obsCountB);
                 }
-                long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
-                long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
                 if (obsCountA != 1) {
                     throw new GameTestAssertException(Component.literal("observerA expected 1 packet, got " + obsCountA), -1);
                 }
@@ -1838,9 +1840,12 @@ public class SkinVisibilityTest {
      * GameTestServer overrides waitUntilNextTick() to skip the sleep, so ticks
      * run at CPU speed (~400/sec on CI): timeoutTicks is NOT a reliable
      * wall-clock bound. Enforce the budget with System.nanoTime() deadlines;
-     * timeoutTicks is only a far backstop.
+     * timeoutTicks is only a far backstop. 60s absorbs loaded-runner packet
+     * latency: run 31567920746 saw the observer ADD_PLAYER hop exceed the old
+     * 20s bound at ~1500 ticks/s on a fast CPU (hardened deadline fired at
+     * 20002ms while futures+storage had completed in <5s).
      */
-    private static final long ASYNC_PIPELINE_DEADLINE_NANOS = TimeUnit.SECONDS.toNanos(20);
+    private static final long ASYNC_PIPELINE_DEADLINE_NANOS = TimeUnit.SECONDS.toNanos(60);
 
 
     private static List<Packet<?>> drain(ServerPlayer player) {
