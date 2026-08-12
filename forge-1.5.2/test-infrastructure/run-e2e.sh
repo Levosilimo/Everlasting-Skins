@@ -3,24 +3,21 @@
 # real-client E2E (master plan slice 1; shared logic lives in
 # scripts/e2e/e2e-common.sh + scripts/e2e/drivers/pre18-xvfb.sh).
 #
-# ERA-UNTESTED (slice 1, 2026-08-11): this lane is a MERGE-MODEL era.
-# 1.4.7/1.5.2 boot the client as: obf client.jar + forge universal.zip
-# MERGED into the client jar, main net.minecraft.client.Minecraft,
-# CWD=gameDir — NOT the 1.6.4 launchwrapper tweaker model that
-# scripts/e2e/drivers/pre18-xvfb.sh implements (hardcoded 1.6.4 client
-# jar pins + net.minecraft.launchwrapper.Launch --tweakClass FMLTweaker).
-# The merge-model client boot is NOT implemented and was NOT live-verified
-# in the wiring session, so this wrapper mirrors the 1.6.4 wrapper's lane
-# mechanics (Java 8 discovery, lane build, mod jar, vendored server jar)
-# and then exits 3 with this documented note instead of invoking the
-# 1.6.4-only orchestrator. Do NOT fake a pass: the CI matrix entry for
-# this lane stays commented until a merge-model driver lands (lib-8
-# recipe: .slim/deepwork/real-client-e2e-plan.md, open item: pin pre-1.8
-# CLIENT jar URLs).
+# Flow: build the lane (vendored harness, Java 8) → export the lane's
+# server/artifact config → invoke the shared orchestrator.
+#
+# MERGE MODEL (lib-8 recipe): 1.4.7/1.5.2 boot the client as the obf client
+# jar with the FML universal zip MERGED in (universal's patched
+# net/minecraft/client/Minecraft + MinecraftApplet + ClientBrandRetriever
+# win), main net.minecraft.client.Minecraft, CWD + minecraft.applet
+# TargetDirectory = gameDir, NO launchwrapper/tweaker — the driver
+# auto-connects via Minecraft.setServer at @Mod.Init. The server boots as
+# net.minecraft.server.MinecraftServer nogui with the universal zip FIRST on
+# the classpath (its patched MinecraftServer FML-bootstraps the process).
 #
 # Usage: JAVA_HOME=<jdk8> ./run-e2e.sh
 # Exit codes (master-plan contract): 0 all green | 1 assertion failed |
-# 2 retryable infra | 3 build/hard failure (era-untested exits 3).
+# 2 retryable infra | 3 build/hard failure.
 
 set -euo pipefail
 
@@ -29,8 +26,9 @@ LANE_DIR="$(dirname "$SCRIPT_DIR")"
 REPO_ROOT="$(cd "$LANE_DIR/.." && pwd)"
 
 # ---------------------------------------------------------------------------
-# Java 8 (hard requirement: Gradle 4.4.1 dies on 9+; the future merge-model
-# client boot needs Java 8 too — launchwrapper-era JVM semantics)
+# Java 8 (hard requirement: Gradle 4.4.1 dies on 9+; the merge-model client
+# boot needs Java 8 too — the client bytecode is major 49 but FML 5.2's ASM
+# refuses anything newer than Java 7 class files, and :common needs 8)
 # ---------------------------------------------------------------------------
 if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     E2E_JAVA8="$JAVA_HOME/bin/java"
@@ -71,7 +69,14 @@ if [ ! -f "$SERVER_JAR" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# ERA-UNTESTED guard (merge-model boot not implemented)
+# Invoke the shared orchestrator (merge model)
 # ---------------------------------------------------------------------------
-echo "[e2e:1.5.2][era-untested] merge-model client boot NOT implemented: 1.5.2 needs obf client.jar + universal.zip MERGED into the client jar (main net.minecraft.client.Minecraft, CWD=gameDir); scripts/e2e/drivers/pre18-xvfb.sh implements only the 1.6.4 tweaker model, and the merge-model boot was not live-verified in the wiring session. Lane mechanics above (build + artifact discovery) are verified; the client/server E2E is not. Enable CI only after a merge-model driver lands per lib-8 (.slim/deepwork/real-client-e2e-plan.md). Exiting 3 — not a pass." >&2
-exit 3
+export E2E_LANE="1.5.2"
+export E2E_ERA="merge"
+export E2E_MOD_JAR="$MOD_JAR"
+export E2E_SERVER_JAR="$SERVER_JAR"
+export E2E_DRIVER_SCRIPT="$REPO_ROOT/scripts/e2e/drivers/pre18-xvfb.sh"
+export E2E_JAVA8
+export E2E_SENTINEL_PNG="$REPO_ROOT/common/src/test/resources/e2e/sentinel-64x32.png"
+
+exec bash "$REPO_ROOT/scripts/e2e/e2e-common.sh"
