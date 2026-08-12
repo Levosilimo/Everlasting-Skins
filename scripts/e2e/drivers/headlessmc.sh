@@ -33,7 +33,14 @@
 #   --installClient CLI, and HMCLite's forgecli crashes on 1.12.2 installers
 #   — see the lane wrapper history). The server-side ES_E2E_SKIN sentinel
 #   (mc1.12.2 SkinCommand/SkinAction under -Deverlastingskins.e2e=true,
-#   mirrored from 1.7.10) is the primary assertion.
+#   mirrored from 1.7.10) is the primary assertion. S5 (run 31567935416):
+#   the 1.12.2 lane's scenario readiness gate is the CLIENT-side join chat
+#   line ("TestPlayer joined the game"), NOT minecraft:music.game — the
+#   dummy-asset client WARNs that sound event pre-play, which raced the FML
+#   handshake and lost the /skin SEND. The driver also HARD-waits the
+#   server-side join line (exit 2 on timeout) and asserts the ES_E2E_SKIN=cmd
+#   entry marker (command_reached_server contract field, exit 1 if the join
+#   succeeded but the command never reached the server).
 #
 # This driver owns the FULL flow (server boot + client + assertions) for
 # the headlessmc era; e2e-common.sh dispatches to it when E2E_ERA=headlessmc.
@@ -64,6 +71,10 @@ source "$E2E_DRIVER_DIR/lib.sh"
 : "${E2E_HMC_VERSION:=2.10.0}"
 : "${E2E_SERVER_BOOT_TIMEOUT_S:=240}"
 : "${E2E_CLIENT_TIMEOUT_S:=420}"
+# S5: hard join gate window — the server must log the player's in-world
+# join line within this before any assertion is meaningful (mirrors
+# modern-smoke.sh's join assert; scenario CONTAINS gate timeout is 240).
+: "${E2E_JOIN_TIMEOUT_S:=240}"
 
 CACHE="$E2E_CACHE_DIR/$E2E_LANE"
 HMC_DIR="$RUNNER_TMP/hmc-$E2E_LANE"
@@ -368,11 +379,27 @@ fi
 # the driver sees the sentinel and kills it.
 SCENARIO_FILE="$RUNNER_TMP/scenario-$E2E_LANE.json"
 if [ -n "$HMC_SPECIFICS_NAME" ]; then
+    # Readiness gate (S5 fix, deep-dive of run 31567935416): the 1.7.10 /
+    # 1.8.9 lanes gate on the sound-init marker minecraft:music.game (their
+    # legacy sound systems emit no per-event WARNs, so it only appears at
+    # world-load). The 1.12.2 dummy-asset client emits "[WARN] Missing
+    # sound for event: minecraft:music.game" during world-load sound-init
+    # ~6s BEFORE the FML handshake completes — that gate fires in the
+    # PRE-PLAY phase there, the /skin SEND is lost, and the server's read
+    # timeout drops the client. The 1.12.2 lane therefore gates on the
+    # client-side join chat line instead (GuiNewChat logs "[CHAT] <text>"
+    # on 1.8-1.12.2 clients; the bare text keeps the hmc CONTAINS match
+    # regex-safe — no brackets).
+    if [ "$E2E_LANE" = "mc1.12.2" ]; then
+        SCENARIO_READY_MARKER="$E2E_USERNAME joined the game"
+    else
+        SCENARIO_READY_MARKER="minecraft:music.game"
+    fi
     cat > "$SCENARIO_FILE" <<EOF
 {
   "name": "$E2E_LANE bridge E2E",
   "steps": [
-    {"type": "CONTAINS", "message": "minecraft:music.game", "timeout": 240},
+    {"type": "CONTAINS", "message": "$SCENARIO_READY_MARKER", "timeout": 240},
     {"type": "SEND", "message": "$SCENARIO_SKIN_CMD"},
     {"type": "SEND", "message": ". hmc-e2e-bridge-ok"}
   ],
@@ -474,6 +501,40 @@ CLIENT_PID=$!
 set -e
 
 # ---------------------------------------------------------------------------
+# Join gate (S5): a HARD wait for the server-side in-world join line before
+# any assertion is meaningful. The 1.12.2 dummy-asset client's sound-init
+# WARNs (incl. minecraft:music.game) fire in the PRE-PLAY phase, so a
+# client "ready" signal from the launcher can race the FML handshake — the
+# server's "$E2E_USERNAME joined the game" line is ground truth that the
+# player is in-world (vanilla PlayerList broadcast; also asserted for the
+# modern-smoke era). Timeout = retryable infra (exit 2).
+# ---------------------------------------------------------------------------
+JOINED=0
+for _ in $(seq 1 "$E2E_JOIN_TIMEOUT_S"); do
+    if grep -q "$E2E_USERNAME joined the game" "$SERVER_LOG" 2>/dev/null; then
+        JOINED=1
+        break
+    fi
+    if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+
+if [ "$JOINED" -ne 1 ]; then
+    e2e_warn "client join NOT seen within ${E2E_JOIN_TIMEOUT_S}s (server log tail follows)"
+    tail -n 25 "$SERVER_LOG" >&2 || true
+    e2e_warn "client log tail follows"
+    tail -n 25 "$CLIENT_LOG" >&2 || true
+    kill_tree "$CLIENT_PID" 2>/dev/null || true
+    CLIENT_PID=""
+    kill_tree "$SERVER_PID" 2>/dev/null || true
+    SERVER_PID=""
+    exit 2
+fi
+e2e_log "client joined (server log: $E2E_USERNAME joined the game)"
+
+# ---------------------------------------------------------------------------
 # Assertions: server-side sentinel is primary; the launcher's CommandTest
 # outcome is secondary (the driver header's contract). The bridge scenario
 # has no quit SEND, so the client stays in-world until the server-side skin
@@ -530,6 +591,7 @@ fi
 # ---------------------------------------------------------------------------
 CLIENT_JOINED="False"
 COMMAND_EXECUTED="False"
+COMMAND_REACHED_SERVER="False"
 DRIVER_CODE=3
 if [ "$E2E_LANE" = "1.10.2" ]; then
     if [ -f "$CLIENT_DIR/e2e-result.json" ]; then
@@ -549,6 +611,15 @@ else
     if grep -q "<$E2E_USERNAME> hmc-e2e-bridge-ok" "$SERVER_LOG" 2>/dev/null; then
         COMMAND_EXECUTED="True"
     fi
+    # S5 contract: the SkinCommand entry marker (logged at the top of
+    # execute() under -Deverlastingskins.e2e=true) proves the /skin SEND
+    # REACHED the server. Present on 1.7.10 + mc1.12.2 (the 1.8.9 lane has
+    # no command marker, so its field stays False and is not asserted).
+    if [ "$E2E_LANE" = "1.7.10" ] || [ "$E2E_LANE" = "mc1.12.2" ]; then
+        if grep -q "ES_E2E_SKIN=cmd" "$SERVER_LOG" 2>/dev/null; then
+            COMMAND_REACHED_SERVER="True"
+        fi
+    fi
     if [ "$SENTINEL_SEEN" -eq 1 ] || grep -q "CommandTest was successful" "$CLIENT_LOG" 2>/dev/null; then
         DRIVER_CODE=0
     fi
@@ -559,6 +630,17 @@ if [ "$SENTINEL_SEEN" -eq 1 ] && [ "$DRIVER_CODE" -eq 0 ]; then
 else
     FINAL_CODE=1
 fi
+# S5 regression-prevention: the client JOINED (join gate passed) but the
+# /skin SEND never reached the server — the pre-join-race signature (the
+# scenario fired before the in-world join). Report it as a DISTINCT
+# assertion failure instead of a silent sentinel miss so the failure mode
+# is explicit in the job log.
+if [ "$E2E_LANE" = "1.7.10" ] || [ "$E2E_LANE" = "mc1.12.2" ]; then
+    if [ "$COMMAND_REACHED_SERVER" != "True" ]; then
+        e2e_warn "FAIL: command never reached the server (ES_E2E_SKIN=cmd absent) — pre-join-race signature: client joined but the /skin SEND was lost"
+        FINAL_CODE=1
+    fi
+fi
 
 python3 - "$RESULT_JSON" <<PY
 import json, sys
@@ -568,6 +650,7 @@ out = {
     "server_booted": True,
     "client_joined": $CLIENT_JOINED,
     "command_executed": $COMMAND_EXECUTED,
+    "command_reached_server": $COMMAND_REACHED_SERVER,
     "renderer_state": "headless",
     "renderer_verified": True,
     "server_sentinel": $([ "$SENTINEL_SEEN" -eq 1 ] && echo True || echo False),
@@ -586,5 +669,5 @@ if [ "$FINAL_CODE" -eq 0 ]; then
     e2e_log "PASS: HeadlessMC E2E ($E2E_LANE) all green"
     exit 0
 fi
-e2e_warn "FAIL: HeadlessMC E2E ($E2E_LANE) sentinel=$SENTINEL_SEEN driver=$DRIVER_CODE"
+e2e_warn "FAIL: HeadlessMC E2E ($E2E_LANE) sentinel=$SENTINEL_SEEN driver=$DRIVER_CODE reached_server=$COMMAND_REACHED_SERVER"
 exit 1
