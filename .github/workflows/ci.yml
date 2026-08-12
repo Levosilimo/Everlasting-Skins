@@ -718,17 +718,21 @@ jobs:
             ${{ runner.temp }}/everlastingskins-e2e/**/*.log
           if-no-files-found: warn
 
-  # ── E2E (modern lanes boot-smoke, informational) ─────────────
-  # Slice-4 real-client boot-smoke floor for the remaining matrix lanes
-  # (master plan real-client-e2e-plan.md): forge-1.16.5 / forge-1.18.2 /
-  # forge-1.20.1 / forge-26.1 / forge-26.2. Each lane's run-e2e.sh builds
-  # the lane, boots a PRODUCTION Forge server (pinned installer
+  # ── E2E (modern lanes, informational) ─────────────────────────
+  # Real-client E2E for the remaining matrix lanes (master plan
+  # real-client-e2e-plan.md): forge-1.16.5 / forge-1.18.2 / forge-1.20.1
+  # run the slice-4 boot-smoke floor (each lane's run-e2e.sh builds the
+  # lane, boots a PRODUCTION Forge server (pinned installer
   # --installServer, mod jar in mods/, online-mode=false) and launches the
   # real dev client (runClient) under xvfb-run + Mesa llvmpipe; the
   # boot-smoke asserts the server boot line + the client join line on the
-  # server log. The 1.21.x point releases are NOT here: they run the merged
-  # slice-3 in-jar driver (e2e-modern-121 above). INFORMATIONAL — NOT part
-  # of the required-check
+  # server log). forge-26.1 / forge-26.2 run the FULL slice-3 in-jar driver
+  # (modern-injar era): the same production server + xvfb client, plus the
+  # in-jar E2EDriver round-trip — /skin set mojang TestPlayer, tab-list
+  # textures sentinel-marker assert, result JSON + exit-code mapping
+  # (26.x port of the 1.21 flow). The 1.21.x point releases are NOT here:
+  # they run the slice-3 in-jar driver (e2e-modern-121 above).
+  # INFORMATIONAL — NOT part of the required-check
   # contract (no gh-api-bump). Per-lane JDK: 8 (1.16.5 FG 5.1 lane),
   # 21 (1.18.2/1.20.1 Gradle 8.14 daemon + Java 17 toolchain via foojay),
   # 25 (26.x unobfuscated line). Mesa software GL is required (the modern
@@ -785,7 +789,7 @@ jobs:
           key: e2e-${{ matrix.lane }}-${{ runner.os }}
           restore-keys: |
             e2e-${{ matrix.lane }}-${{ runner.os }}-
-      - name: Run real-client boot-smoke (production server + xvfb dev client + join assert)
+      - name: Run real-client E2E (boot-smoke or full in-jar driver per lane)
         run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
