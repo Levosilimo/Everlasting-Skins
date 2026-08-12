@@ -32,6 +32,7 @@ import net.minecraft.util.text.StringTextComponent;
 import net.minecraftforge.server.command.EnumArgument;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -46,7 +47,10 @@ public class SkinCommand {
 
     public static MineSkinAPI getMineSkinAPI() {
         if (mineSkinAPIInstance == null) {
-            mineSkinAPIInstance = new MineSkinApiHttpImpl();
+            mineSkinAPIInstance = new MineSkinApiHttpImpl(new HttpsUrlConnectionHttpClient(),
+                    Config.MINESKIN_API_KEY.get(),
+                    Config.URL_ALLOWLIST_ENABLED.get(),
+                    new ArrayList<String>(Config.URL_ALLOWLIST_DOMAINS.get()));
         }
         return mineSkinAPIInstance;
     }
