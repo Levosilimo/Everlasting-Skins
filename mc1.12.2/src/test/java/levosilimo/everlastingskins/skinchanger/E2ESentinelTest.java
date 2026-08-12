@@ -8,12 +8,10 @@ package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.EverlastingSkins;
 import levosilimo.everlastingskins.harness.AsyncSupport;
-import levosilimo.everlastingskins.harness.PacketLog;
 import levosilimo.everlastingskins.harness.TestServerContext;
 import levosilimo.everlastingskins.integration.TestProperties;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.network.play.server.SPacketChat;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -42,8 +41,8 @@ import static org.mockito.Mockito.verify;
  *
  * The static-final logger is swapped for a Mockito mock for the duration of
  * each test (Java-8 modifiers surgery, same style as SkinActionTestAccess);
- * the sentinel fires on the async completion thread, so the await points
- * prove the pipeline reached (and passed) the marker.
+ * the sentinel fires on the async completion thread, so async sentinel
+ * assertions use Mockito timeout() to wait for the invocation itself.
  */
 class E2ESentinelTest {
 
@@ -113,7 +112,7 @@ class E2ESentinelTest {
                 () -> alice.getGameProfile().getProperties().get("textures").size() == 1),
             "skin must apply before the sentinel is asserted");
 
-        verify(logger).info(eq("ES_E2E_SKIN=ok player={} source={}"), eq("Alice"), eq("Notch"));
+        verify(logger, timeout(5000)).info(eq("ES_E2E_SKIN=ok player={} source={}"), eq("Alice"), eq("Notch"));
     }
 
     @Test
@@ -121,14 +120,19 @@ class E2ESentinelTest {
     void failureSentinel_loggedWhenProviderReturnsNoResult() {
         // No skin registered for "Ghost" -> provider empty -> no-skin branch.
         EntityPlayerMP alice = ctx.newPlayer("Alice");
-        PacketLog log = new PacketLog();
-        log.attachTo(alice.connection);
         ctx.commandManager.executeCommand(alice, "/skin set mojang Ghost");
 
-        assertTrue(AsyncSupport.await(5000, () -> log.ofType(SPacketChat.class).size() >= 1),
-            "no-result path must send the failure chat reply before the sentinel is asserted");
-
-        verify(logger).info(eq("ES_E2E_SKIN=fail player={} source={} reason=no-skin"),
+        // The sentinel fires on the async completion thread (SkinAction's
+        // EXECUTOR), so the assertion must wait for the invocation itself:
+        // awaiting the chat reply does NOT synchronize, because the
+        // synchronous "change" toast (Config.TOGGLE=true, sent in apply()
+        // before the fetch is submitted) is also an SPacketChat and satisfies
+        // a packet-count predicate before the completion thread has logged
+        // anything (observed as ArgumentsAreDifferent / TooFewActualInvocations
+        // flakes on CI). timeout() polls the mock until the fail sentinel
+        // appears or the window elapses, and still fails on a genuinely
+        // broken sentinel.
+        verify(logger, timeout(5000)).info(eq("ES_E2E_SKIN=fail player={} source={} reason=no-skin"),
             eq("Alice"), eq("Ghost"));
     }
 

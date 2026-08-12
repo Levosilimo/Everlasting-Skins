@@ -863,6 +863,7 @@ jobs:
           path: |
             ~/.gradle/wrapper/dists
             ~/.gradle/caches
+            ~/.gradle/jdks
           key: gradle-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-${{ runner.os }}-${{ matrix.lane }}-

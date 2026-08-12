@@ -71,6 +71,30 @@ source "$E2E_DRIVER_DIR/lib.sh"
 # for the lanes whose in-jar join driver is shipped-gated on it — 1.16.5).
 : "${E2E_CLIENT_GRADLE_ARGS:=}"
 
+# ---------------------------------------------------------------------------
+# Result-doc guard: the CI artifact upload publishes ${RUNNER_TMP}/e2e-result.json
+# and warns when it is missing (e.g. a wrapper-side early exit or a driver
+# failure before the PASS-path write). Any non-zero exit without a written
+# doc emits a minimal failure doc (exit_code + server_booted:false) so the
+# driver contract always lands a result. The PASS path below writes the full
+# doc and exits 0, which this trap leaves untouched.
+# ---------------------------------------------------------------------------
+write_failure_result() {
+    local code="$1"
+    [ -f "$RESULT_JSON" ] && return 0
+    python3 - "$RESULT_JSON" "$code" <<PY
+import json, sys
+out = {
+    "lane": "$E2E_LANE",
+    "era": "modern-smoke",
+    "server_booted": False,
+    "exit_code": int(sys.argv[2]),
+}
+json.dump(out, open(sys.argv[1], "w"), indent=2)
+PY
+}
+trap 'write_failure_result "$?"' EXIT
+
 SERVER_DIR="$RUNNER_TMP/server-$E2E_LANE"
 SERVER_LOG="$SERVER_DIR/server.log"
 
