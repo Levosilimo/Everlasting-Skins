@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # forge-1.16.5/test-infrastructure/run-e2e.sh — thin lane wrapper for the
-# real-client boot-smoke E2E (master plan slice 4; shared logic lives in
-# scripts/e2e/drivers/modern-smoke.sh).
+# real-client FULL in-jar E2E (master plan slice 3, modern-injar era;
+# shared logic lives in scripts/e2e/drivers/modern-injar.sh).
 #
 # Era notes (1.16.5, all live-verified 2026-08-12):
 #   - server: production forge installer 36.2.34 --installServer. The 1.16.5
 #     installer does NOT generate unix_args.txt — the legacy ServerMain
 #     classpath launch is used (asm-9.1 + log4j-2.15 first, universal jar
-#     excluded; see modern-smoke.sh).
+#     excluded; see modern-injar.sh), with -Deverlastingskins.e2e=true on
+#     the JVM command line (no user_jvm_args.txt on this era).
 #   - client: the FG 5.1 dev client (runClient) under xvfb-run + Mesa
-#     llvmpipe; the 1.16.5 Main registers --server/--port (bytecode-verified)
-#     so the launcher-arg direct connect auto-joins on boot.
+#     llvmpipe; the in-jar E2EDriver dials the test server from the title
+#     screen (the 1.16.5 Main registers --server/--port, but the vanilla
+#     deferred connect is gated on the authlib privileges request, which
+#     401s for an offline token — the client sits at the title screen
+#     otherwise) and runs the /skin set mojang TestPlayer round-trip.
 #   - Java 8 for both (lane toolchain).
 #
 # Usage: JAVA_HOME=<jdk8> ./run-e2e.sh
@@ -58,12 +62,12 @@ fi
 echo "[e2e:1.16.5] mod jar: $MOD_JAR"
 
 # ---------------------------------------------------------------------------
-# Invoke the shared orchestrator (modern-smoke era)
+# Invoke the shared orchestrator (modern-injar era)
 # ---------------------------------------------------------------------------
 export E2E_LANE="1.16.5"
-export E2E_ERA="modern-smoke"
+export E2E_ERA="modern-injar"
 export E2E_MOD_JAR="$MOD_JAR"
-export E2E_DRIVER_SCRIPT="$REPO_ROOT/scripts/e2e/drivers/modern-smoke.sh"
+export E2E_DRIVER_SCRIPT="$REPO_ROOT/scripts/e2e/drivers/modern-injar.sh"
 export E2E_JAVA
 export E2E_FORGE_VER="1.16.5-36.2.34"
 export E2E_INSTALLER_SHA1="ab306b654c44d659ce69da5d4f87590b66dc91e8"
