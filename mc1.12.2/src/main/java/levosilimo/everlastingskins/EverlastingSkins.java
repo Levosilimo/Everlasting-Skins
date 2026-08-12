@@ -36,7 +36,15 @@ import java.util.concurrent.TimeUnit;
     name = EverlastingSkins.MOD_NAME,
     version = EverlastingSkins.VERSION,
     acceptedMinecraftVersions = "[1.12.2]",
-    serverSideOnly = true,
+    // NOT serverSideOnly: FML 1.12.2's handshake hard-rejects a client whose
+    // mod list lacks any mod in the server's NetworkRegistry (DefaultNetwork-
+    // Checker: "Requires ... but mod is not found on client"), and every mod
+    // gets a registry holder regardless of channels. serverSideOnly would
+    // disable the mod client-side, drop it from the client's ModList message,
+    // and break every modded-client join (verified live in the command-driven
+    // E2E trial: client timed out in the handshake). The client-side lifecycle
+    // stays inert (preInit/init are no-ops without a server), mirroring the
+    // forge-1.7.10 lane which omits the flag.
     acceptableRemoteVersions = "*"
 )
 public class EverlastingSkins {
