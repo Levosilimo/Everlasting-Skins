@@ -1144,4 +1144,7 @@ jobs:
       - name: Run CI Health (gradle-health.sh + dep-analysis)
         # Graduated lanes fail on duplicate-class findings (zero-FP);
         # :common stays WARN-forever. Sweeps :common + the in-root forge modules.
-        run: bash scripts/gradle-health.sh --offline
+        # Runs ONLINE: --offline failed on cold Gradle caches (foojay plugin /
+        # FG userdev unresolvable), which used to be masked by `|| true` and
+        # surfaced as a required-check failure once the script propagated exits.
+        run: bash scripts/gradle-health.sh

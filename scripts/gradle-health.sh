@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Dependency-analysis buildHealth: runs the autonomousapps buildHealth report
-# in offline mode. Knip-equivalent dep hygiene (unused deps, wrong-config,
-# undeclared transitives) for the Gradle root build.
+# Dependency-analysis buildHealth: runs the autonomousapps buildHealth report.
+# Knip-equivalent dep hygiene (unused deps, wrong-config, undeclared
+# transitives) for the Gradle root build.
 #
 # Per-lane failure semantics: :common exits 0 always (WARN-forever by
 # design — aggregate-jar FPs, no Forge runtime). Graduated lanes
 # (depAnalysis.graduateDuplicateClass=true, P2-6: forge-1.21/1.21.1/1.21.4/
-# 1.21.8/26.1/26.2) FAIL on a duplicate-class finding: the convention sets
+# 1.21.8/26.1/26.2) FAIL on a projectHealth failure: the convention sets
 # duplicate-class severity to fail, so the projectHealth task itself exits
 # nonzero exactly when that zero-FP category fires (BuildHealthException;
 # verified against dependency-analysis-gradle-plugin 3.18.0). WARN-only
@@ -14,7 +14,19 @@
 # check (gh-api-bump/CI-Health.sh, lib-69), so the script propagates the
 # failure; local runs and pre-push get the same signal.
 #
-# Usage: bash scripts/gradle-health.sh [-v]
+# Notes (hard-won, 2026-08-12):
+# - Runs ONLINE by default. CI Health previously ran --offline, which made
+#   the required check fail on a cold Gradle cache (foojay-resolver-convention
+#   and the FG userdev classpath unresolvable) — the failure was masked by
+#   `|| true` for months and surfaced the moment the script started
+#   propagating exit codes. Pass --offline only with a warm cache.
+# - NEVER pass --configure-on-demand here: it corrupts the dep-analysis task
+#   graph (explodeJar sees an empty jar input and crashes with
+#   "Index 6 out of bounds for length 0"). The config-order gate uses that
+#   flag for a different purpose (the :forge-1.21:jar probe); this sweep
+#   needs the full graph.
+#
+# Usage: bash scripts/gradle-health.sh [-v] [--offline]
 
 set -euo pipefail
 
@@ -22,9 +34,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERBOSE=0
-if [ "${1:-}" = "-v" ]; then
-  VERBOSE=1
-fi
+OFFLINE=()
+for a in "$@"; do
+  case "$a" in
+    -v) VERBOSE=1 ;;
+    --offline) OFFLINE=(--offline) ;;
+    *) echo "unknown arg: $a" >&2; exit 2 ;;
+  esac
+done
 
 # Per-project projectHealth iteration. buildHealth is a root-level
 # aggregate (DependencyAnalysisPlugin.applyForRoot guards
@@ -52,14 +69,17 @@ for c in "${CONSUMERS[@]}"; do
         :common)
             # WARN-forever by design (aggregate-jar FPs, no Forge runtime):
             # the task can never fail here, so swallow its exit code.
-            ./gradlew --no-daemon --offline --configure-on-demand "${c}:projectHealth" || true
+            ./gradlew --no-daemon "${OFFLINE[@]}" "${c}:projectHealth" || true
             ;;
         *)
             # Graduated lane: duplicate-class severity is fail (P2-6), so a
             # nonzero exit means a duplicate-class finding — the zero-FP
             # category. WARN-only categories can never fail the task.
-            if ! ./gradlew --no-daemon --offline --configure-on-demand "${c}:projectHealth"; then
-                echo "[gradle-health] ${c}:projectHealth FAILED: duplicate-class finding on a graduated lane (see ${c#:}/build/reports/dependency-analysis/project-health-report.txt)" >&2
+            # Any other failure (resolution, compile) is a real problem too —
+            # surface it with the gradle tail for diagnosis.
+            if ! out="$(./gradlew --no-daemon "${OFFLINE[@]}" "${c}:projectHealth" 2>&1)"; then
+                echo "[gradle-health] ${c}:projectHealth FAILED (see report: ${c#:}/build/reports/dependency-analysis/project-health-report.txt)" >&2
+                echo "$out" | grep -E "^FAILURE|^> Task.*FAILED|What went wrong|^Execution failed|error:" | head -8 >&2
                 FAILED=1
             fi
             ;;
@@ -71,7 +91,7 @@ for c in "${CONSUMERS[@]}"; do
 done
 
 if [ "$FAILED" -ne 0 ]; then
-    echo "[gradle-health] FAILED: duplicate-class findings on a graduated lane (CI Health is a required check)" >&2
+    echo "[gradle-health] FAILED: projectHealth failed on a graduated lane (CI Health is a required check)" >&2
     exit 1
 fi
 exit 0
