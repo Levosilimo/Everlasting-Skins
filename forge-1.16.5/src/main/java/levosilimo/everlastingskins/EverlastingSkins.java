@@ -8,7 +8,7 @@
 package levosilimo.everlastingskins;
 
 import com.google.common.collect.Lists;
-import levosilimo.everlastingskins.e2e.E2EJoinDriver;
+import levosilimo.everlastingskins.e2e.E2E;
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.metrics.MetricsDumper;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
@@ -18,12 +18,10 @@ import levosilimo.everlastingskins.util.I18nUtils;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.server.FMLServerAboutToStartEvent;
-import net.minecraftforge.api.distmarker.Dist;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -59,14 +57,13 @@ public class EverlastingSkins {
         MinecraftForge.EVENT_BUS.addListener(new MetricsDumper()::onServerTick);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
         PlaceholderApiHook.tryRegister();
-        // Real-client boot-smoke E2E (slice 4): the in-jar join driver is
-        // shipped-gated by -Deverlastingskins.e2e=true and installed only on
-        // the client side (the driver class itself is never loaded on a
-        // dedicated server — DistExecutor keeps the reference off the
-        // server classpath path). See levosilimo.everlastingskins.e2e.E2EJoinDriver.
-        if (Boolean.getBoolean("everlastingskins.e2e")) {
-            DistExecutor.runWhenOn(Dist.CLIENT, () -> E2EJoinDriver::install);
-        }
+        // Real-client full in-jar E2E (slice 3): E2E.install() is
+        // shipped-gated by -Deverlastingskins.e2e=true and side-gated via
+        // DistExecutor.safeRunWhenOn (client → E2EDriver phase machine,
+        // dedicated server → E2ESentinelHook seed). The slice-4 boot-smoke
+        // E2EJoinDriver stays in the tree (dormant) as the reference for
+        // the launcher-arg privileges gate this driver replaces.
+        E2E.install();
     }
 
     @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
