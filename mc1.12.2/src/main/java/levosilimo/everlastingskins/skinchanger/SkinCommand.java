@@ -102,6 +102,14 @@ public class SkinCommand extends CommandBase {
             sender.sendMessage(new TextComponentString(PREFIX + getUsage(sender)));
             return;
         }
+        if (Boolean.getBoolean("everlastingskins.e2e")) {
+            // E2E diagnostics (slice 2): the vanilla 1.12.2 server never
+            // logs player commands, so the driver needs this entry marker
+            // to tell "command never reached the server" apart from a
+            // fetch failure.
+            EverlastingSkins.logger.info("ES_E2E_SKIN=cmd player={} action={} args={}",
+                sender.getName(), args[0], java.util.Arrays.toString(args));
+        }
         switch (args[0]) {
             case "clear":   doClear(server, sender, args); break;
             case "source":  doSource(server, sender, args); break;

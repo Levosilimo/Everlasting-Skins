@@ -118,6 +118,15 @@ forgeExtension.runs.configureEach {
 
 forgeExtension.runs.create("client") {
     property("forge.logging.markers", "REGISTRIES")
+    // Real-client boot-smoke E2E (slice 4): forward -Peverlastingskins.e2e
+    // to the forked client as -Deverlastingskins.e2e (default false — never
+    // active in normal dev runs). The E2E wrapper passes
+    // -Peverlastingskins.e2e=true; the in-jar join driver is gated on it
+    // (same pattern as the 1.21 convention's client run).
+    property(
+        "everlastingskins.e2e",
+        project.findProperty("everlastingskins.e2e")?.toString() ?: "false"
+    )
 }
 
 forgeExtension.runs.create("server") {
