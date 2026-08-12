@@ -15,6 +15,7 @@ import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.util.I18nUtils;
+import net.minecraft.client.Minecraft;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -23,6 +24,7 @@ import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,7 +38,15 @@ import java.util.concurrent.TimeUnit;
     name = EverlastingSkins.MOD_NAME,
     version = EverlastingSkins.VERSION,
     acceptedMinecraftVersions = "[1.12.2]",
-    serverSideOnly = true,
+    // NOT serverSideOnly: FML 1.12.2's handshake hard-rejects a client whose
+    // mod list lacks any mod in the server's NetworkRegistry (DefaultNetwork-
+    // Checker: "Requires ... but mod is not found on client"), and every mod
+    // gets a registry holder regardless of channels. serverSideOnly would
+    // disable the mod client-side, drop it from the client's ModList message,
+    // and break every modded-client join (verified live in the command-driven
+    // E2E trial: client timed out in the handshake). The client-side lifecycle
+    // stays inert (preInit/init are no-ops without a server), mirroring the
+    // forge-1.7.10 lane which omits the flag.
     acceptableRemoteVersions = "*"
 )
 public class EverlastingSkins {
@@ -79,6 +89,32 @@ public class EverlastingSkins {
     @SubscribeEvent
     public void onServerConnectionFromClient(FMLNetworkEvent.ServerConnectionFromClientEvent event) {
         NetworkMetricsHandler.getOrAttach(event.getManager());
+    }
+
+    // E2E client join marker (command-driven E2E, S6): the vanilla 1.12.2
+    // join chat broadcast never reaches GuiNewChat under the dummy-asset
+    // client (verified live: post-join "say" broadcasts arrive and log as
+    // [CHAT], the PlayerList join broadcast does not), so the scenario
+    // readiness gate cannot use the join chat line. The mod owns the
+    // marker instead: a one-shot client-tick log fired once the client
+    // player is in-world, gated on the E2E flag the driver passes to the
+    // game JVM (hmc.jvmargs, mirroring the 1.10.2 lane).
+    private boolean e2eJoinMarked;
+
+    @SubscribeEvent
+    public void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || e2eJoinMarked) {
+            return;
+        }
+        if (!Boolean.getBoolean("everlastingskins.e2e")) {
+            return;
+        }
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.player == null || mc.world == null) {
+            return;
+        }
+        e2eJoinMarked = true;
+        logger.info("ES_E2E_CLIENT_JOINED {}", mc.player.getName());
     }
 
     @SubscribeEvent

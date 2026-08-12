@@ -25,9 +25,9 @@
 # needs a network toolchain download, incompatible with --offline).
 # Env: CONFIG_ORDER_OFFLINE=0 drops --offline from the probe. CI sets it
 # (run 31551098537: a cold ~/.gradle cannot resolve the settings-level
-# foojay plugin / FG userdev graph offline; the gate job's old bespoke
-# actions/cache key namespace was never populated by any other job, so the
-# first run was always cold). Local pre-push keeps the default --offline
+# foojay plugin / FG userdev graph offline — the gate job's actions/cache
+# key namespace is separate from the Build jobs' setup-gradle cache, so
+# the first run is always cold). Local pre-push keeps the default --offline
 # because the local cache is warm.
 #
 # shellcheck disable=SC2317  # false positive: shellcheck follows the sourced
