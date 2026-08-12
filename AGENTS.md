@@ -243,6 +243,8 @@ registers backends).
 ./gradlew :forge-26.1:build verifyNoMixin  # 26.1 lane (Java 25 toolchain, unobfuscated MC, FG 7.0.17, EventBus 7.0.1)
 ./gradlew :forge-26.2:build    # 26.2 lane (Java 25 toolchain, unobfuscated MC, FG 7.0.17)
 ./gradlew build                # whole Forge line
+bash scripts/config-order-gate.sh  # config-order gate (CI-mirror probe: CoD + no-config-cache :forge-1.21:jar)
+bash scripts/config-order-gate-test.sh  # gate self-test (proves the gate catches the regression forms)
 bash scripts/gradle-health.sh  # dep-hygiene sweep (manual; per-consumer :projectHealth; graduated lanes fail on duplicate-class)
 ```
 
@@ -293,8 +295,12 @@ Tiered local gates mirroring CI (see `lefthook.yml`):
   `verifyNoMixin` → offline parallel compile.
 - **pre-push** (5-10 min, heavy): full unit test suite → GameTest (1.21) via
   `forge-1.21/test-infrastructure/run-gametest-local.sh` → `aislop ci
-  --changes` (mirrors CI's `aislop (M2)` job). Skip once with
-  `git push --no-verify`.
+  --changes` (mirrors CI's `aislop (M2)` job) → config-order gate
+  (`scripts/config-order-gate.sh`: structural guard against bare
+  `:common.sourceSets` bundling forms in the convention + the CI-mirror
+  probe `--configure-on-demand --no-configuration-cache :forge-1.21:jar`,
+  which reproduces the take-1/2 WorkValidationException locally). Skip once
+  with `git push --no-verify`.
 - `scripts/test-count-gate.sh` mirrors ci.yml's `@Test >= 150` floor: counts
   `@Test` + `@ParameterizedTest` in `common/src` + `forge-1.21/src`. The
   gate is PATH-SCOPED (it counts `@Test` tokens from both JUnit 4 and
