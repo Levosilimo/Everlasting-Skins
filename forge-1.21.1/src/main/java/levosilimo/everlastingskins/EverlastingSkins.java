@@ -8,6 +8,7 @@
 package levosilimo.everlastingskins;
 
 import com.google.common.collect.Lists;
+import levosilimo.everlastingskins.e2e.E2E;
 import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvConfig;
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.forge21.metrics.MetricsDumper;
@@ -46,6 +47,7 @@ public class EverlastingSkins {
     public static final List<String> languages = Lists.newArrayList();
 
     public EverlastingSkins() {
+        E2E.install();
         I18nUtils.loadAll();
         registerPermissionServices();
         ForgePermissionService.registerNodes();

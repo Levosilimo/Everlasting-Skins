@@ -8,6 +8,7 @@
 package levosilimo.everlastingskins;
 
 import com.google.common.collect.Lists;
+import levosilimo.everlastingskins.e2e.E2E;
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.metrics.MetricsDumper;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
@@ -21,7 +22,6 @@ import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.server.FMLServerAboutToStartEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,13 +41,15 @@ public class EverlastingSkins {
 
     public EverlastingSkins() {
         I18nUtils.loadAll();
-        ForgePermissionService.registerNodes();
-        // SkinRestorer has FORGE-bus handlers (login/logout) and MOD-bus FML
-        // lifecycle handlers (1.16.5 has no forge.event.Server* events — the
-        // FML server events fire on the mod bus); register one instance on each.
+        ForgePermissionService.registerNodes();        // SkinRestorer has FORGE-bus handlers (login/logout) and FML server
+        // lifecycle handlers. 1.16.5's FML server events (FMLServerStarting-
+        // Event etc.) are NOT IModBusEvents: ServerLifecycleHooks posts them
+        // to MinecraftForge.EVENT_BUS (bytecode-verified). Registering on the
+        // mod bus makes EventBus validate @SubscribeEvent args against
+        // IModBusEvent and fails mod loading (caught by the slice-4
+        // boot-smoke E2E, 2026-08-12) — one FORGE-bus registration only.
         SkinRestorer restorer = new SkinRestorer();
         MinecraftForge.EVENT_BUS.register(restorer);
-        FMLJavaModLoadingContext.get().getModEventBus().register(restorer);
         // 1.16.5 has no TickEvent.ServerTickEvent.BUS (1.19+ addition) and no
         // getServer() on ServerTickEvent; server ticks are plain EVENT_BUS
         // events here and MetricsDumper resolves the server via
@@ -55,6 +57,13 @@ public class EverlastingSkins {
         MinecraftForge.EVENT_BUS.addListener(new MetricsDumper()::onServerTick);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
         PlaceholderApiHook.tryRegister();
+        // Real-client full in-jar E2E (slice 3): E2E.install() is
+        // shipped-gated by -Deverlastingskins.e2e=true and side-gated via
+        // DistExecutor.safeRunWhenOn (client → E2EDriver phase machine,
+        // dedicated server → E2ESentinelHook seed). The slice-4 boot-smoke
+        // E2EJoinDriver stays in the tree (dormant) as the reference for
+        // the launcher-arg privileges gate this driver replaces.
+        E2E.install();
     }
 
     @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
@@ -83,10 +92,11 @@ public class EverlastingSkins {
         }
     }
 
-    // 1.16.5 lifecycle events are FML events on the MOD bus
-    // (net.minecraftforge.fml.event.server.*); there is no
-    // forge.event.ServerAboutToStartEvent on this version.
-    @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
+    // 1.16.5 lifecycle events are FML events fired on the FORGE bus
+    // (ServerLifecycleHooks posts them to MinecraftForge.EVENT_BUS —
+    // bytecode-verified 2026-08-12; they are not IModBusEvents, so a MOD-bus
+    // subscriber fails validation at mod load).
+    @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
     public static class EverlastingSkinsServerLifecycle {
         @SubscribeEvent
         public static void onServerAboutToStart(FMLServerAboutToStartEvent event) {

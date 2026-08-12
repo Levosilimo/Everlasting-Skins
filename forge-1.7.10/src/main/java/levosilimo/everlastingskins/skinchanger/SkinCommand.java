@@ -287,6 +287,11 @@ public class SkinCommand implements ICommand {
         } catch (RuntimeException e) {
             recordRefreshFailed(targets);
             sender.addChatMessage(new ChatComponentText("Could not resolve a skin for '" + username + "'."));
+            if (Boolean.getBoolean("everlastingskins.e2e")) {
+                String player = targets.isEmpty() ? "unknown" : targets.get(0).getGameProfile().getName();
+                EverlastingSkins.logger.info("ES_E2E_SKIN=fail player={} source={} reason=exception msg={}",
+                    player, username, e.getMessage());
+            }
             return;
         }
         long fetchNanos = System.nanoTime() - fetchStart;

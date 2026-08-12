@@ -29,6 +29,8 @@ jobs:
         with:
           config_file: .yamllint.yml
           strict: true
+      - name: Check CI Mesa apt packages (t64 ALSA only)
+        run: bash scripts/check-ci-mesa.sh
 
   # ── Build matrix over the M2 modules (JDK 21) ──────────────────
   build:
@@ -531,10 +533,16 @@ jobs:
   # (--configure-on-demand --no-configuration-cache :forge-1.21:jar — the
   # exact shape that reproduced the sourceSets/WorkValidationException in
   # CI). INFORMATIONAL — not part of the required-check contract.
+  # Offline handling: the probe runs WITHOUT --offline here (cold ~/.gradle
+  # cannot resolve the settings-level foojay plugin / FG userdev graph —
+  # run 31551098537); setup-gradle shares the Build jobs' cache key space
+  # so the probe restores their cache. Local pre-push keeps --offline.
   config-order-gate:
     name: Config-order gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # 30 mirrors the Build matrix job budget: on a fully cold cache the
+    # online probe does the same userdev resolution work as Build (1.21).
+    timeout-minutes: 30
     needs: lint-yaml
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -543,17 +551,14 @@ jobs:
         with:
           java-version: "21"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      - name: Set up Gradle (wrapper validation + cache)
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
         with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-config-order-${{ hashFiles('**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-config-order-
+          cache-provider: basic
       - name: Run config-order gate (structural guard + CI-mirror probe)
         run: bash scripts/config-order-gate.sh
+        env:
+          CONFIG_ORDER_OFFLINE: "0"
 
   # ── Vendored harness diff-guard (lib-12) ───────────────────────
   # Fails when a vendored SpecialSource harness lane (forge-1.6.4,
@@ -575,15 +580,14 @@ jobs:
   # Slice-1 real-client E2E for the vendored-harness pre-1.8 lanes
   # (lib-12). INFORMATIONAL — NOT part of the 22-context required-check
   # contract (no gh-api-bump); informational jobs never gate a merge.
-  # forge-1.6.4 is the active lane (tweaker-model driver, slice-1 proven
-  # in #430). The merge-model eras (forge-1.5.2 / forge-1.4.7: obf client
-  # + universal.zip MERGED into the client jar, main
-  # net.minecraft.client.Minecraft, CWD=gameDir) are ERA-UNTESTED — the
-  # driver implements only the 1.6.4 tweaker model and the merge-model
-  # boot was not live-verified, so their matrix entries stay commented
-  # (wrappers exist and exit 3 with the documented note; never fake a
-  # pass). Mesa software GL (llvmpipe) is required for the pre-1.8
-  # real-GL client; xvfb is preinstalled on ubuntu-24.04.
+  # All three lanes are LIVE: forge-1.6.4 (tweaker-model driver, slice-1
+  # proven in #430) + forge-1.5.2 / forge-1.4.7 (merge-model driver: obf
+  # client + universal.zip MERGED into the client jar, main
+  # net.minecraft.client.Minecraft, CWD=gameDir, Minecraft.setServer
+  # auto-connect at @Mod.Init — wrappers recovered from the #434 live
+  # history and re-verified per-lane). Mesa software GL (llvmpipe) is
+  # required for the pre-1.8 real-GL client; xvfb is preinstalled on
+  # ubuntu-24.04.
   e2e-pre18:
     name: E2E (${{ matrix.lane }})
     runs-on: ubuntu-24.04
@@ -594,11 +598,8 @@ jobs:
       matrix:
         lane:
           - forge-1.6.4
-          # ERA-UNTESTED (merge-model boot not implemented/live-verified;
-          # wrapper exits 3 with the documented note — see the lane's
-          # test-infrastructure/run-e2e.sh header):
-          # - forge-1.5.2
-          # - forge-1.4.7
+          - forge-1.5.2
+          - forge-1.4.7
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
@@ -650,24 +651,33 @@ jobs:
             ${{ runner.temp }}/everlastingskins-e2e/**/*.log
           if-no-files-found: warn
 
-  # ── E2E (forge-1.21, informational, modern-injar) ───────────────
+  # ── E2E (forge-1.21.x, informational, modern-injar) ─────────────
   # Slice-3 real-client E2E for the modern line (master plan
-  # real-client-e2e-plan.md): PRODUCTION Forge 1.21 server (pinned installer
+  # real-client-e2e-plan.md): PRODUCTION Forge server (pinned installer
   # --installServer, mod jar in mods/, -Deverlastingskins.e2e=true) + the
-  # real 1.21 client launched the standard ForgeGradle dev way (runClient)
+  # real client launched the standard ForgeGradle dev way (runClient)
   # under xvfb-run + Mesa llvmpipe, offline session via --username/--uuid/
   # --accessToken 0. The in-jar E2EDriver runs /skin set mojang TestPlayer
   # and asserts the tab-list textures property carries the sentinel marker.
+  # Matrix covers the four 1.21.x point releases (slice-3 port): the driver
+  # is version-uniform across 1.21.0-1.21.8 (the touched
+  # classes — Minecraft/ConnectScreen/ClientPacketListener/ServerStartedEvent/
+  # SkinStorage — are stable), so each lane runs the same wrapper with its own
+  # pinned forge installer.
   # INFORMATIONAL — NOT part of the required-check contract (no gh-api-bump).
   # Mesa software GL is required (the modern client is a real GL client,
   # same apt set as the pre-1.8 lanes); xvfb is preinstalled on
-  # ubuntu-24.04. The gradle cache key matches the Build (1.21) job so the
-  # userdev extraction + dev-run assets are shared.
+  # ubuntu-24.04. The gradle cache key matches the Build (X) job per lane so
+  # the userdev extraction + dev-run assets are shared.
   e2e-modern-121:
-    name: E2E (forge-1.21)
+    name: E2E (${{ matrix.lane }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: lint-yaml
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [forge-1.21, forge-1.21.1, forge-1.21.4, forge-1.21.8]
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
@@ -690,21 +700,21 @@ jobs:
           path: |
             ~/.gradle/wrapper/dists
             ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.21-${{ hashFiles('**/gradle-wrapper.properties') }}
+          key: gradle-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.21-
+            gradle-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache E2E downloads (forge installer, server libraries)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/everlastingskins
-          key: e2e-forge-1.21-${{ runner.os }}
+          key: e2e-${{ matrix.lane }}-${{ runner.os }}
           restore-keys: |
             e2e-${{ runner.os }}-
       - name: Run real-client E2E (production server + xvfb dev client + tab-list assert)
         # RUNNER_TMP must be a STEP env: the runner context is not available
         # in job-level env (invalid workflow file -> zero jobs on push). The
         # lane wrapper reads it for the server dir + result copy.
-        run: bash forge-1.21/test-infrastructure/run-e2e.sh
+        run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
         timeout-minutes: 45
@@ -712,7 +722,186 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: e2e-forge-1.21-logs
+          name: e2e-${{ matrix.lane }}-logs
+          path: |
+            ${{ runner.temp }}/everlastingskins-e2e/e2e-result.json
+            ${{ runner.temp }}/everlastingskins-e2e/**/*.log
+          if-no-files-found: warn
+
+  # ── E2E (forge-1.16.5, informational, modern-injar) ────────────
+  # Slice-3 full in-jar E2E for the 1.16.5 lane (master plan
+  # real-client-e2e-plan.md): the lane wrapper points at
+  # scripts/e2e/drivers/modern-injar.sh (E2E_ERA=modern-injar) — a
+  # PRODUCTION Forge 1.16.5 server (pinned installer --installServer, mod
+  # jar in mods/, legacy-cp ServerMain boot with -Deverlastingskins.e2e=true
+  # on the JVM line — the 36.2.34 installer generates no unix_args.txt)
+  # + the real 1.16.5 dev client (runClient) under xvfb-run + Mesa
+  # llvmpipe, offline session via --username/--uuid/--accessToken 0. The
+  # in-jar E2EDriver dials the test server from the title screen (the
+  # --server/--port deferred connect 401s for an offline token), runs
+  # /skin set mojang TestPlayer and asserts the tab-list textures property
+  # carries the sentinel marker. The E2E (forge-1.16.5) matrix entry below
+  # runs the same wrapper; this dedicated job mirrors e2e-modern-121 (the
+  # Build (forge-1.16.5) gradle cache key, corretto 8) for the lane's full
+  # driver signal.
+  # INFORMATIONAL — NOT part of the required-check contract (no gh-api-bump).
+  e2e-modern-1165-injar:
+    name: E2E (forge-1.16.5 full in-jar)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: lint-yaml
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Set up JDK 8
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: "8"
+          distribution: corretto
+      - name: Install Mesa software GL (llvmpipe for the real 1.16.5 client)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
+            libxrandr2 libxxf86vm1 libxcursor1 libxi6 libxinerama1 \
+            libasound2t64 libopenal1 x11-xserver-utils
+      - name: Cache Gradle wrapper and caches
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ runner.os }}-forge-1.16.5-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-forge-1.16.5-
+      - name: Cache E2E downloads (forge installer, server libraries)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/everlastingskins
+          key: e2e-forge-1.16.5-${{ runner.os }}
+          restore-keys: |
+            e2e-${{ runner.os }}-
+      - name: Run real-client E2E (production server + xvfb dev client + tab-list assert)
+        # RUNNER_TMP must be a STEP env: the runner context is not available
+        # in job-level env (invalid workflow file -> zero jobs on push). The
+        # lane wrapper reads it for the server dir + result copy.
+        run: bash forge-1.16.5/test-infrastructure/run-e2e.sh
+        env:
+          RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
+        timeout-minutes: 45
+      - name: Upload E2E logs + result (always)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: e2e-forge-1.16.5-logs
+          path: |
+            ${{ runner.temp }}/everlastingskins-e2e/e2e-result.json
+            ${{ runner.temp }}/everlastingskins-e2e/**/*.log
+          if-no-files-found: warn
+
+  # ── E2E (modern lanes, informational) ─────────────────────────
+  # Real-client E2E for the remaining matrix lanes (master plan
+  # real-client-e2e-plan.md): forge-1.18.2 / forge-1.20.1 run the slice-4
+  # boot-smoke floor (each lane's run-e2e.sh builds the lane, boots a
+  # PRODUCTION Forge server (pinned installer --installServer, mod jar in
+  # mods/, online-mode=false) and launches the real dev client (runClient)
+  # under xvfb-run + Mesa llvmpipe; the boot-smoke asserts the server boot
+  # line + the client join line on the server log). forge-1.16.5 runs the
+  # FULL slice-3 in-jar driver too (its wrapper points at modern-injar.sh;
+  # see the dedicated E2E (forge-1.16.5 full in-jar) job). forge-26.1 /
+  # forge-26.2 run the FULL slice-3 in-jar driver (modern-injar era): the
+  # same production server + xvfb client, plus the in-jar E2EDriver
+  # round-trip — /skin set mojang TestPlayer, tab-list textures
+  # sentinel-marker assert, result JSON + exit-code mapping (26.x port of
+  # the 1.21 flow). The 1.21.x point releases are NOT here: they run the
+  # slice-3 in-jar driver (e2e-modern-121 above).
+  # INFORMATIONAL — NOT part of the required-check
+  # contract (no gh-api-bump). Per-lane JDK: 8 (1.16.5 FG 5.1 lane),
+  # 21 (1.18.2/1.20.1 Gradle 8.14 daemon + Java 17 toolchain via foojay),
+  # 25 (26.x unobfuscated line). Mesa software GL is required (the modern
+  # client is a real GL client, same apt set as the pre-1.8 lanes); xvfb is
+  # preinstalled on ubuntu-24.04. RUNNER_TMP must be a STEP env.
+  e2e-modern:
+    name: E2E (${{ matrix.lane }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: lint-yaml
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: forge-1.16.5
+            java: "8"
+          - lane: forge-1.18.2
+            java: "21"
+          - lane: forge-1.20.1
+            java: "21"
+          - lane: forge-26.1
+            java: "25"
+          - lane: forge-26.2
+            java: "25"
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+      - name: Set up JDK 17 (production Forge server for the 1.18.2/1.20.1 E2E)
+        # Cold-cache-proof server JDK: the lane wrapper's ~/.gradle/jdks glob
+        # only hits a warm foojay cache and misses the inner-dir layout
+        # (jdk-*/), and ubuntu-24.04 has no /usr/lib/jvm/java-17-openjdk-amd64,
+        # so a cache-missed E2E run still died with "Java 17 not found" after
+        # #457's reorder (run 31599664358). setup-java overwrites JAVA_HOME
+        # with 17 — fine here: both lanes compile with the Java 17 toolchain
+        # (build.gradle.kts toolchain 17), so the Gradle daemon on 17 satisfies
+        # the build, and the exported E2E_JAVA17_HOME feeds the production
+        # server fork.
+        if: matrix.lane == 'forge-1.18.2' || matrix.lane == 'forge-1.20.1'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: "17"
+          distribution: temurin
+      - name: Export E2E_JAVA17_HOME (server JDK for the 1.18.2/1.20.1 wrappers)
+        if: matrix.lane == 'forge-1.18.2' || matrix.lane == 'forge-1.20.1'
+        run: echo "E2E_JAVA17_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+      - name: Install Mesa software GL (llvmpipe for the real modern client)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
+            libxrandr2 libxxf86vm1 libxcursor1 libxi6 libxinerama1 \
+            libasound2t64 libopenal1 x11-xserver-utils
+      - name: Cache Gradle wrapper and caches
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+            ~/.gradle/jdks
+          key: gradle-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-${{ matrix.lane }}-
+      - name: Cache E2E downloads (forge installers, server libraries)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/everlastingskins
+          key: e2e-${{ matrix.lane }}-${{ runner.os }}
+          restore-keys: |
+            e2e-${{ matrix.lane }}-${{ runner.os }}-
+      - name: Run real-client E2E (boot-smoke or full in-jar driver per lane)
+        run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
+        env:
+          RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
+        timeout-minutes: 45
+      - name: Upload E2E logs + result (always)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: e2e-modern-${{ matrix.lane }}-logs
           path: |
             ${{ runner.temp }}/everlastingskins-e2e/e2e-result.json
             ${{ runner.temp }}/everlastingskins-e2e/**/*.log
