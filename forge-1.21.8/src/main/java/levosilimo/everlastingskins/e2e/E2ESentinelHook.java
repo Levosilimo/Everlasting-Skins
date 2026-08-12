@@ -11,7 +11,6 @@ import levosilimo.everlastingskins.forge21.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.skinchanger.SkinStorage;
 import levosilimo.everlastingskins.skinchanger.command.SkinActionCommand;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartedEvent;
 
 import java.nio.charset.StandardCharsets;
@@ -61,7 +60,7 @@ public final class E2ESentinelHook {
             == net.minecraftforge.api.distmarker.Dist.CLIENT) {
             return;
         }
-        MinecraftForge.EVENT_BUS.addListener(E2ESentinelHook::onServerStarted);
+        ServerStartedEvent.BUS.addListener(E2ESentinelHook::onServerStarted);
         EverlastingSkins.logger.info("ES_E2E_SENTINEL=hook installed");
     }
 

@@ -15,7 +15,6 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 
 import java.io.File;
@@ -30,7 +29,7 @@ import java.util.UUID;
  * In-jar client driver for the real-client E2E (master plan slice 3,
  * {@code modern-injar} pattern — reference implementation for the 26.x
  * port; the 26.x lane reuses this shape with unobfuscated names and the
- * same {@code MinecraftForge.EVENT_BUS.addListener} registration, which is
+ * same per-event-BUS {@code addListener} registration, which is
  * EventBus-7 compatible — there is NO static-subscriber delta).
  *
  * <p>Shipped in the mod jar, gated at runtime by
@@ -114,9 +113,11 @@ public final class E2EDriver {
             != net.minecraftforge.api.distmarker.Dist.CLIENT) {
             return;
         }
-        // Instance-style addListener: EventBus-7 compatible (26.x needs no
-        // static-subscriber delta for this registration).
-        MinecraftForge.EVENT_BUS.addListener(E2EDriver::onClientTick);
+        // Per-event BUS: 1.21.8 moved MinecraftForge.EVENT_BUS to the
+        // EventBus-7 EventBusMigrationHelper (no addListener); the lane's own
+        // convention (EverlastingSkins: TickEvent.ServerTickEvent.BUS) is the
+        // same shape.
+        TickEvent.ClientTickEvent.BUS.addListener(E2EDriver::onClientTick);
         EverlastingSkins.logger.info("ES_E2E_DRIVER=installed");
     }
 
