@@ -34,10 +34,14 @@
 #   — see the lane wrapper history). The server-side ES_E2E_SKIN sentinel
 #   (mc1.12.2 SkinCommand/SkinAction under -Deverlastingskins.e2e=true,
 #   mirrored from 1.7.10) is the primary assertion. S5 (run 31567935416):
-#   the 1.12.2 lane's scenario readiness gate is the CLIENT-side join chat
-#   line ("TestPlayer joined the game"), NOT minecraft:music.game — the
-#   dummy-asset client WARNs that sound event pre-play, which raced the FML
-#   handshake and lost the /skin SEND. The driver also HARD-waits the
+#   the 1.12.2 lane's scenario readiness gate is NOT minecraft:music.game —
+#   the dummy-asset client WARNs that sound event pre-play, which raced the
+#   FML handshake and lost the /skin SEND. S6: the gate is the mod's own
+#   ES_E2E_CLIENT_JOINED marker (client-tick one-shot, -Deverlastingskins
+#   .e2e=true via --jvm) — the vanilla join chat broadcast never reaches
+#   GuiNewChat under the dummy-asset client (verified live: post-join
+#   "say" broadcasts log as [CHAT], the PlayerList join broadcast does
+#   not). The driver also HARD-waits the
 #   server-side join line (exit 2 on timeout) and asserts the ES_E2E_SKIN=cmd
 #   entry marker (command_reached_server contract field, exit 1 if the join
 #   succeeded but the command never reached the server).
@@ -386,12 +390,17 @@ if [ -n "$HMC_SPECIFICS_NAME" ]; then
     # sound for event: minecraft:music.game" during world-load sound-init
     # ~6s BEFORE the FML handshake completes — that gate fires in the
     # PRE-PLAY phase there, the /skin SEND is lost, and the server's read
-    # timeout drops the client. The 1.12.2 lane therefore gates on the
-    # client-side join chat line instead (GuiNewChat logs "[CHAT] <text>"
-    # on 1.8-1.12.2 clients; the bare text keeps the hmc CONTAINS match
-    # regex-safe — no brackets).
+    # timeout drops the client. The 1.12.2 lane therefore gates on a
+    # MOD-OWNED client-side marker instead (S6): the vanilla join chat
+    # broadcast never reaches GuiNewChat under the dummy-asset client
+    # (verified live: post-join "say" broadcasts arrive and log as [CHAT],
+    # the PlayerList join broadcast does not), so the client-side join
+    # chat line cannot be the gate either. The mod logs
+    # ES_E2E_CLIENT_JOINED <name> on the first in-world client tick when
+    # -Deverlastingskins.e2e=true (passed via HMC_LAUNCH_EXTRA above) —
+    # log4j -> Log4jPatcher -> stdout, visible to the hmc CONTAINS scan.
     if [ "$E2E_LANE" = "mc1.12.2" ]; then
-        SCENARIO_READY_MARKER="$E2E_USERNAME joined the game"
+        SCENARIO_READY_MARKER="ES_E2E_CLIENT_JOINED"
     else
         SCENARIO_READY_MARKER="minecraft:music.game"
     fi
@@ -420,7 +429,13 @@ EOF
 fi
 
 HMC_JVMARGS=""
-[ "$E2E_LANE" = "1.10.2" ] && HMC_JVMARGS="hmc.jvmargs=-Deverlastingskins.e2e=true"
+# The E2E flag rides hmc.jvmargs (proven route, 1.10.2 lane) so the mod's
+# client-side join marker (ES_E2E_CLIENT_JOINED) fires under the driver
+# only — the --jvm launch flag route is NOT used for it (hmc takes the
+# first arg after --jvm as the JVM arg list; a second -D arg is dropped).
+if [ "$E2E_LANE" = "1.10.2" ] || [ "$E2E_LANE" = "mc1.12.2" ]; then
+    HMC_JVMARGS="hmc.jvmargs=-Deverlastingskins.e2e=true"
+fi
 : "${HMC_LAUNCH_EXTRA:=}"
 # The launcher reads its config from <cwd>/HeadlessMC/config.properties
 # (hmc's default config location), so the config lives in a HeadlessMC/
