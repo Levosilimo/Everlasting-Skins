@@ -842,6 +842,24 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
+      - name: Set up JDK 17 (production Forge server for the 1.18.2/1.20.1 E2E)
+        # Cold-cache-proof server JDK: the lane wrapper's ~/.gradle/jdks glob
+        # only hits a warm foojay cache and misses the inner-dir layout
+        # (jdk-*/), and ubuntu-24.04 has no /usr/lib/jvm/java-17-openjdk-amd64,
+        # so a cache-missed E2E run still died with "Java 17 not found" after
+        # #457's reorder (run 31599664358). setup-java overwrites JAVA_HOME
+        # with 17 — fine here: both lanes compile with the Java 17 toolchain
+        # (build.gradle.kts toolchain 17), so the Gradle daemon on 17 satisfies
+        # the build, and the exported E2E_JAVA17_HOME feeds the production
+        # server fork.
+        if: matrix.lane == 'forge-1.18.2' || matrix.lane == 'forge-1.20.1'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: "17"
+          distribution: temurin
+      - name: Export E2E_JAVA17_HOME (server JDK for the 1.18.2/1.20.1 wrappers)
+        if: matrix.lane == 'forge-1.18.2' || matrix.lane == 'forge-1.20.1'
+        run: echo "E2E_JAVA17_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
       - name: Install Mesa software GL (llvmpipe for the real modern client)
         run: |
           sudo apt-get update

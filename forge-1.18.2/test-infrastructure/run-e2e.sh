@@ -58,12 +58,16 @@ echo "[e2e:1.18.2] mod jar: $MOD_JAR"
 # Server java: the lane's Java 17 toolchain (production Forge 40 requires
 # 17). Discovery runs AFTER the lane build: foojay resolves the 17 toolchain
 # into ~/.gradle/jdks during `./gradlew build`, so a fresh runner (or a
-# cache that carried no jdks) finds it here. Prefer the foojay-resolved JDK
-# 17; fall back to a system JDK 17 if present.
+# cache that carried no jdks) finds it here. The job-provided E2E_JAVA17_HOME
+# (ci.yml setup-java, cache-independent) is the hard fallback — the jdks glob
+# is layout-fragile (inner jdk-*/ dirs) — then a system JDK 17.
 E2E_JAVA=""
 for cand in "$HOME/.gradle/jdks"/eclipse_adoptium-17-amd64-linux*/bin/java; do
     [ -x "$cand" ] && E2E_JAVA="$cand" && break
 done
+if [ -z "$E2E_JAVA" ] && [ -n "${E2E_JAVA17_HOME:-}" ] && [ -x "$E2E_JAVA17_HOME/bin/java" ]; then
+    E2E_JAVA="$E2E_JAVA17_HOME/bin/java"
+fi
 if [ -z "$E2E_JAVA" ] && [ -x /usr/lib/jvm/java-17-openjdk-amd64/bin/java ]; then
     E2E_JAVA="/usr/lib/jvm/java-17-openjdk-amd64/bin/java"
 fi
