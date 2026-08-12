@@ -38,22 +38,6 @@ else
 fi
 echo "[e2e:1.18.2] Java 21: $E2E_JAVA21_HOME/bin/java"
 
-# Server java: the lane's Java 17 toolchain (production Forge 40 requires
-# 17). Prefer a foojay-resolved JDK 17; fall back to the daemon JDK if 17
-# is unavailable (the build still resolves the toolchain itself).
-E2E_JAVA=""
-for cand in "$HOME/.gradle/jdks"/eclipse_adoptium-17-amd64-linux*/bin/java; do
-    [ -x "$cand" ] && E2E_JAVA="$cand" && break
-done
-if [ -z "$E2E_JAVA" ] && [ -x /usr/lib/jvm/java-17-openjdk-amd64/bin/java ]; then
-    E2E_JAVA="/usr/lib/jvm/java-17-openjdk-amd64/bin/java"
-fi
-if [ -z "$E2E_JAVA" ]; then
-    echo "[e2e:1.18.2][fail] Java 17 not found for the production server" >&2
-    exit 3
-fi
-echo "[e2e:1.18.2] server Java 17: $E2E_JAVA"
-
 # ---------------------------------------------------------------------------
 # Build the lane (own wrapper: Gradle 8.14 on Java 21, FG 6.0.54)
 # ---------------------------------------------------------------------------
@@ -70,6 +54,24 @@ if [ -z "$MOD_JAR" ]; then
     exit 3
 fi
 echo "[e2e:1.18.2] mod jar: $MOD_JAR"
+
+# Server java: the lane's Java 17 toolchain (production Forge 40 requires
+# 17). Discovery runs AFTER the lane build: foojay resolves the 17 toolchain
+# into ~/.gradle/jdks during `./gradlew build`, so a fresh runner (or a
+# cache that carried no jdks) finds it here. Prefer the foojay-resolved JDK
+# 17; fall back to a system JDK 17 if present.
+E2E_JAVA=""
+for cand in "$HOME/.gradle/jdks"/eclipse_adoptium-17-amd64-linux*/bin/java; do
+    [ -x "$cand" ] && E2E_JAVA="$cand" && break
+done
+if [ -z "$E2E_JAVA" ] && [ -x /usr/lib/jvm/java-17-openjdk-amd64/bin/java ]; then
+    E2E_JAVA="/usr/lib/jvm/java-17-openjdk-amd64/bin/java"
+fi
+if [ -z "$E2E_JAVA" ]; then
+    echo "[e2e:1.18.2][fail] Java 17 not found for the production server" >&2
+    exit 3
+fi
+echo "[e2e:1.18.2] server Java 17: $E2E_JAVA"
 
 # ---------------------------------------------------------------------------
 # Invoke the shared orchestrator (modern-smoke era)
