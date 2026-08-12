@@ -51,6 +51,19 @@ source "$E2E_COMMON_DIR/lib.sh"
 if [ "${E2E_ERA:-}" = "headlessmc" ]; then
     exec bash "$E2E_DRIVER_SCRIPT"
 fi
+# Modern era (slice 4 boot-smoke: 1.16.5/1.18.2/1.20.1/26.1/26.2): the
+# modern-smoke driver owns the FULL flow (production installer server +
+# xvfb dev client + join assert) — same ownership model as headlessmc.
+if [ "${E2E_ERA:-}" = "modern-smoke" ]; then
+    exec bash "$E2E_DRIVER_SCRIPT"
+fi
+# Modern in-jar era (slice 3 full driver: 26.1/26.2): the modern-injar
+# driver owns the FULL flow PLUS the in-jar driver round-trip (sentinel
+# seed wait + tab-list textures marker assert + result JSON + exit-code
+# mapping) — the 26.x port of the 1.21 reference wrapper.
+if [ "${E2E_ERA:-}" = "modern-injar" ]; then
+    exec bash "$E2E_DRIVER_SCRIPT"
+fi
 
 : "${E2E_MOD_JAR:?e2e-common.sh: E2E_MOD_JAR is required}"
 : "${E2E_SERVER_JAR:?e2e-common.sh: E2E_SERVER_JAR is required}"
