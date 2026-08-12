@@ -533,10 +533,16 @@ jobs:
   # (--configure-on-demand --no-configuration-cache :forge-1.21:jar — the
   # exact shape that reproduced the sourceSets/WorkValidationException in
   # CI). INFORMATIONAL — not part of the required-check contract.
+  # Offline handling: the probe runs WITHOUT --offline here (cold ~/.gradle
+  # cannot resolve the settings-level foojay plugin / FG userdev graph —
+  # run 31551098537); setup-gradle shares the Build jobs' cache key space
+  # so the probe restores their cache. Local pre-push keeps --offline.
   config-order-gate:
     name: Config-order gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # 30 mirrors the Build matrix job budget: on a fully cold cache the
+    # online probe does the same userdev resolution work as Build (1.21).
+    timeout-minutes: 30
     needs: lint-yaml
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -545,17 +551,14 @@ jobs:
         with:
           java-version: "21"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      - name: Set up Gradle (wrapper validation + cache)
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
         with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-config-order-${{ hashFiles('**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-config-order-
+          cache-provider: basic
       - name: Run config-order gate (structural guard + CI-mirror probe)
         run: bash scripts/config-order-gate.sh
+        env:
+          CONFIG_ORDER_OFFLINE: "0"
 
   # ── Vendored harness diff-guard (lib-12) ───────────────────────
   # Fails when a vendored SpecialSource harness lane (forge-1.6.4,

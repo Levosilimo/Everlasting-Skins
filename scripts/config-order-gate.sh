@@ -23,6 +23,12 @@
 # Env: CONFIG_ORDER_MODULES overrides the probe target list (default
 # ":forge-1.21:jar"; 26.x excluded by default — their Java 25 toolchain
 # needs a network toolchain download, incompatible with --offline).
+# Env: CONFIG_ORDER_OFFLINE=0 drops --offline from the probe. CI sets it
+# (run 31551098537: a cold ~/.gradle cannot resolve the settings-level
+# foojay plugin / FG userdev graph offline — the gate job's actions/cache
+# key namespace is separate from the Build jobs' setup-gradle cache, so
+# the first run is always cold). Local pre-push keeps the default --offline
+# because the local cache is warm.
 #
 # shellcheck disable=SC2317  # false positive: shellcheck follows the sourced
 #                              # ensure-jdk17.sh and sees its final `exit 1` (no JDK
@@ -36,6 +42,13 @@ cd "$ROOT" || exit 1
 
 CONVENTION="buildSrc/src/main/kotlin/everlastingskins.forge-module.gradle.kts"
 MODULES="${CONFIG_ORDER_MODULES:-:forge-1.21:jar}"
+# Default 1 (offline): local pre-push runs against a warm cache. CI sets 0
+# so a cold ~/.gradle resolves the plugin/dependency graph online instead
+# of failing on the settings-level foojay plugin (see header).
+OFFLINE_ARGS=""
+if [ "${CONFIG_ORDER_OFFLINE:-1}" = "1" ]; then
+  OFFLINE_ARGS="--offline"
+fi
 # Self-test mode: skip the gradle probe (the structural guard is the unit
 # under test; the probe needs a working convention).
 STRUCTURAL_ONLY="${CONFIG_ORDER_STRUCTURAL_ONLY:-0}"
@@ -82,8 +95,9 @@ fi
 source scripts/ensure-jdk17.sh
 
 for MODULE in $MODULES; do
-  echo "config-order: probing $MODULE (CoD + no config cache + offline)..."
-  if ! ./gradlew --no-daemon --offline --configure-on-demand \
+  echo "config-order: probing $MODULE (CoD + no config cache${OFFLINE_ARGS:+ + offline})..."
+  # shellcheck disable=SC2086  # OFFLINE_ARGS is empty or exactly "--offline"
+  if ! ./gradlew --no-daemon $OFFLINE_ARGS --configure-on-demand \
       --no-configuration-cache --stacktrace "$MODULE" > /tmp/config-order-gate.log 2>&1; then
     if grep -qE "Extension with name 'sourceSets' does not exist|WorkValidationException|Configuration cache" /tmp/config-order-gate.log; then
       fail "config-order probe FAILED for $MODULE with the config-order signature (sourceSets/WorkValidationException); tail follows"
