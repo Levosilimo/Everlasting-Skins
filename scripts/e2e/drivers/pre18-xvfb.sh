@@ -298,7 +298,7 @@ else
     # --server/--port args exist on this line's main. The role JVM property
     # (E2E_JVM_PROPERTY: -Deverlastingskins.e2e=true for the actor,
     # -Deverlastingskins.e2e.observer=true for the observer) rides through
-    # as $10 so the observer client boots the observer driver, not a second
+    # as ${10} so the observer client boots the observer driver, not a second
     # actor.
     # shellcheck disable=SC2016
     CLIENT_PID=$(start_guarded "$CLIENT_LOG" bash -c '
@@ -306,7 +306,7 @@ else
         exec timeout --kill-after=10 "$8" xvfb-run -a -s "$9" "$2" -Xmx1G -Xms512M \
             -Djava.library.path="$3" \
             -Dminecraft.applet.TargetDirectory="$1" \
-            $10 \
+            ${10} \
             -Deverlastingskins.e2e.server="$4" \
             -Deverlastingskins.e2e.port="$5" \
             -cp "$6" net.minecraft.client.Minecraft "$7" "e2e-session-token"
