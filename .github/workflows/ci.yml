@@ -718,6 +718,88 @@ jobs:
             ${{ runner.temp }}/everlastingskins-e2e/**/*.log
           if-no-files-found: warn
 
+  # ── E2E (modern lanes boot-smoke, informational) ─────────────
+  # Slice-4 real-client boot-smoke floor for the remaining matrix lanes
+  # (master plan real-client-e2e-plan.md): forge-1.16.5 / forge-1.18.2 /
+  # forge-1.20.1 / forge-26.1 / forge-26.2. Each lane's run-e2e.sh builds
+  # the lane, boots a PRODUCTION Forge server (pinned installer
+  # --installServer, mod jar in mods/, online-mode=false) and launches the
+  # real dev client (runClient) under xvfb-run + Mesa llvmpipe; the
+  # boot-smoke asserts the server boot line + the client join line on the
+  # server log. The 1.21.x point releases are NOT here: they run the merged
+  # slice-3 in-jar driver (e2e-modern-121 above). INFORMATIONAL — NOT part
+  # of the required-check
+  # contract (no gh-api-bump). Per-lane JDK: 8 (1.16.5 FG 5.1 lane),
+  # 21 (1.18.2/1.20.1 Gradle 8.14 daemon + Java 17 toolchain via foojay),
+  # 25 (26.x unobfuscated line). Mesa software GL is required (the modern
+  # client is a real GL client, same apt set as the pre-1.8 lanes); xvfb is
+  # preinstalled on ubuntu-24.04. RUNNER_TMP must be a STEP env.
+  e2e-modern:
+    name: E2E (${{ matrix.lane }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: lint-yaml
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: forge-1.16.5
+            java: "8"
+          - lane: forge-1.18.2
+            java: "21"
+          - lane: forge-1.20.1
+            java: "21"
+          - lane: forge-26.1
+            java: "25"
+          - lane: forge-26.2
+            java: "25"
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+      - name: Install Mesa software GL (llvmpipe for the real modern client)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
+            libxrandr2 libxxf86vm1 libxcursor1 libxi6 libxinerama1 \
+            libasound2 libopenal1 x11-xserver-utils
+      - name: Cache Gradle wrapper and caches
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-${{ matrix.lane }}-
+      - name: Cache E2E downloads (forge installers, server libraries)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/everlastingskins
+          key: e2e-${{ matrix.lane }}-${{ runner.os }}
+          restore-keys: |
+            e2e-${{ matrix.lane }}-${{ runner.os }}-
+      - name: Run real-client boot-smoke (production server + xvfb dev client + join assert)
+        run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
+        env:
+          RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
+        timeout-minutes: 45
+      - name: Upload E2E logs + result (always)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: e2e-modern-${{ matrix.lane }}-logs
+          path: |
+            ${{ runner.temp }}/everlastingskins-e2e/e2e-result.json
+            ${{ runner.temp }}/everlastingskins-e2e/**/*.log
+          if-no-files-found: warn
+
   # ── GameTest on 1.21 (canonical gametest subproject) ──────────
   gametest-121:
     name: GameTest (1.21)
