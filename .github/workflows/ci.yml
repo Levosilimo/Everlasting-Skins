@@ -77,7 +77,7 @@ jobs:
         # scripts/test-count-gate.sh (@Test OR @ParameterizedTest).
         if: matrix.mc == 'common'
         run: |
-          COUNT=$(grep -rE "@(Test|ParameterizedTest)\b" --include="*.java" common/src forge-1.21/src 2>/dev/null | wc -l)
+          COUNT=$(grep -rE "@(Test|ParameterizedTest)\b" --include="*.java" common/src forge-1.21/src forge-test-shared/src 2>/dev/null | wc -l)
           echo "Test count: $COUNT"
           if [ "$COUNT" -lt 150 ]; then
             echo "ERROR: Test count dropped below 150 (got $COUNT)"
@@ -531,10 +531,18 @@ jobs:
   # (--configure-on-demand --no-configuration-cache :forge-1.21:jar — the
   # exact shape that reproduced the sourceSets/WorkValidationException in
   # CI). INFORMATIONAL — not part of the required-check contract.
+  # Offline handling: the probe runs WITHOUT --offline here (a cold
+  # ~/.gradle cannot resolve the settings-level foojay plugin / FG userdev
+  # graph offline — run 31551098537); setup-gradle shares the Build jobs'
+  # cache key space, so the probe restores their cache. Local pre-push
+  # keeps --offline against the warm local cache (CONFIG_ORDER_OFFLINE=0
+  # is CI-only).
   config-order-gate:
     name: Config-order gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # 30 mirrors the Build matrix job budget: on a fully cold cache the
+    # online probe does the same userdev resolution work as Build (1.21).
+    timeout-minutes: 30
     needs: lint-yaml
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -543,17 +551,14 @@ jobs:
         with:
           java-version: "21"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      - name: Set up Gradle (wrapper validation + cache)
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
         with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-config-order-${{ hashFiles('**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-config-order-
+          cache-provider: basic
       - name: Run config-order gate (structural guard + CI-mirror probe)
         run: bash scripts/config-order-gate.sh
+        env:
+          CONFIG_ORDER_OFFLINE: "0"
 
   # ── Vendored harness diff-guard (lib-12) ───────────────────────
   # Fails when a vendored SpecialSource harness lane (forge-1.6.4,
@@ -757,7 +762,7 @@ jobs:
   # ── GameTest on 1.21.1 (point release) ────────────────────────
   gametest-1211:
     name: GameTest (1.21.1)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: lint-yaml
     steps:
@@ -788,7 +793,7 @@ jobs:
   # ── GameTest on 1.21.4 (point release) ────────────────────────
   gametest-1214:
     name: GameTest (1.21.4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: lint-yaml
     steps:
@@ -819,7 +824,7 @@ jobs:
   # ── GameTest on 1.21.8 (point release) ────────────────────────
   gametest-1218:
     name: GameTest (1.21.8)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: lint-yaml
     steps:
@@ -850,7 +855,7 @@ jobs:
   # ── GameTest on 26.2 (new MC major line) ──────────────────────
   gametest-262:
     name: GameTest (26.2)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: lint-yaml
     steps:
@@ -881,7 +886,7 @@ jobs:
   # ── GameTest on 26.1 (new MC major line) ──────────────────────
   gametest-261:
     name: GameTest (26.1)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: lint-yaml
     steps:
@@ -929,11 +934,14 @@ jobs:
         run: npx -y aislop ci --changes --base origin/${{ github.base_ref || 'main' }}
 
   # ── CI Health: gradle-health.sh + dep-analysis projectHealth ──
-  # Informational (WARN-only policy) — NOT in the required-check
-  # contract until it proves green (see plans/P2-part2-implementation-plan.md).
+  # Required check (gh-api-bump/CI-Health.sh, lib-69): part of the
+  # 22-context branch-protection contract. Graduated lanes
+  # (depAnalysis.graduateDuplicateClass=true) FAIL on a duplicate-class
+  # finding (the zero-FP category); WARN-only reflection-FP categories
+  # never fail it.
   ci-health:
     name: CI Health
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: lint-yaml
     steps:
@@ -950,5 +958,6 @@ jobs:
       - name: chmod +x gradlew
         run: chmod +x gradlew
       - name: Run CI Health (gradle-health.sh + dep-analysis)
-        # WARN-only: script exits 0 always; sweeps :common + the in-root forge modules.
+        # Graduated lanes fail on duplicate-class findings (zero-FP);
+        # :common stays WARN-forever. Sweeps :common + the in-root forge modules.
         run: bash scripts/gradle-health.sh --offline
