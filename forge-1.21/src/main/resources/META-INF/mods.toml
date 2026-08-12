@@ -4,7 +4,7 @@ license = "MIT License"
 
 [[mods]]
 modId = "everlastingskins"
-version = "2.1.0"
+version = "2.1.0-rc1"
 displayName = "Everlasting Skins"
 authors = "Levosilimo"
 description = '''

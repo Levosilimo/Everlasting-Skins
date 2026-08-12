@@ -44,7 +44,6 @@ public class EverlastingSkins {
     public static final Logger logger = LogManager.getLogger();
     public static final String MOD_ID = "everlastingskins";
     public static final String MOD_NAME = "Everlasting Skins";
-    public static final String VERSION = "4.1.0";
     public static final List<String> languages = Lists.newArrayList();
 
     public EverlastingSkins() {

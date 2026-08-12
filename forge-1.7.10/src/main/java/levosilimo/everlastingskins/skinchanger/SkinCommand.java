@@ -16,6 +16,7 @@ import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.skinchanger.responses.mineskin.MineSkinResponse;
 import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataResult;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
+import levosilimo.everlastingskins.util.HttpsUrlConnectionHttpClient;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommand;
 import net.minecraft.command.ICommandSender;
@@ -75,8 +76,21 @@ public class SkinCommand implements ICommand {
     private static final String[] PROVIDERS = {"mojang", "web", "random"};
     private static final String[] METRICS_SUBCOMMANDS = {"json", "players", "cleanup", "reset"};
 
+    /**
+     * Default URL allowlist domains — mirrors the 1.21 Config
+     * {@code urlAllowlistDomains} defaults (and common's
+     * MineSkinApiHttpImpl.DEFAULT_ALLOWLIST_DOMAINS). This lane has no Config
+     * surface, so the allowlist is always ON with these domains (audit fix:
+     * the no-arg constructor defaults to allowlist OFF).
+     */
+    private static final List<String> ALLOWLIST_DOMAINS = Arrays.asList(
+            "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
+            "textures.minecraft.net", "namemc.com", "crafatar.com",
+            "mc-heads.net", "githubusercontent.com", "minecraftskins.com");
+
     private static volatile MojangAPI mojangApi = new MojangApiHttpImpl();
-    private static volatile MineSkinAPI mineSkinApi = new MineSkinApiHttpImpl();
+    private static volatile MineSkinAPI mineSkinApi = new MineSkinApiHttpImpl(
+            new HttpsUrlConnectionHttpClient(), "", true, ALLOWLIST_DOMAINS);
     private static volatile RandomUsernameSource randomSource = new RandomUsernameSource() {
         @Override
         public String pick(boolean cape, SkinVariant variant) throws IOException {
