@@ -29,6 +29,8 @@ jobs:
         with:
           config_file: .yamllint.yml
           strict: true
+      - name: Check CI Mesa apt packages (t64 ALSA only)
+        run: bash scripts/check-ci-mesa.sh
 
   # ── Build matrix over the M2 modules (JDK 21) ──────────────────
   build:
