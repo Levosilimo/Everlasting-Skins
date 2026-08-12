@@ -51,6 +51,12 @@ source "$E2E_COMMON_DIR/lib.sh"
 if [ "${E2E_ERA:-}" = "headlessmc" ]; then
     exec bash "$E2E_DRIVER_SCRIPT"
 fi
+# Modern era (slice 4 boot-smoke: 1.16.5/1.18.2/1.20.1/26.1/26.2): the
+# modern-smoke driver owns the FULL flow (production installer server +
+# xvfb dev client + join assert) — same ownership model as headlessmc.
+if [ "${E2E_ERA:-}" = "modern-smoke" ]; then
+    exec bash "$E2E_DRIVER_SCRIPT"
+fi
 
 : "${E2E_MOD_JAR:?e2e-common.sh: E2E_MOD_JAR is required}"
 : "${E2E_SERVER_JAR:?e2e-common.sh: E2E_SERVER_JAR is required}"
