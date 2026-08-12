@@ -58,6 +58,9 @@
 #   E2E_HMC_VERSION    headlessmc release (default 2.10.0)
 #   E2E_HMC_SPECIFICS_JAR  bridge-lane specifics jar (default: lane
 #                          test-infrastructure/hmc-specifics/*.jar)
+#   E2E_CLIENT_HOME    client home dir (default $HOME/.minecraft; override
+#                      for fresh-home mocking / local runs that must not
+#                      touch the real client home)
 #
 # Exit codes (master-plan contract): 0 all green | 1 assertion failed |
 # 2 retryable infra (boot/join timeout, artifact fetch) | 3 hard failure.
@@ -79,6 +82,7 @@ source "$E2E_DRIVER_DIR/lib.sh"
 # join line within this before any assertion is meaningful (mirrors
 # modern-smoke.sh's join assert; scenario CONTAINS gate timeout is 240).
 : "${E2E_JOIN_TIMEOUT_S:=240}"
+: "${E2E_CLIENT_HOME:=$HOME/.minecraft}"
 
 CACHE="$E2E_CACHE_DIR/$E2E_LANE"
 HMC_DIR="$RUNNER_TMP/hmc-$E2E_LANE"
@@ -437,13 +441,17 @@ if [ "$E2E_LANE" = "1.10.2" ] || [ "$E2E_LANE" = "mc1.12.2" ]; then
     HMC_JVMARGS="hmc.jvmargs=-Deverlastingskins.e2e=true"
 fi
 : "${HMC_LAUNCH_EXTRA:=}"
+# Client home dir: hmc.mcdir is the launcher's client home (where versions/
+# lives). E2E_CLIENT_HOME overrides the default ~/.minecraft — needed for
+# fresh-home mocking and for local runs that must not touch the real home.
+MC_DIR="$E2E_CLIENT_HOME"
 # The launcher reads its config from <cwd>/HeadlessMC/config.properties
 # (hmc's default config location), so the config lives in a HeadlessMC/
 # subdir of the hmc runtime dir and the launcher runs with CWD there.
 cat > "$HMC_DIR/HeadlessMC/config.properties" <<EOF
 hmc.java.versions=$E2E_JAVA8
 hmc.gamedir=$CLIENT_DIR
-hmc.mcdir=$HOME/.minecraft
+hmc.mcdir=$MC_DIR
 hmc.offline=true
 hmc.offline.username=$E2E_USERNAME
 hmc.rethrow.launch.exceptions=true
@@ -465,7 +473,66 @@ EOF
 # NoSuchMethodError on ClientInstall.run, and the canonical 2847 installer
 # has no --installClient CLI), so its profile is installed with the 2860
 # rebuild's --installClient (same proven route as the pre-#438 boot-smoke).
-MC_DIR="${HOME}/.minecraft"
+# The --installClient route writes ONLY the forge version dir; the forge
+# profile json inherits from the VANILLA version, whose entry a fresh
+# client home does not have — ensure_vanilla_parent_version below
+# provisions it (evidence run 31601213606).
+
+# ensure_vanilla_parent_version <version> <mcdir> — the forge client profile
+# json inherits from the vanilla version (inheritsFrom); on a fresh client
+# home the launcher's ParentVersionResolver falls back to a Mojang
+# version-manifest fetch that is intermittently flaky. Evidence (run
+# 31601213606): the client log shows "[ParentVersionResolver]: Couldn't find
+# parent version 1.12.2 for version 1.12.2-forge-14.23.5.2860!" then
+# "Couldn't find object for name '1.12.2-forge-14.23.5.2860'!" — the
+# unresolvable parent drops the forge version from the launcher's list and
+# the run burns the full join window. Provision the vanilla json explicitly
+# (manifest fetch with backoff + validation) so the launch NEVER depends on
+# the manifest; on final failure exit 2 (retryable infra) with a DISTINCT
+# message, never a silent 240s join timeout.
+ensure_vanilla_parent_version() {
+    local version="$1" mcdir="$2"
+    local target="$mcdir/versions/$version/$version.json"
+    if [ -f "$target" ]; then
+        e2e_log "vanilla parent version $version: present ($target)"
+        return 0
+    fi
+    mkdir -p "$mcdir/versions/$version"
+    local attempt=1 manifest version_url
+    while [ "$attempt" -le 3 ]; do
+        version_url=""
+        manifest=$(curl -fsSL --max-time 60 \
+            "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json" 2>/dev/null || true)
+        if [ -n "$manifest" ]; then
+            version_url=$(printf '%s' "$manifest" | python3 -c "
+import json, sys
+doc = json.load(sys.stdin)
+for v in doc.get('versions', []):
+    if v.get('id') == sys.argv[1]:
+        print(v.get('url', ''))
+        break
+" "$version" 2>/dev/null || true)
+        fi
+        if [ -n "$version_url" ] \
+            && curl -fsSL --max-time 60 -o "$target.part" "$version_url" 2>/dev/null \
+            && python3 -c "
+import json, sys
+doc = json.load(open(sys.argv[1]))
+assert doc.get('id') == sys.argv[2], 'version id mismatch'
+assert 'client' in doc.get('downloads', {}), 'no client download entry'
+" "$target.part" "$version" 2>/dev/null; then
+            mv "$target.part" "$target"
+            e2e_log "vanilla parent version $version provisioned ($version_url)"
+            return 0
+        fi
+        rm -f "$target.part"
+        e2e_warn "vanilla parent provisioning: attempt $attempt/3 failed (version manifest fetch for $version), backing off"
+        sleep $((2 ** attempt))
+        attempt=$((attempt + 1))
+    done
+    e2e_infra_fail "vanilla parent version $version provisioning FAILED after 3 manifest-fetch attempts — the launcher cannot resolve the forge profile's parent (retryable infra; manifest fetch is transient)"
+}
+
 if [ ! -d "$MC_DIR/versions/$MC_VERSION_ID" ]; then
     if [ "$E2E_LANE" = "mc1.12.2" ]; then
         e2e_log "installing forge client profile $MC_VERSION_ID (2860 installer)..."
@@ -493,6 +560,14 @@ if [ ! -d "$MC_DIR/versions/$MC_VERSION_ID" ]; then
         tail -n 20 "$RUNNER_TMP/forge-install-$E2E_LANE.log" >&2 || true
         exit 2
     fi
+fi
+
+# mc1.12.2: provision the vanilla parent version deterministically BEFORE
+# launch — the launcher's ParentVersionResolver must never depend on a
+# runtime Mojang manifest fetch (the 1.7.10/1.8.9 hmc forge-command route
+# provisions the vanilla entry itself; the --installClient route does not).
+if [ "$E2E_LANE" = "mc1.12.2" ]; then
+    ensure_vanilla_parent_version "$MC_VERSION" "$MC_DIR"
 fi
 
 # The launcher resolves hmc.test.filename etc. relative to the HeadlessMC
@@ -532,6 +607,20 @@ for _ in $(seq 1 "$E2E_JOIN_TIMEOUT_S"); do
     fi
     if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
         break
+    fi
+    # Fail-fast (run 31601213606): the parent-miss / unresolvable-version
+    # signatures mean the launcher can never boot the client — never burn
+    # the join window on it. Same retryable classification (exit 2), but a
+    # DISTINCT actionable message instead of the silent 240s timeout.
+    if [ "$E2E_LANE" = "mc1.12.2" ] \
+        && grep -qE "Couldn't find parent version|Couldn't find object for name" "$CLIENT_LOG" 2>/dev/null; then
+        e2e_warn "FAIL-FAST: launcher cannot resolve the client version (parent-miss signature in client log)"
+        tail -n 25 "$CLIENT_LOG" >&2 || true
+        kill_tree "$CLIENT_PID" 2>/dev/null || true
+        CLIENT_PID=""
+        kill_tree "$SERVER_PID" 2>/dev/null || true
+        SERVER_PID=""
+        e2e_infra_fail "client version resolution failed (vanilla parent missing / manifest fetch) — retryable infra; see client log above"
     fi
     sleep 1
 done
