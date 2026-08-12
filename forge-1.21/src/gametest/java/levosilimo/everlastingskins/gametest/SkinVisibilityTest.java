@@ -875,6 +875,7 @@ public class SkinVisibilityTest {
 
     @GameTest(template = "everlastingskins:empty", batch = "debounceAfter100ms", timeoutTicks = 200)
     public void debounceAfter100ms(GameTestHelper helper) {
+        ensureStorage(helper);
         FakeMojangAPI fake = installFakeMojangAPI(true);
         MinecraftServer server = helper.getLevel().getServer();
         ServerPlayer playerA = mockPlayer(helper, "DebounceA");
