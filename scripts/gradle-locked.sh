@@ -16,6 +16,22 @@
 # VM (research: lib-2 WSL2 OOM defenses, 2026-08-13, recorded in
 # .slim/deepwork/wsl2-oom-defense.sh).
 #
+# SINGLE BUILD ENTRY POINT — FORK-HEAP CAPS (JAVA_TOOL_OPTIONS)
+# ------------------------------------------------------------
+# This wrapper is the one entry point agents' builds MUST use because it
+# carries the fork-heap caps: it exports JAVA_TOOL_OPTIONS for every JVM it
+# spawns (the Gradle daemon AND ForgeGradle's forked Mavenizer). ForgeGradle
+# 7.0 launches the Mavenizer with NO -Xmx, so the JVM takes its default heap
+# (25% of RAM = 6.5 GB) and the kernel OOMs this 26 GB box (lib-1);
+# org.gradle.jvmargs governs only the daemon, never the forked Mavenizer.
+# Agent shells are non-interactive and never source ~/.bashrc, so the caps
+# cannot live in a dotfile — the build entry point itself must export them.
+# If JAVA_TOOL_OPTIONS is already set with the caller's own -Xmx (e.g.
+# -Xmx4g for a 26.x run), it is respected; otherwise the cap is appended.
+# NOTE: FG 7.0's Mavenizer hardcodes -Xms4G for its 26.x decompile step, so
+# 26.x runs need JAVA_TOOL_OPTIONS=-Xmx4g (or the Mavenizer's
+# --decompile-memory arg) — the 3g default cap makes that step invalid/OOM.
+#
 # ENV KNOBS
 # ---------
 #   GRADLE_BUILD_SLOTS   number of concurrent build slots     (default 2)
@@ -93,6 +109,12 @@ CMD="${GRADLE_LOCK_CMD:-./gradlew}"
 VERBOSE=0
 SLOT_FD=""
 
+# --- fork-heap caps: every forked JVM (daemon AND FG 7.0's Mavenizer)
+# inherits JAVA_TOOL_OPTIONS; see "SINGLE BUILD ENTRY POINT" above. ----------
+if [[ "${JAVA_TOOL_OPTIONS:-}" != *-Xmx* ]]; then
+  export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Xmx3g -XX:MaxMetaspaceSize=1g -XX:+UseG1GC"
+fi
+
 usage() {
   cat <<'EOF'
 gradle-locked.sh — serialize concurrent Gradle builds across agents (OOM defense)
@@ -100,7 +122,8 @@ gradle-locked.sh — serialize concurrent Gradle builds across agents (OOM defen
 USAGE
   ./scripts/gradle-locked.sh [-v] [--] <gradle args...>
 
-  -v, --verbose   print slot acquisition / waiting / holder info
+  -v, --verbose   print slot acquisition / waiting / holder info and the
+                  effective JAVA_TOOL_OPTIONS (fork-heap caps)
   -h, --help      show this help
   --              end wrapper flags; everything after is passed to Gradle verbatim
 
@@ -135,6 +158,11 @@ while [[ $# -gt 0 ]]; do
     *) break ;;   # first non-wrapper arg: forward the rest untouched
   esac
 done
+
+# --- -v: surface the effective fork caps so agents can verify they're live ---
+if [[ $VERBOSE -eq 1 ]]; then
+  echo "gradle-locked: JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS}"
+fi
 
 # --- env validation ----------------------------------------------------------
 if ! [[ "$SLOTS" =~ ^[0-9]+$ ]] || (( SLOTS < 1 )); then
