@@ -19,6 +19,5 @@
   "metrics_refreshes": " trocas",
   "metrics_no_refreshes": "(nenhuma troca registrada)",
   "metrics_cleanup": "Limpeza de métricas: %d entradas obsoletas removidas",
-  "metrics_reset": "Métricas redefinidas",
-  "discord_announce": "**%s** mudou sua skin para: `%s`"
+  "metrics_reset": "Métricas redefinidas"
 }
