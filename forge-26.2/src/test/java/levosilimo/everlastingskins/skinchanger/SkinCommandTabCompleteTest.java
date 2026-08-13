@@ -24,8 +24,7 @@ import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.LevelBasedPermissionSet;
-import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.server.permissions.PermissionSet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -329,18 +328,21 @@ class SkinCommandTabCompleteTest {
         var unused = mock(ServerLevel.class);
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getUUID()).thenReturn(PLAYER_UUID);
-        // 26.x derives the op level from the player's PermissionSet (see
-        // PermissionContext.effectiveOpLevel), so the mock grants the level
-        // through the level-based set instead of getProfilePermissions.
-        when(player.permissions()).thenReturn(LevelBasedPermissionSet.forLevel(PermissionLevel.byId(opLevel)));
-        MinecraftServer server = mock(MinecraftServer.class);
-        when(player.level()).thenReturn(unused);
-        when(unused.getServer()).thenReturn(server);
+        // 26.x PermissionContext.of(uuid, player) derives the op level from the
+        // player's PermissionSet (Permission.HasCommandLevel probes), so the
+        // requires() gates resolve through these constants like 1.21's
+        // hasPermissions path did.
+        when(player.permissions()).thenReturn(
+                opLevel >= 2 ? PermissionSet.ALL_PERMISSIONS : PermissionSet.NO_PERMISSIONS);
 
         CommandSourceStack source = mock(CommandSourceStack.class);
         when(source.getPlayer()).thenReturn(player);
         when(source.getOnlinePlayerNames()).thenReturn(ONLINE_PLAYERS);
-        when(source.permissions()).thenReturn(LevelBasedPermissionSet.forLevel(PermissionLevel.byId(opLevel)));
+        // canUse() gates also resolve through the source-level PermissionSet
+        // (ForgeHooks.canUse probes source.permissions()), which the 1.21
+        // hasPermission(int) stub does not cover on 26.x.
+        when(source.permissions()).thenReturn(
+                opLevel >= 2 ? PermissionSet.ALL_PERMISSIONS : PermissionSet.NO_PERMISSIONS);
         return source;
     }
 
