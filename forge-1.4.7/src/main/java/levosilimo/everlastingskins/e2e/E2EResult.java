@@ -65,6 +65,28 @@ public final class E2EResult {
     }
 
     /**
+     * Pixel-for-pixel equality of two images (null-safe). The sentinel
+     * contract's wire-vs-file and handler-injection proofs compare full
+     * pixel content (64x32 = 2048 comparisons).
+     */
+    public static boolean pixelsEqual(BufferedImage a, BufferedImage b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) {
+            return false;
+        }
+        for (int y = 0; y < a.getHeight(); y++) {
+            for (int x = 0; x < a.getWidth(); x++) {
+                if (a.getRGB(x, y) != b.getRGB(x, y)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * Writes the client-side result document. Fields follow the master-plan
      * contract; the driver fills what it observes. Throws on IO failure so
      * the driver can surface it as a hard failure (never a silent pass).
@@ -82,6 +104,28 @@ public final class E2EResult {
         doc.put("duration_ms", durationMs);
         doc.put("exit_code", exitCode);
         doc.put("artifacts", artifacts == null ? new LinkedHashMap<String, String>() : artifacts);
+        Files.write(target.toPath(), toJson(doc).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Writes the OBSERVER-side result document (second-observer client, lib-23
+     * wire fan-out proof). Fields follow the master-plan contract: every field
+     * is {@code observer_}-prefixed so the orchestrator's additive merge
+     * (assemble_result) never collides with the actor doc. Throws on IO
+     * failure so the driver can surface it as a hard failure.
+     */
+    public static void writeObserver(File target, boolean observerJoined, String rendererState,
+                                     boolean rendererVerified, long durationMs, int exitCode,
+                                     Map<String, String> artifacts) throws IOException {
+        Map<String, Object> doc = new LinkedHashMap<String, Object>();
+        doc.put("lane", "1.4.7");
+        doc.put("server_booted", false); // client cannot know; script merges
+        doc.put("observer_joined", observerJoined);
+        doc.put("observer_renderer_state", rendererState == null ? "none" : rendererState);
+        doc.put("observer_renderer_verified", rendererVerified);
+        doc.put("observer_duration_ms", durationMs);
+        doc.put("observer_exit_code", exitCode);
+        doc.put("observer_artifacts", artifacts == null ? new LinkedHashMap<String, String>() : artifacts);
         Files.write(target.toPath(), toJson(doc).getBytes(StandardCharsets.UTF_8));
     }
 
