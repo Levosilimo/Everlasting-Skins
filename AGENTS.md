@@ -37,6 +37,16 @@ One Gradle root (9.3.1) for the Forge line. Modules:
   blocks, or mixins.json bundling) and wires it into `build`. Applied by
   `everlastingskins.forge-module` and `:common` itself; new forge convention
   plugins must apply it too.
+- `everlastingskins.errorprone.gradle.kts` — Tier 1 static analysis (M2
+  root): hooks ErrorProne (2.50.0, pinned on the `errorprone`
+  configuration) into every `JavaCompile` task. Applied by the forge-module
+  convention and directly by `:common`.
+- `everlastingskins.dependency-analysis.gradle.kts` — the WARN-only
+  dependency-analysis convention (knip-equivalent, P2-6). Every category
+  runs at warn severity; the per-lane
+  `depAnalysis.graduateDuplicateClass=true` property graduates ONLY the
+  duplicate-class category to FAIL and wires `check -> projectHealth`
+  (see "P2-6 dependency-analysis graduation" below).
 
 ## Legacy lanes (forge-1.5.2 / forge-1.6.4 / forge-1.4.7 / mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1 / forge-1.18.2 / forge-1.10.2) — out-of-band
 
@@ -249,7 +259,8 @@ bash scripts/gradle-health.sh  # dep-hygiene sweep (manual; per-consumer :projec
 ```
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
-`:common` + the four 1.21.x modules + forge-26.2 (`Build (26.2)`, Java 25),
+`:common` + the four 1.21.x modules + forge-26.2 (`Build (26.2)`, Java 25)
++ forge-26.1 (`Build (26.1)`, Java 25),
 plus the out-of-band mc1.12.2 build, `E2E (mc1.12.2)` (P1-6 LIVE — no
 longer a stub: mc1.12.2/test-infrastructure/run-e2e.sh builds the lane,
 boots a real Forge 14.23.5.2847 server with the mod, launches a
@@ -403,8 +414,10 @@ plugin's Gradle 8.11 minimum (see the lane-policy paragraph above).
 
 Rollback: flip `depAnalysis.graduateDuplicateClass` back to `false` (or delete
 it) — instantly reverts BOTH the severity change and the check-wiring with no
-rebuild and no branch-protection change. Do not add a dedicated ci-health
-required check.
+rebuild and no branch-protection change. CI Health is a REQUIRED check in the
+branch-protection contract (gh-api-bump/CI-Health.sh, lib-69); it cannot be
+retired by flipping the property (branch protection is gh-API-managed), so
+rollback of the gate does not by itself remove the required context.
 
 Contributor guide — graduating a new lane: set the property, then run
 `./gradlew --offline :<lane>:projectHealth` and confirm duplicate-class is 0
@@ -431,7 +444,7 @@ branch protection in-repo. The contract is strict (`enforce_admins`, no
 force pushes/deletions) with 22 contexts: `YAML Lint`, the `Build
  (common)` / `Build (1.21.x)` / `Build (26.2)` / `Build (26.1)` matrix,
 `Build (mc1.12.2)`,
-`E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
+`E2E (mc1.12.2)` (required, so it runs on PRs and pushes), `GameTest
 `(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
 / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.18.2)`
 / `Build (forge-1.10.2)` / `Build (forge-1.6.4)` / `Build (forge-1.5.2)`
@@ -475,7 +488,7 @@ applied 20→21).
 
 ### Branch protection bump scripts
 
-`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2,1.4.7}.sh`
+`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2,1.4.7,CI-Health}.sh`
 are one-shot gh-API scripts that
 atomically add a new required-status context to the branch-protection contract
 on both `main` and (if it still exists) `integration/m2-monorepo`. They use
@@ -498,7 +511,7 @@ under "Post-Merge Deadlock Resolution".
 machine: DONE/READY_TO_MERGE/STALE/FAILED/BLOCKED/PENDING; update-branch
 on STALE; timeout-bounded `gh pr checks --watch --fail-fast`;
 fire-and-forget `gh pr merge --auto`). Never self-retries; the caller's
-tool timeout must exceed --timeout (default 600s). Exit-code contract in
+tool timeout must exceed --timeout (default 180s). Exit-code contract in
 the script header. `--verify` is read-only by default; the OPT-IN
 `--verify --fix-stale` triggers exactly ONE `gh pr update-branch` + ONE
 re-verify on a STALE verdict (belt-and-suspenders manual fallback, never
@@ -545,7 +558,9 @@ NeoForge is intentionally absent (no `mcneoforge` lane).
 Each publish job is a per-prefix matrix entry (`prefix` → Gradle subproject →
 game version → Java) using the pinned `Kira-NT/mc-publish` v3 action to upload
 to CurseForge + Modrinth + GitHub Releases (secrets `CURSEFORGE_TOKEN`,
-`MODRINTH_TOKEN`, `GITHUB_TOKEN`). Two hard-won constraints from the #356
+`MODRINTH_TOKEN`, `GITHUB_TOKEN`); the 1.5.2 exception: `Publish (mc1.5.2)`
+ships as a beta on Modrinth + GitHub Releases ONLY (no CurseForge — README.md).
+Two hard-won constraints from the #356
 fix: the tag gate lives on the **steps** (`if: startsWith(github.ref_name,
 matrix.prefix)`), not on `jobs.<job_id>.if` — GitHub's context-availability
 table excludes `matrix` from job-level `if`, and a matrix ref there rejects

@@ -26,6 +26,7 @@ import net.minecraft.util.text.TextComponentString;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -53,7 +54,20 @@ import java.util.UUID;
 public class SkinCommand extends CommandBase {
     static final String PREFIX = "§6[" + "Everlasting Skins" + "]§f ";
 
-    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
+    /**
+     * Default URL allowlist domains — mirrors the 1.21 Config
+     * {@code urlAllowlistDomains} defaults (and common's
+     * MineSkinApiHttpImpl.DEFAULT_ALLOWLIST_DOMAINS). This lane has no Config
+     * surface, so the allowlist is always ON with these domains (audit fix:
+     * the no-arg constructor defaults to allowlist OFF).
+     */
+    private static final List<String> ALLOWLIST_DOMAINS = Arrays.asList(
+            "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
+            "textures.minecraft.net", "namemc.com", "crafatar.com",
+            "mc-heads.net", "githubusercontent.com", "minecraftskins.com");
+
+    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl(
+            new HttpsUrlConnectionHttpClient(), "", true, ALLOWLIST_DOMAINS);
     private static MojangAPI mojangAPI = createMojangAPI();
 
     /**
@@ -86,7 +100,8 @@ public class SkinCommand extends CommandBase {
 
     static void resetAPIs() {
         mojangAPI = createMojangAPI();
-        mineSkinAPI = new MineSkinApiHttpImpl();
+        mineSkinAPI = new MineSkinApiHttpImpl(
+                new HttpsUrlConnectionHttpClient(), "", true, ALLOWLIST_DOMAINS);
     }
 
     @Override
