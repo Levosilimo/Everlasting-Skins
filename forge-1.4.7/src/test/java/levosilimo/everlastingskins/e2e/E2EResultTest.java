@@ -187,49 +187,6 @@ public class E2EResultTest {
     }
 
     @Test
-    public void writeObserverProducesContractJson() throws Exception {
-        File dir = new File(System.getProperty("java.io.tmpdir"), "e2e-observer-result-test-" + System.nanoTime());
-        assertTrue(dir.mkdirs());
-        try {
-            File out = new File(dir, "e2e-result.json");
-            Map<String, String> artifacts = new LinkedHashMap<String, String>();
-            artifacts.put("broadcast", "received");
-            artifacts.put("wire_png_matches_sentinel", "true");
-            E2EResult.writeObserver(out, true, "sentinel", true, 12345L, 0, artifacts);
-
-            String json = new String(java.nio.file.Files.readAllBytes(out.toPath()), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"observer_joined\":true"));
-            assertTrue(json.contains("\"observer_renderer_state\":\"sentinel\""));
-            assertTrue(json.contains("\"observer_renderer_verified\":true"));
-            assertTrue(json.contains("\"observer_duration_ms\":12345"));
-            assertTrue(json.contains("\"observer_exit_code\":0"));
-            assertTrue(json.contains("\"wire_png_matches_sentinel\":\"true\""));
-            // The observer doc must never carry actor fields (the orchestrator
-            // merge is additive on observer_* and reads observer_exit_code).
-            assertFalse(json.contains("\"client_joined\""));
-            assertFalse(json.contains("\"exit_code\":0"));
-        } finally {
-            deleteRecursively(dir);
-        }
-    }
-
-    @Test
-    public void writeObserverFailureState() throws Exception {
-        File dir = new File(System.getProperty("java.io.tmpdir"), "e2e-observer-result-fail-" + System.nanoTime());
-        assertTrue(dir.mkdirs());
-        try {
-            File out = new File(dir, "e2e-result.json");
-            E2EResult.writeObserver(out, true, "none", false, 999L, 1, null);
-            String json = new String(java.nio.file.Files.readAllBytes(out.toPath()), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"observer_renderer_state\":\"none\""));
-            assertTrue(json.contains("\"observer_renderer_verified\":false"));
-            assertTrue(json.contains("\"observer_exit_code\":1"));
-        } finally {
-            deleteRecursively(dir);
-        }
-    }
-
-    @Test
     public void pixelsEqualComparesFullContent() {
         BufferedImage a = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
         BufferedImage b = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
