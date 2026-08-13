@@ -4,20 +4,17 @@
 # scripts/e2e/e2e-common.sh + scripts/e2e/drivers/pre18-xvfb.sh).
 #
 # Flow: build the lane (vendored harness, Java 8) → export the lane's
-# server/artifact config → invoke the shared orchestrator.
-#
-# MERGE MODEL (lib-8 recipe): 1.4.7/1.5.2 boot the client as the obf client
-# jar with the FML universal zip MERGED in (universal's patched
-# net/minecraft/client/Minecraft + MinecraftApplet + ClientBrandRetriever
-# win), main net.minecraft.client.Minecraft, CWD + minecraft.applet
-# TargetDirectory = gameDir, NO launchwrapper/tweaker — the driver
-# auto-connects via Minecraft.setServer at @Mod.Init. The server boots as
-# net.minecraft.server.MinecraftServer nogui with the universal zip FIRST on
-# the classpath (its patched MinecraftServer FML-bootstraps the process).
+# server/artifact config → invoke the shared orchestrator. This lane is a
+# MERGE-MODEL era (E2E_ERA=merge): the server boots the obf server jar with
+# the forge universal.zip FIRST on the classpath (main
+# net.minecraft.server.MinecraftServer nogui), and the client boots the obf
+# client jar MERGED with the universal zip (main net.minecraft.client.Minecraft,
+# CWD=gameDir, -Dminecraft.applet.TargetDirectory) — see
+# scripts/e2e/e2e-common.sh + scripts/e2e/drivers/pre18-xvfb.sh era deltas.
 #
 # Usage: JAVA_HOME=<jdk8> ./run-e2e.sh
 # Exit codes (master-plan contract): 0 all green | 1 assertion failed |
-# 2 retryable infra | 3 build/hard failure.
+# 2 retryable infra | 3 build failure.
 
 set -euo pipefail
 
@@ -26,9 +23,8 @@ LANE_DIR="$(dirname "$SCRIPT_DIR")"
 REPO_ROOT="$(cd "$LANE_DIR/.." && pwd)"
 
 # ---------------------------------------------------------------------------
-# Java 8 (hard requirement: Gradle 4.4.1 dies on 9+; the merge-model client
-# boot needs Java 8 too — the client bytecode is major 49 but FML 4.7's ASM
-# refuses anything newer than Java 7 class files, and :common needs 8)
+# Java 8 (hard requirement: the merge-model client/server + Gradle 4.4.1 die
+# on 9+)
 # ---------------------------------------------------------------------------
 if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     E2E_JAVA8="$JAVA_HOME/bin/java"
@@ -69,7 +65,7 @@ if [ ! -f "$SERVER_JAR" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Invoke the shared orchestrator (merge model)
+# Invoke the shared orchestrator
 # ---------------------------------------------------------------------------
 export E2E_LANE="1.4.7"
 export E2E_ERA="merge"
