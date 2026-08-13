@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -58,7 +59,7 @@ class SkinSyncAsyncOrderTest {
     void syncSaveAfterQueuedAsyncSave_lastWriteWins() throws Exception {
         UUID u = UUID.randomUUID();
         storage.setSkin(u, skin("Yg==")); // v2 = latest, in the in-memory map
-        storage.saveSkinAsync(u, skin("YQ==")); // v1 = stale payload, queued for the debounced drain
+        CompletableFuture<Void> unused = storage.saveSkinAsync(u, skin("YQ==")); // v1 = stale payload, queued for the debounced drain
         storage.saveSkin(u); // sync: must purge the queued v1 and land v2
         storage.flushPending();
 
@@ -77,7 +78,7 @@ class SkinSyncAsyncOrderTest {
 
         CustomSkinProperty stale = skin("YQ==");
         blockingStorage.setSkin(u, skin("Yg=="));
-        blockingStorage.saveSkinAsync(u, stale);
+        CompletableFuture<Void> unused1 = blockingStorage.saveSkinAsync(u, stale);
         // Settle barrier (mirrors the #354 terminal-metric pattern): the drain
         // runs on the lazily-created static writer thread after the 50ms
         // debounce, so on a loaded CI box it can take far longer than 5s to
@@ -100,7 +101,7 @@ class SkinSyncAsyncOrderTest {
                 fail("drain must reach the file write before the sync save (writeStarted never fired within "
                         + GENEROUS_AWAIT_SECONDS + "s; stillQueued=" + blockingStorage.hasPendingWrites() + ")");
             }
-            blockingStorage.saveSkinAsync(u, stale); // re-arm: re-schedules the drain
+            CompletableFuture<Void> unused2 = blockingStorage.saveSkinAsync(u, stale); // re-arm: re-schedules the drain
         }
 
         CountDownLatch syncDone = new CountDownLatch(1);

@@ -5,6 +5,8 @@ import com.autonomousapps.tasks.AbiAnalysisTask
 import com.autonomousapps.tasks.ClassListExploderTask
 import java.text.SimpleDateFormat
 import java.util.Date
+import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.language.jvm.tasks.ProcessResources
 
 // Encapsulates the former root build.gradle of the 1.21 project; each
 // subproject's build.gradle.kts is just `plugins { id("...") }` plus
@@ -26,6 +28,13 @@ plugins {
     // ErrorProne static analysis (buildSrc): hooks every JavaCompile.
     id("everlastingskins.errorprone")
 }
+
+// Shared dependency versions: single source of truth is the root build's
+// version catalog (gradle/libs.versions.toml). Precompiled script plugins are
+// compiled inside buildSrc (which has no catalog of its own), so the generated
+// `libs` accessor is NOT available here — read the applied project's catalog
+// (the root build's) through the programmatic API instead.
+val libs = the<VersionCatalogsExtension>().named("libs")
 
 // NOTE: property reads here use project.findProperty (NOT
 // providers.gradleProperty) — in precompiled buildSrc plugins the latter
@@ -326,36 +335,43 @@ dependencies {
     api(minecraft.dependency("net.minecraftforge:forge:${minecraftVersion}-${forgeVersion}"))
     // Guava on the annotation processor path keeps ErrorProne stable (it
     // previously shadowed the OLD Guava bundled in mixin-0.8.7-processor.jar).
-    annotationProcessor("com.google.guava:guava:33.5.0-jre")
+    annotationProcessor(libs.findLibrary("guava").get())
 
-    compileOnly("net.luckperms:api:5.5")
-    compileOnly("me.clip:placeholderapi:2.12.3")
-    compileOnly("com.discordsrv:discordsrv:1.30.5")
+    compileOnly(libs.findLibrary("luckperms-api").get())
+    compileOnly(libs.findLibrary("placeholderapi").get())
+    compileOnly(libs.findLibrary("discordsrv").get())
 
     // slf4j-api MUST appear before discordsrv in the classpath order.
     // discordsrv bundles unrelocated SLF4J 1.x classes (org/slf4j/LoggerFactory)
     // that lack the getProvider() method required by SLF4J 2.x. The declaration
     // order within testImplementation determines classpath ordering.
-    testImplementation("org.slf4j:slf4j-api:2.0.9")
-    testImplementation("com.discordsrv:discordsrv:1.30.5")
-    testImplementation("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
-    compileOnly("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
+    testImplementation(libs.findLibrary("slf4j-api").get())
+    testImplementation(libs.findLibrary("discordsrv").get())
+    testImplementation(libs.findLibrary("paper-api").get())
+    compileOnly(libs.findLibrary("spigot-api").get())
 
-    testImplementation(platform("org.junit:junit-bom:5.14.4"))
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.14.4")
-    testImplementation("net.jqwik:jqwik-api:1.9.3")
-    testImplementation("me.clip:placeholderapi:2.12.3")
-    testImplementation("org.mockito:mockito-core:5.12.0")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.12.0")
+    // JUnit versions come from the junit-bom platform (launcher included).
+    testImplementation(platform(libs.findLibrary("junit-bom").get()))
+    testImplementation(libs.findLibrary("junit-jupiter-api").get())
+    testImplementation(libs.findLibrary("junit-jupiter-params").get())
+    testImplementation(libs.findLibrary("jqwik-api").get())
+    testImplementation(libs.findLibrary("placeholderapi").get())
+    testImplementation(libs.findLibrary("mockito-core").get())
+    testImplementation(libs.findLibrary("mockito-junit-jupiter").get())
 
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
-    testRuntimeOnly("net.jqwik:jqwik-engine:1.9.3")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
+    testRuntimeOnly(libs.findLibrary("junit-jupiter-engine").get())
+    testRuntimeOnly(libs.findLibrary("jqwik-engine").get())
+    testRuntimeOnly(libs.findLibrary("junit-platform-launcher").get())
 
+    // junit-bom platform here too: gametestImplementation/gametestRuntimeOnly
+    // extend implementation/runtimeOnly (not test*), so the BOM declared on
+    // testImplementation does not reach them — without it the versionless
+    // junit entries below would fail resolution.
     "gametestImplementation"(sourceSets.main.get().output)
-    "gametestImplementation"("org.junit.jupiter:junit-jupiter-api:5.14.4")
-    "gametestRuntimeOnly"("org.junit.platform:junit-platform-launcher:1.14.4")
+    "gametestImplementation"(platform(libs.findLibrary("junit-bom").get()))
+    "gametestImplementation"(libs.findLibrary("junit-jupiter-api").get())
+    "gametestRuntimeOnly"(platform(libs.findLibrary("junit-bom").get()))
+    "gametestRuntimeOnly"(libs.findLibrary("junit-platform-launcher").get())
 }
 
 // jsr305 is brought in transitively by Forge AND bundled by discordsrv;
@@ -376,7 +392,7 @@ configurations.all {
             useVersion("5.0.4")
         }
         if (requested.group == "org.slf4j") {
-            useVersion("2.0.9")
+            useVersion(libs.findVersion("slf4j").get().requiredVersion)
         }
     }
 }
@@ -475,8 +491,21 @@ tasks.jar {
     }
 }
 
-tasks.processResources {
-    inputs.property("version", project.findProperty("mod_version") ?: "")
+// mods.toml version templating: when gradle.properties sets mod_version, it is
+// the single source of truth for the mods.toml version field — expand the
+// ${version} placeholder in META-INF/mods.toml at processResources time (covers
+// the gametest source set's resources too). Lanes whose mods.toml still
+// hardcodes a literal version (no placeholder) are untouched: expand() is a
+// no-op there and the file's existing value stands. Lanes without mod_version
+// are likewise untouched (their file's existing value stands).
+val modVersionProp: String? = project.findProperty("mod_version")?.toString()
+tasks.withType<ProcessResources>().configureEach {
+    if (modVersionProp != null) {
+        inputs.property("version", modVersionProp)
+        filesMatching("META-INF/mods.toml") {
+            expand("version" to modVersionProp)
+        }
+    }
 }
 
 sourceSets.all {

@@ -1,0 +1,70 @@
+# Single source of truth for shared dependency versions across the Forge line.
+# Consumers: :common (common/build.gradle.kts) and the forge-module convention
+# (buildSrc/src/main/kotlin/everlastingskins.forge-module.gradle.kts, which reads
+# this catalog programmatically — buildSrc cannot use the generated `libs`
+# accessor because it is compiled in its own build).
+#
+# One version per library, chosen to work for BOTH :common (Java 8 bytecode
+# tests, run on the Java 21 daemon JVM) and the forge modules (Java 21 / 25
+# toolchains). Newer versions win where they compile and pass on both.
+#
+# NOTE: buildSrc/build.gradle.kts keeps its OWN exact pins (ErrorProne plugin,
+# ForgeGradle, dependency-analysis plugin) — those are buildSrc classpath deps,
+# not shared library versions, and buildSrc cannot consume this catalog.
+
+[versions]
+# JUnit: one Jupiter version for the whole line; junit-bom aligns the
+# junit-platform artifacts (launcher included) with it.
+junit = "5.14.4"
+# jqwik: 1.10.1 (was 1.10.1 in :common vs 1.9.3 in the forge convention).
+# 1.10.x needs Java 17+ at runtime — fine on the Java 21/25 forge toolchains
+# and the Java 21 daemon that runs :common tests.
+jqwik = "1.10.1"
+# mockito: 5.23.0 (was 5.23.0 in :common vs 5.12.0 in the forge convention);
+# newer ByteBuddy means better JDK 25 support for the 26.x lanes.
+mockito = "5.23.0"
+# Gson floor = Minecraft 1.12.2's bundled 2.8.0; only pre-2.8 APIs are used.
+gson = "2.14.0"
+# authlib floor = the 1.12.2-era jar; only Property(String,String,String)/getValue used.
+authlib = "1.5.25"
+# log4j2 floor = Minecraft 1.12.2's bundled 2.8.1 (LogManager.getLogger API is stable).
+log4j = "2.26.1"
+# javax.annotation.Nullable (jsr305); annotation-only, no runtime impact.
+jsr305 = "3.0.2"
+# Guava on the annotation processor path keeps ErrorProne stable (it previously
+# shadowed the OLD Guava bundled in mixin-0.8.7-processor.jar).
+guava = "33.5.0-jre"
+# slf4j 2.x pin; also enforced for ALL org.slf4j transitives via the forge
+# convention's resolutionStrategy (discordsrv bundles unrelocated SLF4J 1.x).
+slf4j = "2.0.9"
+luckperms = "5.5"
+placeholderapi = "2.12.3"
+discordsrv = "1.30.5"
+paper = "1.20.4-R0.1-SNAPSHOT"
+spigot = "1.20.4-R0.1-SNAPSHOT"
+
+[libraries]
+# JUnit: versions come from the junit-bom platform (no per-artifact versions).
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api" }
+junit-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+jqwik-api = { module = "net.jqwik:jqwik-api", version.ref = "jqwik" }
+jqwik-engine = { module = "net.jqwik:jqwik-engine", version.ref = "jqwik" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+authlib = { module = "com.mojang:authlib", version.ref = "authlib" }
+log4j-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j" }
+log4j-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j" }
+jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "jsr305" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+luckperms-api = { module = "net.luckperms:api", version.ref = "luckperms" }
+placeholderapi = { module = "me.clip:placeholderapi", version.ref = "placeholderapi" }
+discordsrv = { module = "com.discordsrv:discordsrv", version.ref = "discordsrv" }
+paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
+spigot-api = { module = "org.spigotmc:spigot-api", version.ref = "spigot" }
