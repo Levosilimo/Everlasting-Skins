@@ -575,15 +575,13 @@ jobs:
   # Slice-1 real-client E2E for the vendored-harness pre-1.8 lanes
   # (lib-12). INFORMATIONAL — NOT part of the 22-context required-check
   # contract (no gh-api-bump); informational jobs never gate a merge.
-  # forge-1.6.4 is the active lane (tweaker-model driver, slice-1 proven
-  # in #430). The merge-model eras (forge-1.5.2 / forge-1.4.7: obf client
-  # + universal.zip MERGED into the client jar, main
-  # net.minecraft.client.Minecraft, CWD=gameDir) are ERA-UNTESTED — the
-  # driver implements only the 1.6.4 tweaker model and the merge-model
-  # boot was not live-verified, so their matrix entries stay commented
-  # (wrappers exist and exit 3 with the documented note; never fake a
-  # pass). Mesa software GL (llvmpipe) is required for the pre-1.8
-  # real-GL client; xvfb is preinstalled on ubuntu-24.04.
+  # All three lanes are LIVE: forge-1.6.4 uses the tweaker-model driver
+  # (launchwrapper + FMLTweaker); forge-1.5.2 / forge-1.4.7 use the
+  # MERGE model (obf client + universal.zip MERGED into the client jar,
+  # main net.minecraft.client.Minecraft, CWD=gameDir — live-verified in
+  # #434, observer fan-out ported alongside 1.6.4's). Mesa software GL
+  # (llvmpipe) is required for the pre-1.8 real-GL client; xvfb is
+  # preinstalled on ubuntu-24.04.
   e2e-pre18:
     name: E2E (${{ matrix.lane }})
     runs-on: ubuntu-24.04
@@ -594,11 +592,8 @@ jobs:
       matrix:
         lane:
           - forge-1.6.4
-          # ERA-UNTESTED (merge-model boot not implemented/live-verified;
-          # wrapper exits 3 with the documented note — see the lane's
-          # test-infrastructure/run-e2e.sh header):
-          # - forge-1.5.2
-          # - forge-1.4.7
+          - forge-1.5.2
+          - forge-1.4.7
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
