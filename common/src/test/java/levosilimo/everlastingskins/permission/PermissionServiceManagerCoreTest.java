@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * backends fail closed, duplicate registration is a no-op, and {@code reset()}
  * clears the active backend.
  */
-class PermissionServiceManagerTest {
+class PermissionServiceManagerCoreTest {
 
     private static final UUID PLAYER = UUID.randomUUID();
 
