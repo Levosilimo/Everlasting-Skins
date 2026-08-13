@@ -39,6 +39,7 @@ each lane is a separate build with its own wrapper and JDK:
 
 | Lane           | Gradle  | ForgeGradle       | Java | Build command                                  |
 |----------------|---------|-------------------|------|------------------------------------------------|
+| `forge-1.4.7/`  | 4.4.1   | none (vendored SpecialSource 1.7.4) | 8 | `cd forge-1.4.7 && JAVA_HOME=<jdk8> ./gradlew build` |
 | `forge-1.5.2/`  | 4.4.1   | none (vendored SpecialSource 1.7.4) | 8 | `cd forge-1.5.2 && JAVA_HOME=<jdk8> ./gradlew build` |
 | `forge-1.6.4/`  | 4.4.1   | none (vendored SpecialSource 1.7.4) | 8 | `cd forge-1.6.4 && JAVA_HOME=<jdk8> ./gradlew build` |
 | `mc1.12.2/`     | 4.10.3  | 2.3.4             | 8    | `cd mc1.12.2 && JAVA_HOME=<jdk8> ./gradlew build` |
@@ -49,7 +50,7 @@ each lane is a separate build with its own wrapper and JDK:
 | `forge-1.20.1/` | 8.14    | 6.0.54            | 21   | `cd forge-1.20.1 && JAVA_HOME=<jdk21> ./gradlew build` |
 | `forge-1.18.2/` | 8.14    | 6.0.54            | 21   | `cd forge-1.18.2 && JAVA_HOME=<jdk21> ./gradlew build` |
 
-All nine source-dir share `common/src/main/java` and
+All ten source-dir share `common/src/main/java` and
 `common/src/main/resources`, so shared code edits land in one place and are
 picked up by every lane. `forge-1.6.4` is the most fragile toolchain in the
 repo (Gradle 4.4.1 = FG 1.2 hard floor, Java 8 ONLY, MCP 8.11 conf from the
