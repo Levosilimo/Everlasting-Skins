@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -409,6 +410,64 @@ class MineSkinApiHttpImplTest {
             return out.toString("UTF-8");
         } finally {
             in.close();
+        }
+    }
+
+    @Nested
+    @DisplayName("URL allowlist guard (audit fix: lanes must not default to allowlist OFF)")
+    class AllowlistGuard {
+
+        private MineSkinApiHttpImpl allowlistedApi() {
+            return new MineSkinApiHttpImpl(httpClient, "test-api-key", true,
+                    Arrays.asList("imgur.com", "textures.minecraft.net"));
+        }
+
+        @Test
+        @DisplayName("disallowed domain + allowlist on -> rejected pre-network, no HTTP")
+        void disallowedDomainRejectedWithoutNetwork() throws Exception {
+            // FakeHttpClient fails the test if execute() is ever called;
+            // the allowlist guard must reject before any request is made.
+            Optional<MineSkinResponse> result =
+                    allowlistedApi().genSkinInternal("https://evil.example.com/skin.png", SkinVariant.CLASSIC);
+
+            assertFalse(result.isPresent());
+        }
+
+        @Test
+        @DisplayName("disallowed subdomain of an allowlisted eTLD+1 -> rejected")
+        void disallowedSubdomainRejected() throws Exception {
+            Optional<MineSkinResponse> result =
+                    allowlistedApi().genSkinInternal("https://evil.imgur.com.evil.example/skin.png", SkinVariant.CLASSIC);
+
+            assertFalse(result.isPresent());
+        }
+
+        @Test
+        @DisplayName("allowed domain + allowlist on -> request reaches the API client")
+        void allowedDomainPassesGuard() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 400,
+                    "{\"errorCode\":\"bad_request\",\"error\":\"bad\"}");
+
+            // A 400 (terminal) proves the request was actually issued:
+            // the guard let the allowlisted URL through to the HTTP layer.
+            Optional<MineSkinResponse> result =
+                    allowlistedApi().genSkinInternal("https://imgur.com/skin.png", SkinVariant.CLASSIC);
+
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("allowlist explicitly off -> disallowed domain reaches the API client")
+        void disabledAllowlistAllowsEverything() throws Exception {
+            httpClient.addResponse(MINESKIN_URI, 400,
+                    "{\"errorCode\":\"bad_request\",\"error\":\"bad\"}");
+            MineSkinApiHttpImpl noGuard = new MineSkinApiHttpImpl(httpClient, "test-api-key", false,
+                    Arrays.asList("imgur.com"));
+
+            Optional<MineSkinResponse> result =
+                    noGuard.genSkinInternal("https://evil.example.com/skin.png", SkinVariant.CLASSIC);
+
+            assertNull(result);
         }
     }
 
