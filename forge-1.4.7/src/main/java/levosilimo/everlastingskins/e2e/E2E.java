@@ -36,8 +36,7 @@ public final class E2E {
     public static void install() {
         Side side = FMLCommonHandler.instance().getSide();
         // Observer role is a client-only, explicitly-gated alternative to the
-        // actor driver (the observer never runs /skin). Checked BEFORE the
-        // e2e=true gate: the observer JVM only carries the observer property.
+        // actor driver (the observer never runs /skin).
         if (side == Side.CLIENT && Boolean.getBoolean(E2EObserverDriver.OBSERVER_PROPERTY)) {
             E2EObserverDriver.install();
             return;

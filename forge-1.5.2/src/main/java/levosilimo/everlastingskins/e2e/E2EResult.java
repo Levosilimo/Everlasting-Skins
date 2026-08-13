@@ -65,9 +65,9 @@ public final class E2EResult {
     }
 
     /**
-     * Pixel-for-pixel equality of two images (null-safe). The sentinel
-     * contract's wire-vs-file and handler-injection proofs compare full
-     * pixel content (64x32 = 2048 comparisons).
+     * Per-pixel ARGB equality between two decoded images (audit lib-20
+     * content assert): dimensions must match and every pixel must be
+     * identical. Deterministic and cheap (64x32 = 2048 comparisons).
      */
     public static boolean pixelsEqual(BufferedImage a, BufferedImage b) {
         if (a == null || b == null) {
@@ -94,12 +94,27 @@ public final class E2EResult {
     public static void write(File target, boolean clientJoined, boolean commandExecuted,
                              boolean rendererState, boolean rendererVerified, long durationMs,
                              int exitCode, Map<String, String> artifacts) throws IOException {
+        write(target, clientJoined, commandExecuted, rendererState ? "sentinel" : "none",
+            rendererVerified, durationMs, exitCode, artifacts);
+    }
+
+    /**
+     * String renderer_state variant (audit lib-20): the driver reports the
+     * precise failure mode, e.g. {@code sentinel-mismatch} when the injected
+     * image's pixels differ from the sentinel file, while the boolean
+     * overload keeps the legacy {@code sentinel}|{@code none} mapping for
+     * existing callers. {@code sentinel} on pass is the only value the
+     * orchestrator's assert gate accepts for a green run.
+     */
+    public static void write(File target, boolean clientJoined, boolean commandExecuted,
+                             String rendererState, boolean rendererVerified, long durationMs,
+                             int exitCode, Map<String, String> artifacts) throws IOException {
         Map<String, Object> doc = new LinkedHashMap<String, Object>();
         doc.put("lane", "1.5.2");
         doc.put("server_booted", false); // client cannot know; script merges
         doc.put("client_joined", clientJoined);
         doc.put("command_executed", commandExecuted);
-        doc.put("renderer_state", rendererState ? "sentinel" : "none");
+        doc.put("renderer_state", rendererState == null ? "none" : rendererState);
         doc.put("renderer_verified", rendererVerified);
         doc.put("duration_ms", durationMs);
         doc.put("exit_code", exitCode);
@@ -108,11 +123,13 @@ public final class E2EResult {
     }
 
     /**
-     * Writes the OBSERVER-side result document (second-observer client, lib-23
-     * wire fan-out proof). Fields follow the master-plan contract: every field
-     * is {@code observer_}-prefixed so the orchestrator's additive merge
-     * (assemble_result) never collides with the actor doc. Throws on IO
-     * failure so the driver can surface it as a hard failure.
+     * Writes the OBSERVER client's result document (second-observer client,
+     * lib-23 gap (d): the observer runs no commands and proves the broadcast
+     * fan-out by asserting the REAL {@code ClientSkinHandler}'s wire
+     * injection into the target player's TDI). Fields are additive and
+     * {@code observer_}-prefixed so {@code scripts/e2e/e2e-common.sh} can
+     * merge them into the actor's document without touching any actor
+     * field (backward-compatible result contract).
      */
     public static void writeObserver(File target, boolean observerJoined, String rendererState,
                                      boolean rendererVerified, long durationMs, int exitCode,
