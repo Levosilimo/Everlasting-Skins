@@ -26,9 +26,27 @@ public class CustomSkinProperty {
      */
     private static final java.lang.reflect.Field ORIGINAL_VALUE_FIELD = originalValueField();
 
+    /**
+     * Same rationale as {@link #ORIGINAL_VALUE_FIELD}: the signature payload
+     * is part of the skin's identity (two skins with the same value but
+     * different signatures are different textures), so it is read
+     * reflectively for equality on every authlib line.
+     */
+    private static final java.lang.reflect.Field ORIGINAL_SIGNATURE_FIELD = originalSignatureField();
+
     private static java.lang.reflect.Field originalValueField() {
         try {
             java.lang.reflect.Field field = Property.class.getDeclaredField("value");
+            field.setAccessible(true);
+            return field;
+        } catch (NoSuchFieldException e) {
+            return null;
+        }
+    }
+
+    private static java.lang.reflect.Field originalSignatureField() {
+        try {
+            java.lang.reflect.Field field = Property.class.getDeclaredField("signature");
             field.setAccessible(true);
             return field;
         } catch (NoSuchFieldException e) {
@@ -85,18 +103,27 @@ public class CustomSkinProperty {
         }
     }
 
+    /**
+     * Equality covers source AND the textures payload (value + signature), not
+     * just the source: two skins fetched from the same source with different
+     * values (or signatures) are different skins. Source-only equality
+     * misclassified e.g. a null-source persisted skin with a non-default
+     * value as the default skin in {@code SkinStorage.hasDefaultSkin}.
+     */
     @Override
     @SuppressWarnings("EqualsGetClass") // deliberate: public non-final class, getClass() keeps subclass equality contract-safe
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CustomSkinProperty that = (CustomSkinProperty) o;
-        return Objects.equals(source, that.source);
+        return Objects.equals(source, that.source)
+                && Objects.equals(getValue(), that.getValue())
+                && Objects.equals(getSignature(), that.getSignature());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source);
+        return Objects.hash(source, getValue(), getSignature());
     }
 
     public Property getOriginalProperty() {
@@ -113,6 +140,20 @@ public class CustomSkinProperty {
         if (originalProperty == null || ORIGINAL_VALUE_FIELD == null) return null;
         try {
             return (String) ORIGINAL_VALUE_FIELD.get(originalProperty);
+        } catch (IllegalAccessException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The textures signature. Read from authlib's backing field for the same
+     * cross-version reason as {@link #getValue()}; used by equality.
+     */
+    @Nullable
+    private String getSignature() {
+        if (originalProperty == null || ORIGINAL_SIGNATURE_FIELD == null) return null;
+        try {
+            return (String) ORIGINAL_SIGNATURE_FIELD.get(originalProperty);
         } catch (IllegalAccessException e) {
             return null;
         }

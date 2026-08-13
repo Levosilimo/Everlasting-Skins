@@ -28,11 +28,13 @@ java {
 // TestConfigSupport (P2-3) lives in this module's test tree as the canonical
 // copy for the forge lanes' selective srcDir share, but it is forge-bound
 // (nightconfig's CommentedConfig arrives on forge lane classpaths only):
-// :common itself must not compile it.
+// :common itself must not compile it. Only that one file is excluded — the
+// rest of the permission test package (e.g. PermissionServiceManagerTest)
+// is version-independent and compiles here.
 sourceSets {
     test {
         java {
-            exclude("levosilimo/everlastingskins/permission/**")
+            exclude("levosilimo/everlastingskins/permission/TestConfigSupport.java")
         }
     }
 }

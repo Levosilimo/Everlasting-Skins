@@ -268,7 +268,7 @@ class SkinIODeleteRaceTest {
         }
 
         @Override
-        void saveSkin(UUID uuid, byte[] payload) {
+        void saveSkin(UUID uuid, byte[] payload) throws IOException {
             writeStarted.countDown();
             try {
                 if (!releaseWrite.await(5, TimeUnit.SECONDS)) {
