@@ -20,6 +20,5 @@
   "metrics_refreshes": " refreshes",
   "metrics_no_refreshes": "(no refreshes recorded)",
   "metrics_cleanup": "Metrics cleanup: pruned %d stale player entries",
-  "metrics_reset": "Metrics reset",
-  "discord_announce": "**%s** changed their skin to: `%s`"
+  "metrics_reset": "Metrics reset"
 }

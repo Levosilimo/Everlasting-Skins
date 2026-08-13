@@ -19,6 +19,5 @@
   "metrics_refreshes": " 次",
   "metrics_no_refreshes": "（暂无记录）",
   "metrics_cleanup": "指标清理：已移除 %d 条过期玩家记录",
-  "metrics_reset": "指标已重置",
-  "discord_announce": "**%s** 将皮肤更改为：`%s`"
+  "metrics_reset": "指标已重置"
 }

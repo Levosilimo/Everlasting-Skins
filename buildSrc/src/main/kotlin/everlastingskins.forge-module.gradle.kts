@@ -329,15 +329,25 @@ dependencies {
     annotationProcessor("com.google.guava:guava:33.5.0-jre")
 
     compileOnly("net.luckperms:api:5.5")
-    compileOnly("me.clip:placeholderapi:2.12.3")
-    compileOnly("com.discordsrv:discordsrv:1.30.5")
+
+    // DiscordSRV + PlaceholderAPI hook deps are 1.21.x-only (FIX-3c): neither
+    // mod ships a Forge build for MC 26.1/26.2 (RES-3), so the 26.x lanes
+    // carry no hook code and must not resolve these. The four 1.21.x lanes
+    // DO use them (DiscordSrvHook / PlaceholderApiHook + integration tests).
+    if (project.name != "forge-26.1" && project.name != "forge-26.2") {
+        compileOnly("me.clip:placeholderapi:2.12.3")
+        compileOnly("com.discordsrv:discordsrv:1.30.5")
+    }
 
     // slf4j-api MUST appear before discordsrv in the classpath order.
     // discordsrv bundles unrelocated SLF4J 1.x classes (org/slf4j/LoggerFactory)
     // that lack the getProvider() method required by SLF4J 2.x. The declaration
     // order within testImplementation determines classpath ordering.
     testImplementation("org.slf4j:slf4j-api:2.0.9")
-    testImplementation("com.discordsrv:discordsrv:1.30.5")
+    if (project.name != "forge-26.1" && project.name != "forge-26.2") {
+        testImplementation("com.discordsrv:discordsrv:1.30.5")
+        testImplementation("me.clip:placeholderapi:2.12.3")
+    }
     testImplementation("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
     compileOnly("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
 
@@ -345,7 +355,6 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.14.4")
     testImplementation("net.jqwik:jqwik-api:1.9.3")
-    testImplementation("me.clip:placeholderapi:2.12.3")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.12.0")
     // mockito-core 5.12.0 bundles byte-buddy 1.14.x, which parses class files
@@ -375,8 +384,14 @@ dependencies {
 // transitive copy so discordsrv's bundled class is the only one on the
 // classpath (same split-package pattern as the historical #265 forge21.*
 // fix). dep-analysis 3.18.0 surfaces this as a duplicate-class warning.
-configurations.getByName("compileOnly").exclude(group = "com.google.code.findbugs", module = "jsr305")
-configurations.getByName("testImplementation").exclude(group = "com.google.code.findbugs", module = "jsr305")
+// The exclude applies only where discordsrv is declared (1.21.x, FIX-3c);
+// the 26.x lanes resolve Forge's transitive jsr305 instead — the 26.x main
+// code imports javax.annotation.Nullable, which the discordsrv hook dep
+// used to bundle.
+if (project.name != "forge-26.1" && project.name != "forge-26.2") {
+    configurations.getByName("compileOnly").exclude(group = "com.google.code.findbugs", module = "jsr305")
+    configurations.getByName("testImplementation").exclude(group = "com.google.code.findbugs", module = "jsr305")
+}
 
 configurations.getByName("testRuntimeClasspath") {
     exclude(group = "org.slf4j", module = "slf4j-simple")

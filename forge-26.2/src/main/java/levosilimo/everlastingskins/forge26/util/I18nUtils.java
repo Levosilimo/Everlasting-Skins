@@ -68,8 +68,7 @@ public final class I18nUtils {
             Map.entry("metrics_refreshes", " refreshes"),
             Map.entry("metrics_no_refreshes", "(no refreshes recorded)"),
             Map.entry("metrics_cleanup", "Metrics cleanup: pruned %d stale player entries"),
-            Map.entry("metrics_reset", "Metrics reset"),
-            Map.entry("discord_announce", "**%s** changed their skin to: `%s`"));
+            Map.entry("metrics_reset", "Metrics reset"));
 
     /** Message keys that expose a {@code messages_*} Config entry for per-server override. */
     private static final Map<String, ForgeConfigSpec.ConfigValue<String>> CONFIG_MESSAGES = Map.ofEntries(
@@ -93,8 +92,7 @@ public final class I18nUtils {
             Map.entry("metrics_refreshes", Config.MESSAGES_METRICS_REFRESHES),
             Map.entry("metrics_no_refreshes", Config.MESSAGES_METRICS_NO_REFRESHES),
             Map.entry("metrics_cleanup", Config.MESSAGES_METRICS_CLEANUP),
-            Map.entry("metrics_reset", Config.MESSAGES_METRICS_RESET),
-            Map.entry("discord_announce", Config.MESSAGES_DISCORD_ANNOUNCE));
+            Map.entry("metrics_reset", Config.MESSAGES_METRICS_RESET));
 
     private I18nUtils() {}
 
