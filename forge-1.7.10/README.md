@@ -1,8 +1,31 @@
-# EverlastingSkins — forge-1.7.10 lane
+# forge-1.7.10 (standalone build — out-of-band lane)
 
-Out-of-band legacy lane: Minecraft 1.7.10 / Forge 10.13.4.1614 / LaunchWrapper `@Mod`/`@Mod.EventHandler` (`cpw.mods.fml`) / first UUID-capable line (`EntityPlayer.getGameProfile()`). Builds standalone with its own Gradle 4.4.1 wrapper on Java 8, GTNH ForgeGradle 1.2.11 (jitpack-pinned) + MCP stable_12; consumes `:common` by source-dir share. See `build.gradle` for the supply-chain pin rationale.
+Minecraft 1.7.10 lane: Java 8 bytecode, MCP stable_12, GTNH
+**ForgeGradle 1.2.11** (resolved from jitpack, see the root AGENTS.md
+supply-chain note) — running on its **own Gradle wrapper (4.4.1, Java 8)**.
+FML 7.10.99.99+ (forge 10.13.4.1614), LaunchWrapper `@Mod` under
+`cpw.mods.fml.*`, netty-based `NetworkRegistry` channels.
 
-Build: `cd forge-1.7.10 && JAVA_HOME=<jdk8> ./gradlew build`
+This lane is deliberately NOT part of the monorepo root's Gradle build
+(lib-34 lane separation, same policy as the other legacy lanes).
+
+## Build
+
+```bash
+cd forge-1.7.10
+JAVA_HOME=/path/to/jdk8 ./gradlew build   # Gradle 4.4.1 must run on Java 8
+```
+
+## Client-join parity (FIX-6)
+
+FML 7 enforces mod-list parity at handshake: a server mod absent from the
+client's mod list rejects the join ("Mod rejections [everlastingskins]")
+unless the mod opts out. The canonical opt-out on this line is the
+`@Mod` attribute `acceptableRemoteVersions = "*"` (see the annotation's
+comment in `EverlastingSkins.java` for the bytecode-verified mechanism:
+the holder constructor special-cases exactly `"*"` to IgnoredChecker,
+which accepts any remote — including vanilla clients). Enforced by
+`ModParityTest` (annotation-presence regression).
 
 ## Era limitations (audit-documented, 2026-08)
 
@@ -12,5 +35,15 @@ These are intentional hardcodings for this lane; the full Config/i18n/metrics ba
 - **English-only player messages.** No i18n system; every chat message is a hardcoded English string.
 - **No network-latency metrics.** In-process skin metrics exist, but no API-latency tracking (MineSkin/Mojang round-trip times).
 - **Web skins supported with the allowlist always ON.** Unlike the pre-1.6.4 lanes, `/skin set web` works via MineSkin — and because there is no Config surface to disable it, the URL domain allowlist is hard-wired on with the default domain list (mirroring the 1.21 Config defaults; see `SkinCommand.ALLOWLIST_DOMAINS`).
+- **Handshake opt-out only expressible via `acceptableRemoteVersions`.** The pre-1.7 lanes (1.4.7 / 1.5.2 / 1.6.4) cannot express it in code — FML 4.7 / 5.2 `@Mod` has no `acceptableRemoteVersions` attribute (added in FML 6.1+/7). They do not need to: their handshake is permissive by default — FML 5.2's `@NetworkMod` `clientSideRequired` / `serverSideRequired` default to `false` (verified against forge 9.11.1.1345 bytecode), and the lanes set neither. A client without the mod is therefore accepted.
 
 Command surface: `/skin` (aliases `skins`, `setskin`) with `set mojang|web|random`, `clear`, `source`, `metrics` — parity with the 1.21 reference.
+
+## Layout notes
+
+- `:common` (the shared version-independent core) is consumed by
+  source-dir sharing (`../common/src/main/java` added to this build's
+  main source set), since a standalone build cannot use
+  `project(":common")`.
+- Versions live in `gradle.properties` (`minecraft_version`,
+  `forge_version`).

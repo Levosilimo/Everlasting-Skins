@@ -338,15 +338,25 @@ dependencies {
     annotationProcessor(libs.findLibrary("guava").get())
 
     compileOnly(libs.findLibrary("luckperms-api").get())
-    compileOnly(libs.findLibrary("placeholderapi").get())
-    compileOnly(libs.findLibrary("discordsrv").get())
+
+    // DiscordSRV + PlaceholderAPI hook deps are 1.21.x-only (FIX-3c): neither
+    // mod ships a Forge build for MC 26.1/26.2 (RES-3), so the 26.x lanes
+    // carry no hook code and must not resolve these. The four 1.21.x lanes
+    // DO use them (DiscordSrvHook / PlaceholderApiHook + integration tests).
+    if (project.name != "forge-26.1" && project.name != "forge-26.2") {
+        compileOnly(libs.findLibrary("placeholderapi").get())
+        compileOnly(libs.findLibrary("discordsrv").get())
+    }
 
     // slf4j-api MUST appear before discordsrv in the classpath order.
     // discordsrv bundles unrelocated SLF4J 1.x classes (org/slf4j/LoggerFactory)
     // that lack the getProvider() method required by SLF4J 2.x. The declaration
     // order within testImplementation determines classpath ordering.
     testImplementation(libs.findLibrary("slf4j-api").get())
-    testImplementation(libs.findLibrary("discordsrv").get())
+    if (project.name != "forge-26.1" && project.name != "forge-26.2") {
+        testImplementation(libs.findLibrary("discordsrv").get())
+        testImplementation(libs.findLibrary("placeholderapi").get())
+    }
     testImplementation(libs.findLibrary("paper-api").get())
     compileOnly(libs.findLibrary("spigot-api").get())
 
@@ -355,9 +365,21 @@ dependencies {
     testImplementation(libs.findLibrary("junit-jupiter-api").get())
     testImplementation(libs.findLibrary("junit-jupiter-params").get())
     testImplementation(libs.findLibrary("jqwik-api").get())
-    testImplementation(libs.findLibrary("placeholderapi").get())
     testImplementation(libs.findLibrary("mockito-core").get())
     testImplementation(libs.findLibrary("mockito-junit-jupiter").get())
+    // mockito's stock byte-buddy can lag Java 25 class-file support (the
+    // 5.12.0 pin in main bundles 1.14.x, which parses only up to Java 22 /
+    // major 66). The unobfuscated 26.x lanes run their tests on the Java 25
+    // toolchain (major 69), so every mock of a Minecraft class dies with
+    // "Java 25 (69) is not supported by the current version of Byte Buddy"
+    // (verified on forge-26.1, 2026-08-13). Override both byte-buddy
+    // artifacts to 1.17.7 (Java 25 support) on those lanes only; 1.21.x
+    // (Java 21 toolchain) keeps the stock byte-buddy. Version bump of an
+    // already-transitive coordinate, no new Maven coords.
+    if (unobfuscated) {
+        testImplementation("net.bytebuddy:byte-buddy:1.17.7")
+        testImplementation("net.bytebuddy:byte-buddy-agent:1.17.7")
+    }
 
     testRuntimeOnly(libs.findLibrary("junit-jupiter-engine").get())
     testRuntimeOnly(libs.findLibrary("jqwik-engine").get())
@@ -379,8 +401,14 @@ dependencies {
 // transitive copy so discordsrv's bundled class is the only one on the
 // classpath (same split-package pattern as the historical #265 forge21.*
 // fix). dep-analysis 3.18.0 surfaces this as a duplicate-class warning.
-configurations.getByName("compileOnly").exclude(group = "com.google.code.findbugs", module = "jsr305")
-configurations.getByName("testImplementation").exclude(group = "com.google.code.findbugs", module = "jsr305")
+// The exclude applies only where discordsrv is declared (1.21.x, FIX-3c);
+// the 26.x lanes resolve Forge's transitive jsr305 instead — the 26.x main
+// code imports javax.annotation.Nullable, which the discordsrv hook dep
+// used to bundle.
+if (project.name != "forge-26.1" && project.name != "forge-26.2") {
+    configurations.getByName("compileOnly").exclude(group = "com.google.code.findbugs", module = "jsr305")
+    configurations.getByName("testImplementation").exclude(group = "com.google.code.findbugs", module = "jsr305")
+}
 
 configurations.getByName("testRuntimeClasspath") {
     exclude(group = "org.slf4j", module = "slf4j-simple")

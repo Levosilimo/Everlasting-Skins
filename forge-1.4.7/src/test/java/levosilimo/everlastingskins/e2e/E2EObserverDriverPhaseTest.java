@@ -10,12 +10,14 @@ import levosilimo.everlastingskins.broadcast.SkinMessage;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
- * Pure phase-machine tests for the in-jar E2E OBSERVER driver: the observer
- * advances only on observed facts (join → PNG-carrying broadcast → wire
- * injection verified), and every timeout/assertion path lands on the
- * contract exit code.
+ * Pure phase-machine tests for the in-jar OBSERVER driver (lib-23 gap (d)):
+ * the observer advances only on observed facts — join (NO commands), a
+ * PNG-carrying broadcast for the target player, then the REAL handler's
+ * wire-injection verify. Mirrors {@link E2EDriverPhaseTest}.
  */
 public class E2EObserverDriverPhaseTest {
 
@@ -28,7 +30,7 @@ public class E2EObserverDriverPhaseTest {
     }
 
     @Test
-    public void broadcastGatesTheRendererAssertion() {
+    public void pngBroadcastGatesTheObserverAssertion() {
         assertEquals(E2EObserverDriver.Phase.WAIT_BROADCAST,
             E2EObserverDriver.nextPhase(E2EObserverDriver.Phase.WAIT_BROADCAST, true, false, false));
         assertEquals(E2EObserverDriver.Phase.RENDER_ASSERT,
@@ -36,7 +38,7 @@ public class E2EObserverDriverPhaseTest {
     }
 
     @Test
-    public void rendererAssertionCompletesTheRun() {
+    public void observerAssertionCompletesTheRun() {
         assertEquals(E2EObserverDriver.Phase.RENDER_ASSERT,
             E2EObserverDriver.nextPhase(E2EObserverDriver.Phase.RENDER_ASSERT, true, true, false));
         assertEquals(E2EObserverDriver.Phase.DONE,
@@ -54,14 +56,14 @@ public class E2EObserverDriverPhaseTest {
     }
 
     @Test
-    public void acceptsRequiresTargetAndInlinePng() {
-        SkinMessage forOther = new SkinMessage("OtherPlayer", new byte[] {1, 2, 3}, null);
-        assertEquals(false, E2EObserverDriver.accepts(forOther));
-        SkinMessage notification = new SkinMessage(E2EObserverDriver.TEST_PLAYER, null, null);
-        assertEquals(false, E2EObserverDriver.accepts(notification));
-        assertEquals(false, E2EObserverDriver.accepts(null));
-        SkinMessage pngCarrying =
-            new SkinMessage(E2EObserverDriver.TEST_PLAYER, new byte[] {1, 2, 3}, null);
-        assertEquals(true, E2EObserverDriver.accepts(pngCarrying));
+    public void acceptsRequiresTargetPlayerWithInlinePng() {
+        byte[] png = {1, 2, 3};
+        assertTrue(E2EObserverDriver.accepts(new SkinMessage("TestPlayer", png)));
+        // Notification-only broadcast (no pixels to inject) is not the proof.
+        assertFalse(E2EObserverDriver.accepts(new SkinMessage("TestPlayer", null)));
+        assertFalse(E2EObserverDriver.accepts(new SkinMessage("TestPlayer", new byte[0])));
+        // Any other player's broadcast is irrelevant to the observer.
+        assertFalse(E2EObserverDriver.accepts(new SkinMessage("SomeoneElse", png)));
+        assertFalse(E2EObserverDriver.accepts(null));
     }
 }

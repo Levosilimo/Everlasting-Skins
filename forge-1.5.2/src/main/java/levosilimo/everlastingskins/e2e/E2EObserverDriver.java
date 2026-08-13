@@ -19,7 +19,6 @@ import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.broadcast.SkinMessage;
 import levosilimo.everlastingskins.client.ClientSkinApplier;
 import net.minecraft.client.Minecraft;
-import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.ImageBufferDownload;
 import net.minecraft.src.INetworkManager;
 import net.minecraft.src.Packet250CustomPayload;
@@ -36,47 +35,49 @@ import java.util.Map;
 
 /**
  * In-jar OBSERVER driver for the second-observer client E2E (lib-23 coverage
- * gap (d), ported to the 1.5.2 MERGE model): an actor client runs
- * {@code /skin}; a NON-ACTOR observer client (NO commands) must receive the
- * broadcast and render the sentinel — the wire FAN-OUT proof.
+ * gap (d): prove the broadcast FAN-OUT — an actor client runs {@code /skin};
+ * a NON-ACTOR observer client (NO commands) must receive the broadcast and
+ * render the sentinel).
  *
  * <p>The observer's assertion is the WIRE-INJECTION proof: the observer's
  * real {@code levosilimo.everlastingskins.broadcast.ClientSkinHandler} (the
- * shipped handler) receives a broadcast (SkinMessage with the PNG bytes
+ * shipped handler) receives the broadcast (SkinMessage with the PNG bytes
  * INLINE) and injects the decoded pixels into the TARGET player's
- * {@code ThreadDownloadImageData}. The observer driver asserts the target
- * player's TDI ALREADY holds the sentinel pixels — injected by the REAL
- * handler from the wire, NOT a self-injection. The observer runs no
+ * {@code ThreadDownloadImageData}. The observer driver then asserts the
+ * target player's TDI ALREADY holds the sentinel pixels — the REAL handler
+ * injected from the wire, NOT a self-injection. The observer runs no
  * commands.
  *
- * <p>Injection vector on this line: the actor's login re-broadcast
- * ({@code SkinRestorer.onPlayerLoggedIn}) is dispatched ahead of the actor's
- * spawn packets (spawns go out on the next EntityTracker tick), so the
- * observer's real handler DROPS it (target not spawned yet — same ordering
- * as the 1.6.4 bytecode analysis). The actor's {@code /skin set} command
- * broadcast (PNG-carrying, keyed by the TARGET player's name) lands a second
- * or more after the actor joins — the actor IS spawned in the observer's
- * world by then, so the real handler injects. The RENDER_ASSERT phase polls
- * the TDI until that injection lands.
+ * <p>Delivery contract (same as the 1.6.4 observer, verified in slice 1):
+ * the login re-broadcast is queued on every client AHEAD of the actor's
+ * spawn packets, so the observer's {@code ClientSkinHandler} DROPS the
+ * login broadcast (target not spawned yet). The actor's in-world window is
+ * only ~1s (it joins, proves the command surface and exits), so the sentinel
+ * hook fires a re-broadcast BURST (0.25s period) after every connection; a
+ * burst element deterministically lands inside the actor's window, the real
+ * handler injects, and the observer's RENDER_ASSERT phase polls the TDI for
+ * up to {@link #ASSERT_TIMEOUT_MS} until the injection is visible.
  *
  * <p>MERGE-MODEL delta vs the 1.6.4 observer driver: this lane boots as the
- * obf client jar with the FML universal zip MERGED in, so the driver
- * compiles DIRECTLY against the client classes (MCP 7.51) with zero
- * reflection — {@code Minecraft.getMinecraft()}, {@code mc.theWorld},
- * {@code ClientSkinApplier.findPlayer}, the PUBLIC
- * {@code ThreadDownloadImageData.image} field, {@code Entity.skinUrl}.
- * Download-thread race: the 1.5.2 TDI keeps NO reference to its download
- * thread (created + started inside the constructor), so the 1.6.4
- * interrupt-and-join defeat is unavailable; it is also unnecessary — the e2e
- * sandbox cannot reach skins.minecraft.net and the failed download never
- * writes {@code tdi.image} (same documented caveat as {@link E2EDriver}).
+ * obf client jar with the FML universal zip MERGED in (main
+ * {@code net.minecraft.client.Minecraft}, no launchwrapper), so the runtime
+ * class names and the compile-time deobf names agree modulo the lane's reobf
+ * pass — this driver compiles DIRECTLY against the client classes
+ * ({@code Minecraft.getMinecraft()}, {@code mc.theWorld},
+ * {@code mc.renderEngine.obtainImageData}, the PUBLIC
+ * {@code ThreadDownloadImageData.image} field, {@code Entity.skinUrl} — MCP
+ * 7.51) with zero reflection, mirroring {@link E2EDriver}. Like the actor,
+ * this driver auto-connects via {@code Minecraft.setServer} at
+ * {@code @Mod.Init} (no {@code --server/--port} args on this line's main).
+ * The e2e scripts pin the client jar sha1, which keeps every referenced
+ * member name stable.
  *
  * <p>Gated at runtime by {@code -Deverlastingskins.e2e.observer=true} +
  * {@code Side.CLIENT} (see {@link E2E#install()}). The client-side channel
- * registration coexists with the real handler (FML 5.2 per-channel handler
- * multimaps). Auto-connect: like {@link E2EDriver#install()}, this driver
- * calls {@code Minecraft.setServer} itself (1.5.2's {@code Minecraft.main}
- * parses no {@code --server/--port}).
+ * registration coexists with the real handler (FML 4.7/5.2 per-channel
+ * handler MULTIMAPS; the @NetworkMod client spec registers first, so the
+ * real handler runs before this driver's listener on the same packet — and
+ * the injection is polled, not assumed, so listener order never matters).
  *
  * <p>Phase machine: WAIT_JOIN (client world + player exist; NO commands) →
  * WAIT_BROADCAST (a PNG-carrying SkinMessage for {@code TestPlayer} arrives
@@ -86,31 +87,25 @@ import java.util.Map;
  *
  * <p>Exit codes (master-plan contract): 0 all green | 1 observer assertion
  * failed | 2 retryable infra (join/broadcast timeout) | 3 driver hard
- * failure (result-write failure).
+ * failure.
  */
 public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHandler {
 
     /** System property enabling the observer driver on the observer client JVM. */
     public static final String OBSERVER_PROPERTY = "everlastingskins.e2e.observer";
 
-    /** Offline observer username (set by the e2e driver script). */
+    /** Offline observer username (set by the e2e script's username arg). */
     public static final String OBSERVER_USERNAME = "ObserverPlayer";
 
     /** The observed target: the actor's offline test player. */
     public static final String TEST_PLAYER = E2EDriver.TEST_PLAYER;
 
-    /** System property for the test server host (same contract as E2EDriver). */
-    static final String SERVER_PROPERTY = E2EDriver.SERVER_PROPERTY;
-
-    /** System property for the test server port (same contract as E2EDriver). */
-    static final String PORT_PROPERTY = E2EDriver.PORT_PROPERTY;
-
     private static final long JOIN_TIMEOUT_MS = 180_000L;
-    /** First PNG-carrying broadcast lands ~immediately after the observer's OWN connection. */
+    /** First PNG-carrying broadcast lands ~0.25s after the observer's OWN connection. */
     private static final long BROADCAST_TIMEOUT_MS = 60_000L;
     /**
      * RENDER_ASSERT poll budget: the injection comes from the ACTOR's
-     * /skin set broadcast (the actor joins 1-90s after the observer), so
+     * connection re-broadcast (actor joins 30-90s after the observer), so
      * the assert phase polls the TDI until the real handler's injection
      * lands.
      */
@@ -140,8 +135,8 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
 
     /**
      * Pure acceptance predicate for the wire listener: only a PNG-carrying
-     * SkinMessage for the TARGET player counts as the fan-out proof (a
-     * notification-only broadcast carries no pixels to inject).
+     * SkinMessage for the TARGET player counts as the fan-out proof (the
+     * notification-only login broadcast carries no pixels to inject).
      */
     static boolean accepts(SkinMessage message) {
         if (message == null || !TEST_PLAYER.equals(message.getPlayerName())) {
@@ -157,7 +152,7 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
     private volatile boolean broadcastReceived;
     /** The PNG bytes seen on the wire (fan-out artifact + wire-vs-file proof). */
     private volatile byte[] wirePng;
-    /** Precise observer outcome for the result doc: sentinel | none. */
+    /** Precise observer outcome for the result doc: sentinel | target-not-spawned | ... */
     private String observerState = "none";
     /** Last poll failure mode (kept while RENDER_ASSERT keeps polling). */
     private String lastPollState = "none";
@@ -167,15 +162,18 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
     /** Installs the observer driver (property + side gates live in {@link E2E#install()}). */
     static void install() {
         E2EObserverDriver driver = new E2EObserverDriver();
-        // Coexists with the real ClientSkinHandler: FML 5.2 keeps per-channel
-        // handler multimaps (the @NetworkMod client spec registers first,
-        // so the REAL handler processes the packet before this listener).
+        // Coexists with the real ClientSkinHandler: FML 4.7/5.2 keeps
+        // per-channel handler multimaps (the @NetworkMod client spec
+        // registers first, so the REAL handler processes the packet before
+        // this listener).
         NetworkRegistry.instance().registerChannel(driver, SkinBroadcaster.CHANNEL, Side.CLIENT);
         TickRegistry.registerScheduledTickHandler(driver, Side.CLIENT);
-        // Merge-model auto-connect (same recipe as E2EDriver.install()).
+        // Merge-model auto-connect (same as E2EDriver): runs inside the
+        // Minecraft constructor (@Mod.Init fires via finishMinecraftLoading),
+        // before startGame consumes serverName → GuiConnecting → join.
         Minecraft mc = Minecraft.getMinecraft();
-        String host = System.getProperty(SERVER_PROPERTY, "127.0.0.1");
-        int port = Integer.getInteger(PORT_PROPERTY, 25565);
+        String host = System.getProperty(E2EDriver.SERVER_PROPERTY, "127.0.0.1");
+        int port = Integer.getInteger(E2EDriver.PORT_PROPERTY, 25565);
         mc.setServer(host, port);
         FMLLog.info("ES_E2E_OBSERVER=installed side=%s server=%s:%d", Side.CLIENT, host, port);
     }
@@ -278,24 +276,25 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
     }
 
     // ------------------------------------------------------------------
-    // Join + target lookup (direct client references — MCP 7.51 surface).
+    // Join + target lookup (direct client references — MCP 7.51 surface;
+    // no commands).
     // ------------------------------------------------------------------
     private boolean isJoined() {
         Minecraft mc = Minecraft.getMinecraft();
         return mc.theWorld != null && mc.thePlayer != null;
     }
 
+    private File gameDir() {
+        return Minecraft.getMinecraft().getMinecraftDir();
+    }
+
     /**
      * Finds the TARGET player (the actor, by username) in the observer's
-     * client world — the same surface the real handler uses
-     * ({@link ClientSkinApplier#findPlayer}).
+     * client world — the same surface the real handler's
+     * {@code ClientSkinApplier.findPlayer} uses (and injects through).
      */
-    private EntityPlayer findTargetPlayer() {
-        Minecraft mc = Minecraft.getMinecraft();
-        if (mc.theWorld == null) {
-            return null;
-        }
-        return ClientSkinApplier.findPlayer(mc.theWorld, TEST_PLAYER);
+    private Object findTargetPlayer() {
+        return ClientSkinApplier.findPlayer(Minecraft.getMinecraft().theWorld, TEST_PLAYER);
     }
 
     // ------------------------------------------------------------------
@@ -303,12 +302,12 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
     // must ALREADY hold the sentinel pixels — injected by the REAL
     // ClientSkinHandler from the wire, NOT self-injected. The driver never
     // writes the image field. Polled by the tick machine until the actor's
-    // /skin set broadcast lands.
+    // connection re-broadcast lands.
     // ------------------------------------------------------------------
-    private boolean assertObserver() throws IOException {
+    private boolean assertObserver() {
         // 1) Wire proof: the captured broadcast PNG must be the sentinel
         //    (pixel-for-pixel vs the sentinel file in the observer gameDir).
-        BufferedImage sentinel = readSentinel(Minecraft.getMinecraft().getMinecraftDir());
+        BufferedImage sentinel = readSentinel(gameDir());
         if (sentinel == null) {
             lastPollState = "sentinel-unreadable";
             FMLLog.severe("ES_E2E_OBSERVER_RENDERER=sentinel unreadable");
@@ -333,7 +332,7 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
         }
 
         // 2) The target player must be spawned in the observer's world.
-        EntityPlayer target = findTargetPlayer();
+        Object target = findTargetPlayer();
         if (target == null) {
             // Keep polling: the actor may not be in-world yet when the
             // first (dropped) re-broadcast fired.
@@ -341,27 +340,35 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
             return false;
         }
 
-        // 3) THE assertion: the cached TDI (keyed by the target's skin URL,
-        //    seeded by RenderGlobal.obtainEntitySkin when the entity
-        //    spawned) holds the sentinel pixels — the REAL handler's wire
-        //    injection (the observer never writes this field). Pixel-content
-        //    compare, not just field presence.
-        net.minecraft.src.Entity entity = target;
+        // 3) The target's cached skin TDI — the instance the REAL handler
+        //    injected through (RenderGlobal.onEntityCreate seeded it when
+        //    the actor spawned on this client). Field declared on Entity;
+        //    access it through the Entity type so the reobf pass can map
+        //    the reference (javac emits the receiver's declared type as the
+        //    owner — memory #1319).
+        net.minecraft.src.Entity entity = (net.minecraft.src.Entity) target;
         String skinUrl = entity.skinUrl;
         if (skinUrl == null) {
             lastPollState = "target-skinurl-missing";
             return false;
         }
-        ThreadDownloadImageData tdi =
-            Minecraft.getMinecraft().renderEngine.obtainImageData(skinUrl, new ImageBufferDownload());
+        ThreadDownloadImageData tdi = Minecraft.getMinecraft().renderEngine
+            .obtainImageData(skinUrl, new ImageBufferDownload());
         if (tdi == null) {
             lastPollState = "target-tdi-missing";
             return false;
         }
+
+        // 4) THE assertion: the live TDI field holds the sentinel pixels —
+        //    the REAL handler's wire injection (the observer never writes
+        //    this field). Pixel-content compare, not just field presence.
+        //    Download-thread race is latent (skins.minecraft.net is
+        //    NXDOMAIN; the vanilla thread writes tdi.image only on a
+        //    successful 2xx — same documented caveat as E2EDriver).
         BufferedImage live = tdi.image;
-        if (!(live instanceof BufferedImage) || !E2EResult.pixelsEqual(live, sentinel)) {
+        if (!E2EResult.pixelsEqual(live, sentinel)) {
             // Distinguish "nothing injected" from "something else injected".
-            lastPollState = live instanceof BufferedImage ? "handler-injection-mismatch"
+            lastPollState = live != null ? "handler-injection-mismatch"
                 : "handler-injection-missing";
             FMLLog.info("ES_E2E_OBSERVER_RENDERER=poll %s live=%s", lastPollState, live);
             return false;
@@ -405,7 +412,7 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
     private void writeResultAndExit(int exitCode, boolean joined,
                                     String rendererState, boolean rendererVerified) {
         try {
-            File out = new File(Minecraft.getMinecraft().getMinecraftDir(), E2EResult.FILE_NAME);
+            File out = new File(gameDir(), E2EResult.FILE_NAME);
             Map<String, String> artifacts = new LinkedHashMap<String, String>();
             artifacts.put("driver", "E2EObserverDriver/1.5.2");
             artifacts.put("broadcast", broadcastReceived ? "received" : "none");
@@ -424,12 +431,8 @@ public final class E2EObserverDriver implements IScheduledTickHandler, IPacketHa
     }
 
     private boolean wireMatchesSentinel() {
-        try {
-            BufferedImage sentinel = readSentinel(Minecraft.getMinecraft().getMinecraftDir());
-            BufferedImage wire = decodePng(wirePng);
-            return sentinel != null && wire != null && E2EResult.pixelsEqual(wire, sentinel);
-        } catch (Exception e) {
-            return false;
-        }
+        BufferedImage sentinel = readSentinel(gameDir());
+        BufferedImage wire = decodePng(wirePng);
+        return sentinel != null && wire != null && E2EResult.pixelsEqual(wire, sentinel);
     }
 }
