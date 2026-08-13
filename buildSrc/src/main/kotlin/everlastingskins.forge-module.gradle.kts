@@ -357,6 +357,18 @@ dependencies {
     testImplementation("net.jqwik:jqwik-api:1.9.3")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.mockito:mockito-junit-jupiter:5.12.0")
+    // mockito-core 5.12.0 bundles byte-buddy 1.14.x, which parses class files
+    // only up to Java 22 (major 66). The unobfuscated 26.x lanes run their
+    // tests on the Java 25 toolchain (major 69), so every mock of a Minecraft
+    // class dies with "Java 25 (69) is not supported by the current version
+    // of Byte Buddy" (verified on forge-26.1, 2026-08-13). Override both
+    // byte-buddy artifacts to 1.17.7 (Java 25 support) on those lanes only;
+    // 1.21.x (Java 21 toolchain) keeps the stock 1.14.x. Version bump of an
+    // already-transitive coordinate, no new Maven coords.
+    if (unobfuscated) {
+        testImplementation("net.bytebuddy:byte-buddy:1.17.7")
+        testImplementation("net.bytebuddy:byte-buddy-agent:1.17.7")
+    }
 
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     testRuntimeOnly("net.jqwik:jqwik-engine:1.9.3")
