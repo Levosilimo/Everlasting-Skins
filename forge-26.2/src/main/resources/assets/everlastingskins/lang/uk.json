@@ -19,6 +19,5 @@
   "metrics_refreshes": " змін",
   "metrics_no_refreshes": "(змін скіна не зафіксовано)",
   "metrics_cleanup": "Очищення метрик: видалено %d застарілих записів гравців",
-  "metrics_reset": "Метрики скинуто",
-  "discord_announce": "**%s** змінив(ла) скін на: `%s`"
+  "metrics_reset": "Метрики скинуто"
 }
