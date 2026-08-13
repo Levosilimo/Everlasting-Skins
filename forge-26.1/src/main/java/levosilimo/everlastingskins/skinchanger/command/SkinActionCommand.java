@@ -25,6 +25,7 @@ import levosilimo.everlastingskins.skinchanger.responses.mojang.MojangSkinDataRe
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import levosilimo.everlastingskins.util.EverlastingHelpers;
 import levosilimo.everlastingskins.forge26_1.util.I18nUtils;
+import levosilimo.everlastingskins.forge26_1.util.CompletionSources;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -300,6 +301,16 @@ public final class SkinActionCommand {
         }
         boolean isClear = type == SkinActionType.clear;
         long fetchNanos = System.nanoTime() - fetchStart;
+        // Successful fetch: offer the requested name/URL to future completions
+        // (bounded in-memory history in CompletionSources). Recorded once per
+        // command, before the per-target loop, regardless of skip/debounce.
+        if (fetched != null && !fetched.isEmpty() && fetched.values().stream().anyMatch(Objects::nonNull)) {
+            if (type == SkinActionType.username && customSource != null) {
+                CompletionSources.recordAppliedUsername(customSource);
+            } else if (type == SkinActionType.url && customSource != null) {
+                CompletionSources.recordAppliedUrl(customSource);
+            }
+        }
         for (ServerPlayer player : targets) {
             UUID uuid = player.getUUID();
             CustomSkinProperty skinProperty = fetched != null ? fetched.get(uuid) : null;

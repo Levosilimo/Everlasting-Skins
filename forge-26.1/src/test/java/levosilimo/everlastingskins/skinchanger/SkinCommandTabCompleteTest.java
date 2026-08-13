@@ -11,12 +11,12 @@ import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.suggestion.Suggestion;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
-import levosilimo.everlastingskins.forge21.skinchanger.SkinCommand;
+import levosilimo.everlastingskins.forge26_1.skinchanger.SkinCommand;
 import levosilimo.everlastingskins.Config;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
-import levosilimo.everlastingskins.forge21.permission.VanillaPermissionService;
-import levosilimo.everlastingskins.forge21.util.CompletionSources;
+import levosilimo.everlastingskins.forge26_1.permission.VanillaPermissionService;
+import levosilimo.everlastingskins.forge26_1.util.CompletionSources;
 import levosilimo.everlastingskins.skinchanger.MojangProfileCache;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.commands.CommandSourceStack;
@@ -24,6 +24,8 @@ import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.server.permissions.PermissionLevel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,8 +37,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -329,14 +329,18 @@ class SkinCommandTabCompleteTest {
         var unused = mock(ServerLevel.class);
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getUUID()).thenReturn(PLAYER_UUID);
+        // 26.x derives the op level from the player's PermissionSet (see
+        // PermissionContext.effectiveOpLevel), so the mock grants the level
+        // through the level-based set instead of getProfilePermissions.
+        when(player.permissions()).thenReturn(LevelBasedPermissionSet.forLevel(PermissionLevel.byId(opLevel)));
         MinecraftServer server = mock(MinecraftServer.class);
-        when(server.getProfilePermissions(any())).thenReturn(opLevel);
-        when(player.getServer()).thenReturn(server);
+        when(player.level()).thenReturn(unused);
+        when(unused.getServer()).thenReturn(server);
 
         CommandSourceStack source = mock(CommandSourceStack.class);
         when(source.getPlayer()).thenReturn(player);
         when(source.getOnlinePlayerNames()).thenReturn(ONLINE_PLAYERS);
-        when(source.hasPermission(anyInt())).thenReturn(opLevel >= 2);
+        when(source.permissions()).thenReturn(LevelBasedPermissionSet.forLevel(PermissionLevel.byId(opLevel)));
         return source;
     }
 

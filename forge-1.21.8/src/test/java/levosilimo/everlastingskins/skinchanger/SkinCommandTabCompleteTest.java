@@ -17,6 +17,7 @@ import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.TestConfigSupport;
 import levosilimo.everlastingskins.forge21.permission.VanillaPermissionService;
 import levosilimo.everlastingskins.forge21.util.CompletionSources;
+import levosilimo.everlastingskins.skinchanger.MojangProfileCache;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.Bootstrap;
@@ -77,6 +78,7 @@ class SkinCommandTabCompleteTest {
         // per-version bootstrap registers these — tests mirror the bootstrap.
         PermissionServiceManager.registerService(new VanillaPermissionService());
         CompletionSources.setMojangProfileCache(new MojangProfileCache());
+        CompletionSources.resetAppliedHistory();
         dispatcher = new CommandDispatcher<>();
         SkinCommand.register(dispatcher);
         source = sourceWithOpLevel(0);
@@ -84,9 +86,10 @@ class SkinCommandTabCompleteTest {
 
     @AfterEach
     void tearDown() {
-        // Undo config overrides (e.g. the metrics op levels) so later test
-        // classes in the same JVM always see the defaults.
+        // Undo config overrides (e.g. the metrics op levels) and applied-skin
+        // history so later test classes in the same JVM see clean state.
         TestConfigSupport.loadDefaults();
+        CompletionSources.resetAppliedHistory();
     }
 
     @Test
@@ -110,6 +113,16 @@ class SkinCommandTabCompleteTest {
         assertTrue(offered.contains("clear"));
         assertTrue(offered.contains("source"));
         assertTrue(offered.contains("metrics"));
+        assertTrue(offered.contains("help"));
+    }
+
+    @Test
+    @DisplayName("help is a root literal with an executor")
+    void help_isRootLiteral() {
+        CommandNode<CommandSourceStack> help = dispatcher.getRoot().getChild("skin").getChild("help");
+        assertTrue(help.canUse(source));
+        List<String> offered = completions("skin he");
+        assertTrue(offered.contains("help"));
     }
 
     @Test
@@ -137,12 +150,72 @@ class SkinCommandTabCompleteTest {
     }
 
     @Test
+    @DisplayName("set mojang skin_name completion merges online player names")
+    void set_mojang_skinName_completion_includesOnlinePlayers() {
+        List<String> suggestions = completions("skin set mojang ");
+
+        assertTrue(suggestions.contains("Alex"));
+        assertTrue(suggestions.contains("Bob"));
+    }
+
+    @Test
+    @DisplayName("set mojang skin_name completion offers previously applied names first")
+    void set_mojang_skinName_completion_includesAppliedHistory() {
+        CompletionSources.recordAppliedUsername("Herobrine");
+
+        List<String> suggestions = completions("skin set mojang ");
+
+        assertTrue(suggestions.contains("Herobrine"));
+        // History is deduplicated against the configured defaults.
+        assertTrue(suggestions.contains("Steve"));
+    }
+
+    @Test
+    @DisplayName("set mojang skin_name completion is case-insensitive and matches substrings")
+    void set_mojang_skinName_completion_isFuzzy() {
+        CompletionSources.recordAppliedUsername("Alex");
+        List<String> suggestions = completions("skin set mojang ALEX");
+        assertTrue(suggestions.contains("Alex"), "case-insensitive prefix should match Alex");
+
+        List<String> substring = completions("skin set mojang x");
+        assertTrue(substring.contains("Alex"), "substring match should find Alex via its tail");
+    }
+
+    @Test
+    @DisplayName("set mojang skin_name suggestions carry origin tooltips")
+    void set_mojang_skinName_completion_hasTooltips() {
+        MojangProfileCache cache = new MojangProfileCache();
+        cache.put("Notch", new CustomSkinProperty("value", "signature", "Notch"));
+        CompletionSources.setMojangProfileCache(cache);
+        CompletionSources.recordAppliedUsername("Herobrine");
+
+        List<Suggestion> raw = rawSuggestions("skin set mojang ");
+
+        assertTrue(tooltipOf(raw, "Herobrine").contains("Previously used"));
+        assertTrue(tooltipOf(raw, "Alex").contains("Online"));
+        assertTrue(tooltipOf(raw, "notch").contains("Cached"), "cache snapshot keys are lowercased");
+        assertTrue(tooltipOf(raw, "Steve").contains("Configured default"));
+    }
+
+    @Test
     @DisplayName("set web variant completion returns classic and slim")
     void set_web_variant_completion_returnsClassicSlim() {
         List<String> variants = completions("skin set web ");
 
         assertTrue(variants.contains("classic"));
         assertTrue(variants.contains("slim"));
+    }
+
+    @Test
+    @DisplayName("set web url completion offers previously applied URLs with tooltips")
+    void set_web_url_completion_includesAppliedUrls() {
+        CompletionSources.recordAppliedUrl("https://imgur.com");
+
+        List<Suggestion> raw = rawSuggestions("skin set web classic ");
+
+        assertTrue(completions("skin set web classic ").contains("https://imgur.com"));
+        assertTrue(tooltipOf(raw, "https://imgur.com").contains("Previously used"));
+        assertTrue(tooltipOf(raw, "https://textures.minecraft.net").contains("Allowlisted URL"));
     }
 
     @Test
@@ -231,16 +304,29 @@ class SkinCommandTabCompleteTest {
     }
 
     private List<String> completions(String input) {
+        return rawSuggestions(input).stream().map(Suggestion::getText).toList();
+    }
+
+    private List<Suggestion> rawSuggestions(String input) {
         ParseResults<CommandSourceStack> parsed = dispatcher.parse(input, source);
         Suggestions suggestions = dispatcher.getCompletionSuggestions(parsed).join();
-        return suggestions.getList().stream().map(Suggestion::getText).toList();
+        return suggestions.getList();
+    }
+
+    private static String tooltipOf(List<Suggestion> suggestions, String text) {
+        for (Suggestion suggestion : suggestions) {
+            if (suggestion.getText().equals(text) && suggestion.getTooltip() != null) {
+                return suggestion.getTooltip().getString();
+            }
+        }
+        return "";
     }
 
     private CommandSourceStack sourceWithOpLevel(int opLevel) {
         // Mocking a Level subclass first initializes the registry chain
         // (BuiltInRegistries/Forge) that EntityDataSerializers needs when
         // ServerPlayer is instrumented; without it the mock fails to create.
-        mock(ServerLevel.class);
+        var unused = mock(ServerLevel.class);
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getUUID()).thenReturn(PLAYER_UUID);
         MinecraftServer server = mock(MinecraftServer.class);
