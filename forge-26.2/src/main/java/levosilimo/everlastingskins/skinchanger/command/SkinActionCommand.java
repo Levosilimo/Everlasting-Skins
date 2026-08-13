@@ -365,10 +365,6 @@ public final class SkinActionCommand {
             }
             SkinMetrics.INSTANCE.recordRefreshCompleted(uuid, t0, fetchNanos, 0, 0);
             SkinRestorer.server.execute(() -> SkinRefreshHandler.task(player));
-            try {
-            } catch (Exception e) {
-                EverlastingSkins.logger.warn("Failed to announce skin change to DiscordSRV", e);
-            }
         }
     }
 
