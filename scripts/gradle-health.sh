@@ -26,7 +26,11 @@
 #   flag for a different purpose (the :forge-1.21:jar probe); this sweep
 #   needs the full graph.
 #
-# Usage: bash scripts/gradle-health.sh [-v] [--offline]
+# Usage: bash scripts/gradle-health.sh [-v] [--offline] [--lanes :a,:b,...]
+#   --lanes <csv>  restrict the sweep to the given projects (colon-prefixed,
+#                  comma-separated). Defaults to the full consumer set below.
+#                  CI Health (ci.yml) passes the graduated-lane list
+#                  explicitly so the required check stays deterministic.
 
 set -euo pipefail
 
@@ -35,11 +39,14 @@ cd "$ROOT"
 
 VERBOSE=0
 OFFLINE=()
-for a in "$@"; do
-  case "$a" in
+LANES=()
+args=("$@")
+for ((i = 0; i < $#; i++)); do
+  case "${args[$i]}" in
     -v) VERBOSE=1 ;;
     --offline) OFFLINE=(--offline) ;;
-    *) echo "unknown arg: $a" >&2; exit 2 ;;
+    --lanes) i=$((i + 1)); IFS=',' read -r -a LANES <<< "${args[$i]:-}" ;;
+    *) echo "unknown arg: ${args[$i]}" >&2; exit 2 ;;
   esac
 done
 
@@ -57,6 +64,10 @@ CONSUMERS=(
     ":forge-26.2"
     ":forge-26.1"
 )
+
+if [ "${#LANES[@]}" -gt 0 ]; then
+    CONSUMERS=("${LANES[@]}")
+fi
 
 FAILED=0
 
