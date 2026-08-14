@@ -58,7 +58,9 @@ class SkinIOFailureInjectionTest {
         // JDK 8 clears the interrupt status at thread exit (JDK 19+ preserves
         // it), so the flag must be captured while the helper thread is alive.
         AtomicBoolean interruptedWhenPropagated = new AtomicBoolean();
+        CountDownLatch deleteAttempted = new CountDownLatch(1);
         Thread deleter = new Thread(() -> {
+            deleteAttempted.countDown();
             try {
                 storage.removeSkin(u);
             } catch (Throwable t) {
@@ -68,7 +70,17 @@ class SkinIOFailureInjectionTest {
         }, "interrupted-delete-helper");
         deleter.start();
         try {
-            Thread.sleep(300); // let the delete task queue behind the blocked drain
+            // Deterministic interrupt point instead of a fixed sleep: wait until
+            // the helper is actually parked in deleteSkin's interruptible 5s wait
+            // (its only timed wait after deleteAttempted — the queued delete task
+            // cannot run while the drain is blocked). The 4s deadline keeps the
+            // interrupt inside the .get(5s) window even on a loaded runner.
+            assertTrue(deleteAttempted.await(5, TimeUnit.SECONDS),
+                    "delete must be attempted while the drain is blocked");
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+            while (deleter.getState() != Thread.State.TIMED_WAITING && System.nanoTime() < deadline) {
+                Thread.sleep(5);
+            }
             deleter.interrupt();
             deleter.join(5000);
             assertFalse(deleter.isAlive(), "delete must return after the interrupt");
@@ -154,7 +166,11 @@ class SkinIOFailureInjectionTest {
         void saveSkin(UUID uuid, byte[] payload) throws IOException {
             writeStarted.countDown();
             try {
-                if (!releaseWrite.await(10, TimeUnit.SECONDS)) {
+                // Generous budget: the test's finally always releases the latch,
+                // but a loaded CI runner can deschedule the test thread for well
+                // over the original 10s (a writer-side expiry turns the whole
+                // scenario into a different failure mode).
+                if (!releaseWrite.await(60, TimeUnit.SECONDS)) {
                     throw new IllegalStateException("test latch not released in time");
                 }
             } catch (InterruptedException e) {
