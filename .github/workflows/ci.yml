@@ -64,9 +64,9 @@ jobs:
       gradle-infra: ${{ steps.filter.outputs['gradle-infra'] }}
       e2e-infra: ${{ steps.filter.outputs['e2e-infra'] }}
       forge-1_21: ${{ steps.filter.outputs['forge-1_21'] }}
-      forge-1_21_1: ${{ steps.filter.outputs['forge-1_21']_1 }}
-      forge-1_21_4: ${{ steps.filter.outputs['forge-1_21']_4 }}
-      forge-1_21_8: ${{ steps.filter.outputs['forge-1_21']_8 }}
+      forge-1_21_1: ${{ steps.filter.outputs['forge-1_21_1'] }}
+      forge-1_21_4: ${{ steps.filter.outputs['forge-1_21_4'] }}
+      forge-1_21_8: ${{ steps.filter.outputs['forge-1_21_8'] }}
       forge-26_2: ${{ steps.filter.outputs['forge-26_2'] }}
       forge-26_1: ${{ steps.filter.outputs['forge-26_1'] }}
       mc1_12_2: ${{ steps.filter.outputs.mc1_12_2 }}
@@ -1522,7 +1522,7 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_21']_1 == 'true' ||
+      needs.changes.outputs['forge-1_21_1'] == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
       needs.changes.outputs['gradle-infra'] == 'true' ||
@@ -1565,7 +1565,7 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_21']_4 == 'true' ||
+      needs.changes.outputs['forge-1_21_4'] == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
       needs.changes.outputs['gradle-infra'] == 'true' ||
@@ -1608,7 +1608,7 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_21']_8 == 'true' ||
+      needs.changes.outputs['forge-1_21_8'] == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
       needs.changes.outputs['gradle-infra'] == 'true' ||
@@ -1768,9 +1768,9 @@ jobs:
       github.event_name == 'push' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs['forge-1_21'] == 'true' ||
-      needs.changes.outputs['forge-1_21']_1 == 'true' ||
-      needs.changes.outputs['forge-1_21']_4 == 'true' ||
-      needs.changes.outputs['forge-1_21']_8 == 'true' ||
+      needs.changes.outputs['forge-1_21_1'] == 'true' ||
+      needs.changes.outputs['forge-1_21_4'] == 'true' ||
+      needs.changes.outputs['forge-1_21_8'] == 'true' ||
       needs.changes.outputs['forge-26_2'] == 'true' ||
       needs.changes.outputs['forge-26_1'] == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
