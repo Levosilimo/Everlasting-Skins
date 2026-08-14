@@ -172,7 +172,6 @@ task downgradeClassVersion(dependsOn: reobf) {
 // The name-domain self-check javap's the jar — must see the final artifact.
 assertNameDomain.dependsOn downgradeClassVersion
 
-// ---------------------------------------------------------------------------
 // fork #5 (1.5.2 dev-classpath quirk): the merged dev jar carries the
 // universal leg's CreativeTabs whose clinit calls `CreativeTabSearch.a(String)`
 // (the invokevirtual receiver-owner rename missed that call site during the
@@ -189,4 +188,17 @@ assertNameDomain.dependsOn downgradeClassVersion
 def testClientDeobfLeg = files('build/deobf/client-deobf.jar')
 test {
     classpath = testClientDeobfLeg + classpath
+}
+// E2E slice 1: the shared sentinel PNG (:common test resources, canonical at
+// common/src/test/resources/e2e/sentinel-64x32.png) is mirrored onto the
+// lane's test resources (same pattern as the main source-dir share). The
+// e2e scripts read the canonical copy straight from the repo path; the
+// classpath copy lets the lane's tests assert the pixel contract of the
+// exact bytes the live run injects.
+sourceSets {
+    test {
+        resources {
+            srcDir '../common/src/test/resources'
+        }
+    }
 }

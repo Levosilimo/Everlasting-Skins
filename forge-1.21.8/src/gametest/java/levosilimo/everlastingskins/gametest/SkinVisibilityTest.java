@@ -272,7 +272,7 @@ public class SkinVisibilityTest {
             // then fails AT the deadline with a clear message instead of
             // racing the tick budget.
             if (System.nanoTime() > deadlineNanos) {
-                helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 20s wall-clock waiting for "
+                helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 60s wall-clock waiting for "
                         + "/skin clear to finish (ticks=" + helper.getTick() + ")")));
             }
             if (storage.getSkin(playerId) != null) {
@@ -532,7 +532,7 @@ public class SkinVisibilityTest {
             // then fails AT the deadline with a clear message instead of
             // racing the tick budget.
             if (System.nanoTime() > deadlineNanos) {
-                helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 20s wall-clock waiting for "
+                helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 60s wall-clock waiting for "
                         + "skin set mojang to store skin (ticks=" + helper.getTick() + ")")));
             }
             CustomSkinProperty stored = storage.getSkin(playerId);
@@ -927,6 +927,7 @@ public class SkinVisibilityTest {
 
     @GameTest(structure = "everlastingskins:empty", environment = "everlastingskins_gametest:debounce_after100ms", maxTicks = 200)
     public void debounceAfter100ms(GameTestHelper helper) {
+        ensureStorage(helper);
         FakeMojangAPI fake = installFakeMojangAPI(true);
         MinecraftServer server = helper.getLevel().getServer();
         ServerPlayer playerA = mockPlayer(helper, "DebounceA");
@@ -1523,6 +1524,12 @@ public class SkinVisibilityTest {
         // budget alone raced the concurrent dispatches on loaded CI runners).
         long startedNanos = System.nanoTime();
         long deadlineNanos = startedNanos + ASYNC_PIPELINE_DEADLINE_NANOS;
+        // Observer-packet grace (see OBSERVER_GRACE_NANOS): the broadcast can
+        // land a tick later than the storage write under load, so the raw
+        // obsCount assert must not fire until the grace has elapsed. The
+        // terminal fail below routes at graceEndNanos, keeping the wall-clock
+        // deadline as the bound while absorbing late arrivals.
+        long graceEndNanos = deadlineNanos + OBSERVER_GRACE_NANOS;
         // Progress-log throttle: surface the stall once per ~5s of wall time
         // instead of spamming every poll (initialized to start so the first
         // poll does not log).
@@ -1572,8 +1579,8 @@ public class SkinVisibilityTest {
                 // failure, so route the expiry through runAfterDelay: the test
                 // then fails AT the deadline with a clear message instead of
                 // racing the tick budget.
-                if (System.nanoTime() > deadlineNanos) {
-                    helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 20s wall-clock waiting for "
+                if (System.nanoTime() > graceEndNanos) {
+                    helper.runAfterDelay(1, () -> helper.fail(Component.literal("timed out after 60s wall-clock (+1s observer-packet grace) waiting for "
                             + "concurrent skin set (ticks=" + helper.getTick() + ")")));
                 }
                 if (!futureA.isDone() || !futureB.isDone()) {
@@ -1589,20 +1596,34 @@ public class SkinVisibilityTest {
                     throw new GameTestAssertException(Component.literal("waiting for playerB to store the Mojang skin (got "
                             + (skinB == null ? "null" : skinB.getSource()) + ")"), -1);
                 }
+                long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
+                long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
                 long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
                 long nowNanos = System.nanoTime();
                 if (nowNanos - lastLogNanos[0] >= TimeUnit.SECONDS.toNanos(5)) {
                     lastLogNanos[0] = nowNanos;
                     EverlastingSkins.logger.info("concurrentskinset_twoplayers: storage updated, still waiting for "
-                            + "observer ADD_PLAYER packets after {}ms (ticks={})", elapsedMs, helper.getTick());
+                            + "observer ADD_PLAYER packets after {}ms (ticks={}) obsCountA={} obsCountB={}",
+                            elapsedMs, helper.getTick(), obsCountA, obsCountB);
                 }
-                long obsCountA = countAddPlayerUpdatesWithTextures(drain(observerA), uuidA);
-                long obsCountB = countAddPlayerUpdatesWithTextures(drain(observerB), uuidB);
                 if (obsCountA != 1) {
-                    throw new GameTestAssertException(Component.literal("observerA expected 1 packet, got " + obsCountA), -1);
+                    // Inside the grace window, keep re-polling: the broadcast
+                    // can land a later tick under load, and throwing the raw
+                    // assert here lets the framework record the transient as
+                    // the failure before the wall-clock deadline routes a
+                    // clean timeout (#448). The raw form only fires past
+                    // graceEndNanos, where the runAfterDelay route above has
+                    // already scheduled the terminal fail.
+                    if (System.nanoTime() > graceEndNanos) {
+                        throw new GameTestAssertException(Component.literal("observerA expected 1 packet, got " + obsCountA), -1);
+                    }
+                    throw new GameTestAssertException(Component.literal("waiting for observerA ADD_PLAYER packet (got " + obsCountA + ")"), -1);
                 }
                 if (obsCountB != 1) {
-                    throw new GameTestAssertException(Component.literal("observerB expected 1 packet, got " + obsCountB), -1);
+                    if (System.nanoTime() > graceEndNanos) {
+                        throw new GameTestAssertException(Component.literal("observerB expected 1 packet, got " + obsCountB), -1);
+                    }
+                    throw new GameTestAssertException(Component.literal("waiting for observerB ADD_PLAYER packet (got " + obsCountB + ")"), -1);
                 }
                 removeQuietly(server, playerA);
                 removeQuietly(server, playerB);
@@ -1838,9 +1859,24 @@ public class SkinVisibilityTest {
      * GameTestServer overrides waitUntilNextTick() to skip the sleep, so ticks
      * run at CPU speed (~400/sec on CI): timeoutTicks is NOT a reliable
      * wall-clock bound. Enforce the budget with System.nanoTime() deadlines;
-     * timeoutTicks is only a far backstop.
+     * timeoutTicks is only a far backstop. 60s absorbs loaded-runner packet
+     * latency: run 31567920746 saw the observer ADD_PLAYER hop exceed the old
+     * 20s bound at ~1500 ticks/s on a fast CPU (hardened deadline fired at
+     * 20002ms while futures+storage had completed in <5s).
      */
-    private static final long ASYNC_PIPELINE_DEADLINE_NANOS = TimeUnit.SECONDS.toNanos(20);
+    private static final long ASYNC_PIPELINE_DEADLINE_NANOS = TimeUnit.SECONDS.toNanos(60);
+
+    /**
+     * Observer-packet grace window past {@link #ASYNC_PIPELINE_DEADLINE_NANOS}
+     * for concurrentSkinSet_twoPlayers. The refresh-task ADD_PLAYER broadcast
+     * can land a tick (or a few) later than the storage write under load; the
+     * raw obsCount assert firing on that transient tick surfaced as
+     * "observerA expected 1 packet, got 0" before the wall-clock deadline
+     * route could convert it to a clean timeout (run 31601213606, #448).
+     * Absorb late arrivals for up to 1s past the deadline before asserting
+     * failure; the deadline route remains the terminal bound.
+     */
+    private static final long OBSERVER_GRACE_NANOS = TimeUnit.SECONDS.toNanos(1);
 
 
     private static List<Packet<?>> drain(ServerPlayer player) {

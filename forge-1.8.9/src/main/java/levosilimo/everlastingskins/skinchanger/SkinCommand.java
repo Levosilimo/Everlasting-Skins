@@ -55,7 +55,20 @@ public class SkinCommand implements ICommand {
     private static final String NAME = "skin";
     private static final List<String> ALIASES = Collections.singletonList("eskin");
 
-    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl();
+    /**
+     * Default URL allowlist domains — mirrors the 1.21 Config
+     * {@code urlAllowlistDomains} defaults (and common's
+     * MineSkinApiHttpImpl.DEFAULT_ALLOWLIST_DOMAINS). This lane has no Config
+     * surface, so the allowlist is always ON with these domains (audit fix:
+     * the no-arg constructor defaults to allowlist OFF).
+     */
+    private static final List<String> ALLOWLIST_DOMAINS = Arrays.asList(
+            "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
+            "textures.minecraft.net", "namemc.com", "crafatar.com",
+            "mc-heads.net", "githubusercontent.com", "minecraftskins.com");
+
+    private static MineSkinAPI mineSkinAPI = new MineSkinApiHttpImpl(
+            new HttpsUrlConnectionHttpClient(), "", true, ALLOWLIST_DOMAINS);
     private static MojangAPI mojangAPI = new MojangApiHttpImpl(MojangEndpoints.DEFAULT,
         new HttpsUrlConnectionHttpClient(), true, new MojangProfileCache());
 
@@ -79,7 +92,8 @@ public class SkinCommand implements ICommand {
     static void resetAPIs() {
         mojangAPI = new MojangApiHttpImpl(MojangEndpoints.DEFAULT,
             new HttpsUrlConnectionHttpClient(), true, new MojangProfileCache());
-        mineSkinAPI = new MineSkinApiHttpImpl();
+        mineSkinAPI = new MineSkinApiHttpImpl(
+                new HttpsUrlConnectionHttpClient(), "", true, ALLOWLIST_DOMAINS);
     }
 
     @Override

@@ -30,7 +30,6 @@ import levosilimo.everlastingskins.forge21.util.I18nUtils;
 import levosilimo.everlastingskins.forge21.util.JavaHttpClient;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -90,7 +89,8 @@ public class SkinCommand {
                 .then(buildSetSubcommand())
                 .then(buildSourceSubcommand())
                 .then(buildClearSubcommand())
-                .then(SkinMetricsCommand.build().requires(SkinCommand::canUseMetrics));
+                .then(SkinMetricsCommand.build().requires(SkinCommand::canUseMetrics))
+                .then(Commands.literal("help").executes(SkinCommand::helpAction));
         dispatcher.register(skinCommand);
     }
 
@@ -136,7 +136,7 @@ public class SkinCommand {
                 .then(Commands.literal("mojang")
                         .then(Commands.argument("skin_name", StringArgumentType.word())
                                 .suggests((context, builder) ->
-                                        SharedSuggestionProvider.suggest(CompletionSources.recentUsernames(), builder))
+                                        CompletionSources.suggestSkinNames(context.getSource(), builder))
                                 .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
                                         Collections.singleton(context.getSource().getPlayer()),
                                         SkinActionType.username, SkinVariant.ALL, false,
@@ -155,7 +155,7 @@ public class SkinCommand {
                         .then(Commands.literal("classic")
                                 .then(Commands.argument("url", StringArgumentType.string())
                                         .suggests((context, builder) ->
-                                                SharedSuggestionProvider.suggest(CompletionSources.urlCandidates(), builder))
+                                                CompletionSources.suggestSkinUrls(builder))
                                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
                                                 Collections.singleton(context.getSource().getPlayer()),
                                                 SkinActionType.url, SkinVariant.CLASSIC, false,
@@ -173,7 +173,7 @@ public class SkinCommand {
                         .then(Commands.literal("slim")
                                 .then(Commands.argument("url", StringArgumentType.string())
                                         .suggests((context, builder) ->
-                                                SharedSuggestionProvider.suggest(CompletionSources.urlCandidates(), builder))
+                                                CompletionSources.suggestSkinUrls(builder))
                                         .executes(context -> SkinActionCommand.execute(context, new SkinActionParameters(
                                                 Collections.singleton(context.getSource().getPlayer()),
                                                 SkinActionType.url, SkinVariant.SLIM, false,
@@ -263,6 +263,12 @@ public class SkinCommand {
             ? Component.literal(FEEDBACK_PREFIX + " " + source)
             : Component.literal(FEEDBACK_PREFIX + " " + I18nUtils.formatMessage("no_source", target));
         context.getSource().sendSuccess(() -> message, false);
+        return 1;
+    }
+
+    private static int helpAction(CommandContext<CommandSourceStack> context) {
+        context.getSource().sendSuccess(() -> Component.literal(
+                FEEDBACK_PREFIX + " /skin set <mojang|web|random> ... | clear [targets] | source [target] | metrics | help"), false);
         return 1;
     }
 }

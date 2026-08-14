@@ -105,6 +105,18 @@ class SkinStorageTest {
 
             assertFalse(storage.hasDefaultSkin(uuid));
         }
+
+        @Test
+        @DisplayName("hasDefaultSkin is false for a null-source skin whose value differs from the default")
+        void notDefaultForNullSourceNonDefaultValue() {
+            // Regression: equality used to ignore the textures payload, so any
+            // null-source skin compared equal to DEFAULT_SKIN (also null-source)
+            // and was misclassified as the default skin even with a custom value.
+            CustomSkinProperty skin = new CustomSkinProperty("textures", "custom-value", "sig", null);
+            storage.setSkin(uuid, skin);
+
+            assertFalse(storage.hasDefaultSkin(uuid));
+        }
     }
 
     @Nested
@@ -279,18 +291,20 @@ class SkinStorageTest {
                     "Purged write must not be resurrected by the deferred drain");
         }
         @Test
-        @DisplayName("saveSkinAsync returns a stage that completes on merge; the payload reaches disk after flush")
-        void saveSkinAsync_persistsAndReturnsCompletionStage() throws Exception {
+        @DisplayName("saveSkinAsync returns a stage that completes only when the payload is on disk")
+        void saveSkinAsync_completesOnlyAfterWriteLands() throws Exception {
             UUID u = UUID.randomUUID();
+            Path target = tempDir.resolve(u + ".json");
 
             CompletableFuture<Void> stage = storage.saveSkinAsync(u, new CustomSkinProperty("textures", "sig", "src"));
 
             assertNotNull(stage, "saveSkinAsync must return a completion stage");
-            stage.get(5, TimeUnit.SECONDS); // completes once the payload has been merged
-            storage.flushPending();
+            stage.get(5, TimeUnit.SECONDS); // completes only once the write has landed
 
-            assertTrue(Files.exists(tempDir.resolve(u + ".json")),
-                    "async save must persist once the drain has been flushed");
+            // Regression: the stage used to complete at merge time, before the
+            // debounced drain had written anything — a lie about durability.
+            assertTrue(Files.exists(target),
+                    "future must complete only after the payload is durably written");
             CustomSkinProperty loaded = skinIO.loadSkin(u);
             assertNotNull(loaded, "the persisted payload must load back");
             assertEquals("src", loaded.getSource());
