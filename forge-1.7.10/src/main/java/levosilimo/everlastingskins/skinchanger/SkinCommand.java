@@ -9,6 +9,8 @@ package levosilimo.everlastingskins.skinchanger;
 import com.mojang.authlib.GameProfile;
 import levosilimo.everlastingskins.enums.SkinVariant;
 import levosilimo.everlastingskins.forge1710.EverlastingSkins;
+import levosilimo.everlastingskins.forge1710.config.Config;
+import levosilimo.everlastingskins.forge1710.util.I18nUtils;
 import levosilimo.everlastingskins.metrics.MetricsFormat;
 import levosilimo.everlastingskins.metrics.PlayerSnapshot;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
@@ -76,21 +78,10 @@ public class SkinCommand implements ICommand {
     private static final String[] PROVIDERS = {"mojang", "web", "random"};
     private static final String[] METRICS_SUBCOMMANDS = {"json", "players", "cleanup", "reset"};
 
-    /**
-     * Default URL allowlist domains — mirrors the 1.21 Config
-     * {@code urlAllowlistDomains} defaults (and common's
-     * MineSkinApiHttpImpl.DEFAULT_ALLOWLIST_DOMAINS). This lane has no Config
-     * surface, so the allowlist is always ON with these domains (audit fix:
-     * the no-arg constructor defaults to allowlist OFF).
-     */
-    private static final List<String> ALLOWLIST_DOMAINS = Arrays.asList(
-            "imgur.com", "storage.googleapis.com", "cdn.discordapp.com",
-            "textures.minecraft.net", "namemc.com", "crafatar.com",
-            "mc-heads.net", "githubusercontent.com", "minecraftskins.com");
-
     private static volatile MojangAPI mojangApi = new MojangApiHttpImpl();
     private static volatile MineSkinAPI mineSkinApi = new MineSkinApiHttpImpl(
-            new HttpsUrlConnectionHttpClient(), "", true, ALLOWLIST_DOMAINS);
+        new HttpsUrlConnectionHttpClient(), "",
+        Config.urlAllowlistEnabled, Arrays.asList(Config.urlAllowlistDomains));
     private static volatile RandomUsernameSource randomSource = new RandomUsernameSource() {
         @Override
         public String pick(boolean cape, SkinVariant variant) throws IOException {
@@ -201,7 +192,7 @@ public class SkinCommand implements ICommand {
         }
         String source = provider.getSource(target.getGameProfile().getId());
         sender.addChatMessage(new ChatComponentText(
-            source != null ? "Skin source: " + source : "No custom skin stored."));
+            source != null ? "Skin source: " + source : I18nUtils.get("no_source")));
     }
 
     private void doSet(ICommandSender sender, String[] args) {
@@ -290,7 +281,7 @@ public class SkinCommand implements ICommand {
         MojangAPI api = mojangApi;
         if (api == null) {
             recordRefreshFailed(targets);
-            sender.addChatMessage(new ChatComponentText("Skin resolver unavailable."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("error")));
             return;
         }
         long t0 = System.nanoTime();
@@ -300,7 +291,7 @@ public class SkinCommand implements ICommand {
             result = api.getSkin(username);
         } catch (RuntimeException e) {
             recordRefreshFailed(targets);
-            sender.addChatMessage(new ChatComponentText("Could not resolve a skin for '" + username + "'."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("no_skin_found", username)));
             if (Boolean.getBoolean("everlastingskins.e2e")) {
                 String player = targets.isEmpty() ? "unknown" : targets.get(0).getGameProfile().getName();
                 EverlastingSkins.logger.info("ES_E2E_SKIN=fail player={} source={} reason=exception msg={}",
@@ -311,7 +302,7 @@ public class SkinCommand implements ICommand {
         long fetchNanos = System.nanoTime() - fetchStart;
         if (!result.isPresent()) {
             recordRefreshFailed(targets);
-            sender.addChatMessage(new ChatComponentText("Could not resolve a skin for '" + username + "'."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("no_skin_found", username)));
             if (Boolean.getBoolean("everlastingskins.e2e")) {
                 String player = targets.isEmpty() ? "unknown" : targets.get(0).getGameProfile().getName();
                 EverlastingSkins.logger.info("ES_E2E_SKIN=fail player={} source={} reason=no-skin", player, username);
@@ -327,7 +318,7 @@ public class SkinCommand implements ICommand {
         MineSkinAPI api = mineSkinApi;
         if (api == null) {
             recordRefreshFailed(targets);
-            sender.addChatMessage(new ChatComponentText("Skin generator unavailable."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("error")));
             return;
         }
         long t0 = System.nanoTime();
@@ -340,13 +331,13 @@ public class SkinCommand implements ICommand {
             response = api.genSkin(url, variant);
         } catch (RuntimeException e) {
             recordRefreshFailed(targets);
-            sender.addChatMessage(new ChatComponentText("Could not generate a skin from that URL."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("mineskin_rejected")));
             return;
         }
         long fetchNanos = System.nanoTime() - fetchStart;
         if (response == null || response.property() == null || response.property().isEmpty()) {
             recordRefreshFailed(targets);
-            sender.addChatMessage(new ChatComponentText("Could not generate a skin from that URL."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("mineskin_rejected")));
             return;
         }
         applyToTargets(sender, targets, response.property(), t0, fetchNanos, url);
@@ -361,12 +352,12 @@ public class SkinCommand implements ICommand {
             username = randomSource.pick(cape, variant);
         } catch (IOException e) {
             recordRefreshFailed(targets);
-            sender.addChatMessage(new ChatComponentText("Could not fetch a random skin."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("no_random_username")));
             return;
         }
         if (username == null) {
             recordRefreshFailed(targets);
-            sender.addChatMessage(new ChatComponentText("Could not fetch a random skin."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("no_random_username")));
             return;
         }
         applyMojangLookup(sender, targets, username);
@@ -379,7 +370,7 @@ public class SkinCommand implements ICommand {
             provider.applySkin(target.getGameProfile(), uuid, skin);
             SkinMetrics.INSTANCE.recordRefreshCompleted(uuid, t0, fetchNanos, 0, 0);
         }
-        sender.addChatMessage(new ChatComponentText("Skin applied."));
+        sender.addChatMessage(new ChatComponentText(I18nUtils.get("fulfilled")));
         if (Boolean.getBoolean("everlastingskins.e2e")) {
             // Sentinel for the real-client E2E (slice 2): the /skin reply is a
             // chat message only the client sees, so the E2E asserts this
@@ -408,25 +399,25 @@ public class SkinCommand implements ICommand {
             sender.addChatMessage(new ChatComponentText(MetricsFormat.json(SkinMetrics.INSTANCE.snapshot())));
         } else if ("players".equals(sub)) {
             if (!checkPermission(sender, NODE_METRICS)) return;
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new StringBuilder(I18nUtils.get("metrics_top_players"));
             int rank = 0;
             for (Map.Entry<UUID, PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
                 sb.append("\n  ").append(++rank).append(". ")
                     .append(e.getKey()).append(" — ")
-                    .append(e.getValue().refreshCount()).append(" refreshes");
+                    .append(e.getValue().refreshCount()).append(I18nUtils.get("metrics_refreshes"));
             }
             if (rank == 0) {
-                sb.append("\n  No refresh activity recorded.");
+                sb.append("\n  ").append(I18nUtils.get("metrics_no_refreshes"));
             }
             sender.addChatMessage(new ChatComponentText(sb.toString()));
         } else if ("cleanup".equals(sub)) {
             if (!checkPermission(sender, NODE_METRICS_RESET)) return;
             int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(30L * 24 * 60 * 60 * 1000);
-            sender.addChatMessage(new ChatComponentText("Removed " + removed + " stale player metric entries."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("metrics_cleanup", removed)));
         } else if ("reset".equals(sub)) {
             if (!checkPermission(sender, NODE_METRICS_RESET)) return;
             SkinMetrics.INSTANCE.reset();
-            sender.addChatMessage(new ChatComponentText("Metrics reset."));
+            sender.addChatMessage(new ChatComponentText(I18nUtils.get("metrics_reset")));
         } else {
             if (!checkPermission(sender, NODE_METRICS)) return;
             sender.addChatMessage(new ChatComponentText(MetricsFormat.human(SkinMetrics.INSTANCE.snapshot())));
@@ -484,7 +475,7 @@ public class SkinCommand implements ICommand {
         if (sender instanceof EntityPlayerMP) {
             EntityPlayerMP player = (EntityPlayerMP) sender;
             if (!PermissionServiceManager.hasPermission(player.getGameProfile().getId(), 4, node)) {
-                sender.addChatMessage(new ChatComponentText("You do not have permission to use this command."));
+                sender.addChatMessage(new ChatComponentText(I18nUtils.get("permission_denied")));
                 return false;
             }
         }

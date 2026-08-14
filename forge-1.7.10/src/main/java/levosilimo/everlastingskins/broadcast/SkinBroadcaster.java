@@ -14,6 +14,7 @@ import cpw.mods.fml.relauncher.Side;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import net.minecraft.entity.player.EntityPlayerMP;
 
 import java.nio.charset.StandardCharsets;
@@ -82,5 +83,6 @@ public final class SkinBroadcaster {
         FMLProxyPacket packet = new FMLProxyPacket(Unpooled.wrappedBuffer(payload), CHANNEL);
         channel.attr(FMLOutboundHandler.FML_MESSAGETARGET).set(FMLOutboundHandler.OutboundTarget.ALL);
         channel.writeAndFlush(packet);
+        SkinMetrics.INSTANCE.recordBroadcast(payload.length);
     }
 }

@@ -10,10 +10,12 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import levosilimo.everlastingskins.forge1710.EverlastingSkins;
+import levosilimo.everlastingskins.forge1710.config.Config;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,6 +47,7 @@ public final class SkinRestorer {
             EverlastingSkins.logger.error("Failed to create skin data directory", e);
         }
         provider = new SkinStorageProvider(new SkinStorage(new SkinIO(dataDir)));
+        Config.load(new File(server.getFile("config"), "everlastingskins.cfg"));
         event.registerServerCommand(new SkinCommand(provider));
     }
 
