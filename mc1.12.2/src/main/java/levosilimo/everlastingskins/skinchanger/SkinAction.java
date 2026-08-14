@@ -178,6 +178,14 @@ final class SkinAction {
                         String reason = I18nUtils.formatMessage(
                             deriveReason(type, customSource), p, reasonArg(type, customSource));
                         EverlastingSkins.logger.warn("Skin provider returned no result: {}", reason);
+                        if (Boolean.getBoolean("everlastingskins.e2e")) {
+                            // E2E diagnostics (slice 2): failure sentinel for
+                            // the real-client driver (mirrors the 1.7.10
+                            // lane) — distinguishes a fetch failure from a
+                            // command that never arrived.
+                            EverlastingSkins.logger.info("ES_E2E_SKIN=fail player={} source={} reason=no-skin",
+                                p.getName(), customSource);
+                        }
                         p.sendMessage(new TextComponentString(SkinCommand.PREFIX + reason));
                         continue;
                     }
@@ -208,6 +216,15 @@ final class SkinAction {
                 }
                 lastRefreshByPlayer.put(p.getUniqueID(), now);
                 SkinRestorer.getSkinStorage().setSkin(p.getUniqueID(), sp);
+                if (Boolean.getBoolean("everlastingskins.e2e")) {
+                    // E2E diagnostics (slice 2): success sentinel for the
+                    // real-client driver (mirrors the 1.7.10 lane). The
+                    // /skin reply is a chat message only the client sees, so
+                    // the E2E asserts this server-log marker instead (the
+                    // driver boots the server with -Deverlastingskins.e2e=true).
+                    EverlastingSkins.logger.info("ES_E2E_SKIN=ok player={} source={}",
+                        p.getName(), customSource);
+                }
                 if (Config.TOGGLE) {
                     String msg = isRestore
                         ? I18nUtils.formatMessage("restored_from", p, sp.getSource())

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,14 +54,15 @@ class SkinIODurabilityTest {
     }
 
     @Test
-    @DisplayName("rename failure is recorded, logged and cleaned up, never silently swallowed")
+    @DisplayName("rename failure is recorded, logged and rethrown, never silently swallowed")
     void renameFailureIsSurfacedNotSwallowed() throws Exception {
         UUID u = UUID.randomUUID();
         Path target = tempDir.resolve(u + ".json");
         Files.createDirectories(target);
         Files.write(target.resolve("occupied"), new byte[]{1}); // non-empty dir: rename cannot replace it
 
-        skinIO.saveSkin(u, "payload".getBytes(StandardCharsets.UTF_8));
+        assertThrows(IOException.class, () -> skinIO.saveSkin(u, "payload".getBytes(StandardCharsets.UTF_8)),
+                "the write hook must propagate the failure so the drain can retry it");
 
         assertTrue(Files.isDirectory(target), "target directory must be untouched");
         assertTrue(Files.exists(target.resolve("occupied")), "target contents must survive");

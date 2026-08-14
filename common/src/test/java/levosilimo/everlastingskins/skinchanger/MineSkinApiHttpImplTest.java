@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -406,7 +407,9 @@ class MineSkinApiHttpImplTest {
             while ((read = in.read(buffer)) != -1) {
                 out.write(buffer, 0, read);
             }
-            return out.toString("UTF-8");
+            // ErrorProne JdkObsolete: ByteArrayOutputStream.toString(String) is
+            // obsolete; toString(Charset) needs Java 10, :common is --release 8.
+            return new String(out.toByteArray(), StandardCharsets.UTF_8);
         } finally {
             in.close();
         }

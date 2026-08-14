@@ -16,10 +16,14 @@
 #   The pre-fix version ran `gh pr checks --watch` over ALL checks first; on
 #   2026-08-10 it stalled a merge fixer 30+ minutes watching the informational
 #   CodeQL Analyze (java) job while every required check was already green.
-#   The required contract is the 22-context branch-protection list (YAML Lint,
-#   Build (common), 4x Build (1.21.x), Build (26.2), Build (26.1), Build
-#   (mc1.12.2), E2E (mc1.12.2), GameTest (1.21), 10 out-of-band Build lanes,
-#   aislop (M2), CI Health, Vendored harness diff-guard). gh exposes it as
+#   The required contract is the 22-context branch-protection list (YAML
+#   Lint, Build (common), 4x Build (1.21.x), Build (mc1.12.2), Build (26.2),
+#   Build (26.1), E2E (mc1.12.2), GameTest (1.21), 9 out-of-band Build
+#   lanes (forge-1.4.7 / forge-1.5.2 / forge-1.6.4 / forge-1.7.10 /
+#   forge-1.8.9 / forge-1.10.2 / forge-1.16.5 / forge-1.18.2 /
+#   forge-1.20.1), aislop (M2), CI Health). The Vendored harness
+#   diff-guard is INFORMATIONAL — no gh-api-bump exists for it, so it can
+#   never gate a merge. gh exposes the required set as
 #   `gh pr checks --required` (verified on gh 2.88.1, 2026-08-10).
 #
 # Why this shape (lib-10/lib-11 research findings):

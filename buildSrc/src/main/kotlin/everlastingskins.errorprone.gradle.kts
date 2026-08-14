@@ -28,12 +28,19 @@ tasks.withType<JavaCompile>().configureEach {
     options.errorprone.disable("IdentityBinaryExpression", "StringSplitter")
 }
 
-// Test/gametest source sets: main-only gate for this rollout. The test
-// suite carries pre-existing warning debt (fire-and-forget futures,
-// non-static inner classes, unclosed Files streams ...) that trips
-// :common's -Werror and would block the integration entirely. Cleaning
-// that debt is a follow-up, not part of this change.
-tasks.matching { it.name == "compileTestJava" || it.name == "compileGametestJava" }
-    .configureEach {
-        (this as JavaCompile).options.errorprone.enabled.set(false)
-    }
+// Test/gametest source sets: ErrorProne is ENABLED everywhere by default —
+// :common's test debt is fixed and its -Werror gate keeps it that way.
+// The forge-module test suites carry pre-existing warning debt
+// (fire-and-forget futures, non-static inner classes, unclosed Files
+// streams ...) owned by a parallel lane that is actively adding forge
+// tests, so their test/gametest compiles stay disabled here until that
+// debt is cleared. Gate is by project name: :common is the only non-forge
+// applier of this plugin.
+// TODO(forge-tests): delete this gate once the forge test debt is gone;
+// :common's test compiles must stay ErrorProne-enabled.
+if (project.name != "common") {
+    tasks.matching { it.name == "compileTestJava" || it.name == "compileGametestJava" }
+        .configureEach {
+            (this as JavaCompile).options.errorprone.enabled.set(false)
+        }
+}
