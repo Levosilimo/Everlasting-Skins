@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
@@ -176,7 +177,7 @@ class SkinIODeleteRaceTest {
         }
 
         @Override
-        void saveSkin(UUID uuid, byte[] payload) {
+        void saveSkin(UUID uuid, byte[] payload) throws IOException {
             writeStarted.countDown();
             try {
                 if (!releaseWrite.await(5, TimeUnit.SECONDS)) {

@@ -19,6 +19,5 @@
   "metrics_refreshes": " cambios",
   "metrics_no_refreshes": "(sin cambios registrados)",
   "metrics_cleanup": "Limpieza de métricas: se eliminaron %d entradas obsoletas",
-  "metrics_reset": "Métricas restablecidas",
-  "discord_announce": "**%s** cambió su aspecto a: `%s`"
+  "metrics_reset": "Métricas restablecidas"
 }

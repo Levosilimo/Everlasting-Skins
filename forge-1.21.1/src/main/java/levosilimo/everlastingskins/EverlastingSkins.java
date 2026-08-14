@@ -8,6 +8,7 @@
 package levosilimo.everlastingskins;
 
 import com.google.common.collect.Lists;
+import levosilimo.everlastingskins.e2e.E2E;
 import levosilimo.everlastingskins.integration.discordsrv.DiscordSrvConfig;
 import levosilimo.everlastingskins.integration.placeholderapi.PlaceholderApiHook;
 import levosilimo.everlastingskins.forge21.metrics.MetricsDumper;
@@ -43,10 +44,10 @@ public class EverlastingSkins {
     public static final Logger logger = LogManager.getLogger();
     public static final String MOD_ID = "everlastingskins";
     public static final String MOD_NAME = "Everlasting Skins";
-    public static final String VERSION = "4.1.0";
     public static final List<String> languages = Lists.newArrayList();
 
     public EverlastingSkins() {
+        E2E.install();
         I18nUtils.loadAll();
         registerPermissionServices();
         ForgePermissionService.registerNodes();
@@ -82,6 +83,7 @@ public class EverlastingSkins {
         PermissionServiceManager.registerService(new VanillaPermissionService());
     }
 
+    // EventBus 6-era lanes register via @EventBusSubscriber + MinecraftForge.EVENT_BUS; 1.21.8+ (EventBus 7) uses per-event typed BUS.
     @Mod.EventBusSubscriber(modid = EverlastingSkins.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
     public static class EverlastingSkinsEventHandlers {
         @SubscribeEvent

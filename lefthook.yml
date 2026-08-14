@@ -37,6 +37,8 @@ pre-commit:
         exit 0; fi; $RUNNER aislop scan --staged'
     test-count:
       run: bash scripts/test-count-gate.sh
+    mesa-apt:
+      run: bash scripts/check-ci-mesa.sh
     verify-no-mixin:
       run: bash -c 'source scripts/ensure-jdk17.sh && exec ./gradlew --no-daemon --offline :common:verifyNoMixin :forge-1.21:verifyNoMixin'
     compile:

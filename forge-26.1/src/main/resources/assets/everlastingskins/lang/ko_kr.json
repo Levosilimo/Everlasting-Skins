@@ -19,6 +19,5 @@
   "metrics_refreshes": " 회",
   "metrics_no_refreshes": "(변경 기록 없음)",
   "metrics_cleanup": "지표 정리: 오래된 플레이어 항목 %d개를 제거했습니다",
-  "metrics_reset": "지표가 재설정되었습니다",
-  "discord_announce": "**%s** 님이 스킨을 `%s`(으)로 변경했습니다"
+  "metrics_reset": "지표가 재설정되었습니다"
 }

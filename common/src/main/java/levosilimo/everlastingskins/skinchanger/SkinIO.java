@@ -37,6 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class SkinIO {
@@ -72,11 +73,34 @@ public class SkinIO {
      * per UUID wins (coalescing). Daemon thread so it never blocks shutdown.
      * Lazily (re)created: a shutdown (e.g. ServerStoppingEvent in tests or a
      * reload) must not permanently kill the writer for subsequent saves.
+     *
+     * <p>Static by design: the JVM-wide drain-coalesce contract keeps one
+     * writer thread shared across all {@link SkinIO} instances, so a drain
+     * from instance A and a drain from instance B are serialized FIFO on the
+     * same thread. All per-instance state (the pending payload map, the
+     * debounce latch, the completion futures) lives on the instance, so one
+     * instance's drain can never cancel or skip another instance's scheduled
+     * drain. Callers must still treat the shared writer as single-threaded:
+     * a blocked drain on one instance stalls the writer for every instance.
      */
     private static ScheduledExecutorService writer;
 
     private static final long DRAIN_DEBOUNCE_MS = 50;
-    private static final AtomicBoolean drainScheduled = new AtomicBoolean();
+
+    /**
+     * Bounded write-retry budget per payload. A transient failure (e.g. a
+     * busy temp file) re-queues the payload for another attempt instead of
+     * dropping it; only after this many consecutive failures is the payload
+     * abandoned (and surfaced to sync callers / completed futures).
+     */
+    private static final int MAX_WRITE_ATTEMPTS = 3;
+
+    /**
+     * Per-instance debounce latch. Static would leak state across instances:
+     * instance A's drain resetting the shared latch would skip instance B's
+     * scheduled drain, stranding B's payload until the next save or flush.
+     */
+    private final AtomicBoolean drainScheduled = new AtomicBoolean();
 
     private static synchronized ScheduledExecutorService writer() {
         if (writer == null || writer.isShutdown()) {
@@ -91,6 +115,22 @@ public class SkinIO {
 
     /** Latest serialized payload per UUID awaiting the writer thread. */
     private final ConcurrentHashMap<UUID, byte[]> pendingWrites = new ConcurrentHashMap<>();
+
+    /**
+     * Futures returned by {@link #saveSkinAsync(UUID, CustomSkinProperty)},
+     * keyed by UUID. Coalescing means one future per UUID: it completes only
+     * when the payload is durably written (or the write is superseded by a
+     * delete), so awaiters never observe a "saved" stage before the data is
+     * on disk.
+     */
+    private final ConcurrentHashMap<UUID, CompletableFuture<Void>> pendingFutures = new ConcurrentHashMap<>();
+
+    /**
+     * UUIDs whose payloads were dropped after {@link #MAX_WRITE_ATTEMPTS}
+     * failed write attempts. Lets sync callers (saveSkin, flushPending) fail
+     * closed instead of believing a lost payload was persisted.
+     */
+    private final Set<UUID> failedWrites = ConcurrentHashMap.newKeySet();
 
     private final Path savePath;
 
@@ -141,6 +181,10 @@ public class SkinIO {
      */
     public void deleteSkin(UUID uuid) throws IOException {
         pendingWrites.remove(uuid);
+        // The deferred payload is superseded by the delete: no write will
+        // land for this UUID, so settle any futures awaiting it rather than
+        // leaving them pending forever.
+        completePending(uuid);
         try {
             writer().submit(() -> {
                 deleteSkinFile(uuid);
@@ -148,6 +192,11 @@ public class SkinIO {
             }).get(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            // Fail closed, like every other delete outcome: the caller must
+            // keep the map entry because the file may still exist. Swallowing
+            // the interrupt would drop the entry while the file survives and
+            // a later reload resurrects the cleared skin.
+            throw new SkinStorage.DeleteFailedException("Skin delete of " + uuid + " interrupted", e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof IOException) {
@@ -158,7 +207,7 @@ public class SkinIO {
             }
             throw new IOException("Skin delete of " + uuid + " failed", cause);
         } catch (TimeoutException e) {
-            throw new IOException("Skin delete of " + uuid + " timed out after 5s", e);
+            throw new SkinStorage.DeleteFailedException("Skin delete of " + uuid + " timed out after 5s", e);
         }
     }
 
@@ -172,15 +221,27 @@ public class SkinIO {
     /**
      * Synchronous save for back-compat: merges the payload and blocks until
      * the writer thread has drained it, so all writes are serialized through
-     * the single writer thread (no temp-file races).
+     * the single writer thread (no temp-file races). Failures are surfaced as
+     * {@link SkinStorage.SaveFailedException}, never swallowed: a sync caller
+     * must not believe a payload was persisted when it was dropped.
      */
     public void saveSkin(UUID uuid, CustomSkinProperty skin) {
         merge(uuid, skin);
         drainScheduled.set(false);
         try {
             writer().submit(this::drainPending).get(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            LOGGER.warn("SkinIO save did not complete in time", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SkinStorage.SaveFailedException("Skin save of " + uuid + " interrupted", e);
+        } catch (TimeoutException e) {
+            throw new SkinStorage.SaveFailedException("Skin save of " + uuid + " timed out after 5s", e);
+        } catch (ExecutionException e) {
+            throw new SkinStorage.SaveFailedException("Skin save of " + uuid + " failed", e.getCause());
+        }
+        if (failedWrites.remove(uuid)) {
+            // The drain dropped the payload after MAX_WRITE_ATTEMPTS.
+            throw new SkinStorage.SaveFailedException(
+                    "Skin save of " + uuid + " failed after " + MAX_WRITE_ATTEMPTS + " attempts");
         }
     }
 
@@ -188,13 +249,15 @@ public class SkinIO {
      * Coalescing async save: merges the payload into the pending map and
      * schedules a single drain after a 50ms debounce window, so burst updates
      * for the same UUID collapse into one disk write. The returned future
-     * completes once the payload has been merged (the write itself happens on
-     * the writer thread).
+     * completes only when the payload has been durably written to disk (or
+     * the pending write is superseded by a delete); on a write that exhausts
+     * the retry budget it completes exceptionally.
      */
     public CompletableFuture<Void> saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
+        CompletableFuture<Void> future = pendingFutures.computeIfAbsent(uuid, k -> new CompletableFuture<>());
         merge(uuid, skin);
         scheduleDrain();
-        return CompletableFuture.completedFuture(null);
+        return future;
     }
 
     private void merge(UUID uuid, CustomSkinProperty skin) {
@@ -219,22 +282,22 @@ public class SkinIO {
         }
     }
 
-    /** Writes every pending payload once; superseded payloads were dropped at merge time. */
+    /**
+     * Writes every pending payload once; superseded payloads were dropped at
+     * merge time. A failed payload is retried (bounded by
+     * {@link #MAX_WRITE_ATTEMPTS}) instead of being removed before its write
+     * lands: removing first would drop the record permanently on a transient
+     * failure.
+     */
     private void drainPending() {
         try {
             for (UUID uuid : pendingWrites.keySet()) {
-                byte[] payload = pendingWrites.remove(uuid);
-                if (payload == null) continue;
-                long start = System.nanoTime();
-                saveSkin(uuid, payload);
-                SkinMetrics.INSTANCE.recordSaveDiskLatency(System.nanoTime() - start);
-                SkinMetrics.INSTANCE.recordRealWrite();
-                SkinMetrics.INSTANCE.recordSaveCompleted();
+                drainOne(uuid);
             }
         } catch (Exception e) {
-            // Failure visibility: without this, a saveSkin error escapes to the
-            // executor's default handler (stderr only). Remaining payloads were
-            // already removed from pendingWrites; they are lost either way.
+            // Safety net for unexpected runtime failures: payloads stay in the
+            // map and the finally block re-schedules the drain, so nothing is
+            // lost. Per-UUID write failures are handled inside drainOne.
             LOGGER.error("SkinIO drain failed", e);
         } finally {
             // Reset the latch so future saveSkinAsync calls schedule again. If new
@@ -248,15 +311,90 @@ public class SkinIO {
     }
 
     /**
+     * Writes one UUID's latest payload, retrying transient failures up to
+     * {@link #MAX_WRITE_ATTEMPTS} times. The payload is removed from the
+     * pending map only after a successful write (a newer payload that
+     * superseded it during the write is left queued and written next), and on
+     * final failure the payload is dropped but recorded in
+     * {@link #failedWrites} so sync callers fail closed; the async future, if
+     * any, completes exceptionally.
+     */
+    private void drainOne(UUID uuid) {
+        int attempts = 0;
+        while (true) {
+            byte[] payload = pendingWrites.get(uuid);
+            if (payload == null) {
+                return; // deleted or already drained
+            }
+            try {
+                long start = System.nanoTime();
+                saveSkin(uuid, payload);
+                SkinMetrics.INSTANCE.recordSaveDiskLatency(System.nanoTime() - start);
+                SkinMetrics.INSTANCE.recordRealWrite();
+                SkinMetrics.INSTANCE.recordSaveCompleted();
+                // remove(uuid, payload) keeps a newer superseding payload queued
+                // for the next drain; only complete the future when no newer
+                // payload is waiting, or an awaiter would see "durable" before
+                // the superseding write lands.
+                pendingWrites.remove(uuid, payload);
+                failedWrites.remove(uuid);
+                if (pendingWrites.get(uuid) == null) {
+                    completePending(uuid);
+                }
+                return;
+            } catch (IOException e) {
+                attempts++;
+                if (attempts >= MAX_WRITE_ATTEMPTS) {
+                    pendingWrites.remove(uuid, payload);
+                    failedWrites.add(uuid);
+                    failPending(uuid, e);
+                    LOGGER.error("SkinIO write of {} failed after {} attempts; payload dropped",
+                            uuid, attempts, e);
+                    return;
+                }
+                LOGGER.warn("SkinIO write of {} failed (attempt {}/{}); retrying",
+                        uuid, attempts, MAX_WRITE_ATTEMPTS, e);
+            }
+        }
+    }
+
+    /** Completes (normally) the async future for a UUID whose payload is no longer pending. */
+    private void completePending(UUID uuid) {
+        CompletableFuture<Void> future = pendingFutures.remove(uuid);
+        if (future != null) {
+            future.complete(null);
+        }
+    }
+
+    /** Completes (exceptionally) the async future for a UUID whose payload was dropped. */
+    private void failPending(UUID uuid, Throwable cause) {
+        CompletableFuture<Void> future = pendingFutures.remove(uuid);
+        if (future != null) {
+            future.completeExceptionally(cause);
+        }
+    }
+
+    /**
      * Blocks until all queued writes have been drained. Called synchronously
-     * on logout and shutdown.
+     * on logout and shutdown. Persistence failures are surfaced as
+     * {@link SkinStorage.SaveFailedException}: a flush that lost a payload
+     * must not look like a clean drain.
      */
     public void flushPending() {
         drainScheduled.set(false);
         try {
             writer().submit(this::drainPending).get(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            LOGGER.warn("SkinIO flush did not complete in time", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SkinStorage.SaveFailedException("SkinIO flush interrupted", e);
+        } catch (TimeoutException e) {
+            throw new SkinStorage.SaveFailedException("SkinIO flush timed out after 5s", e);
+        } catch (ExecutionException e) {
+            throw new SkinStorage.SaveFailedException("SkinIO flush failed", e.getCause());
+        }
+        if (!failedWrites.isEmpty()) {
+            throw new SkinStorage.SaveFailedException(
+                    "SkinIO flush: " + failedWrites.size() + " payload(s) failed to persist");
         }
     }
 
@@ -269,8 +407,13 @@ public class SkinIO {
         return !pendingWrites.isEmpty();
     }
 
-    /** Shuts down the writer thread, awaiting in-flight writes. The writer is
-     *  recreated on demand by the next save (see {@link #writer()}). */
+    /**
+     * Shuts down the writer thread, awaiting in-flight writes. The writer is
+     * recreated on demand by the next save (see {@link #writer()}). Callers
+     * should drain first via {@link #flushPending()} so no payload (and no
+     * awaiting {@link #saveSkinAsync(UUID, CustomSkinProperty)} future) is
+     * stranded by the shutdown.
+     */
     public static void shutdown() {
         if (writer == null) return;
         writer.shutdown();
@@ -284,10 +427,12 @@ public class SkinIO {
 
     /**
      * Atomic write of a pre-serialized payload. This is the drain's write
-     * hook: package-private so tests can substitute a blocking writer and
-     * hold a drain in flight deterministically.
+     * hook: package-private so tests can substitute a blocking or failing
+     * writer and hold a drain in flight deterministically. Failures are
+     * recorded in the I/O-failure metrics and rethrown so the drain can
+     * retry the payload instead of silently dropping it.
      */
-    void saveSkin(UUID uuid, byte[] payload) {
+    void saveSkin(UUID uuid, byte[] payload) throws IOException {
         Path target = savePath.resolve(uuid + FILE_EXTENSION);
         Path temp = savePath.resolve(uuid + FILE_EXTENSION + TEMP_SUFFIX);
 
@@ -310,6 +455,7 @@ public class SkinIO {
             } catch (IOException ignored) {
                 // Best-effort cleanup; a leftover temp file is harmless.
             }
+            throw e;
         }
     }
 

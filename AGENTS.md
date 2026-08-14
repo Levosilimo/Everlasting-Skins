@@ -37,6 +37,16 @@ One Gradle root (9.3.1) for the Forge line. Modules:
   blocks, or mixins.json bundling) and wires it into `build`. Applied by
   `everlastingskins.forge-module` and `:common` itself; new forge convention
   plugins must apply it too.
+- `everlastingskins.errorprone.gradle.kts` — Tier 1 static analysis (M2
+  root): hooks ErrorProne (2.50.0, pinned on the `errorprone`
+  configuration) into every `JavaCompile` task. Applied by the forge-module
+  convention and directly by `:common`.
+- `everlastingskins.dependency-analysis.gradle.kts` — the WARN-only
+  dependency-analysis convention (knip-equivalent, P2-6). Every category
+  runs at warn severity; the per-lane
+  `depAnalysis.graduateDuplicateClass=true` property graduates ONLY the
+  duplicate-class category to FAIL and wires `check -> projectHealth`
+  (see "P2-6 dependency-analysis graduation" below).
 
 ## Legacy lanes (forge-1.5.2 / forge-1.6.4 / forge-1.4.7 / mc1.12.2 / forge-1.7.10 / forge-1.8.9 / forge-1.16.5 / forge-1.20.1 / forge-1.18.2 / forge-1.10.2) — out-of-band
 
@@ -249,7 +259,8 @@ bash scripts/gradle-health.sh  # dep-hygiene sweep (manual; per-consumer :projec
 ```
 
 CI (`ci.yml`) is a per-module matrix (PR #260): lint-yaml → `build` over
-`:common` + the four 1.21.x modules + forge-26.2 (`Build (26.2)`, Java 25),
+`:common` + the four 1.21.x modules + forge-26.2 (`Build (26.2)`, Java 25)
++ forge-26.1 (`Build (26.1)`, Java 25),
 plus the out-of-band mc1.12.2 build, `E2E (mc1.12.2)` (P1-6 LIVE — no
 longer a stub: mc1.12.2/test-infrastructure/run-e2e.sh builds the lane,
 boots a real Forge 14.23.5.2847 server with the mod, launches a
@@ -346,6 +357,50 @@ runs the cheap `lint-yaml` / `aislop` jobs on the host runner; the Forge build
 matrix is not reliable under act (Docker JDK image fragility) — treat `act` as
 a syntax gate, not a build substitute.
 
+## Local build & OOM protocol (operational)
+
+Hard-won during the WSL2 OOM war (2026-08; the gate itself merged as
+#465/#466). CI is authoritative over every local run.
+
+- **Every Gradle invocation — local, hooks, agents — MUST go through
+  `./scripts/gradle-locked.sh`, never bare `./gradlew` on this host.** The
+  wrapper holds an exclusive flock slot for the whole build: at most
+  `GRADLE_BUILD_SLOTS` (default 2) Gradle builds run concurrently on this
+  machine regardless of agent count. Lock dir defaults to
+  `${TMPDIR:-/tmp}/everlastingskins-gradle-locks` and must be native ext4
+  (the script refuses 9P paths `/mnt/*`, `/wsl*`). Slot timeout or bad lock
+  dir exits 125; the lock fd dies with the process, so there is never a stale
+  lock to clean up.
+- **Fork-heap caps ride in the gate (`JAVA_TOOL_OPTIONS`), not a dotfile.**
+  The wrapper exports `-Xmx3g -XX:MaxMetaspaceSize=1g` by default for every
+  JVM it spawns — the Gradle daemon AND ForgeGradle's forked Mavenizer, which
+  FG 7.0 launches with NO `-Xmx` (default heap = 25% of RAM ≈ 6.5 GB, kernel
+  OOM-kills the build; that was the root cause of weeks of OOM kills). Agent
+  shells are non-interactive and never source `~/.bashrc`, so `JAVA_TOOL_OPTIONS`
+  there never reaches them — the export must live in the gate or be passed
+  per invocation.
+- **26.x runs need a bigger pre-export:** mavenizer's decompile step
+  hardcodes `-Xms4G`, which the 3g default caps invalidate (`Xms > Xmx` =
+  JVM will not start). Pre-export
+  `JAVA_TOOL_OPTIONS="-Xmx5g -XX:MaxMetaspaceSize=1g"` for forge-26.x
+  builds.
+- **Recommended serial build invocation form** (the root build runs
+  `org.gradle.configuration-cache=true`; convention-level closure-capture
+  NPEs under CC are a known landmine — see the processResources mods.toml
+  templating fix #470; keep captured values lambda-local):
+
+  ```bash
+  ./scripts/gradle-locked.sh --no-daemon --configure-on-demand --no-configuration-cache <tasks>
+  ```
+
+- **Local env-blockers (documented; CI authoritative — NOT real failures):**
+  - forge-26.1 mavenizer mcp_config patch cache-miss at configuration time;
+    fails identically on main (`Cache miss! Stacktrace for Information Only`).
+  - WSL2 xvfb needs Mesa-forcing env vars for local E2E runs:
+    `__EGL_VENDOR_LIBRARY_FILENAMES` / `__GLX_VENDOR_LIBRARY_NAME`.
+  - forge-26.1 local builds work only with `JAVA_HOME=25.0.2-tem` +
+    `JAVA_TOOL_OPTIONS=-Xmx5g`.
+
 ## Codebase improvement tools (knip-equivalent)
 
 Java/Gradle has no direct `knip` equivalent; the closest analog is the
@@ -403,8 +458,10 @@ plugin's Gradle 8.11 minimum (see the lane-policy paragraph above).
 
 Rollback: flip `depAnalysis.graduateDuplicateClass` back to `false` (or delete
 it) — instantly reverts BOTH the severity change and the check-wiring with no
-rebuild and no branch-protection change. Do not add a dedicated ci-health
-required check.
+rebuild and no branch-protection change. CI Health is a REQUIRED check in the
+branch-protection contract (gh-api-bump/CI-Health.sh, lib-69); it cannot be
+retired by flipping the property (branch protection is gh-API-managed), so
+rollback of the gate does not by itself remove the required context.
 
 Contributor guide — graduating a new lane: set the property, then run
 `./gradlew --offline :<lane>:projectHealth` and confirm duplicate-class is 0
@@ -431,7 +488,7 @@ branch protection in-repo. The contract is strict (`enforce_admins`, no
 force pushes/deletions) with 22 contexts: `YAML Lint`, the `Build
  (common)` / `Build (1.21.x)` / `Build (26.2)` / `Build (26.1)` matrix,
 `Build (mc1.12.2)`,
-`E2E (mc1.12.2)` (push-only job — fires on push events only), `GameTest
+`E2E (mc1.12.2)` (required, so it runs on PRs and pushes), `GameTest
 `(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
 / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.18.2)`
 / `Build (forge-1.10.2)` / `Build (forge-1.6.4)` / `Build (forge-1.5.2)`
@@ -475,7 +532,7 @@ applied 20→21).
 
 ### Branch protection bump scripts
 
-`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2,1.4.7}.sh`
+`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2,1.4.7,CI-Health}.sh`
 are one-shot gh-API scripts that
 atomically add a new required-status context to the branch-protection contract
 on both `main` and (if it still exists) `integration/m2-monorepo`. They use
@@ -498,7 +555,7 @@ under "Post-Merge Deadlock Resolution".
 machine: DONE/READY_TO_MERGE/STALE/FAILED/BLOCKED/PENDING; update-branch
 on STALE; timeout-bounded `gh pr checks --watch --fail-fast`;
 fire-and-forget `gh pr merge --auto`). Never self-retries; the caller's
-tool timeout must exceed --timeout (default 600s). Exit-code contract in
+tool timeout must exceed --timeout (default 180s). Exit-code contract in
 the script header. `--verify` is read-only by default; the OPT-IN
 `--verify --fix-stale` triggers exactly ONE `gh pr update-branch` + ONE
 re-verify on a STALE verdict (belt-and-suspenders manual fallback, never
