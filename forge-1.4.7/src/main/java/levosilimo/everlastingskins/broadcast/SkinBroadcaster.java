@@ -7,6 +7,7 @@
 package levosilimo.everlastingskins.broadcast;
 
 import cpw.mods.fml.common.network.PacketDispatcher;
+import levosilimo.everlastingskins.metrics.SkinMetrics;
 import net.minecraft.src.Packet;
 
 /**
@@ -63,5 +64,6 @@ public final class SkinBroadcaster {
         }
         Packet packet = PacketDispatcher.getPacket(CHANNEL, payload);
         PacketDispatcher.sendPacketToAllPlayers(packet);
+        SkinMetrics.INSTANCE.recordBroadcast(payload.length);
     }
 }
