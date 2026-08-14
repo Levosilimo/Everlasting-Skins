@@ -7,6 +7,8 @@
 package levosilimo.everlastingskins.command;
 
 import levosilimo.everlastingskins.enums.SkinVariant;
+import levosilimo.everlastingskins.forge152.util.I18nUtils;
+import levosilimo.everlastingskins.i18n.LanguageKeys;
 import levosilimo.everlastingskins.metrics.MetricsFormat;
 import levosilimo.everlastingskins.metrics.PlayerSnapshot;
 import levosilimo.everlastingskins.metrics.SkinMetrics;
@@ -208,11 +210,11 @@ public class SkinRestorerCommand implements ICommand {
         try {
             username = randomPickSource.pick(cape, variant);
         } catch (IOException e) {
-            sender.sendChatToPlayer("Could not pick a random skin (network error).");
+            sender.sendChatToPlayer(I18nUtils.get(LanguageKeys.NO_RANDOM_USERNAME));
             return;
         }
         if (username == null) {
-            sender.sendChatToPlayer("Could not pick a random skin.");
+            sender.sendChatToPlayer(I18nUtils.get(LanguageKeys.NO_RANDOM_USERNAME));
             return;
         }
         for (EntityPlayerMP target : targets) {
@@ -251,7 +253,7 @@ public class SkinRestorerCommand implements ICommand {
         if (targets.size() == 1) {
             String source = SkinRestorer.getSource(SkinRestorer.uuidOf(targets.get(0).getCommandSenderName()));
             sender.sendChatToPlayer(
-                source != null ? "Skin source: " + source : "No custom skin stored.");
+                source != null ? "Skin source: " + source : I18nUtils.get(LanguageKeys.NO_SOURCE));
             return;
         }
         StringBuilder sb = new StringBuilder();
@@ -259,7 +261,7 @@ public class SkinRestorerCommand implements ICommand {
             String name = target.getCommandSenderName();
             String source = SkinRestorer.getSource(SkinRestorer.uuidOf(name));
             if (sb.length() > 0) sb.append('\n');
-            sb.append(name).append(": ").append(source != null ? source : "No custom skin stored.");
+            sb.append(name).append(": ").append(source != null ? source : I18nUtils.get(LanguageKeys.NO_SOURCE));
         }
         sender.sendChatToPlayer(sb.toString());
     }
@@ -280,15 +282,15 @@ public class SkinRestorerCommand implements ICommand {
         }
         if ("players".equals(sub)) {
             if (!checkMetricsPermission(sender)) return;
-            StringBuilder sb = new StringBuilder("EverlastingSkins top players:");
+            StringBuilder sb = new StringBuilder(I18nUtils.get(LanguageKeys.METRICS_TOP_PLAYERS));
             int rank = 0;
             for (Map.Entry<UUID, PlayerSnapshot> e : SkinMetrics.INSTANCE.topPlayers(10)) {
                 sb.append('\n').append("  ").append(++rank).append(". ")
                     .append(e.getKey()).append(" — ")
-                    .append(e.getValue().refreshCount()).append(" refreshes");
+                    .append(e.getValue().refreshCount()).append(I18nUtils.get(LanguageKeys.METRICS_REFRESHES));
             }
             if (rank == 0) {
-                sb.append('\n').append("  No refreshes recorded.");
+                sb.append('\n').append("  ").append(I18nUtils.get(LanguageKeys.METRICS_NO_REFRESHES));
             }
             sender.sendChatToPlayer(sb.toString());
             return;
@@ -296,14 +298,13 @@ public class SkinRestorerCommand implements ICommand {
         if ("cleanup".equals(sub)) {
             if (!checkMetricsResetPermission(sender)) return;
             int removed = SkinMetrics.INSTANCE.cleanupStalePlayers(CLEANUP_OLDER_THAN_MS);
-            sender.sendChatToPlayer(
-                "Removed " + removed + " stale player(s) from metrics.");
+            sender.sendChatToPlayer(I18nUtils.get(LanguageKeys.METRICS_CLEANUP, removed));
             return;
         }
         if ("reset".equals(sub)) {
             if (!checkMetricsResetPermission(sender)) return;
             SkinMetrics.INSTANCE.reset();
-            sender.sendChatToPlayer("Metrics reset.");
+            sender.sendChatToPlayer(I18nUtils.get(LanguageKeys.METRICS_RESET));
             return;
         }
         if (!checkMetricsPermission(sender)) return;
@@ -317,7 +318,7 @@ public class SkinRestorerCommand implements ICommand {
         // MineSkin/URL generation on this legacy surface).
         MojangAPI api = mojangApi;
         if (api == null) {
-            sender.sendChatToPlayer("Skin resolver unavailable.");
+            sender.sendChatToPlayer(I18nUtils.get(LanguageKeys.ERROR));
             return;
         }
         long startNanos = System.nanoTime();
@@ -325,7 +326,7 @@ public class SkinRestorerCommand implements ICommand {
         Optional<MojangSkinDataResult> result = api.getSkin(username);
         if (!result.isPresent()) {
             SkinMetrics.INSTANCE.recordRefreshFailed(uuid);
-            sender.sendChatToPlayer("Could not resolve a skin for '" + username + "'.");
+            sender.sendChatToPlayer(I18nUtils.get(LanguageKeys.NO_SKIN_FOUND, username));
             return;
         }
         CustomSkinProperty skin = result.get().skinProperty();
@@ -336,7 +337,7 @@ public class SkinRestorerCommand implements ICommand {
         // render), not the skin source's.
         SkinRestorer.applySkin(targetName, skin);
         SkinMetrics.INSTANCE.recordRefreshCompleted(uuid, startNanos, System.nanoTime() - startNanos, 0, 0);
-        sender.sendChatToPlayer("Skin applied.");
+        sender.sendChatToPlayer(I18nUtils.get(LanguageKeys.FULFILLED));
     }
 
     /**
@@ -349,7 +350,7 @@ public class SkinRestorerCommand implements ICommand {
         EntityPlayerMP player = (EntityPlayerMP) sender;
         if (!PermissionServiceManager.hasPermission(
                 SkinRestorer.uuidOf(player.getCommandSenderName()), 4, node)) {
-            sender.sendChatToPlayer("You do not have permission to use this command.");
+            sender.sendChatToPlayer(I18nUtils.get(LanguageKeys.PERMISSION_DENIED));
             return false;
         }
         return true;
