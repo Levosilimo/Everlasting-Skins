@@ -357,6 +357,50 @@ runs the cheap `lint-yaml` / `aislop` jobs on the host runner; the Forge build
 matrix is not reliable under act (Docker JDK image fragility) — treat `act` as
 a syntax gate, not a build substitute.
 
+## Local build & OOM protocol (operational)
+
+Hard-won during the WSL2 OOM war (2026-08; the gate itself merged as
+#465/#466). CI is authoritative over every local run.
+
+- **Every Gradle invocation — local, hooks, agents — MUST go through
+  `./scripts/gradle-locked.sh`, never bare `./gradlew` on this host.** The
+  wrapper holds an exclusive flock slot for the whole build: at most
+  `GRADLE_BUILD_SLOTS` (default 2) Gradle builds run concurrently on this
+  machine regardless of agent count. Lock dir defaults to
+  `${TMPDIR:-/tmp}/everlastingskins-gradle-locks` and must be native ext4
+  (the script refuses 9P paths `/mnt/*`, `/wsl*`). Slot timeout or bad lock
+  dir exits 125; the lock fd dies with the process, so there is never a stale
+  lock to clean up.
+- **Fork-heap caps ride in the gate (`JAVA_TOOL_OPTIONS`), not a dotfile.**
+  The wrapper exports `-Xmx3g -XX:MaxMetaspaceSize=1g` by default for every
+  JVM it spawns — the Gradle daemon AND ForgeGradle's forked Mavenizer, which
+  FG 7.0 launches with NO `-Xmx` (default heap = 25% of RAM ≈ 6.5 GB, kernel
+  OOM-kills the build; that was the root cause of weeks of OOM kills). Agent
+  shells are non-interactive and never source `~/.bashrc`, so `JAVA_TOOL_OPTIONS`
+  there never reaches them — the export must live in the gate or be passed
+  per invocation.
+- **26.x runs need a bigger pre-export:** mavenizer's decompile step
+  hardcodes `-Xms4G`, which the 3g default caps invalidate (`Xms > Xmx` =
+  JVM will not start). Pre-export
+  `JAVA_TOOL_OPTIONS="-Xmx5g -XX:MaxMetaspaceSize=1g"` for forge-26.x
+  builds.
+- **Recommended serial build invocation form** (the root build runs
+  `org.gradle.configuration-cache=true`; convention-level closure-capture
+  NPEs under CC are a known landmine — see the processResources mods.toml
+  templating fix #470; keep captured values lambda-local):
+
+  ```bash
+  ./scripts/gradle-locked.sh --no-daemon --configure-on-demand --no-configuration-cache <tasks>
+  ```
+
+- **Local env-blockers (documented; CI authoritative — NOT real failures):**
+  - forge-26.1 mavenizer mcp_config patch cache-miss at configuration time;
+    fails identically on main (`Cache miss! Stacktrace for Information Only`).
+  - WSL2 xvfb needs Mesa-forcing env vars for local E2E runs:
+    `__EGL_VENDOR_LIBRARY_FILENAMES` / `__GLX_VENDOR_LIBRARY_NAME`.
+  - forge-26.1 local builds work only with `JAVA_HOME=25.0.2-tem` +
+    `JAVA_TOOL_OPTIONS=-Xmx5g`.
+
 ## Codebase improvement tools (knip-equivalent)
 
 Java/Gradle has no direct `knip` equivalent; the closest analog is the
