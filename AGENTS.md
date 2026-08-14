@@ -485,16 +485,23 @@ and `mc1.12.2` remain as frozen stable aliases (tagged
 
 Required checks (contract on `main`) are enforced via the gh API — do not edit
 branch protection in-repo. The contract is strict (`enforce_admins`, no
-force pushes/deletions) with 22 contexts: `YAML Lint`, the `Build
- (common)` / `Build (1.21.x)` / `Build (26.2)` / `Build (26.1)` matrix,
-`Build (mc1.12.2)`,
-`E2E (mc1.12.2)` (required, so it runs on PRs and pushes), `GameTest
-`(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
-/ `Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.18.2)`
-/ `Build (forge-1.10.2)` / `Build (forge-1.6.4)` / `Build (forge-1.5.2)`
-/ `Build (forge-1.4.7)` lanes, `aislop
-(M2)`, and `CI Health` (informational -> required, lib-69). CI job names
-must match the required-check strings exactly.
+ force pushes/deletions) with 37 contexts: `YAML Lint`, the `Build
+  (common)` / `Build (1.21.x)` / `Build (26.2)` / `Build (26.1)` matrix,
+ `Build (mc1.12.2)`,
+ `E2E (mc1.12.2)` (required, so it runs on PRs and pushes), `GameTest
+ `(1.21)`, the out-of-band `Build (forge-1.8.9)` / `Build (forge-1.7.10)`
+ / `Build (forge-1.16.5)` / `Build (forge-1.20.1)` / `Build (forge-1.18.2)`
+ / `Build (forge-1.10.2)` / `Build (forge-1.6.4)` / `Build (forge-1.5.2)`
+ / `Build (forge-1.4.7)` lanes, `aislop
+ (M2)`, `CI Health` (informational -> required, lib-69), and the 15
+ real-client E2E contexts promoted via `scripts/gh-api-bump/e2e-promotions.sh`
+ (2026-08-14, 22 -> 37): `E2E (forge-1.7.10)` / `(forge-1.8.9)` /
+ `(forge-1.10.2)` / `(forge-1.6.4)` / `(forge-1.5.2)` / `(forge-1.4.7)` /
+ `(forge-1.21)` / `(forge-1.21.1)` / `(forge-1.21.8)` / `(forge-1.16.5)` /
+ `(forge-1.16.5 full in-jar)` / `(forge-1.18.2)` / `(forge-1.20.1)` /
+ `(forge-26.1)` / `(forge-26.2)`; `E2E (forge-1.21.4)` stays
+ informational pending 3 consecutive greens. CI job names
+ must match the required-check strings exactly.
 
 ### Known GameTest false-positives
 
@@ -522,20 +529,29 @@ after `Build (26.2)` lands (forge-26.2 lane, PR #310) → 14 after
 (gh-api-bump/1.10.2.sh) → 20 after `Build (forge-1.6.4)`
 (gh-api-bump/1.6.4.sh) → 21 after `Build (forge-1.5.2)`
 (gh-api-bump/1.5.2.sh) → 22 after `Build (forge-1.4.7)`
-(gh-api-bump/1.4.7.sh). Each lane is added to the
+(gh-api-bump/1.4.7.sh) → 37 after the E2E promotions (2026-08-14): 15
+informational real-client E2E jobs promoted via
+`scripts/gh-api-bump/e2e-promotions.sh` (headlessmc trio
+forge-1.7.10/1.8.9/1.10.2 + pre18 trio 1.6.4/1.5.2/1.4.7 +
+1.21/1.21.1/1.21.8 + 1.16.5/1.16.5 full in-jar/1.18.2/1.20.1 +
+26.1/26.2; `E2E (forge-1.21.4)` kept informational after an HTTP 429
+cold-cache dependency-resolution flake, run 31771305288). Each lane is added to the
 contract via the `gh-api-bump-<lane>.sh` script (out-of-repo tooling) at
 PR-open time.
 
-The contract now stands at 22: `Build (forge-1.4.7)` landed as the 22nd
+The contract now stands at 37: `Build (forge-1.4.7)` landed as the 22nd
 context via gh-api-bump/1.4.7.sh (21→22, after gh-api-bump/1.5.2.sh had
-applied 20→21).
+applied 20→21); the 15 E2E promotions landed via
+gh-api-bump/e2e-promotions.sh (22→37).
 
 ### Branch protection bump scripts
 
-`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2,1.4.7,CI-Health}.sh`
+`scripts/gh-api-bump/{26.2,26.1,1.8.9,1.7.10,1.18.2,1.10.2,1.6.4,1.5.2,1.4.7,CI-Health,e2e-promotions}.sh`
 are one-shot gh-API scripts that
 atomically add a new required-status context to the branch-protection contract
-on both `main` and (if it still exists) `integration/m2-monorepo`. They use
+on `main` (the pre-retirement scripts also carried `integration/m2-monorepo`,
+retired 2026-08-07; `e2e-promotions.sh` is `main`-only and adds a batch of
+15 E2E contexts at once). They use
 `gh api -X PATCH` on `/branches/<branch>/protection/required_status_checks`
 (verified empirically — `PUT` returns 404 on the protection subresource).
 
