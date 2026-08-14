@@ -39,13 +39,20 @@ jobs:
   # Gates every lane-specific job so a PR only runs the lanes it touches
   # (the repo hits the 20-concurrent-job account cap; a 7-PR fleet is
   # ~1,575 jobs, compounded by auto-update-pr-branches full-matrix re-runs).
-  # REQUIRED-CHECK-SAFE: a skipped job reports success, so the 37-context
-  # branch-protection contract is untouched — gating only, job names are
-  # never renamed, and `on:` triggers are unchanged (path filtering at the
-  # workflow-trigger level is the contract-breaking form). Shared paths
-  # (common, buildSrc, gradle-infra, e2e-infra) force all lanes.
-  # push:main short-circuits every gate (github.event_name == 'push'), so
-  # post-merge full verification is preserved.
+  # REQUIRED-CHECK-SAFE (verified 2026-08-14 against the live 37-context
+  # contract): GitHub treats a job-level-skipped JOB as success for required
+  # checks, but a job-level-skipped MATRIX job registers ONE check-run with
+  # the unexpanded template name (e.g. `Build (${{ matrix.mc }})`), which
+  # satisfies NO required context — those contexts go MISSING and the PR is
+  # BLOCKED. So the matrix jobs (build, e2e-*) always run and gate each leg
+  # via a step-level lane gate (all steps skipped => leg success under the
+  # expanded name); the non-matrix lane jobs keep job-level `if:` gating
+  # (skipped = success for required checks). Job names are never renamed,
+  # `on:` triggers are unchanged (workflow-trigger-level path filtering is
+  # the contract-breaking form). Shared paths (common, buildSrc,
+  # gradle-infra, e2e-infra) force all lanes. push:main short-circuits every
+  # gate (github.event_name == 'push'), so post-merge full verification is
+  # preserved.
   changes:
     name: Path filter
     runs-on: ubuntu-24.04
@@ -133,59 +140,72 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.timeout || 30 }}
     needs: [lint-yaml, changes]
-    # Union gate over the matrix legs: the job runs when any in-root module
-    # or shared path changed (a matrix job cannot skip individual legs).
-    if: >-
-      github.event_name == 'push' ||
-      needs.changes.outputs.common == 'true' ||
-      needs.changes.outputs.forge-1_21 == 'true' ||
-      needs.changes.outputs.forge-1_21_1 == 'true' ||
-      needs.changes.outputs.forge-1_21_4 == 'true' ||
-      needs.changes.outputs.forge-1_21_8 == 'true' ||
-      needs.changes.outputs.forge-26_2 == 'true' ||
-      needs.changes.outputs.forge-26_1 == 'true' ||
-      needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs.gradle-infra == 'true' ||
-      needs.changes.outputs.e2e-infra == 'true'
+    # Always runs (no job-level if:) so every leg registers its
+    # properly-named check-run; a job-level-skipped matrix registers one
+    # template-named run (`Build (${{ matrix.mc }})`) that satisfies no
+    # required context. Unselected legs skip every step and report success.
     strategy:
       fail-fast: false
       matrix:
         include:
           - module: common
             mc: common
+            lane: common
           - module: forge-1.21
             mc: "1.21"
+            lane: forge-1_21
           - module: forge-1.21.1
             mc: "1.21.1"
+            lane: forge-1_21_1
           - module: forge-1.21.4
             mc: "1.21.4"
+            lane: forge-1_21_4
           - module: forge-1.21.8
             mc: "1.21.8"
+            lane: forge-1_21_8
           - module: forge-26.2
             mc: "26.2"
             java: "25"
+            lane: forge-26_2
             timeout: 45   # heaviest: Java 25 + unobfuscated MC + FG 7.0.17
           - module: forge-26.1
             mc: "26.1"
             java: "25"
+            lane: forge-26_1
             timeout: 45   # heaviest: Java 25 + unobfuscated MC + FG 7.0.17
     steps:
+      - name: Lane gate (skip-as-success for required checks)
+        id: gate
+        if: >-
+          github.event_name == 'push' ||
+          needs.changes.outputs[matrix.lane] == 'true' ||
+          needs.changes.outputs.common == 'true' ||
+          needs.changes.outputs.buildSrc == 'true' ||
+          needs.changes.outputs.gradle-infra == 'true' ||
+          needs.changes.outputs.e2e-infra == 'true'
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: steps.gate.outputs.run == 'true'
       - name: Set up JDK ${{ matrix.java || '21' }}
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        if: steps.gate.outputs.run == 'true'
         with:
           java-version: ${{ matrix.java || '21' }}
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
+        if: steps.gate.outputs.run == 'true'
         with:
           cache-provider: basic
       - name: Grant execute permission for gradlew
+        if: steps.gate.outputs.run == 'true'
         run: chmod +x gradlew
       - name: Verify test count meets minimum
         # CI-IMPROVEMENT-ROADMAP P0-5: run once on the common leg instead of
         # once per matrix leg (8 identical greps today). Regex aligned with
-        # scripts/test-count-gate.sh (@Test OR @ParameterizedTest).
+        # scripts/test-count-gate.sh (@Test OR @ParameterizedTest). Kept
+        # ungated on the common leg so the 150-test floor is enforced even
+        # on lane-only PRs (one cheap grep).
         if: matrix.mc == 'common'
         run: |
           COUNT=$(grep -rE "@(Test|ParameterizedTest)\b" --include="*.java" common/src forge-1.21/src forge-test-shared/src 2>/dev/null | wc -l)
@@ -195,8 +215,10 @@ jobs:
             exit 1
           fi
       - name: Build module
+        if: steps.gate.outputs.run == 'true'
         run: ./gradlew :${{ matrix.module }}:build --no-daemon --stacktrace --configure-on-demand
       - name: Upload built jar
+        if: steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: mod-${{ matrix.mc }}
@@ -812,38 +834,49 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: [lint-yaml, changes]
-    if: >-
-      github.event_name == 'push' ||
-      needs.changes.outputs.forge-1_7_10 == 'true' ||
-      needs.changes.outputs.forge-1_8_9 == 'true' ||
-      needs.changes.outputs.forge-1_10_2 == 'true' ||
-      needs.changes.outputs.common == 'true' ||
-      needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs.gradle-infra == 'true' ||
-      needs.changes.outputs.e2e-infra == 'true'
+    # Always runs: job-level skip on a matrix registers one template-named
+    # check-run, leaving the per-lane required contexts MISSING (BLOCKED).
+    # Unselected legs skip every step and report success.
     strategy:
       fail-fast: false
       matrix:
         include:
           - lane: forge-1.7.10
+            filter-key: forge-1_7_10
             fgver: 1.7.10-10.13.4.1614
           - lane: forge-1.8.9
+            filter-key: forge-1_8_9
             fgver: 1.8.9-11.15.1.2318
           - lane: forge-1.10.2
+            filter-key: forge-1_10_2
             fgver: 1.10.2-12.18.3.2511
     steps:
+      - name: Lane gate (skip-as-success for required checks)
+        id: gate
+        if: >-
+          github.event_name == 'push' ||
+          needs.changes.outputs[matrix.filter-key] == 'true' ||
+          needs.changes.outputs.common == 'true' ||
+          needs.changes.outputs.buildSrc == 'true' ||
+          needs.changes.outputs.gradle-infra == 'true' ||
+          needs.changes.outputs.e2e-infra == 'true'
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: steps.gate.outputs.run == 'true'
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        if: steps.gate.outputs.run == 'true'
         with:
           java-version: "8"
           distribution: temurin
       - name: Install Mesa software GL + xvfb
+        if: steps.gate.outputs.run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgl1-mesa-dev libglu1-mesa libgl1-mesa-dri xvfb
       - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: |
             ~/.gradle/caches/minecraftforge
@@ -854,6 +887,7 @@ jobs:
             fg-userdev-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -865,6 +899,7 @@ jobs:
             gradle-deps-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache E2E downloads (Minecraft, Forge, HeadlessMC)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: |
             ~/.cache/everlastingskins
@@ -874,6 +909,7 @@ jobs:
             e2e-${{ matrix.lane }}-${{ runner.os }}-
       - name: Run HeadlessMC E2E (bridge / in-jar driver)
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        if: steps.gate.outputs.run == 'true'
         with:
           timeout_minutes: 40
           max_attempts: 3
@@ -882,7 +918,7 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
       - name: Upload E2E logs
-        if: always()
+        if: always() && steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: e2e-logs-${{ matrix.lane }}
@@ -967,36 +1003,46 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: [lint-yaml, changes]
-    if: >-
-      github.event_name == 'push' ||
-      needs.changes.outputs.forge-1_6_4 == 'true' ||
-      needs.changes.outputs.forge-1_5_2 == 'true' ||
-      needs.changes.outputs.forge-1_4_7 == 'true' ||
-      needs.changes.outputs.common == 'true' ||
-      needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs.gradle-infra == 'true' ||
-      needs.changes.outputs.e2e-infra == 'true'
+    # Always runs (per-leg step gate): a job-level-skipped matrix would
+    # register one template-named check-run and leave the per-lane required
+    # contexts MISSING (BLOCKED). Unselected legs skip every step -> success.
     strategy:
       fail-fast: false
       matrix:
         include:
           - lane: forge-1.6.4
+            filter-key: forge-1_6_4
             fgver: 1.6.4-9.11.1.1345
           - lane: forge-1.5.2
+            filter-key: forge-1_5_2
             fgver: 1.5.2-7.8.1.738
           - lane: forge-1.4.7
+            filter-key: forge-1_4_7
             fgver: 1.4.7-6.6.2.534
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
     steps:
+      - name: Lane gate (skip-as-success for required checks)
+        id: gate
+        if: >-
+          github.event_name == 'push' ||
+          needs.changes.outputs[matrix.filter-key] == 'true' ||
+          needs.changes.outputs.common == 'true' ||
+          needs.changes.outputs.buildSrc == 'true' ||
+          needs.changes.outputs.gradle-infra == 'true' ||
+          needs.changes.outputs.e2e-infra == 'true'
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: steps.gate.outputs.run == 'true'
       - name: Set up JDK 8
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        if: steps.gate.outputs.run == 'true'
         with:
           java-version: "8"
           distribution: temurin
       - name: Install Mesa software GL (llvmpipe for the real pre-1.8 client)
+        if: steps.gate.outputs.run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
@@ -1004,6 +1050,7 @@ jobs:
             libasound2t64 libopenal1 x11-xserver-utils
       - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: |
             ~/.gradle/caches/minecraftforge
@@ -1014,6 +1061,7 @@ jobs:
             fg-userdev-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -1025,6 +1073,7 @@ jobs:
             gradle-deps-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache E2E downloads (client jar, forge universal, libraries)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: ~/.cache/everlastingskins
           key: e2e-${{ matrix.lane }}-${{ runner.os }}
@@ -1036,6 +1085,7 @@ jobs:
         # shared orchestrator (scripts/e2e/e2e-common.sh) reads it for the
         # server dir + result copy; the upload step below globs the same dir.
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        if: steps.gate.outputs.run == 'true'
         with:
           timeout_minutes: 40
           max_attempts: 3
@@ -1044,7 +1094,7 @@ jobs:
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
       - name: Upload E2E logs + result (always)
-        if: always()
+        if: always() && steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: e2e-${{ matrix.lane }}-logs
@@ -1076,31 +1126,45 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: [lint-yaml, changes]
-    if: >-
-      github.event_name == 'push' ||
-      needs.changes.outputs.forge-1_21 == 'true' ||
-      needs.changes.outputs.forge-1_21_1 == 'true' ||
-      needs.changes.outputs.forge-1_21_4 == 'true' ||
-      needs.changes.outputs.forge-1_21_8 == 'true' ||
-      needs.changes.outputs.common == 'true' ||
-      needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs.gradle-infra == 'true' ||
-      needs.changes.outputs.e2e-infra == 'true'
+    # Always runs (per-leg step gate): a job-level-skipped matrix would
+    # register one template-named check-run and leave the per-lane required
+    # contexts MISSING (BLOCKED). Unselected legs skip every step -> success.
     strategy:
       fail-fast: false
       matrix:
-        lane: [forge-1.21, forge-1.21.1, forge-1.21.4, forge-1.21.8]
+        include:
+          - lane: forge-1.21
+            filter-key: forge-1_21
+          - lane: forge-1.21.1
+            filter-key: forge-1_21_1
+          - lane: forge-1.21.4
+            filter-key: forge-1_21_4
+          - lane: forge-1.21.8
+            filter-key: forge-1_21_8
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
     steps:
+      - name: Lane gate (skip-as-success for required checks)
+        id: gate
+        if: >-
+          github.event_name == 'push' ||
+          needs.changes.outputs[matrix.filter-key] == 'true' ||
+          needs.changes.outputs.common == 'true' ||
+          needs.changes.outputs.buildSrc == 'true' ||
+          needs.changes.outputs.gradle-infra == 'true' ||
+          needs.changes.outputs.e2e-infra == 'true'
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: steps.gate.outputs.run == 'true'
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        if: steps.gate.outputs.run == 'true'
         with:
           java-version: "21"
           distribution: temurin
       - name: Install Mesa software GL (llvmpipe for the real 1.21 client)
+        if: steps.gate.outputs.run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
@@ -1108,6 +1172,7 @@ jobs:
             libasound2t64 libopenal1
       - name: Cache Gradle wrapper and caches
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -1117,6 +1182,7 @@ jobs:
             gradle-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache E2E downloads (forge installer, server libraries)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: ~/.cache/everlastingskins
           key: e2e-${{ matrix.lane }}-${{ runner.os }}
@@ -1127,6 +1193,7 @@ jobs:
         # in job-level env (invalid workflow file -> zero jobs on push). The
         # lane wrapper reads it for the server dir + result copy.
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        if: steps.gate.outputs.run == 'true'
         with:
           timeout_minutes: 40
           max_attempts: 3
@@ -1136,7 +1203,7 @@ jobs:
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
       - name: Upload E2E logs + result (always)
-        if: always()
+        if: always() && steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: e2e-${{ matrix.lane }}-logs
@@ -1268,43 +1335,52 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: [lint-yaml, changes]
-    if: >-
-      github.event_name == 'push' ||
-      needs.changes.outputs.forge-1_16_5 == 'true' ||
-      needs.changes.outputs.forge-1_18_2 == 'true' ||
-      needs.changes.outputs.forge-1_20_1 == 'true' ||
-      needs.changes.outputs.forge-26_1 == 'true' ||
-      needs.changes.outputs.forge-26_2 == 'true' ||
-      needs.changes.outputs.common == 'true' ||
-      needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs.gradle-infra == 'true' ||
-      needs.changes.outputs.e2e-infra == 'true'
+    # Always runs (per-leg step gate): a job-level-skipped matrix would
+    # register one template-named check-run and leave the per-lane required
+    # contexts MISSING (BLOCKED). Unselected legs skip every step -> success.
     strategy:
       fail-fast: false
       matrix:
         include:
           - lane: forge-1.16.5
+            filter-key: forge-1_16_5
             java: "8"
             fgver: 1.16.5-36.2.34
           - lane: forge-1.18.2
+            filter-key: forge-1_18_2
             java: "21"
             fgver: 1.18.2-40.3.0
           - lane: forge-1.20.1
+            filter-key: forge-1_20_1
             java: "21"
             fgver: 1.20.1-47.4.10
           - lane: forge-26.1
+            filter-key: forge-26_1
             java: "25"
             fgver: 26.1-62.0.9
           - lane: forge-26.2
+            filter-key: forge-26_2
             java: "25"
             fgver: 26.2-65.0.9
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
     steps:
+      - name: Lane gate (skip-as-success for required checks)
+        id: gate
+        if: >-
+          github.event_name == 'push' ||
+          needs.changes.outputs[matrix.filter-key] == 'true' ||
+          needs.changes.outputs.common == 'true' ||
+          needs.changes.outputs.buildSrc == 'true' ||
+          needs.changes.outputs.gradle-infra == 'true' ||
+          needs.changes.outputs.e2e-infra == 'true'
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: steps.gate.outputs.run == 'true'
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
+        if: steps.gate.outputs.run == 'true'
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
@@ -1318,15 +1394,16 @@ jobs:
         # (build.gradle.kts toolchain 17), so the Gradle daemon on 17 satisfies
         # the build, and the exported E2E_JAVA17_HOME feeds the production
         # server fork.
-        if: matrix.lane == 'forge-1.18.2' || matrix.lane == 'forge-1.20.1'
+        if: (matrix.lane == 'forge-1.18.2' || matrix.lane == 'forge-1.20.1') && steps.gate.outputs.run == 'true'
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961  # v5
         with:
           java-version: "17"
           distribution: temurin
       - name: Export E2E_JAVA17_HOME (server JDK for the 1.18.2/1.20.1 wrappers)
-        if: matrix.lane == 'forge-1.18.2' || matrix.lane == 'forge-1.20.1'
+        if: (matrix.lane == 'forge-1.18.2' || matrix.lane == 'forge-1.20.1') && steps.gate.outputs.run == 'true'
         run: echo "E2E_JAVA17_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
       - name: Install Mesa software GL (llvmpipe for the real modern client)
+        if: steps.gate.outputs.run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
@@ -1334,6 +1411,7 @@ jobs:
             libasound2t64 libopenal1 x11-xserver-utils
       - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: |
             ~/.gradle/caches/minecraftforge
@@ -1344,6 +1422,7 @@ jobs:
             fg-userdev-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: |
             ~/.gradle/wrapper/dists
@@ -1356,6 +1435,7 @@ jobs:
             gradle-deps-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache E2E downloads (forge installers, server libraries)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: ~/.cache/everlastingskins
           key: e2e-${{ matrix.lane }}-${{ runner.os }}
@@ -1363,6 +1443,7 @@ jobs:
             e2e-${{ matrix.lane }}-${{ runner.os }}-
       - name: Run real-client E2E (boot-smoke or full in-jar driver per lane)
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        if: steps.gate.outputs.run == 'true'
         with:
           timeout_minutes: 40
           max_attempts: 3
@@ -1372,7 +1453,7 @@ jobs:
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
       - name: Upload E2E logs + result (always)
-        if: always()
+        if: always() && steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: e2e-modern-${{ matrix.lane }}-logs
