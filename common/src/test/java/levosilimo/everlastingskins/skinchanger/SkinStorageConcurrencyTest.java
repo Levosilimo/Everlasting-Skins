@@ -184,7 +184,8 @@ class SkinStorageConcurrencyTest {
                 assertNull(got, "deleted/never-set uuid resurrected: " + uuid);
             } else {
                 assertNotNull(got, "no skin for live uuid " + uuid);
-                // Compare the payload, NOT equals(): CustomSkinProperty.equals is source-only.
+                // Compare the payload, not equals(): the value is the observable
+                // update; equals() would add signature/source noise.
                 assertEquals(want.getValue(), got.getValue(), "lost update for " + uuid);
             }
         }
