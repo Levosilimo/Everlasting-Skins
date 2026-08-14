@@ -15,6 +15,12 @@ plugins {
 // 26.1-era pin).
 dependencies {
     annotationProcessor("net.minecraftforge:eventbus-validator:7.0.5")
+    // Rule 4 lane decision (test-only): mockito 5.12.0's byte-buddy 1.14.15
+    // cannot instrument Java 25 class files ("Could not modify all classes")
+    // under the lane's Java 25 toolchain — every MC-class mock in the unit
+    // tests fails. 5.23.0 ships byte-buddy 1.17.x with Java 25 support.
+    testImplementation("org.mockito:mockito-core:5.23.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
 }
 
 // EventBus 7 strict runtime checks (26.x MDK parity): the MDK sets
