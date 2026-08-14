@@ -14,6 +14,8 @@ import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
+import levosilimo.everlastingskins.forge1710.metrics.MetricsDumper;
+import levosilimo.everlastingskins.forge1710.util.I18nUtils;
 import levosilimo.everlastingskins.permission.PermissionServiceManager;
 import levosilimo.everlastingskins.permission.VanillaPermissionService;
 import levosilimo.everlastingskins.permission.forge.ForgePermissionService;
@@ -67,7 +69,9 @@ public class EverlastingSkins {
 
     @Mod.EventHandler
     public void serverStarting(FMLServerStartingEvent event) {
+        MinecraftForge.EVENT_BUS.register(new MetricsDumper());
         SkinRestorer.onServerStarting(event);
+        I18nUtils.loadAll();
     }
 
     @Mod.EventHandler
