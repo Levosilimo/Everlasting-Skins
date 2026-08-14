@@ -93,31 +93,23 @@ jobs:
           cache-provider: basic
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
+      # NOTE: `clean` prevents stale-jar accumulation in build/libs — the
+      # root cause of the old mc-publish "additional files" duplicate uploads
+      # (stale jars from no-clean builds, plus -sources.jar leftovers).
       - name: Build
         if: startsWith(github.ref_name, matrix.prefix)
-        run: ./gradlew :${{ matrix.module }}:build --no-daemon
+        run: ./gradlew clean :${{ matrix.module }}:build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
+      # GitHub Releases only (2026-08-14): Modrinth + CurseForge publishing
+      # removed by user decision. The glob is the SINGLE primary jar —
+      # archivesName is everlastingskins-<mcVersion> in every lane and the
+      # clean build above guarantees exactly one jar in build/libs.
+      - name: Publish to GitHub Releases
         if: startsWith(github.ref_name, matrix.prefix)
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: ${{ matrix.game-version }}
-          game-version-filter: releases
-          environment: server
-          files: ${{ matrix.module }}/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+        run: gh release create "$GITHUB_REF_NAME" ${{ matrix.module }}/build/libs/everlastingskins-${{ matrix.game-version }}-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── mc1.12.2 out-of-band lane (own wrapper, JDK 8) ─────────────
   publish-mc1_12_2:
@@ -150,29 +142,14 @@ jobs:
         run: chmod +x mc1.12.2/gradlew
 
       - name: Build
-        run: cd mc1.12.2 && ./gradlew build --no-daemon
+        run: cd mc1.12.2 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.12.2"
-          game-version-filter: releases
-          environment: server
-          files: mc1.12.2/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" mc1.12.2/build/libs/everlastingskins-1.12.2-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.16.5 out-of-band lane (own wrapper, JDK 8) ────────
   publish-mc1_16_5:
@@ -205,29 +182,14 @@ jobs:
         run: chmod +x forge-1.16.5/gradlew
 
       - name: Build
-        run: cd forge-1.16.5 && ./gradlew build --no-daemon
+        run: cd forge-1.16.5 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.16.5"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.16.5/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.16.5/build/libs/everlastingskins-1.16.5-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.8.9 out-of-band lane (own wrapper, JDK 8) ────────
   publish-mc1_8_9:
@@ -260,29 +222,14 @@ jobs:
         run: chmod +x forge-1.8.9/gradlew
 
       - name: Build
-        run: cd forge-1.8.9 && ./gradlew build --no-daemon
+        run: cd forge-1.8.9 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.8.9"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.8.9/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.8.9/build/libs/everlastingskins-1.8.9-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.10.2 out-of-band lane (own wrapper, JDK 8) ────────
   publish-mc1_10_2:
@@ -315,29 +262,14 @@ jobs:
         run: chmod +x forge-1.10.2/gradlew
 
       - name: Build
-        run: cd forge-1.10.2 && ./gradlew build --no-daemon
+        run: cd forge-1.10.2 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.10.2"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.10.2/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.10.2/build/libs/everlastingskins-1.10.2-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.20.1 out-of-band lane (own wrapper, JDK 21) ────────
   publish-mc1_20_1:
@@ -370,29 +302,14 @@ jobs:
         run: chmod +x forge-1.20.1/gradlew
 
       - name: Build
-        run: cd forge-1.20.1 && ./gradlew build --no-daemon
+        run: cd forge-1.20.1 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.20.1"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.20.1/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.20.1/build/libs/everlastingskins-1.20.1-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.18.2 out-of-band lane (own wrapper, JDK 21) ────────
   publish-mc1_18_2:
@@ -425,29 +342,14 @@ jobs:
         run: chmod +x forge-1.18.2/gradlew
 
       - name: Build
-        run: cd forge-1.18.2 && ./gradlew build --no-daemon
+        run: cd forge-1.18.2 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.18.2"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.18.2/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.18.2/build/libs/everlastingskins-1.18.2-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.7.10 out-of-band lane (own wrapper, JDK 8) ────────
   publish-mc1_7_10:
@@ -480,29 +382,14 @@ jobs:
         run: chmod +x forge-1.7.10/gradlew
 
       - name: Build
-        run: cd forge-1.7.10 && ./gradlew build --no-daemon
+        run: cd forge-1.7.10 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.7.10"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.7.10/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.7.10/build/libs/everlastingskins-1.7.10-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.6.4 out-of-band lane (own wrapper, JDK 8, vendored SpecialSource harness) ──
   publish-mc1_6_4:
@@ -535,29 +422,14 @@ jobs:
         run: chmod +x forge-1.6.4/gradlew
 
       - name: Build
-        run: cd forge-1.6.4 && ./gradlew build --no-daemon
+        run: cd forge-1.6.4 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.6.4"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.6.4/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.6.4/build/libs/everlastingskins-1.6.4-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.5.2 out-of-band lane (own wrapper, JDK 8, vendored SpecialSource harness) ──
   publish-mc1_5_2:
@@ -590,27 +462,14 @@ jobs:
         run: chmod +x forge-1.5.2/gradlew
 
       - name: Build
-        run: cd forge-1.5.2 && ./gradlew build --no-daemon
+        run: cd forge-1.5.2 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: beta
-          loaders: forge
-          game-versions: "1.5.2"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.5.2/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.5.2/build/libs/everlastingskins-1.5.2-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── forge-1.4.7 out-of-band lane (own wrapper, JDK 8, vendored SpecialSource harness) ──
   publish-mc1_4_7:
@@ -643,26 +502,11 @@ jobs:
         run: chmod +x forge-1.4.7/gradlew
 
       - name: Build
-        run: cd forge-1.4.7 && ./gradlew build --no-daemon
+        run: cd forge-1.4.7 && ./gradlew clean build --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
-      - name: Publish to CurseForge, Modrinth, GitHub Releases
-        uses: Kira-NT/mc-publish@52307b03863581dec6b652b83e597aec02ebb075  # v3
-        with:
-          curseforge-id: 538149
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          modrinth-id: everlasting-skins
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ github.ref_name }}
-          name: "Everlasting Skins ${{ github.ref_name }}"
-          version-type: release
-          loaders: forge
-          game-versions: "1.4.7"
-          game-version-filter: releases
-          environment: server
-          files: forge-1.4.7/build/libs/*.jar
-          fail-mode: fail
-          retry-attempts: 3
-          retry-delay: 15000
+      - name: Publish to GitHub Releases
+        run: gh release create "$GITHUB_REF_NAME" forge-1.4.7/build/libs/everlastingskins-1.4.7-*.jar --title "Everlasting Skins $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

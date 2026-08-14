@@ -543,13 +543,25 @@ the leading '1.' — the Forge 65.x line naming), plus the out-of-band lanes
 NeoForge is intentionally absent (no `mcneoforge` lane).
 
 Each publish job is a per-prefix matrix entry (`prefix` → Gradle subproject →
-game version → Java) using the pinned `Kira-NT/mc-publish` v3 action to upload
-to CurseForge + Modrinth + GitHub Releases (secrets `CURSEFORGE_TOKEN`,
-`MODRINTH_TOKEN`, `GITHUB_TOKEN`). Two hard-won constraints from the #356
-fix: the tag gate lives on the **steps** (`if: startsWith(github.ref_name,
-matrix.prefix)`), not on `jobs.<job_id>.if` — GitHub's context-availability
-table excludes `matrix` from job-level `if`, and a matrix ref there rejects
-the whole file at registration; and the workflow declares top-level
-`permissions: contents: write` (the releases:write fix) so the action may
-create GitHub Releases. Change it only with a dry-run of the mc-publish action
-in mind; a broken publish.yml blocks ALL tag releases, not just one lane.
+game version → Java). Since 2026-08-14 the pipeline is **GitHub Releases
+only** (user decision — Modrinth + CurseForge publishing fully removed):
+each lane builds with `clean` (prevents stale-jar accumulation in
+`build/libs`, the root cause of the old duplicate "additional files"
+uploads), then runs `gh release create "$GITHUB_REF_NAME"
+<lane>/build/libs/everlastingskins-<mc>-*.jar --title ... --generate-notes`
+with `env: GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` — no Modrinth/CurseForge
+ids or tokens anywhere, and no mc-publish for any platform. The jar glob
+matches the SINGLE primary jar (every lane's archivesBaseName/archivesName is
+`everlastingskins-<mcVersion>`); `--generate-notes` supplies the changelog
+(the old no-changelog-input → empty changelog failure mode is gone). The
+malformed `CURSEFORGE_TOKEN` and the now-unused `MODRINTH_TOKEN` repo secrets
+were deleted; `GITHUB_TOKEN` needs no secret. Two hard-won constraints from
+the #356 fix: the tag gate lives on the **steps**
+(`if: startsWith(github.ref_name, matrix.prefix)`), not on
+`jobs.<job_id>.if` — GitHub's context-availability table excludes `matrix`
+from job-level `if`, and a matrix ref there rejects the whole file at
+registration; and the workflow declares top-level
+`permissions: contents: write` (the releases:write fix) so the `gh release
+create` step may create GitHub Releases. Change it only with the GH-only
+reality in mind; a broken publish.yml blocks ALL tag releases, not just one
+lane.
