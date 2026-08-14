@@ -526,12 +526,19 @@ tasks.jar {
 // hardcodes a literal version (no placeholder) are untouched: expand() is a
 // no-op there and the file's existing value stands. Lanes without mod_version
 // are likewise untouched (their file's existing value stands).
-val modVersionProp: String? = project.findProperty("mod_version")?.toString()
+//
+// Configuration-cache compat (same constraint as the #289 doFirst wiring and
+// the thin-jar tripwire below): the filesMatching action is serialized and
+// replayed at execution time, where the script receiver (this$0) is null — a
+// script-level val would NPE there (CI-wide processResources failure, fixed
+// here). Resolve the property eagerly into a plain lambda-local and capture
+// only that, never the script instance.
 tasks.withType<ProcessResources>().configureEach {
-    if (modVersionProp != null) {
-        inputs.property("version", modVersionProp)
+    val modVersion: String? = project.findProperty("mod_version")?.toString()
+    if (modVersion != null) {
+        inputs.property("version", modVersion)
         filesMatching("META-INF/mods.toml") {
-            expand("version" to modVersionProp)
+            expand("version" to modVersion)
         }
     }
 }
