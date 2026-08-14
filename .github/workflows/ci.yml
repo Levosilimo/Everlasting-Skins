@@ -84,6 +84,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Detect changed paths per lane
+        id: filter
         uses: dorny/paths-filter@15192bc058cc28a13dbf6cde61f19e18988b7af6  # v3
         with:
           filters: |
