@@ -19,6 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -62,11 +63,15 @@ class SkinIOFailureInjectionTest {
                 "drain must reach the file write before the delete is attempted");
 
         AtomicReference<Throwable> deleteFailure = new AtomicReference<>();
+        // JDK 8 clears the interrupt status at thread exit (JDK 19+ preserves
+        // it), so the flag must be captured while the helper thread is alive.
+        AtomicBoolean interruptedWhenPropagated = new AtomicBoolean();
         Thread deleter = new Thread(() -> {
             try {
                 storage.removeSkin(u);
             } catch (Throwable t) {
                 deleteFailure.set(t);
+                interruptedWhenPropagated.set(Thread.currentThread().isInterrupted());
             }
         }, "interrupted-delete-helper");
         deleter.start();
@@ -75,7 +80,7 @@ class SkinIOFailureInjectionTest {
             deleter.interrupt();
             deleter.join(5000);
             assertFalse(deleter.isAlive(), "delete must return after the interrupt");
-            assertTrue(deleter.isInterrupted(), "the interrupt flag must be re-set before propagating");
+            assertTrue(interruptedWhenPropagated.get(), "the interrupt flag must be re-set before propagating");
 
             Throwable failure = deleteFailure.get();
             assertNotNull(failure, "interrupted delete must not return normally");
