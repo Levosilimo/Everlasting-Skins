@@ -11,7 +11,10 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # PR-scoped cancel (CI-perf phase 1): check-runs bind to the head SHA, so
+  # cancelling a superseded PR run is safe; main-push runs are NOT cancelled
+  # (a mid-merge cancel would orphan the required checks the merge waits on).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   GRADLE_OPTS: -Dorg.gradle.daemon=false
@@ -32,12 +35,118 @@ jobs:
       - name: Check CI Mesa apt packages (t64 ALSA only)
         run: bash scripts/check-ci-mesa.sh
 
+  # ── Path filter: per-lane change detection (CI-perf phase 1) ──
+  # Gates every lane-specific job so a PR only runs the lanes it touches
+  # (the repo hits the 20-concurrent-job account cap; a 7-PR fleet is
+  # ~1,575 jobs, compounded by auto-update-pr-branches full-matrix re-runs).
+  # REQUIRED-CHECK-SAFE: a skipped job reports success, so the 37-context
+  # branch-protection contract is untouched — gating only, job names are
+  # never renamed, and `on:` triggers are unchanged (path filtering at the
+  # workflow-trigger level is the contract-breaking form). Shared paths
+  # (common, buildSrc, gradle-infra, e2e-infra) force all lanes.
+  # push:main short-circuits every gate (github.event_name == 'push'), so
+  # post-merge full verification is preserved.
+  changes:
+    name: Path filter
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: lint-yaml
+    outputs:
+      common: ${{ steps.filter.outputs.common }}
+      buildSrc: ${{ steps.filter.outputs.buildSrc }}
+      gradle-infra: ${{ steps.filter.outputs.gradle-infra }}
+      e2e-infra: ${{ steps.filter.outputs.e2e-infra }}
+      forge-1_21: ${{ steps.filter.outputs.forge-1_21 }}
+      forge-1_21_1: ${{ steps.filter.outputs.forge-1_21_1 }}
+      forge-1_21_4: ${{ steps.filter.outputs.forge-1_21_4 }}
+      forge-1_21_8: ${{ steps.filter.outputs.forge-1_21_8 }}
+      forge-26_2: ${{ steps.filter.outputs.forge-26_2 }}
+      forge-26_1: ${{ steps.filter.outputs.forge-26_1 }}
+      mc1_12_2: ${{ steps.filter.outputs.mc1_12_2 }}
+      forge-1_16_5: ${{ steps.filter.outputs.forge-1_16_5 }}
+      forge-1_18_2: ${{ steps.filter.outputs.forge-1_18_2 }}
+      forge-1_20_1: ${{ steps.filter.outputs.forge-1_20_1 }}
+      forge-1_7_10: ${{ steps.filter.outputs.forge-1_7_10 }}
+      forge-1_8_9: ${{ steps.filter.outputs.forge-1_8_9 }}
+      forge-1_10_2: ${{ steps.filter.outputs.forge-1_10_2 }}
+      forge-1_6_4: ${{ steps.filter.outputs.forge-1_6_4 }}
+      forge-1_5_2: ${{ steps.filter.outputs.forge-1_5_2 }}
+      forge-1_4_7: ${{ steps.filter.outputs.forge-1_4_7 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Detect changed paths per lane
+        uses: dorny/paths-filter@15192bc058cc28a13dbf6cde61f19e18988b7af6  # v3
+        with:
+          filters: |
+            common:
+              - 'common/**'
+            buildSrc:
+              - 'buildSrc/**'
+            gradle-infra:
+              - 'gradle.properties'
+              - 'settings.gradle.kts'
+              - 'gradle/**'
+              - '.github/workflows/ci.yml'
+              - 'AGENTS.md'
+              - 'scripts/**'
+            e2e-infra:
+              - 'scripts/e2e/**'
+              - '**/test-infrastructure/**'
+            forge-1_21:
+              - 'forge-1.21/**'
+            forge-1_21_1:
+              - 'forge-1.21.1/**'
+            forge-1_21_4:
+              - 'forge-1.21.4/**'
+            forge-1_21_8:
+              - 'forge-1.21.8/**'
+            forge-26_2:
+              - 'forge-26.2/**'
+            forge-26_1:
+              - 'forge-26.1/**'
+            mc1_12_2:
+              - 'mc1.12.2/**'
+            forge-1_16_5:
+              - 'forge-1.16.5/**'
+            forge-1_18_2:
+              - 'forge-1.18.2/**'
+            forge-1_20_1:
+              - 'forge-1.20.1/**'
+            forge-1_7_10:
+              - 'forge-1.7.10/**'
+            forge-1_8_9:
+              - 'forge-1.8.9/**'
+            forge-1_10_2:
+              - 'forge-1.10.2/**'
+            forge-1_6_4:
+              - 'forge-1.6.4/**'
+            forge-1_5_2:
+              - 'forge-1.5.2/**'
+            forge-1_4_7:
+              - 'forge-1.4.7/**'
+
   # ── Build matrix over the M2 modules (JDK 21) ──────────────────
   build:
     name: Build (${{ matrix.mc }})
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.timeout || 30 }}
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    # Union gate over the matrix legs: the job runs when any in-root module
+    # or shared path changed (a matrix job cannot skip individual legs).
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.forge-1_21 == 'true' ||
+      needs.changes.outputs.forge-1_21_1 == 'true' ||
+      needs.changes.outputs.forge-1_21_4 == 'true' ||
+      needs.changes.outputs.forge-1_21_8 == 'true' ||
+      needs.changes.outputs.forge-26_2 == 'true' ||
+      needs.changes.outputs.forge-26_1 == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -99,7 +208,14 @@ jobs:
     name: Build (mc1.12.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.mc1_12_2 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -107,15 +223,31 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        # CI-perf phase 1 cache split: the userdev blob (~5GB) used to share
+        # a key with volatile module deps, so dep churn evicted it (LRU under
+        # the 10GB repo cap) -> intermittent cold mavenizer runs (8-18 min).
+        # Keyed on the Forge version (1.12.2-14.23.5.2847) it stays warm.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-mc1.12.2-1.12.2-14.23.5.2847
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-mc1.12.2-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-mc1.12.2-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-mc1.12.2-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-mc1.12.2-
+            gradle-deps-${{ runner.os }}-mc1.12.2-
       - name: Grant execute permission for gradlew
         run: chmod +x mc1.12.2/gradlew
       - name: Build and test
@@ -132,7 +264,14 @@ jobs:
     name: Build (forge-1.16.5)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_16_5 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -140,15 +279,27 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.16.5-1.16.5-36.2.34
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.16.5-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.16.5-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.16.5-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.16.5-
+            gradle-deps-${{ runner.os }}-forge-1.16.5-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.16.5/gradlew
       - name: Build and test
@@ -165,7 +316,14 @@ jobs:
     name: Build (forge-1.8.9)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_8_9 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -173,15 +331,27 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.8.9-1.8.9-11.15.1.2318
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.8.9-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.8.9-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.8.9-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.8.9-
+            gradle-deps-${{ runner.os }}-forge-1.8.9-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.8.9/gradlew
       - name: Build and test
@@ -198,7 +368,14 @@ jobs:
     name: Build (forge-1.10.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_10_2 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -206,15 +383,27 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.10.2-1.10.2-12.18.3.2511
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.10.2-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.10.2-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.10.2-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.10.2-
+            gradle-deps-${{ runner.os }}-forge-1.10.2-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.10.2/gradlew
       - name: Build and test
@@ -231,7 +420,14 @@ jobs:
     name: Build (forge-1.6.4)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_6_4 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -239,15 +435,27 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.6.4-1.6.4-9.11.1.1345
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.6.4-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.6.4-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.6.4-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.6.4-
+            gradle-deps-${{ runner.os }}-forge-1.6.4-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.6.4/gradlew
       - name: Build and test
@@ -264,7 +472,14 @@ jobs:
     name: Build (forge-1.5.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_5_2 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -272,15 +487,27 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.5.2-1.5.2-7.8.1.738
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.5.2-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.5.2-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.5.2-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.5.2-
+            gradle-deps-${{ runner.os }}-forge-1.5.2-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.5.2/gradlew
       - name: Build and test
@@ -297,7 +524,14 @@ jobs:
     name: Build (forge-1.4.7)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_4_7 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -305,15 +539,27 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.4.7-1.4.7-6.6.2.534
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.4.7-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.4.7-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.4.7-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.4.7-
+            gradle-deps-${{ runner.os }}-forge-1.4.7-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.4.7/gradlew
       - name: Build and test
@@ -330,7 +576,14 @@ jobs:
     name: Build (forge-1.20.1)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_20_1 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -338,15 +591,27 @@ jobs:
         with:
           java-version: 21
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.20.1-1.20.1-47.4.10
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.20.1-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.20.1-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.20.1-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.20.1-
+            gradle-deps-${{ runner.os }}-forge-1.20.1-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.20.1/gradlew
       - name: Build and test
@@ -363,7 +628,14 @@ jobs:
     name: Build (forge-1.18.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_18_2 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -371,15 +643,27 @@ jobs:
         with:
           java-version: 21
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.18.2-1.18.2-40.3.0
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.18.2-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.18.2-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.18.2-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.18.2-
+            gradle-deps-${{ runner.os }}-forge-1.18.2-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.18.2/gradlew
       - name: Build and test
@@ -396,7 +680,14 @@ jobs:
     name: Build (forge-1.7.10)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_7_10 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -404,15 +695,27 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.7.10-1.7.10-10.13.4.1614
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.7.10-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.7.10-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.7.10-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.7.10-
+            gradle-deps-${{ runner.os }}-forge-1.7.10-
       - name: Grant execute permission for gradlew
         run: chmod +x forge-1.7.10/gradlew
       - name: Build and test
@@ -437,7 +740,14 @@ jobs:
     name: E2E (mc1.12.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.mc1_12_2 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -445,15 +755,27 @@ jobs:
         with:
           java-version: "8"
           distribution: temurin
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-mc1.12.2-1.12.2-14.23.5.2847
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-mc1.12.2-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-mc1.12.2-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-mc1.12.2-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-mc1.12.2-
+            gradle-deps-${{ runner.os }}-mc1.12.2-
       - name: Cache E2E downloads (Forge installers, HeadlessMC, client profile)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -465,7 +787,18 @@ jobs:
           restore-keys: |
             e2e-mc1.12.2-${{ runner.os }}-
       - name: Run real mc1.12.2 E2E (server boot + headless client join)
-        run: bash mc1.12.2/test-infrastructure/run-e2e.sh mc1.12.2
+        # CI-perf phase 1: step-level retry (nick-fields/retry@v3) inside the
+        # same required check-run self-heals the documented infra-noise
+        # signatures (Mavenizer 'Cache miss! Stacktrace for Information Only',
+        # HttpTimeoutException, HTTP 429 — AGENTS.md lib-58 triage rule; the
+        # E2E convention's exit code 2 = retryable infra). Retries reuse the
+        # on-disk ~/.gradle state from the failed attempt, so they are warm.
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 40
+          max_attempts: 3
+          retry_on: error
+          command: bash mc1.12.2/test-infrastructure/run-e2e.sh mc1.12.2
 
   # ── E2E (forge-1.7.10 / forge-1.8.9 / forge-1.10.2) — informational ──
   # Slice-2 HeadlessMC bridge / in-jar-driver E2E (lib-12): informational,
@@ -478,11 +811,26 @@ jobs:
     name: E2E (${{ matrix.lane }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_7_10 == 'true' ||
+      needs.changes.outputs.forge-1_8_9 == 'true' ||
+      needs.changes.outputs.forge-1_10_2 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     strategy:
       fail-fast: false
       matrix:
-        lane: [forge-1.7.10, forge-1.8.9, forge-1.10.2]
+        include:
+          - lane: forge-1.7.10
+            fgver: 1.7.10-10.13.4.1614
+          - lane: forge-1.8.9
+            fgver: 1.8.9-11.15.1.2318
+          - lane: forge-1.10.2
+            fgver: 1.10.2-12.18.3.2511
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -494,15 +842,27 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgl1-mesa-dev libglu1-mesa libgl1-mesa-dri xvfb
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-${{ matrix.lane }}-${{ matrix.fgver }}
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-${{ matrix.lane }}-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-${{ matrix.lane }}-
+            gradle-deps-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache E2E downloads (Minecraft, Forge, HeadlessMC)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -513,9 +873,14 @@ jobs:
           restore-keys: |
             e2e-${{ matrix.lane }}-${{ runner.os }}-
       - name: Run HeadlessMC E2E (bridge / in-jar driver)
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 40
+          max_attempts: 3
+          retry_on: error
+          command: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
-        run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
       - name: Upload E2E logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -543,7 +908,14 @@ jobs:
     # 30 mirrors the Build matrix job budget: on a fully cold cache the
     # online probe does the same userdev resolution work as Build (1.21).
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_21 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -566,6 +938,8 @@ jobs:
   # (harness/specialsource-harness.gradle, Option B graduation), re-defines
   # a harness task locally, or drops a required harnessConfig key.
   # See scripts/ci-vendored-harness-diff-guard.sh.
+  # ALWAYS-RUN: cheap contract job (gating policy — CI-perf phase 1 keeps
+  # lint-yaml, aislop and this guard unconditional).
   vendored-harness-diff-guard:
     name: Vendored harness diff-guard
     runs-on: ubuntu-24.04
@@ -592,14 +966,26 @@ jobs:
     name: E2E (${{ matrix.lane }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_6_4 == 'true' ||
+      needs.changes.outputs.forge-1_5_2 == 'true' ||
+      needs.changes.outputs.forge-1_4_7 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     strategy:
       fail-fast: false
       matrix:
-        lane:
-          - forge-1.6.4
-          - forge-1.5.2
-          - forge-1.4.7
+        include:
+          - lane: forge-1.6.4
+            fgver: 1.6.4-9.11.1.1345
+          - lane: forge-1.5.2
+            fgver: 1.5.2-7.8.1.738
+          - lane: forge-1.4.7
+            fgver: 1.4.7-6.6.2.534
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
@@ -616,16 +1002,27 @@ jobs:
           sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
             libxrandr2 libxxf86vm1 libxcursor1 libxi6 libxinerama1 \
             libasound2t64 libopenal1 x11-xserver-utils
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-${{ matrix.lane }}-${{ matrix.fgver }}
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-${{ matrix.lane }}-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-            ~/.gradle/everlastingskins-vendored
-          key: gradle-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-${{ matrix.lane }}-
+            gradle-deps-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache E2E downloads (client jar, forge universal, libraries)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -638,7 +1035,12 @@ jobs:
         # in job-level env (invalid workflow file -> zero jobs on push). The
         # shared orchestrator (scripts/e2e/e2e-common.sh) reads it for the
         # server dir + result copy; the upload step below globs the same dir.
-        run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 40
+          max_attempts: 3
+          retry_on: error
+          command: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
       - name: Upload E2E logs + result (always)
@@ -673,7 +1075,17 @@ jobs:
     name: E2E (${{ matrix.lane }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_21 == 'true' ||
+      needs.changes.outputs.forge-1_21_1 == 'true' ||
+      needs.changes.outputs.forge-1_21_4 == 'true' ||
+      needs.changes.outputs.forge-1_21_8 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -714,10 +1126,15 @@ jobs:
         # RUNNER_TMP must be a STEP env: the runner context is not available
         # in job-level env (invalid workflow file -> zero jobs on push). The
         # lane wrapper reads it for the server dir + result copy.
-        run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 40
+          max_attempts: 3
+          retry_on: error
+          command: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
+        timeout-minutes: 45
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
-        timeout-minutes: 45
       - name: Upload E2E logs + result (always)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -749,7 +1166,14 @@ jobs:
     name: E2E (forge-1.16.5 full in-jar)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_16_5 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
@@ -766,15 +1190,27 @@ jobs:
           sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
             libxrandr2 libxxf86vm1 libxcursor1 libxi6 libxinerama1 \
             libasound2t64 libopenal1 x11-xserver-utils
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-forge-1.16.5-1.16.5-36.2.34
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-forge-1.16.5-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ runner.os }}-forge-1.16.5-${{ hashFiles('**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
+          key: gradle-deps-${{ runner.os }}-forge-1.16.5-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-forge-1.16.5-
+            gradle-deps-${{ runner.os }}-forge-1.16.5-
       - name: Cache E2E downloads (forge installer, server libraries)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -786,10 +1222,15 @@ jobs:
         # RUNNER_TMP must be a STEP env: the runner context is not available
         # in job-level env (invalid workflow file -> zero jobs on push). The
         # lane wrapper reads it for the server dir + result copy.
-        run: bash forge-1.16.5/test-infrastructure/run-e2e.sh
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 40
+          max_attempts: 3
+          retry_on: error
+          command: bash forge-1.16.5/test-infrastructure/run-e2e.sh
+        timeout-minutes: 45
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
-        timeout-minutes: 45
       - name: Upload E2E logs + result (always)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -826,21 +1267,37 @@ jobs:
     name: E2E (${{ matrix.lane }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_16_5 == 'true' ||
+      needs.changes.outputs.forge-1_18_2 == 'true' ||
+      needs.changes.outputs.forge-1_20_1 == 'true' ||
+      needs.changes.outputs.forge-26_1 == 'true' ||
+      needs.changes.outputs.forge-26_2 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
           - lane: forge-1.16.5
             java: "8"
+            fgver: 1.16.5-36.2.34
           - lane: forge-1.18.2
             java: "21"
+            fgver: 1.18.2-40.3.0
           - lane: forge-1.20.1
             java: "21"
+            fgver: 1.20.1-47.4.10
           - lane: forge-26.1
             java: "25"
+            fgver: 26.1-62.0.9
           - lane: forge-26.2
             java: "25"
+            fgver: 26.2-65.0.9
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
@@ -875,16 +1332,28 @@ jobs:
           sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 mesa-utils \
             libxrandr2 libxxf86vm1 libxcursor1 libxi6 libxinerama1 \
             libasound2t64 libopenal1 x11-xserver-utils
-      - name: Cache Gradle wrapper and caches
+      - name: Cache FG userdev blobs (stable, keyed on MC/Forge version)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/minecraftforge
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/everlastingskins-vendored
+          key: fg-userdev-${{ runner.os }}-${{ matrix.lane }}-${{ matrix.fgver }}
+          restore-keys: |
+            fg-userdev-${{ runner.os }}-${{ matrix.lane }}-
+      - name: Cache Gradle wrapper and module deps (volatile, wrapper hash)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper/dists
-            ~/.gradle/caches
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
             ~/.gradle/jdks
-          key: gradle-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
+          key: gradle-deps-${{ runner.os }}-${{ matrix.lane }}-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-${{ matrix.lane }}-
+            gradle-deps-${{ runner.os }}-${{ matrix.lane }}-
       - name: Cache E2E downloads (forge installers, server libraries)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -893,10 +1362,15 @@ jobs:
           restore-keys: |
             e2e-${{ matrix.lane }}-${{ runner.os }}-
       - name: Run real-client E2E (boot-smoke or full in-jar driver per lane)
-        run: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 40
+          max_attempts: 3
+          retry_on: error
+          command: bash ${{ matrix.lane }}/test-infrastructure/run-e2e.sh
+        timeout-minutes: 45
         env:
           RUNNER_TMP: ${{ runner.temp }}/everlastingskins-e2e
-        timeout-minutes: 45
       - name: Upload E2E logs + result (always)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -912,7 +1386,14 @@ jobs:
     name: GameTest (1.21)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_21 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -932,7 +1413,16 @@ jobs:
         # re-run (fix-10: cancelled at 15m15s on PR #314 cold cache; warm runs
         # finish in 2.5-6 min). 30 min bounds the runaway case while
         # tolerating cache misses.
-        run: ./gradlew :forge-1.21:runGameTestServer --no-daemon --console=plain --configure-on-demand
+        # CI-perf phase 1: step-level retry self-heals the documented
+        # infra-noise signatures (Mavenizer cache-miss / HTTP timeouts /
+        # 429 — AGENTS.md lib-58) inside the same check-run; retries reuse
+        # the on-disk ~/.gradle state, so they are warm.
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: ./gradlew :forge-1.21:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -948,7 +1438,14 @@ jobs:
     name: GameTest (1.21.1)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_21_1 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -963,7 +1460,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-1.21.1:runGameTestServer --no-daemon --console=plain --configure-on-demand
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: ./gradlew :forge-1.21.1:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -979,7 +1481,14 @@ jobs:
     name: GameTest (1.21.4)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_21_4 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -994,7 +1503,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-1.21.4:runGameTestServer --no-daemon --console=plain --configure-on-demand
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: ./gradlew :forge-1.21.4:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -1010,7 +1524,14 @@ jobs:
     name: GameTest (1.21.8)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-1_21_8 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -1025,7 +1546,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-1.21.8:runGameTestServer --no-daemon --console=plain --configure-on-demand
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: ./gradlew :forge-1.21.8:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -1041,7 +1567,14 @@ jobs:
     name: GameTest (26.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-26_2 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 25
@@ -1056,7 +1589,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-26.2:runGameTestServer --no-daemon --console=plain --configure-on-demand
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: ./gradlew :forge-26.2:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -1072,7 +1610,14 @@ jobs:
     name: GameTest (26.1)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.forge-26_1 == 'true' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 25
@@ -1087,7 +1632,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        run: ./gradlew :forge-26.1:runGameTestServer --no-daemon --console=plain --configure-on-demand
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: ./gradlew :forge-26.1:runGameTestServer --no-daemon --console=plain --configure-on-demand
         timeout-minutes: 30
         env:
           GRADLE_OPTS: >-
@@ -1123,11 +1673,28 @@ jobs:
   # (depAnalysis.graduateDuplicateClass=true) FAIL on a duplicate-class
   # finding (the zero-FP category); WARN-only reflection-FP categories
   # never fail it.
+  # CI-perf phase 1 re-scope: the sweep runs projectHealth ONLY on the
+  # graduated lanes + :common (the WARN-only reflection-FP categories on
+  # the remaining modules add no gate value but were the long pole — ~28
+  # min wall clock). The explicit --lanes list keeps the sweep
+  # deterministic; gradle-health.sh defaults to the same set.
   ci-health:
     name: CI Health
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: lint-yaml
+    needs: [lint-yaml, changes]
+    if: >-
+      github.event_name == 'push' ||
+      needs.changes.outputs.common == 'true' ||
+      needs.changes.outputs.forge-1_21 == 'true' ||
+      needs.changes.outputs.forge-1_21_1 == 'true' ||
+      needs.changes.outputs.forge-1_21_4 == 'true' ||
+      needs.changes.outputs.forge-1_21_8 == 'true' ||
+      needs.changes.outputs.forge-26_2 == 'true' ||
+      needs.changes.outputs.forge-26_1 == 'true' ||
+      needs.changes.outputs.buildSrc == 'true' ||
+      needs.changes.outputs.gradle-infra == 'true' ||
+      needs.changes.outputs.e2e-infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -1143,8 +1710,9 @@ jobs:
         run: chmod +x gradlew
       - name: Run CI Health (gradle-health.sh + dep-analysis)
         # Graduated lanes fail on duplicate-class findings (zero-FP);
-        # :common stays WARN-forever. Sweeps :common + the in-root forge modules.
+        # :common stays WARN-forever. Sweeps :common + the six graduated
+        # in-root modules (explicit lane list; script default = same set).
         # Runs ONLINE: --offline failed on cold Gradle caches (foojay plugin /
         # FG userdev unresolvable), which used to be masked by `|| true` and
         # surfaced as a required-check failure once the script propagated exits.
-        run: bash scripts/gradle-health.sh
+        run: bash scripts/gradle-health.sh --lanes :common,:forge-1.21,:forge-1.21.1,:forge-1.21.4,:forge-1.21.8,:forge-26.2,:forge-26.1
