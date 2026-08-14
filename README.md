@@ -3,8 +3,6 @@
 Server-side persistent custom skins for Forge — no client mod on 1.7.10+;
 on 1.4.7–1.6.4 install the same JAR on the client too.
 
-[![CurseForge](https://cf.way2muchnoise.eu/versions/538149.svg)](https://www.curseforge.com/minecraft/mc-mods/everlasting-skins)
-[![Modrinth](https://img.shields.io/modrinth/dt/everlasting-skins?label=Modrinth)](https://modrinth.com/mod/everlasting-skins)
 [![Release](https://img.shields.io/github/v/release/Levosilimo/Everlasting-Skins?include_prereleases&label=latest)](https://github.com/Levosilimo/Everlasting-Skins/releases)
 [![License](https://img.shields.io/github/license/Levosilimo/Everlasting-Skins)](LICENSE)
 
@@ -21,7 +19,7 @@ client (see [Pre-1.8 client install](#pre-18-client-install)).
 
 1. Pick your Minecraft version from the table below.
 2. Download the matching `everlastingskins-<mc>-<version>.jar` from
-   [CurseForge], [Modrinth], or [Releases].
+   [Releases].
 3. Drop the JAR into your server's `mods/` folder.
 4. Restart the server.
 
@@ -34,15 +32,14 @@ see [Pre-1.8 client install](#pre-18-client-install).
 
 | Minecraft | Forge | Status | Get it |
 |---|---|---|---|
-| 1.21 / 1.21.1 / 1.21.4 / 1.21.8 | 51–58 | Stable | [CurseForge] · [Modrinth] |
-| 26.1 / 26.2 | 62 / 65 | Stable | [CurseForge] · [Modrinth] |
-| 1.16.5 / 1.18.2 / 1.20.1 | 36 / 40 / 47 | Supported | [CurseForge] · [Modrinth] |
-| 1.12.2, 1.10.2, 1.8.9, 1.7.10, 1.6.4, 1.5.2, 1.4.7 | legacy | Legacy | [CurseForge] · [Releases] |
+| 1.21 / 1.21.1 / 1.21.4 / 1.21.8 | 51–58 | Stable | [Releases] |
+| 26.1 / 26.2 | 62 / 65 | Stable | [Releases] |
+| 1.16.5 / 1.18.2 / 1.20.1 | 36 / 40 / 47 | Supported | [Releases] |
+| 1.12.2, 1.10.2, 1.8.9, 1.7.10, 1.6.4, 1.5.2, 1.4.7 | legacy | Legacy | [Releases] |
 
 Legacy Forge builds: 14.23.5 (1.12.2), 12.18.3.2511 (1.10.2), 11.15.1.2318
 (1.8.9), 10.13.4.1614 (1.7.10), 9.11.1.1345 (1.6.4), 7.8.1.738 (1.5.2),
-6.6.2.534 (1.4.7). 1.5.2 ships as a beta and is on Modrinth + GitHub Releases
-only (not yet on CurseForge).
+6.6.2.534 (1.4.7). 1.5.2 ships as a beta release on GitHub Releases.
 
 Need a version you do not see? Open an [issue].
 
@@ -136,7 +133,7 @@ Remove the JAR from `mods/` and restart the server. Stored skins remain in
 
 ## Links
 
-[CurseForge] · [Modrinth] · [Releases] · [Issues] · [Source]
+[Releases] · [Issues] · [Source]
 
 ## Contributing
 
@@ -146,8 +143,6 @@ live in [AGENTS.md](AGENTS.md).
 
 MIT License — see [LICENSE](LICENSE).
 
-[CurseForge]: https://www.curseforge.com/minecraft/mc-mods/everlasting-skins
-[Modrinth]: https://modrinth.com/mod/everlasting-skins
 [Releases]: https://github.com/Levosilimo/Everlasting-Skins/releases
 [Issues]: https://github.com/Levosilimo/Everlasting-Skins/issues
 [Source]: https://github.com/Levosilimo/Everlasting-Skins
