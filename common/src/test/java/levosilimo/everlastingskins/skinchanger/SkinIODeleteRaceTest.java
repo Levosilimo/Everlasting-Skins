@@ -153,7 +153,7 @@ class SkinIODeleteRaceTest {
                 } else if (lastOp == OpType.SAVE) {
                     // Compare the deserialized value, NOT raw file text: Gson
                     // escapes base64 padding chars on write ("YQ==" becomes
-                    // "YQ\u003d\u003d"), so a text contains() match on the
+                    // "YQ==" becomes "YQ\\u003d\\u003d"), so a text contains() match on the
                     // payload is wrong for base64 payloads.
                     CustomSkinProperty loaded = io.loadSkin(u);
                     assertNotNull(loaded, "last save was lost: " + target);

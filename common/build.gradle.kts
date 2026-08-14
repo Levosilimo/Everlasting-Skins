@@ -48,31 +48,35 @@ repositories {
 
 dependencies {
     // --- compile-only: provided by both consumers' runtime classpaths ---
+    // Version catalog (gradle/libs.versions.toml) is the single source of
+    // truth for shared dependency versions; see its header for the per-library
+    // version decisions.
     // Gson floor = Minecraft 1.12.2's bundled 2.8.0; only pre-2.8 APIs are used.
-    compileOnly("com.google.code.gson:gson:2.14.0")
+    compileOnly(libs.gson)
     // authlib floor = the 1.12.2-era jar; only Property(String,String,String)/getValue used.
-    compileOnly("com.mojang:authlib:1.5.25")
+    compileOnly(libs.authlib)
     // log4j2 floor = Minecraft 1.12.2's bundled 2.8.1 (LogManager.getLogger API is stable).
-    compileOnly("org.apache.logging.log4j:log4j-api:2.26.1")
+    compileOnly(libs.log4j.api)
     // javax.annotation.Nullable (jsr305); annotation-only, no runtime impact.
-    compileOnly("com.google.code.findbugs:jsr305:3.0.2")
+    compileOnly(libs.jsr305)
 
     // --- test: standalone verification of the module ---
-    testImplementation(platform("org.junit:junit-bom:5.14.4"))
-    testImplementation("org.junit.jupiter:junit-jupiter-api")
-    testImplementation("org.junit.jupiter:junit-jupiter-params")
-    testImplementation("net.jqwik:jqwik-api:1.10.1")
-    testImplementation("org.mockito:mockito-core:5.23.0")
+    // JUnit versions come from the junit-bom platform (launcher included).
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter.api)
+    testImplementation(libs.junit.jupiter.params)
+    testImplementation(libs.jqwik.api)
+    testImplementation(libs.mockito.core)
     // The module's main code paths use Gson/authlib/log4j at runtime too.
-    testImplementation("com.google.code.gson:gson:2.14.0")
-    testImplementation("com.mojang:authlib:1.5.25")
-    testImplementation("org.apache.logging.log4j:log4j-api:2.26.1")
+    testImplementation(libs.gson)
+    testImplementation(libs.authlib)
+    testImplementation(libs.log4j.api)
 
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
-    testRuntimeOnly("net.jqwik:jqwik-engine:1.10.1")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.jqwik.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
     // Default log4j2 config (ERROR-only) so test output stays quiet.
-    testRuntimeOnly("org.apache.logging.log4j:log4j-core:2.26.1")
+    testRuntimeOnly(libs.log4j.core)
 }
 
 tasks.withType<JavaCompile>().configureEach {
