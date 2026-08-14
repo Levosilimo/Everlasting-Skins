@@ -302,12 +302,12 @@ else
         exec timeout --kill-after=10 "$8" xvfb-run -a -s "$9" "$2" -Xmx1G -Xms512M \
             -Djava.library.path="$3" \
             -Dminecraft.applet.TargetDirectory="$1" \
-            -Deverlastingskins.e2e=true \
+            "${10}" \
             -Deverlastingskins.e2e.server="$4" \
             -Deverlastingskins.e2e.port="$5" \
             -cp "$6" net.minecraft.client.Minecraft "$7" "e2e-session-token"
     ' _ "$E2E_CLIENT_DIR" "$JAVA8_BIN" "$E2E_CLIENT_DIR/natives" \
-        "$E2E_SERVER_HOST" "$E2E_SERVER_PORT" "$CP" "$E2E_USERNAME" "$E2E_CLIENT_TIMEOUT_S" "$XVFB_SERVER_ARGS")
+        "$E2E_SERVER_HOST" "$E2E_SERVER_PORT" "$CP" "$E2E_USERNAME" "$E2E_CLIENT_TIMEOUT_S" "$XVFB_SERVER_ARGS" "$E2E_JVM_PROPERTY")
 fi
 
 RESULT_FILE="$E2E_CLIENT_DIR/e2e-result.json"

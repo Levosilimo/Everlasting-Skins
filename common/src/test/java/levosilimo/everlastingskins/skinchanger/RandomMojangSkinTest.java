@@ -218,13 +218,12 @@ class RandomMojangSkinTest {
         return (List<String>) m.invoke(null, html);
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> T invokePrivateStatic(String methodName, Class<?>[] paramTypes,
+    private static Object invokePrivateStatic(String methodName, Class<?>[] paramTypes,
                                              Object... args) throws Exception {
         Method m = RandomMojangSkin.class.getDeclaredMethod(methodName, paramTypes);
         m.setAccessible(true);
         try {
-            return (T) m.invoke(null, args);
+            return m.invoke(null, args);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
             if (cause instanceof Exception) {
@@ -235,11 +234,11 @@ class RandomMojangSkinTest {
     }
 
     private static boolean invokeHasCape(String username) throws Exception {
-        return invokePrivateStatic("hasCape", new Class<?>[]{String.class}, username);
+        return (Boolean) invokePrivateStatic("hasCape", new Class<?>[]{String.class}, username);
     }
 
     private static boolean invokeIsSlim(String username) throws Exception {
-        return invokePrivateStatic("isSlim", new Class<?>[]{String.class}, username);
+        return (Boolean) invokePrivateStatic("isSlim", new Class<?>[]{String.class}, username);
     }
 
     private static String fixture(String name) throws Exception {

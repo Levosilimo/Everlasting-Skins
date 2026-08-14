@@ -19,6 +19,5 @@
   "metrics_refreshes": " changements",
   "metrics_no_refreshes": "(aucun changement enregistré)",
   "metrics_cleanup": "Nettoyage des métriques : %d entrées obsolètes supprimées",
-  "metrics_reset": "Métriques réinitialisées",
-  "discord_announce": "**%s** a changé son skin pour : `%s`"
+  "metrics_reset": "Métriques réinitialisées"
 }
