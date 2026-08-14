@@ -103,7 +103,11 @@ class BulkSaveOnStoppingIT {
         ctx.storage.saveSkinAsync(carol.getUniqueID(), TestProperties.ALEX);
         assertTrue(AsyncSupport.await(5000, () -> Files.exists(skinFile(carol))),
             "the writer must survive repeated stop events and drain later saves");
-        assertFalse(ctx.storage.hasPendingWrites(),
+        // The file-exists poll above can observe the write before the drain's
+        // pendingWrites cleanup lands (the entry is removed only after the write
+        // hook returns), so wait for queue quiescence instead of asserting it
+        // instantly — the instant assert raced the cleanup under CI load.
+        assertTrue(AsyncSupport.await(5000, () -> !ctx.storage.hasPendingWrites()),
             "the post-stop save must drain completely");
     }
 
