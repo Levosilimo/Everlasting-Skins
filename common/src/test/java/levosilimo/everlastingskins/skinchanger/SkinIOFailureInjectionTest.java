@@ -7,7 +7,6 @@
 package levosilimo.everlastingskins.skinchanger;
 
 import levosilimo.everlastingskins.util.CustomSkinProperty;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,13 +39,6 @@ class SkinIOFailureInjectionTest {
 
     @TempDir
     Path tempDir;
-
-    private SkinIO skinIO;
-
-    @BeforeEach
-    void setUp() {
-        skinIO = new SkinIO(tempDir);
-    }
 
     @Test
     @DisplayName("interrupt during delete: DeleteFailedException propagates and the map entry is retained")

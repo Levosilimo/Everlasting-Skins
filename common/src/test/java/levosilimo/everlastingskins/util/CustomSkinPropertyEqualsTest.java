@@ -73,6 +73,10 @@ class CustomSkinPropertyEqualsTest {
 
     @Property(tries = 100)
     @Label("equals is reflexive and null-safe")
+    // The point of this property IS null-safe equals: a.equals(null) must be
+    // false, not throw. ErrorProne's EqualsNull (a non-null receiver contract
+    // hint) does not apply to a contract test — suppressing it is the intent.
+    @SuppressWarnings("EqualsNull")
     void equalsIsReflexive(@ForAll @From("skins") CustomSkinProperty a) {
         assertEquals(a, a);
         assertFalse(a.equals(null));
