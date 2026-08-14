@@ -50,7 +50,7 @@ jobs:
   # (skipped = success for required checks). Job names are never renamed,
   # `on:` triggers are unchanged (workflow-trigger-level path filtering is
   # the contract-breaking form). Shared paths (common, buildSrc,
-  # gradle-infra, e2e-infra) force all lanes. push:main short-circuits every
+  # gradle_infra, e2e_infra) force all lanes. push:main short-circuits every
   # gate (github.event_name == 'push'), so post-merge full verification is
   # preserved.
   changes:
@@ -61,24 +61,24 @@ jobs:
     outputs:
       common: ${{ steps.filter.outputs.common }}
       buildSrc: ${{ steps.filter.outputs.buildSrc }}
-      gradle-infra: ${{ steps.filter.outputs['gradle-infra'] }}
-      e2e-infra: ${{ steps.filter.outputs['e2e-infra'] }}
-      forge-1_21: ${{ steps.filter.outputs['forge-1_21'] }}
-      forge-1_21_1: ${{ steps.filter.outputs['forge-1_21_1'] }}
-      forge-1_21_4: ${{ steps.filter.outputs['forge-1_21_4'] }}
-      forge-1_21_8: ${{ steps.filter.outputs['forge-1_21_8'] }}
-      forge-26_2: ${{ steps.filter.outputs['forge-26_2'] }}
-      forge-26_1: ${{ steps.filter.outputs['forge-26_1'] }}
+      gradle_infra: ${{ steps.filter.outputs.gradle_infra }}
+      e2e_infra: ${{ steps.filter.outputs.e2e_infra }}
+      forge_1_21: ${{ steps.filter.outputs.forge_1_21 }}
+      forge_1_21_1: ${{ steps.filter.outputs.forge_1_21_1 }}
+      forge_1_21_4: ${{ steps.filter.outputs.forge_1_21_4 }}
+      forge_1_21_8: ${{ steps.filter.outputs.forge_1_21_8 }}
+      forge_26_2: ${{ steps.filter.outputs.forge_26_2 }}
+      forge_26_1: ${{ steps.filter.outputs.forge_26_1 }}
       mc1_12_2: ${{ steps.filter.outputs.mc1_12_2 }}
-      forge-1_16_5: ${{ steps.filter.outputs['forge-1_16_5'] }}
-      forge-1_18_2: ${{ steps.filter.outputs['forge-1_18_2'] }}
-      forge-1_20_1: ${{ steps.filter.outputs['forge-1_20_1'] }}
-      forge-1_7_10: ${{ steps.filter.outputs['forge-1_7_10'] }}
-      forge-1_8_9: ${{ steps.filter.outputs['forge-1_8_9'] }}
-      forge-1_10_2: ${{ steps.filter.outputs['forge-1_10_2'] }}
-      forge-1_6_4: ${{ steps.filter.outputs['forge-1_6_4'] }}
-      forge-1_5_2: ${{ steps.filter.outputs['forge-1_5_2'] }}
-      forge-1_4_7: ${{ steps.filter.outputs['forge-1_4_7'] }}
+      forge_1_16_5: ${{ steps.filter.outputs.forge_1_16_5 }}
+      forge_1_18_2: ${{ steps.filter.outputs.forge_1_18_2 }}
+      forge_1_20_1: ${{ steps.filter.outputs.forge_1_20_1 }}
+      forge_1_7_10: ${{ steps.filter.outputs.forge_1_7_10 }}
+      forge_1_8_9: ${{ steps.filter.outputs.forge_1_8_9 }}
+      forge_1_10_2: ${{ steps.filter.outputs.forge_1_10_2 }}
+      forge_1_6_4: ${{ steps.filter.outputs.forge_1_6_4 }}
+      forge_1_5_2: ${{ steps.filter.outputs.forge_1_5_2 }}
+      forge_1_4_7: ${{ steps.filter.outputs.forge_1_4_7 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -91,47 +91,47 @@ jobs:
               - 'common/**'
             buildSrc:
               - 'buildSrc/**'
-            gradle-infra:
+            gradle_infra:
               - 'gradle.properties'
               - 'settings.gradle.kts'
               - 'gradle/**'
               - '.github/workflows/ci.yml'
               - 'AGENTS.md'
               - 'scripts/**'
-            e2e-infra:
+            e2e_infra:
               - 'scripts/e2e/**'
               - '**/test-infrastructure/**'
-            forge-1_21:
+            forge_1_21:
               - 'forge-1.21/**'
-            forge-1_21_1:
+            forge_1_21_1:
               - 'forge-1.21.1/**'
-            forge-1_21_4:
+            forge_1_21_4:
               - 'forge-1.21.4/**'
-            forge-1_21_8:
+            forge_1_21_8:
               - 'forge-1.21.8/**'
-            forge-26_2:
+            forge_26_2:
               - 'forge-26.2/**'
-            forge-26_1:
+            forge_26_1:
               - 'forge-26.1/**'
             mc1_12_2:
               - 'mc1.12.2/**'
-            forge-1_16_5:
+            forge_1_16_5:
               - 'forge-1.16.5/**'
-            forge-1_18_2:
+            forge_1_18_2:
               - 'forge-1.18.2/**'
-            forge-1_20_1:
+            forge_1_20_1:
               - 'forge-1.20.1/**'
-            forge-1_7_10:
+            forge_1_7_10:
               - 'forge-1.7.10/**'
-            forge-1_8_9:
+            forge_1_8_9:
               - 'forge-1.8.9/**'
-            forge-1_10_2:
+            forge_1_10_2:
               - 'forge-1.10.2/**'
-            forge-1_6_4:
+            forge_1_6_4:
               - 'forge-1.6.4/**'
-            forge-1_5_2:
+            forge_1_5_2:
               - 'forge-1.5.2/**'
-            forge-1_4_7:
+            forge_1_4_7:
               - 'forge-1.4.7/**'
 
   # ── Build matrix over the M2 modules (JDK 21) ──────────────────
@@ -153,25 +153,25 @@ jobs:
             lane: common
           - module: forge-1.21
             mc: "1.21"
-            lane: forge-1_21
+            lane: forge_1_21
           - module: forge-1.21.1
             mc: "1.21.1"
-            lane: forge-1_21_1
+            lane: forge_1_21_1
           - module: forge-1.21.4
             mc: "1.21.4"
-            lane: forge-1_21_4
+            lane: forge_1_21_4
           - module: forge-1.21.8
             mc: "1.21.8"
-            lane: forge-1_21_8
+            lane: forge_1_21_8
           - module: forge-26.2
             mc: "26.2"
             java: "25"
-            lane: forge-26_2
+            lane: forge_26_2
             timeout: 45   # heaviest: Java 25 + unobfuscated MC + FG 7.0.17
           - module: forge-26.1
             mc: "26.1"
             java: "25"
-            lane: forge-26_1
+            lane: forge_26_1
             timeout: 45   # heaviest: Java 25 + unobfuscated MC + FG 7.0.17
     steps:
       - name: Lane gate (skip-as-success for required checks)
@@ -181,8 +181,8 @@ jobs:
           needs.changes.outputs[matrix.lane] == 'true' ||
           needs.changes.outputs.common == 'true' ||
           needs.changes.outputs.buildSrc == 'true' ||
-          needs.changes.outputs['gradle-infra'] == 'true' ||
-          needs.changes.outputs['e2e-infra'] == 'true'
+          needs.changes.outputs.gradle_infra == 'true' ||
+          needs.changes.outputs.e2e_infra == 'true'
         run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         if: steps.gate.outputs.run == 'true'
@@ -236,8 +236,8 @@ jobs:
       needs.changes.outputs.mc1_12_2 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -282,18 +282,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.16.5 out-of-band lane (own wrapper, JDK 8) ────────
-  build-forge-1_16_5:
+  build-forge_1_16_5:
     name: Build (forge-1.16.5)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_16_5'] == 'true' ||
+      needs.changes.outputs.forge_1_16_5 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -334,18 +334,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.8.9 out-of-band lane (own wrapper, JDK 8) ────────
-  build-forge-1_8_9:
+  build-forge_1_8_9:
     name: Build (forge-1.8.9)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_8_9'] == 'true' ||
+      needs.changes.outputs.forge_1_8_9 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -386,18 +386,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.10.2 out-of-band lane (own wrapper, JDK 8) ────────
-  build-forge-1_10_2:
+  build-forge_1_10_2:
     name: Build (forge-1.10.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_10_2'] == 'true' ||
+      needs.changes.outputs.forge_1_10_2 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -438,18 +438,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.6.4 out-of-band lane (own wrapper, JDK 8, vendored SpecialSource) ──
-  build-forge-1_6_4:
+  build-forge_1_6_4:
     name: Build (forge-1.6.4)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_6_4'] == 'true' ||
+      needs.changes.outputs.forge_1_6_4 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -490,18 +490,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.5.2 out-of-band lane (own wrapper, JDK 8, vendored SpecialSource) ──
-  build-forge-1_5_2:
+  build-forge_1_5_2:
     name: Build (forge-1.5.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_5_2'] == 'true' ||
+      needs.changes.outputs.forge_1_5_2 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -542,18 +542,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.4.7 out-of-band lane (own wrapper, JDK 8, vendored SpecialSource) ──
-  build-forge-1_4_7:
+  build-forge_1_4_7:
     name: Build (forge-1.4.7)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_4_7'] == 'true' ||
+      needs.changes.outputs.forge_1_4_7 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -594,18 +594,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.20.1 out-of-band lane (own wrapper, JDK 21) ────────
-  build-forge-1_20_1:
+  build-forge_1_20_1:
     name: Build (forge-1.20.1)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_20_1'] == 'true' ||
+      needs.changes.outputs.forge_1_20_1 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -646,18 +646,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.18.2 out-of-band lane (own wrapper, JDK 21) ────────
-  build-forge-1_18_2:
+  build-forge_1_18_2:
     name: Build (forge-1.18.2)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_18_2'] == 'true' ||
+      needs.changes.outputs.forge_1_18_2 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -698,18 +698,18 @@ jobs:
           if-no-files-found: warn
 
   # ── forge-1.7.10 out-of-band lane (own wrapper, JDK 8, GTNH FG 1.2.11) ──
-  build-forge-1_7_10:
+  build-forge_1_7_10:
     name: Build (forge-1.7.10)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_7_10'] == 'true' ||
+      needs.changes.outputs.forge_1_7_10 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -768,8 +768,8 @@ jobs:
       needs.changes.outputs.mc1_12_2 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 8
@@ -842,13 +842,13 @@ jobs:
       matrix:
         include:
           - lane: forge-1.7.10
-            filter-key: forge-1_7_10
+            filter-key: forge_1_7_10
             fgver: 1.7.10-10.13.4.1614
           - lane: forge-1.8.9
-            filter-key: forge-1_8_9
+            filter-key: forge_1_8_9
             fgver: 1.8.9-11.15.1.2318
           - lane: forge-1.10.2
-            filter-key: forge-1_10_2
+            filter-key: forge_1_10_2
             fgver: 1.10.2-12.18.3.2511
     steps:
       - name: Lane gate (skip-as-success for required checks)
@@ -858,8 +858,8 @@ jobs:
           needs.changes.outputs[matrix.filter-key] == 'true' ||
           needs.changes.outputs.common == 'true' ||
           needs.changes.outputs.buildSrc == 'true' ||
-          needs.changes.outputs['gradle-infra'] == 'true' ||
-          needs.changes.outputs['e2e-infra'] == 'true'
+          needs.changes.outputs.gradle_infra == 'true' ||
+          needs.changes.outputs.e2e_infra == 'true'
         run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         if: steps.gate.outputs.run == 'true'
@@ -947,11 +947,11 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_21'] == 'true' ||
+      needs.changes.outputs.forge_1_21 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -1011,13 +1011,13 @@ jobs:
       matrix:
         include:
           - lane: forge-1.6.4
-            filter-key: forge-1_6_4
+            filter-key: forge_1_6_4
             fgver: 1.6.4-9.11.1.1345
           - lane: forge-1.5.2
-            filter-key: forge-1_5_2
+            filter-key: forge_1_5_2
             fgver: 1.5.2-7.8.1.738
           - lane: forge-1.4.7
-            filter-key: forge-1_4_7
+            filter-key: forge_1_4_7
             fgver: 1.4.7-6.6.2.534
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
@@ -1030,8 +1030,8 @@ jobs:
           needs.changes.outputs[matrix.filter-key] == 'true' ||
           needs.changes.outputs.common == 'true' ||
           needs.changes.outputs.buildSrc == 'true' ||
-          needs.changes.outputs['gradle-infra'] == 'true' ||
-          needs.changes.outputs['e2e-infra'] == 'true'
+          needs.changes.outputs.gradle_infra == 'true' ||
+          needs.changes.outputs.e2e_infra == 'true'
         run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         if: steps.gate.outputs.run == 'true'
@@ -1134,13 +1134,13 @@ jobs:
       matrix:
         include:
           - lane: forge-1.21
-            filter-key: forge-1_21
+            filter-key: forge_1_21
           - lane: forge-1.21.1
-            filter-key: forge-1_21_1
+            filter-key: forge_1_21_1
           - lane: forge-1.21.4
-            filter-key: forge-1_21_4
+            filter-key: forge_1_21_4
           - lane: forge-1.21.8
-            filter-key: forge-1_21_8
+            filter-key: forge_1_21_8
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
@@ -1152,8 +1152,8 @@ jobs:
           needs.changes.outputs[matrix.filter-key] == 'true' ||
           needs.changes.outputs.common == 'true' ||
           needs.changes.outputs.buildSrc == 'true' ||
-          needs.changes.outputs['gradle-infra'] == 'true' ||
-          needs.changes.outputs['e2e-infra'] == 'true'
+          needs.changes.outputs.gradle_infra == 'true' ||
+          needs.changes.outputs.e2e_infra == 'true'
         run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         if: steps.gate.outputs.run == 'true'
@@ -1236,11 +1236,11 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_16_5'] == 'true' ||
+      needs.changes.outputs.forge_1_16_5 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
       GALLIUM_DRIVER: llvmpipe
@@ -1343,23 +1343,23 @@ jobs:
       matrix:
         include:
           - lane: forge-1.16.5
-            filter-key: forge-1_16_5
+            filter-key: forge_1_16_5
             java: "8"
             fgver: 1.16.5-36.2.34
           - lane: forge-1.18.2
-            filter-key: forge-1_18_2
+            filter-key: forge_1_18_2
             java: "21"
             fgver: 1.18.2-40.3.0
           - lane: forge-1.20.1
-            filter-key: forge-1_20_1
+            filter-key: forge_1_20_1
             java: "21"
             fgver: 1.20.1-47.4.10
           - lane: forge-26.1
-            filter-key: forge-26_1
+            filter-key: forge_26_1
             java: "25"
             fgver: 26.1-62.0.9
           - lane: forge-26.2
-            filter-key: forge-26_2
+            filter-key: forge_26_2
             java: "25"
             fgver: 26.2-65.0.9
     env:
@@ -1373,8 +1373,8 @@ jobs:
           needs.changes.outputs[matrix.filter-key] == 'true' ||
           needs.changes.outputs.common == 'true' ||
           needs.changes.outputs.buildSrc == 'true' ||
-          needs.changes.outputs['gradle-infra'] == 'true' ||
-          needs.changes.outputs['e2e-infra'] == 'true'
+          needs.changes.outputs.gradle_infra == 'true' ||
+          needs.changes.outputs.e2e_infra == 'true'
         run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         if: steps.gate.outputs.run == 'true'
@@ -1470,11 +1470,11 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_21'] == 'true' ||
+      needs.changes.outputs.forge_1_21 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -1522,11 +1522,11 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_21_1'] == 'true' ||
+      needs.changes.outputs.forge_1_21_1 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -1565,11 +1565,11 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_21_4'] == 'true' ||
+      needs.changes.outputs.forge_1_21_4 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -1608,11 +1608,11 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-1_21_8'] == 'true' ||
+      needs.changes.outputs.forge_1_21_8 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
@@ -1651,11 +1651,11 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-26_2'] == 'true' ||
+      needs.changes.outputs.forge_26_2 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 25
@@ -1694,11 +1694,11 @@ jobs:
     needs: [lint-yaml, changes]
     if: >-
       github.event_name == 'push' ||
-      needs.changes.outputs['forge-26_1'] == 'true' ||
+      needs.changes.outputs.forge_26_1 == 'true' ||
       needs.changes.outputs.common == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 25
@@ -1767,15 +1767,15 @@ jobs:
     if: >-
       github.event_name == 'push' ||
       needs.changes.outputs.common == 'true' ||
-      needs.changes.outputs['forge-1_21'] == 'true' ||
-      needs.changes.outputs['forge-1_21_1'] == 'true' ||
-      needs.changes.outputs['forge-1_21_4'] == 'true' ||
-      needs.changes.outputs['forge-1_21_8'] == 'true' ||
-      needs.changes.outputs['forge-26_2'] == 'true' ||
-      needs.changes.outputs['forge-26_1'] == 'true' ||
+      needs.changes.outputs.forge_1_21 == 'true' ||
+      needs.changes.outputs.forge_1_21_1 == 'true' ||
+      needs.changes.outputs.forge_1_21_4 == 'true' ||
+      needs.changes.outputs.forge_1_21_8 == 'true' ||
+      needs.changes.outputs.forge_26_2 == 'true' ||
+      needs.changes.outputs.forge_26_1 == 'true' ||
       needs.changes.outputs.buildSrc == 'true' ||
-      needs.changes.outputs['gradle-infra'] == 'true' ||
-      needs.changes.outputs['e2e-infra'] == 'true'
+      needs.changes.outputs.gradle_infra == 'true' ||
+      needs.changes.outputs.e2e_infra == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up JDK 21
