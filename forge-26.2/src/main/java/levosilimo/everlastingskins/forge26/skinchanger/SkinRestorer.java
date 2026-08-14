@@ -100,8 +100,10 @@ public class SkinRestorer {
             MinecraftServer srv = server;
             String name = player.getGameProfile().name();
             loginExecutor.submit(() -> {
-                // Config list takes precedence; the static default-skin.properties
-                // restore is the fallback when the list is disabled or empty.
+                // Config list takes precedence; when the list is disabled or
+                // empty, fall back to fetching the player's own Mojang skin
+                // by name. (No static default-skin.properties restore exists
+                // here — the config list is the only configured source.)
                 if (Config.DEFAULT_SKINS_ENABLED.get() && !Config.DEFAULT_SKINS_LIST.get().isEmpty()) {
                     Property defaultProp = DefaultSkinResolver.resolveDefault(
                             Config.DEFAULT_SKINS_LIST.get(), SkinCommand.getMojangAPI());

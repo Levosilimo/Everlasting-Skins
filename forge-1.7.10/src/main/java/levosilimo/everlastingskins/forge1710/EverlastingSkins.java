@@ -44,7 +44,16 @@ import org.apache.logging.log4j.Logger;
     modid = EverlastingSkins.MOD_ID,
     name = EverlastingSkins.MOD_NAME,
     version = EverlastingSkins.VERSION,
-    acceptedMinecraftVersions = "[1.7.10]"
+    acceptedMinecraftVersions = "[1.7.10]",
+    // FML 7.x handshake-parity opt-out (FIX-6): FML 7 enforces mod-list
+    // parity at join — a server mod absent from the client's mod list is
+    // rejected via NetworkModHolder's DefaultNetworkChecker ("Mod
+    // rejections [everlastingskins]") unless the mod opts out. FML 7's
+    // @Mod has no serverSideOnly (that is 1.8+); acceptableRemoteVersions
+    // = "*" is the canonical opt-out — the holder constructor special-cases
+    // exactly "*" to IgnoredChecker (accepts any remote incl. absence, i.e.
+    // vanilla clients). Same pattern as the 1.8.9/1.10.2 lanes.
+    acceptableRemoteVersions = "*"
 )
 public class EverlastingSkins {
     public static final String MOD_ID = "everlastingskins";

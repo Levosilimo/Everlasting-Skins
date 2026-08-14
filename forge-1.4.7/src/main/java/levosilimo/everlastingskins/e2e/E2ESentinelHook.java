@@ -10,6 +10,7 @@ import cpw.mods.fml.common.FMLLog;
 import cpw.mods.fml.common.network.IConnectionHandler;
 import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.Player;
+import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.skinchanger.SkinRestorer;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.server.MinecraftServer;
@@ -62,13 +63,31 @@ public final class E2ESentinelHook {
 
     public static final String TEST_PLAYER = E2EDriver.TEST_PLAYER;
 
+    /**
+     * Re-broadcast burst parameters (observer fan-out proof, lib-23 gap
+     * (d)). The observer client's real {@code ClientSkinHandler} can only
+     * inject while the actor is SPAWNED in the observer's world; the
+     * verified 1.4.7/1.4.7 login ordering puts the login broadcast AHEAD
+     * of the actor's spawn packets, so the login broadcast is dropped by
+     * the handler (target not spawned yet) — and the ACTOR'S in-world
+     * window is ~1s (the actor driver joins, proves the command surface
+     * and exits), so any SINGLE delayed re-broadcast misses it too. A
+     * dense burst (period &lt; the actor's window) after EVERY connection
+     * deterministically lands at least one sentinel-carrying broadcast
+     * while the actor is in-world on the observer.
+     */
+    public static final long REBROADCAST_PERIOD_MS = 250L;
+    public static final int REBROADCAST_BURST_COUNT = 40;
+
     private static volatile boolean seeded;
+    /** Cached seed bytes: re-broadcast is immune to {@code /skin clear} (storage-only). */
+    private static volatile byte[] seededPng;
 
     private E2ESentinelHook() {}
 
     /** Called from {@code EverlastingSkins.init()} (one line; gates live here). */
     public static void install() {
-        if (!Boolean.getBoolean(E2E_PROPERTY)) {
+        if (!isEnabled()) {
             return;
         }
         if (cpw.mods.fml.common.FMLCommonHandler.instance().getSide()
@@ -79,12 +98,24 @@ public final class E2ESentinelHook {
         FMLLog.info("ES_E2E_SENTINEL=hook installed");
     }
 
+    /** Gate seam (testable without FML): the e2e property must be set. */
+    static boolean isEnabled() {
+        return Boolean.getBoolean(E2E_PROPERTY);
+    }
+
     /** Seeds storage on the first login attempt (idempotent). */
     private static final class Seeder implements IConnectionHandler {
 
         @Override
         public String connectionReceived(NetLoginHandler netHandler, INetworkManager manager) {
             seedOnce();
+            // Every connection (actor, observer, …) schedules a re-broadcast
+            // BURST of the CACHED seed bytes. The observer's delivery comes
+            // from a burst element landing inside the actor's ~1s in-world
+            // window (the actor's own connection burst starts 0.25s after it
+            // connects; the observer's burst, started earlier, also covers
+            // the actor's join).
+            scheduleRebroadcast();
             return null;
         }
 
@@ -135,6 +166,7 @@ public final class E2ESentinelHook {
             String value = Base64.getEncoder().encodeToString(png);
             CustomSkinProperty property = new CustomSkinProperty(
                 "textures", value, "", "e2e-sentinel");
+            seededPng = png;
             java.util.UUID uuid = SkinRestorer.uuidOf(TEST_PLAYER);
             SkinRestorer.applySkin(uuid, property);
             FMLLog.info("ES_E2E_SENTINEL=seeded player=%s uuid=%s pngSha1=%s bytes=%d",
@@ -144,9 +176,49 @@ public final class E2ESentinelHook {
         }
     }
 
-    private static byte[] readSentinelPng(MinecraftServer server) {
-        String override = System.getProperty(SENTINEL_PROPERTY);
-        File candidate = override != null ? new File(override) : server.getFile("e2e-sentinel.png");
+    /**
+     * Schedules a one-shot re-broadcast BURST of the cached seed bytes
+     * (daemon thread; nothing holds the server up). No-op until the seed has
+     * landed.
+     */
+    static void scheduleRebroadcast() {
+        if (seededPng == null) {
+            return;
+        }
+        rebroadcastThread(REBROADCAST_PERIOD_MS, REBROADCAST_BURST_COUNT).start();
+    }
+
+    /** Thread factory seam (unit-testable without timing): daemon, named, burst loop. */
+    static Thread rebroadcastThread(final long periodMs, final int count) {
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < count; i++) {
+                    try {
+                        Thread.sleep(periodMs);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    rebroadcast();
+                }
+            }
+        }, "ES-E2E-rebroadcast");
+        t.setDaemon(true);
+        return t;
+    }
+
+    /** Fans the cached sentinel bytes out over the real broadcast channel (PNG inline). */
+    private static void rebroadcast() {
+        byte[] png = seededPng;
+        if (png == null) {
+            return;
+        }
+        SkinBroadcaster.broadcastProfileChange(TEST_PLAYER, png);
+        FMLLog.info("ES_E2E_SENTINEL=rebroadcast player=%s pngBytes=%d", TEST_PLAYER, png.length);
+    }
+
+    static byte[] readSentinelPng(MinecraftServer server) {
+        File candidate = sentinelFile(server);
         if (!candidate.isFile()) {
             return null;
         }
@@ -156,6 +228,12 @@ public final class E2ESentinelHook {
             FMLLog.warning("ES_E2E_SENTINEL=read failed (%s)", e.toString());
             return null;
         }
+    }
+
+    /** Sentinel file resolution seam (testable without a server). */
+    static File sentinelFile(MinecraftServer server) {
+        String override = System.getProperty(SENTINEL_PROPERTY);
+        return override != null ? new File(override) : server.getFile("e2e-sentinel.png");
     }
 
     private static String sha1(byte[] bytes) {

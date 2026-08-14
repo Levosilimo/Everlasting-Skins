@@ -31,6 +31,14 @@ public class SkinStorage {
     private static final Logger LOGGER = LogManager.getLogger(SkinStorage.class);
 
     private final CustomSkinProperty DEFAULT_SKIN;
+
+    /**
+     * Static by design: the in-memory skin cache is process-wide (one cache
+     * per JVM, not per {@link SkinStorage} instance). Callers must treat
+     * {@link SkinStorage} as a single-instance facade over the shared cache:
+     * construct one per server and route all access through it, or the
+     * per-instance {@link SkinIO} delegate and this shared map drift apart.
+     */
     private static final ConcurrentHashMap<UUID, CustomSkinProperty> skinMap = new ConcurrentHashMap<>();
     private final SkinIO skinIO;
 
@@ -114,6 +122,10 @@ public class SkinStorage {
      * thread, so the sync save is ordered after any in-flight drain write for
      * the same UUID — a stale async payload can never land after the sync
      * save (sync/async inversion).
+     *
+     * @throws SaveFailedException when the write could not be confirmed to
+     *         have landed (timeout, interrupt, or failure after the bounded
+     *         retry budget) — the caller must not assume persistence
      */
     public void saveSkin(UUID uuid) {
         CustomSkinProperty skinProperty = skinMap.get(uuid);
@@ -125,10 +137,10 @@ public class SkinStorage {
      * Coalescing async save: delegates to the SkinIO drain-coalesce writer.
      * The payload is serialized now and merged into the pending map (later
      * payloads for the same UUID supersede earlier ones); a single drain runs
-     * after a 50ms debounce window. The returned stage completes once the
-     * payload has been merged — the write itself happens on the writer
-     * thread, so callers that need the write on disk must await
-     * {@link #flushPending()}.
+     * after a 50ms debounce window. The returned stage completes only once
+     * the payload has been durably written to disk (or the pending write is
+     * superseded by a delete); callers that await it can rely on the data
+     * being on disk when it completes.
      */
     public CompletableFuture<Void> saveSkinAsync(UUID uuid, CustomSkinProperty skin) {
         return skinIO.saveSkinAsync(uuid, skin);
@@ -137,6 +149,8 @@ public class SkinStorage {
     /**
      * Blocks until all queued writes have been drained. Called on server
      * shutdown so no payload is lost mid-session.
+     *
+     * @throws SaveFailedException when a queued payload failed to persist
      */
     public void flushPending() {
         skinIO.flushPending();
@@ -151,6 +165,24 @@ public class SkinStorage {
     public static class DeleteFailedException extends RuntimeException {
 
         DeleteFailedException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /**
+     * Raised when a synchronous persistence call ({@link #saveSkin(UUID)} or
+     * {@link #flushPending()}) cannot confirm the payload landed: the write
+     * failed after the bounded retry budget, timed out, or was interrupted.
+     * Mirrors {@link DeleteFailedException}: sync callers must not believe a
+     * payload was persisted when it was dropped.
+     */
+    public static class SaveFailedException extends RuntimeException {
+
+        SaveFailedException(String message) {
+            super(message);
+        }
+
+        SaveFailedException(String message, Throwable cause) {
             super(message, cause);
         }
     }
@@ -181,6 +213,10 @@ public class SkinStorage {
         } catch (IOException e) {
             LOGGER.warn("Failed to delete skin file for {}", uuid, e);
             throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);
+        } catch (DeleteFailedException e) {
+            // Already fail-closed (interrupt/timeout in SkinIO); rethrow as-is
+            // so the caller sees the original reason, not a double wrap.
+            throw e;
         } catch (RuntimeException e) {
             LOGGER.warn("Skin delete of {} failed", uuid, e);
             throw new DeleteFailedException("Skin delete of " + uuid + " failed", e);

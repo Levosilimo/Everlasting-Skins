@@ -19,6 +19,5 @@
   "metrics_refreshes": " 回",
   "metrics_no_refreshes": "（変更履歴なし）",
   "metrics_cleanup": "メトリクスをクリーンアップ: %d 件の古いプレイヤーエントリを削除しました",
-  "metrics_reset": "メトリクスをリセットしました",
-  "discord_announce": "**%s** さんがスキンを `%s` に変更しました"
+  "metrics_reset": "メトリクスをリセットしました"
 }

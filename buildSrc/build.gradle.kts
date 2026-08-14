@@ -19,16 +19,19 @@ dependencies {
     implementation("net.ltgt.errorprone:net.ltgt.errorprone.gradle.plugin:5.1.0")
 
     // Single FG version for the whole buildSrc classpath; applied
-    // versionlessly by everlastingskins.forge-module. Same range as the
-    // legacy 1.21 build.gradle ([7.0.3,8) — FG 7.x, Gradle 9.3.1 verified
-    // on the point-release branches).
+    // versionlessly by everlastingskins.forge-module. PINNED EXACTLY to
+    // 7.0.17 — the version AGENTS.md documents as consumed (first FG with
+    // explicit unobfuscated-UserDev support, used by the 26.x lanes).
+    // The former range [7.0.3,8) floated (it resolves to 7.0.34 today);
+    // exact pinning kills that drift: buildSrc classpath changes must be
+    // deliberate, not a side effect of a maven-metadata refresh.
     //
     // The legacy lanes (forge-1.16.5, forge-1.20.1) are NOT on this
     // classpath: they left the root build entirely (lib-34 lane
     // separation) and run their own FG 5.1.77 / FG 6.0.54 on their own
     // wrapper classpaths. Keeping a second FG version here would collide
     // on the shared plugin id and break the 1.21 lane.
-    implementation("net.minecraftforge:forgegradle:[7.0.3,8)")
+    implementation("net.minecraftforge:forgegradle:7.0.17")
 
     // Dependency-analysis-gradle-plugin (com.autonomousapps.dependency-analysis),
     // 3.18.0 — the "knip" analog for Gradle Java builds: its buildHealth task

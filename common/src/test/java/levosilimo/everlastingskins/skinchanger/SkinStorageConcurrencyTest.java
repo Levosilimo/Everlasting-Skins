@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -161,7 +162,7 @@ class SkinStorageConcurrencyTest {
                         CustomSkinProperty asyncSkin = skin(payload, workerId, i);
                         storage.setSkin(uuid, asyncSkin);
                         expected.put(uuid, asyncSkin);
-                        storage.saveSkinAsync(uuid, asyncSkin);
+                        CompletableFuture<Void> unused = storage.saveSkinAsync(uuid, asyncSkin);
                         break;
                     default:
                         throw new IllegalStateException("unknown op");
@@ -183,7 +184,8 @@ class SkinStorageConcurrencyTest {
                 assertNull(got, "deleted/never-set uuid resurrected: " + uuid);
             } else {
                 assertNotNull(got, "no skin for live uuid " + uuid);
-                // Compare the payload, NOT equals(): CustomSkinProperty.equals is source-only.
+                // Compare the payload, not equals(): the value is the observable
+                // update; equals() would add signature/source noise.
                 assertEquals(want.getValue(), got.getValue(), "lost update for " + uuid);
             }
         }

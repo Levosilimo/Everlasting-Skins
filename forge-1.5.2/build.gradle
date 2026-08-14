@@ -171,3 +171,17 @@ task downgradeClassVersion(dependsOn: reobf) {
 }
 // The name-domain self-check javap's the jar — must see the final artifact.
 assertNameDomain.dependsOn downgradeClassVersion
+
+// E2E slice 1: the shared sentinel PNG (:common test resources, canonical at
+// common/src/test/resources/e2e/sentinel-64x32.png) is mirrored onto the
+// lane's test resources (same pattern as the main source-dir share). The
+// e2e scripts read the canonical copy straight from the repo path; the
+// classpath copy lets the lane's tests assert the pixel contract of the
+// exact bytes the live run injects.
+sourceSets {
+    test {
+        resources {
+            srcDir '../common/src/test/resources'
+        }
+    }
+}

@@ -73,14 +73,38 @@ jobs:
           numbers="$(gh pr list --repo ${{ github.repository }} --base main --state open \
             --limit 100 --json number,isDraft,autoMergeRequest,mergeStateStatus \
             --jq '.[] | select(.isDraft == false and .autoMergeRequest != null and .mergeStateStatus == "BEHIND") | .number')"
+          # Format guard (regression prevention): jq emits one PR number per
+          # line, so every emitted line must be a bare integer. If the query
+          # shape ever changes, the GITHUB_OUTPUT write below would fail the
+          # step and deadlock every BEHIND auto-merge PR again — a loud
+          # failure right here beats a silent deadlock.
+          if grep -vE '^[0-9]+$' <<<"$numbers" | grep -q .; then
+            echo "::error::behind_prs format guard tripped: expected only PR numbers, got: $(printf '%s' "$numbers" | tr '\n' ' ')" >&2
+            exit 1
+          fi
           echo "found $(wc -w <<<"$numbers") BEHIND auto-merge PR(s)"
-          echo "behind_prs=$numbers" >> "$GITHUB_OUTPUT"
+          # GITHUB_OUTPUT multiline syntax: jq emits one number per line and
+          # a single-line `key=value` write would split across GITHUB_OUTPUT
+          # lines — the parser rejects the orphan lines ("Invalid format
+          # '451'", runs 31585576691/31591453568) and the step fails. The
+          # heredoc form carries the newline-delimited list natively; any
+          # consumer splitting on whitespace (the Update step's `for n in
+          # $numbers`, or `while read`) handles it unchanged.
+          {
+            echo "behind_prs<<EOF"
+            printf '%s\n' "$numbers"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Update BEHIND branches (PAT-gated)
         if: env.PAT_AVAILABLE == 'true'
         env:
           GH_TOKEN: ${{ secrets.EVERLASTINGSKINS_PAT }}
         run: |
+          # Deliberately re-list at update time (fresh state; avoids the
+          # list-vs-update 422 race) rather than consuming the List step's
+          # behind_prs output — the output exists for observability and
+          # future consumers, and is valid either way.
           numbers="$(gh pr list --repo ${{ github.repository }} --base main --state open \
             --limit 100 --json number,isDraft,autoMergeRequest,mergeStateStatus \
             --jq '.[] | select(.isDraft == false and .autoMergeRequest != null and .mergeStateStatus == "BEHIND") | .number')"
