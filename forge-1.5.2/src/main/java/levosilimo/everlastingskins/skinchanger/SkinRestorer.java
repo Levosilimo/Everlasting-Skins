@@ -10,12 +10,14 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import levosilimo.everlastingskins.broadcast.SkinBroadcaster;
 import levosilimo.everlastingskins.command.SkinRestorerCommand;
+import levosilimo.everlastingskins.forge152.config.Config;
 import levosilimo.everlastingskins.util.CustomSkinProperty;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerMP;
 import net.minecraft.src.INetworkManager;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -75,6 +77,7 @@ public final class SkinRestorer {
         // first player logs in (mirrors the 1.8.9 lane's init).
         skinIO.validateAllFiles();
         storage = new SkinStorage(skinIO);
+        Config.load(new File(server.getFile("config"), "everlastingskins.cfg"));
         event.registerServerCommand(new SkinRestorerCommand());
     }
 
