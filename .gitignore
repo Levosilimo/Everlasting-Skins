@@ -54,7 +54,6 @@ test-infrastructure/headlessmc/
 # Agent artifacts
 IMPLEMENTATION_PLAN.md
 
-# BEGIN oh-my-opencode-slim worktrees
-.slim/worktrees/
-.slim/worktrees.json
-# END oh-my-opencode-slim worktrees
+# BEGIN oh-my-opencode-slim (local tooling; never commit anything under .slim/)
+.slim/
+# END oh-my-opencode-slim
