@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -158,7 +159,7 @@ class SkinSyncAsyncOrderTest {
         }
 
         @Override
-        void saveSkin(UUID uuid, byte[] payload) {
+        void saveSkin(UUID uuid, byte[] payload) throws IOException {
             writeStarted.countDown();
             try {
                 if (!releaseWrite.await(GENEROUS_AWAIT_SECONDS, TimeUnit.SECONDS)) {
