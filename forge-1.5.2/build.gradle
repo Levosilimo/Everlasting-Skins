@@ -171,3 +171,22 @@ task downgradeClassVersion(dependsOn: reobf) {
 }
 // The name-domain self-check javap's the jar — must see the final artifact.
 assertNameDomain.dependsOn downgradeClassVersion
+
+// ---------------------------------------------------------------------------
+// fork #5 (1.5.2 dev-classpath quirk): the merged dev jar carries the
+// universal leg's CreativeTabs whose clinit calls `CreativeTabSearch.a(String)`
+// (the invokevirtual receiver-owner rename missed that call site during the
+// obf->deobf leg — the declaration became setBackgroundImageName but the call
+// site kept the obf name), while the server leg's CreativeTabSearch is a bare
+// stub. Any MC registry static-init chain (Block -> CreativeTabs) therefore
+// throws NoSuchMethodError in a test JVM, which blocks ConfigTest's
+// Configuration load() round-trip (Configuration sizes a static field off
+// Item.itemsList, forcing the registry init). The CLIENT jar is the
+// self-consistent leg for these classes (vanilla readable domain, full
+// CreativeTabSearch), so the client-deobf jar is prepended to the TEST
+// classpath only — the compile classpath and the shipped (reobf'd) jar are
+// untouched, and the assertNameDomain gate still sees the production domain.
+def testClientDeobfLeg = files('build/deobf/client-deobf.jar')
+test {
+    classpath = testClientDeobfLeg + classpath
+}
