@@ -196,8 +196,6 @@ jobs:
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
         if: steps.gate.outputs.run == 'true'
-        with:
-          cache-provider: basic
       - name: Grant execute permission for gradlew
         if: steps.gate.outputs.run == 'true'
         run: chmod +x gradlew
@@ -962,8 +960,6 @@ jobs:
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
-        with:
-          cache-provider: basic
       - name: Run config-order gate (structural guard + CI-mirror probe)
         run: bash scripts/config-order-gate.sh
         env:
@@ -1485,8 +1481,6 @@ jobs:
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
-        with:
-          cache-provider: basic
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
@@ -1537,8 +1531,6 @@ jobs:
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
-        with:
-          cache-provider: basic
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
@@ -1580,8 +1572,6 @@ jobs:
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
-        with:
-          cache-provider: basic
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
@@ -1623,8 +1613,6 @@ jobs:
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
-        with:
-          cache-provider: basic
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
@@ -1666,8 +1654,6 @@ jobs:
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
-        with:
-          cache-provider: basic
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
@@ -1709,8 +1695,6 @@ jobs:
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
-        with:
-          cache-provider: basic
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
@@ -1786,8 +1770,6 @@ jobs:
           distribution: temurin
       - name: Set up Gradle (wrapper validation + cache)
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6
-        with:
-          cache-provider: basic
       - name: chmod +x gradlew
         run: chmod +x gradlew
       - name: Run CI Health (gradle-health.sh + dep-analysis)
