@@ -189,7 +189,7 @@ Never decompile raw obf jars for reading — use the deobf jars' decompiled outp
    `mc26.2-v*` (colloquial '26.2', matching the Forge 65.x line naming).
    forge-26.1 follows the same 26.x line pattern — own tag prefix
    `mc26.1-v*` (matching the Forge 62.x line naming), mod_version
-   2.1.0-beta.1.
+   2.1.0-rc2.
 6. **`:common` consumed unconditionally:** every forge-* subproject depends
    on `:common` via `implementation(project(":common"))` in
    buildSrc `everlastingskins.forge-module.gradle.kts`; there is no opt-out.

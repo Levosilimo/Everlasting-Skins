@@ -12,6 +12,6 @@ Development-only mod carrying the EverlastingSkins game test classes and structu
 [[dependencies.everlastingskins_gametest]]
 modId = "everlastingskins"
 mandatory = true
-versionRange = "[2.1.0-rc1,)"
+versionRange = "[2.1.0-rc2,)"
 ordering = "AFTER"
 side = "SERVER"
