@@ -816,7 +816,7 @@ jobs:
         # HttpTimeoutException, HTTP 429 — AGENTS.md lib-58 triage rule; the
         # E2E convention's exit code 2 = retryable infra). Retries reuse the
         # on-disk ~/.gradle state from the failed attempt, so they are warm.
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 40
           max_attempts: 3
@@ -909,7 +909,7 @@ jobs:
           restore-keys: |
             e2e-${{ matrix.lane }}-${{ runner.os }}-
       - name: Run HeadlessMC E2E (bridge / in-jar driver)
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         if: steps.gate.outputs.run == 'true'
         with:
           timeout_minutes: 40
@@ -1085,7 +1085,7 @@ jobs:
         # in job-level env (invalid workflow file -> zero jobs on push). The
         # shared orchestrator (scripts/e2e/e2e-common.sh) reads it for the
         # server dir + result copy; the upload step below globs the same dir.
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         if: steps.gate.outputs.run == 'true'
         with:
           timeout_minutes: 40
@@ -1193,7 +1193,7 @@ jobs:
         # RUNNER_TMP must be a STEP env: the runner context is not available
         # in job-level env (invalid workflow file -> zero jobs on push). The
         # lane wrapper reads it for the server dir + result copy.
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         if: steps.gate.outputs.run == 'true'
         with:
           timeout_minutes: 40
@@ -1290,7 +1290,7 @@ jobs:
         # RUNNER_TMP must be a STEP env: the runner context is not available
         # in job-level env (invalid workflow file -> zero jobs on push). The
         # lane wrapper reads it for the server dir + result copy.
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 40
           max_attempts: 3
@@ -1443,7 +1443,7 @@ jobs:
           restore-keys: |
             e2e-${{ matrix.lane }}-${{ runner.os }}-
       - name: Run real-client E2E (boot-smoke or full in-jar driver per lane)
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         if: steps.gate.outputs.run == 'true'
         with:
           timeout_minutes: 40
@@ -1499,7 +1499,7 @@ jobs:
         # infra-noise signatures (Mavenizer cache-miss / HTTP timeouts /
         # 429 — AGENTS.md lib-58) inside the same check-run; retries reuse
         # the on-disk ~/.gradle state, so they are warm.
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 20
           max_attempts: 3
@@ -1542,7 +1542,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 20
           max_attempts: 3
@@ -1585,7 +1585,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 20
           max_attempts: 3
@@ -1628,7 +1628,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 20
           max_attempts: 3
@@ -1671,7 +1671,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 20
           max_attempts: 3
@@ -1714,7 +1714,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Run GameTest (skin visibility packets)
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 20
           max_attempts: 3
