@@ -36,7 +36,7 @@ jsr305 = "3.0.2"
 guava = "33.5.0-jre"
 # slf4j 2.x pin; also enforced for ALL org.slf4j transitives via the forge
 # convention's resolutionStrategy (discordsrv bundles unrelocated SLF4J 1.x).
-slf4j = "2.0.9"
+slf4j = "2.0.18"
 luckperms = "5.5"
 placeholderapi = "2.12.3"
 discordsrv = "1.30.5"
