@@ -33,7 +33,7 @@ log4j = "2.26.1"
 jsr305 = "3.0.2"
 # Guava on the annotation processor path keeps ErrorProne stable (it previously
 # shadowed the OLD Guava bundled in mixin-0.8.7-processor.jar).
-guava = "33.5.0-jre"
+guava = "33.6.0-jre"
 # slf4j 2.x pin; also enforced for ALL org.slf4j transitives via the forge
 # convention's resolutionStrategy (discordsrv bundles unrelocated SLF4J 1.x).
 slf4j = "2.0.9"
