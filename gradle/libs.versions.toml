@@ -19,7 +19,7 @@ junit = "5.14.4"
 # jqwik: 1.10.1 (was 1.10.1 in :common vs 1.9.3 in the forge convention).
 # 1.10.x needs Java 17+ at runtime — fine on the Java 21/25 forge toolchains
 # and the Java 21 daemon that runs :common tests.
-jqwik = "1.10.1"
+jqwik = "1.10.2"
 # mockito: 5.23.0 (was 5.23.0 in :common vs 5.12.0 in the forge convention);
 # newer ByteBuddy means better JDK 25 support for the 26.x lanes.
 mockito = "5.23.0"
