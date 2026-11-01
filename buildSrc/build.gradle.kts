@@ -49,5 +49,5 @@ dependencies {
     // Caution: Forge's runtime reflection (e.g. @EventBusSubscriber, model
     // loaders) can produce false positives in buildHealth. We run it at
     // severity=WARN only, never FAIL, and review before any auto-fix.
-    implementation("com.autonomousapps:dependency-analysis-gradle-plugin:3.18.0")
+    implementation("com.autonomousapps:dependency-analysis-gradle-plugin:3.20.0")
 }
