@@ -24,7 +24,7 @@ jqwik = "1.10.1"
 # newer ByteBuddy means better JDK 25 support for the 26.x lanes.
 mockito = "5.23.0"
 # Gson floor = Minecraft 1.12.2's bundled 2.8.0; only pre-2.8 APIs are used.
-gson = "2.14.0"
+gson = "2.15.0"
 # authlib floor = the 1.12.2-era jar; only Property(String,String,String)/getValue used.
 authlib = "1.5.25"
 # log4j2 floor = Minecraft 1.12.2's bundled 2.8.1 (LogManager.getLogger API is stable).
