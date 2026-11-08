@@ -19,8 +19,8 @@ dependencies {
     // cannot instrument Java 25 class files ("Could not modify all classes")
     // under the lane's Java 25 toolchain — every MC-class mock in the unit
     // tests fails. 5.23.0 ships byte-buddy 1.17.x with Java 25 support.
-    testImplementation("org.mockito:mockito-core:5.23.0")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.23.0")
+    testImplementation("org.mockito:mockito-core:5.24.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.24.0")
 }
 
 // EventBus 7 strict runtime checks (26.x MDK parity): the MDK sets
