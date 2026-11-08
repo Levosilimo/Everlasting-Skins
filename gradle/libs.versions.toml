@@ -22,7 +22,7 @@ junit = "5.14.4"
 jqwik = "1.10.1"
 # mockito: 5.23.0 (was 5.23.0 in :common vs 5.12.0 in the forge convention);
 # newer ByteBuddy means better JDK 25 support for the 26.x lanes.
-mockito = "5.23.0"
+mockito = "5.24.0"
 # Gson floor = Minecraft 1.12.2's bundled 2.8.0; only pre-2.8 APIs are used.
 gson = "2.14.0"
 # authlib floor = the 1.12.2-era jar; only Property(String,String,String)/getValue used.
